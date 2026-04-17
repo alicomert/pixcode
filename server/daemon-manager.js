@@ -5,8 +5,8 @@ import { spawnSync } from 'child_process';
 import { request } from 'node:http';
 import net from 'node:net';
 
-const DAEMON_SERVICE_NAME = 'cloudcli.service';
-const FRONTEND_DAEMON_SERVICE_NAME = 'cloudcli-frontend.service';
+const DAEMON_SERVICE_NAME = 'pixcode.service';
+const FRONTEND_DAEMON_SERVICE_NAME = 'pixcode-frontend.service';
 const DAEMON_USER_SERVICE_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', DAEMON_SERVICE_NAME);
 const DAEMON_SYSTEM_SERVICE_PATH = path.join('/etc', 'systemd', 'system', DAEMON_SERVICE_NAME);
 const FRONTEND_DAEMON_USER_SERVICE_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', FRONTEND_DAEMON_SERVICE_NAME);
@@ -41,7 +41,7 @@ const SYSTEM_MUTATING_DAEMON_SUBCOMMANDS = new Set([
     'uninstall',
     'logs',
 ]);
-let cloudcliBinaryAvailableCache = null;
+let pixcodeBinaryAvailableCache = null;
 
 function passthroughColor(text) {
     return text;
@@ -114,19 +114,19 @@ function resolveDaemonCliEntryPath(context = {}) {
     return explicitCliEntry || argvCliEntry || path.join(appRoot, 'server', 'cli.js');
 }
 
-function hasCloudcliBinary() {
-    if (cloudcliBinaryAvailableCache !== null) {
-        return cloudcliBinaryAvailableCache;
+function hasPixcodeBinary() {
+    if (pixcodeBinaryAvailableCache !== null) {
+        return pixcodeBinaryAvailableCache;
     }
 
-    const probe = runCommand('cloudcli', ['--version']);
-    cloudcliBinaryAvailableCache = probe.status === 0;
-    return cloudcliBinaryAvailableCache;
+    const probe = runCommand('pixcode', ['--version']);
+    pixcodeBinaryAvailableCache = probe.status === 0;
+    return pixcodeBinaryAvailableCache;
 }
 
 function getDaemonCommandPrefix(context = {}, { forceLocal = false } = {}) {
-    if (!forceLocal && hasCloudcliBinary()) {
-        return 'cloudcli';
+    if (!forceLocal && hasPixcodeBinary()) {
+        return 'pixcode';
     }
 
     const nodeExec = context.nodeExecPath || process.execPath || 'node';
@@ -232,7 +232,7 @@ function buildDaemonServiceUnit({ appRoot, serverPort, databasePath, nodeExecPat
         cliEntry,
     });
     return `[Unit]
-Description=CloudCLI Server
+Description=Pixcode Server
 After=network.target
 
 [Service]
@@ -241,7 +241,7 @@ WorkingDirectory=${appRoot}
 ExecStart=${execStart}
 Environment=HOST=0.0.0.0
 Environment=CI=true
-Environment=CLOUDCLI_DAEMON_MANAGED=1
+Environment=PIXCODE_DAEMON_MANAGED=1
 Restart=always
 RestartSec=2
 
@@ -294,7 +294,7 @@ function buildFrontendDaemonServiceUnit({ appRoot, frontendPort, nodeExecPath, c
         cliEntry,
     });
     return `[Unit]
-Description=CloudCLI Frontend (Vite Dev Server)
+Description=Pixcode Frontend (Vite Dev Server)
 After=network.target
 
 [Service]
@@ -303,7 +303,7 @@ WorkingDirectory=${appRoot}
 ExecStart=${execStart}
 Environment=HOST=0.0.0.0
 Environment=CI=true
-Environment=CLOUDCLI_DAEMON_MANAGED=1
+Environment=PIXCODE_DAEMON_MANAGED=1
 Restart=always
 RestartSec=2
 
@@ -520,7 +520,7 @@ function showDaemonHelp(c, context = {}) {
     const doctorExample = buildDaemonCliCommand({ subcommand: 'doctor', mode: 'auto' }, context);
     const logsExample = buildDaemonCliCommand({ subcommand: 'logs', mode: 'system' }, context);
     console.log(`
-${c.bright('CloudCLI Daemon')} - Persistent Linux service manager
+${c.bright('Pixcode Daemon')} - Persistent Linux service manager
 
 Usage:
   ${usagePrefix} daemon [subcommand] [options]
@@ -652,7 +652,7 @@ export async function handleDaemonCommand(args, context = {}) {
         const logsText = (logsResult.stdout || logsResult.stderr || '').trim();
         const lastErrorLine = findLatestErrorLine(logsText);
 
-        console.log(`\n${c.bright('CloudCLI Daemon Doctor')}\n`);
+        console.log(`\n${c.bright('Pixcode Daemon Doctor')}\n`);
         console.log(`${c.info('[INFO]')} Requested mode: ${c.bright(parsed.options.mode)}`);
         console.log(`${c.info('[INFO]')} Resolved mode:  ${c.bright(mode)}`);
         console.log(`${c.info('[INFO]')} user-bus:       ${userBus.ok ? c.ok('ok') : c.warn('unavailable')}`);
@@ -904,7 +904,7 @@ export async function handleDaemonCommand(args, context = {}) {
             const frontendUnitExists = fs.existsSync(frontendServicePath);
             const selectedPort = getPortFromServiceUnit(servicePath) || portNum;
             const selectedFrontendPort = getPortFromServiceUnit(frontendServicePath) || frontendPortNum;
-            console.log(`\n${c.bright('CloudCLI Daemon Status')}\n`);
+            console.log(`\n${c.bright('Pixcode Daemon Status')}\n`);
             console.log(`${c.info('[INFO]')} Mode:      ${c.bright(mode)} ${parsed.options.mode === 'auto' ? c.dim('(resolved from auto)') : ''}`);
             console.log(`${c.info('[INFO]')} Backend Unit:   ${c.dim(servicePath)} ${backendUnitExists ? c.ok('[OK]') : c.warn('[MISSING]')}`);
             console.log(`${c.info('[INFO]')} Backend Active: ${c.bright(backendState.active)}`);

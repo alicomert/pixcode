@@ -5,16 +5,16 @@ import path from 'path';
 import { execFileSync, spawn } from 'child_process';
 
 const DEFAULT_SERVER_PORT = 3001;
-const DAEMON_DIR = path.join(os.homedir(), '.cloudcli', 'daemon');
+const DAEMON_DIR = path.join(os.homedir(), '.pixcode', 'daemon');
 const PID_FILE = path.join(DAEMON_DIR, 'daemon.pid');
 const STATE_FILE = path.join(DAEMON_DIR, 'daemon-state.json');
 const LOG_FILE = path.join(DAEMON_DIR, 'daemon.log');
 
-const LINUX_SYSTEMD_UNIT = 'cloudcli-daemon.service';
+const LINUX_SYSTEMD_UNIT = 'pixcode-daemon.service';
 const LINUX_SYSTEMD_UNIT_PATH = path.join(os.homedir(), '.config', 'systemd', 'user', LINUX_SYSTEMD_UNIT);
-const MACOS_LAUNCH_AGENT_LABEL = 'ai.cloudcli.daemon';
+const MACOS_LAUNCH_AGENT_LABEL = 'ai.pixcode.daemon';
 const MACOS_LAUNCH_AGENT_PATH = path.join(os.homedir(), 'Library', 'LaunchAgents', `${MACOS_LAUNCH_AGENT_LABEL}.plist`);
-const WINDOWS_TASK_NAME = 'cloudcli-daemon';
+const WINDOWS_TASK_NAME = 'pixcode-daemon';
 
 function ensureDaemonDir() {
   fs.mkdirSync(DAEMON_DIR, { recursive: true });
@@ -175,7 +175,7 @@ function buildLinuxSystemdUnit({ nodePath, cliEntryPath, serverPort, databasePat
   const execStop = [quoteSystemdArg(nodePath), quoteSystemdArg(cliEntryPath), quoteSystemdArg('daemon'), quoteSystemdArg('stop')].join(' ');
 
   return `[Unit]
-Description=CloudCLI daemon bootstrap
+Description=Pixcode daemon bootstrap
 After=network-online.target
 Wants=network-online.target
 
@@ -394,7 +394,7 @@ export function startDaemon({ nodePath, cliEntryPath, serverPort, databasePath }
       windowsHide: true,
       env: {
         ...process.env,
-        CLOUDCLI_SKIP_UPDATE_CHECK: '1',
+        PIXCODE_SKIP_UPDATE_CHECK: '1',
         SERVER_PORT: String(resolvedPort),
         ...(resolvedDatabasePath ? { DATABASE_PATH: resolvedDatabasePath } : {})
       }

@@ -1,11 +1,11 @@
 {
-  "name": "@cloudcli-ai/cloudcli",
+  "name": "pixcode",
   "version": "1.29.5",
   "description": "A web-based UI for Claude Code CLI",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
-    "cloudcli": "dist-server/server/cli.js"
+    "pixcode": "dist-server/server/cli.js"
   },
   "files": [
     "server/",
@@ -15,13 +15,13 @@
     "scripts/",
     "README.md"
   ],
-  "homepage": "https://cloudcli.ai",
+  "homepage": "https://github.com/alicomert/pixcode",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/siteboon/claudecodeui.git"
+    "url": "git+https://github.com/alicomert/pixcode.git"
   },
   "bugs": {
-    "url": "https://github.com/siteboon/claudecodeui/issues"
+    "url": "https://github.com/alicomert/pixcode/issues"
   },
   "scripts": {
     "dev": "npm run server:dev",
@@ -48,7 +48,7 @@
     "claude code",
     "claude-code",
     "claude-code-ui",
-    "cloudcli",
+    "pixcode",
     "codex",
     "gemini",
     "gemini-cli",
@@ -62,7 +62,7 @@
     "ui",
     "mobile IDE"
   ],
-  "author": "CloudCLI UI Contributors",
+  "author": "Pixcode Contributors",
   "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.59",

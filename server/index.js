@@ -375,7 +375,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
             ? 'npm run update:platform'
             : installMode === 'git'
                 ? 'git checkout main && git pull && npm install'
-                : 'npm install -g @cloudcli-ai/cloudcli@latest';
+                : 'npm install -g pixcode@latest';
 
         const updateCwd = IS_PLATFORM || installMode === 'git'
             ? projectRoot
@@ -2359,7 +2359,7 @@ function printSystemDaemonActiveNotice(port) {
         { subcommand: 'logs', mode: 'system' },
         DAEMON_COMMAND_CONTEXT
     );
-    console.log(`${c.ok('[OK]')} System daemon is active and managing CloudCLI.`);
+    console.log(`${c.ok('[OK]')} System daemon is active and managing Pixcode.`);
     console.log(`${c.info('[INFO]')} Health URL: ${c.bright(`http://localhost:${effectivePort}/health`)}`);
     console.log(`${c.info('[INFO]')} Status: ${c.bright(statusCommand)}`);
     console.log(`${c.info('[INFO]')} Stop: ${c.bright(stopCommand)}`);
@@ -2397,17 +2397,17 @@ function isSystemPermissionError(error) {
 
 async function maybeAutoDaemonBootstrapFromIndex() {
     if (process.platform !== 'linux') return false;
-    if (process.env.CLOUDCLI_DAEMON_MANAGED === '1') return false;
-    if (process.env.CLOUDCLI_NO_DAEMON === '1') return false;
-    if (process.env.CLOUDCLI_DAEMON_ATTEMPTED === '1') return false;
+    if (process.env.PIXCODE_DAEMON_MANAGED === '1') return false;
+    if (process.env.PIXCODE_NO_DAEMON === '1') return false;
+    if (process.env.PIXCODE_DAEMON_ATTEMPTED === '1') return false;
 
-    process.env.CLOUDCLI_DAEMON_ATTEMPTED = '1';
+    process.env.PIXCODE_DAEMON_ATTEMPTED = '1';
 
     const systemArgs = ['install', '--mode=system', '--port', String(SERVER_PORT), '--frontend-port', String(VITE_PORT)];
     const userArgs = ['install', '--mode=user', '--port', String(SERVER_PORT), '--frontend-port', String(VITE_PORT)];
 
     try {
-        console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for CloudCLI...`);
+        console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for Pixcode...`);
         await handleDaemonCommand(systemArgs, {
             appRoot: APP_ROOT,
             defaultPort: String(SERVER_PORT),
@@ -2519,12 +2519,12 @@ async function startServer() {
 
             console.log('');
             console.log(c.dim('═'.repeat(63)));
-            console.log(`  ${c.bright('CloudCLI Server - Ready')}`);
+            console.log(`  ${c.bright('Pixcode Server - Ready')}`);
             console.log(c.dim('═'.repeat(63)));
             console.log('');
             console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
             console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
-            console.log(`${c.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
+            console.log(`${c.tip('[TIP]')}  Run "pixcode status" for full configuration details`);
             console.log('');
 
             // Start watching the projects folder for changes

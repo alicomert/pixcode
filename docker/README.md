@@ -1,9 +1,9 @@
 <!-- Docker Hub short description (100 chars max): -->
 <!-- Sandbox templates for running AI coding agents with a web & mobile IDE (Claude Code, Codex, Gemini) -->
 
-# Sandboxed coding agents with a web & mobile IDE (CloudCLI)
+# Sandboxed coding agents with a web & mobile IDE (Pixcode)
 
-[Docker Sandbox](https://docs.docker.com/ai/sandboxes/) templates that add [CloudCLI](https://cloudcli.ai) on top of Claude Code, Codex, and Gemini CLI. You get a full web and mobile IDE accessible from any browser on any device.
+[Docker Sandbox](https://docs.docker.com/ai/sandboxes/) templates that add [Pixcode](https://github.com/alicomert/pixcode) on top of Claude Code, Codex, and Gemini CLI. You get a full web and mobile IDE accessible from any browser on any device.
 
 ## Get started
 
@@ -29,7 +29,7 @@ sbx secret set -g anthropic
 ### 3. Launch Claude Code
 
 ```bash
-npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project
+npx pixcode@latest sandbox ~/my-project
 ```
 
 Open **http://localhost:3001**. Set a password on first visit. Start building.
@@ -41,20 +41,20 @@ Store the matching API key and pass `--agent`:
 ```bash
 # OpenAI Codex
 sbx secret set -g openai
-npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project --agent codex
+npx pixcode@latest sandbox ~/my-project --agent codex
 
 # Gemini CLI
 sbx secret set -g google
-npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project --agent gemini
+npx pixcode@latest sandbox ~/my-project --agent gemini
 ```
 
 ### Available templates
 
 | Agent | Template |
 |-------|----------|
-| **Claude Code** (default) | `docker.io/cloudcliai/sandbox:claude-code` |
-| OpenAI Codex | `docker.io/cloudcliai/sandbox:codex` |
-| Gemini CLI | `docker.io/cloudcliai/sandbox:gemini` |
+| **Claude Code** (default) | `ghcr.io/alicomert/pixcode-sandbox:claude-code` |
+| OpenAI Codex | `ghcr.io/alicomert/pixcode-sandbox:codex` |
+| Gemini CLI | `ghcr.io/alicomert/pixcode-sandbox:gemini` |
 
 These are used with `--template` when running `sbx` directly (see [Advanced usage](#advanced-usage)).
 
@@ -68,12 +68,12 @@ sbx rm my-project                    # Remove everything
 sbx exec my-project bash             # Open a shell inside the sandbox
 ```
 
-If you install CloudCLI globally (`npm install -g @cloudcli-ai/cloudcli`), you can also use:
+If you install Pixcode globally (`npm install -g pixcode`), you can also use:
 
 ```bash
-cloudcli sandbox ls
-cloudcli sandbox start my-project    # Restart and re-launch web UI
-cloudcli sandbox logs my-project     # View server logs
+pixcode sandbox ls
+pixcode sandbox start my-project    # Restart and re-launch web UI
+pixcode sandbox logs my-project     # View server logs
 ```
 
 ## What you get
@@ -92,7 +92,7 @@ Your project directory is mounted bidirectionally — edits propagate in real ti
 Set variables at creation time with `--env`:
 
 ```bash
-npx @cloudcli-ai/cloudcli@latest sandbox ~/my-project --env SERVER_PORT=8080
+npx pixcode@latest sandbox ~/my-project --env SERVER_PORT=8080
 ```
 
 Or inside a running sandbox:
@@ -101,18 +101,18 @@ Or inside a running sandbox:
 sbx exec my-project bash -c 'echo "export SERVER_PORT=8080" >> /etc/sandbox-persistent.sh'
 ```
 
-Restart CloudCLI for changes to take effect:
+Restart Pixcode for changes to take effect:
 
 ```bash
 sbx exec my-project bash -c 'pkill -f "server/index.js"'
-sbx exec -d my-project cloudcli start --port 3001
+sbx exec -d my-project pixcode start --port 3001
 ```
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SERVER_PORT` | `3001` | Web UI port |
 | `HOST` | `0.0.0.0` | Bind address (must be `0.0.0.0` for `sbx ports`) |
-| `DATABASE_PATH` | `~/.cloudcli/auth.db` | SQLite database location |
+| `DATABASE_PATH` | `~/.pixcode/auth.db` | SQLite database location |
 
 ## Advanced usage
 
@@ -120,20 +120,20 @@ For branch mode, multiple workspaces, memory limits, or the terminal agent exper
 
 ```bash
 # Terminal agent + web UI
-sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/my-project --name my-project
+sbx run --template ghcr.io/alicomert/pixcode-sandbox:claude-code claude ~/my-project --name my-project
 sbx ports my-project --publish 3001:3001
 
 # Branch mode (Git worktree isolation)
-sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/my-project --branch my-feature
+sbx run --template ghcr.io/alicomert/pixcode-sandbox:claude-code claude ~/my-project --branch my-feature
 
 # Multiple workspaces
-sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/project ~/shared-libs:ro
+sbx run --template ghcr.io/alicomert/pixcode-sandbox:claude-code claude ~/project ~/shared-libs:ro
 
 # Pass a prompt directly
-sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/my-project -- "Fix the auth bug"
+sbx run --template ghcr.io/alicomert/pixcode-sandbox:claude-code claude ~/my-project -- "Fix the auth bug"
 ```
 
-CloudCLI auto-starts via `.bashrc` when using `sbx run`.
+Pixcode auto-starts via `.bashrc` when using `sbx run`.
 
 Full options in the [Docker Sandboxes usage guide](https://docs.docker.com/ai/sandboxes/usage/).
 
@@ -150,10 +150,10 @@ The web UI itself doesn't need a policy — access it via `sbx ports`.
 
 ## Links
 
-- [CloudCLI Cloud](https://cloudcli.ai) — fully managed, no setup required
-- [Documentation](https://cloudcli.ai/docs) — full configuration guide
+- [Pixcode](https://github.com/alicomert/pixcode) — fully managed, no setup required
+- [Documentation](https://github.com/alicomert/pixcode) — full configuration guide
 - [Discord](https://discord.gg/buxwujPNRE) — community support
-- [GitHub](https://github.com/siteboon/claudecodeui) — source code and issues
+- [GitHub](https://github.com/alicomert/pixcode) — source code and issues
 
 ## License
 

@@ -15,7 +15,7 @@ function sanitizeGitError(message, token) {
 // Configure allowed workspace root (defaults to user's home directory)
 export const WORKSPACES_ROOT = process.env.WORKSPACES_ROOT || os.homedir();
 export const WORKSPACES_BASE = path.resolve(
-  process.env.WORKSPACES_BASE || path.join(WORKSPACES_ROOT, 'cloudcli', 'projects')
+  process.env.WORKSPACES_BASE || path.join(WORKSPACES_ROOT, 'pixcode', 'projects')
 );
 
 // System-critical paths that should never be used as workspace directories

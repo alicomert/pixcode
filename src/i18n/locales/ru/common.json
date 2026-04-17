@@ -84,7 +84,7 @@
     "openInEditor": "Открыть в редакторе"
   },
   "mainContent": {
-    "loading": "Загрузка CloudCLI",
+    "loading": "Загрузка Pixcode",
     "settingUpWorkspace": "Настройка рабочего пространства...",
     "chooseProject": "Выберите проект",
     "selectProjectDescription": "Выберите проект на боковой панели, чтобы начать работу с Claude. Каждый проект содержит ваши сеансы чата и историю файлов.",
@@ -215,7 +215,7 @@
     "viewFullRelease": "Посмотреть полный релиз",
     "updateProgress": "Прогресс обновления:",
     "manualUpgrade": "Ручное обновление:",
-    "npmUpgradeCommand": "npm install -g @cloudcli-ai/cloudcli@latest",
+    "npmUpgradeCommand": "npm install -g pixcode@latest",
     "manualUpgradeHint": "Или нажмите \"Обновить сейчас\" для автоматического обновления.",
     "updateCompleted": "Обновление успешно завершено!",
     "restartServer": "Пожалуйста, перезапустите сервер для применения изменений.",

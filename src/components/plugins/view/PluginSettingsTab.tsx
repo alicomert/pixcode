@@ -5,8 +5,8 @@ import { usePlugins } from '../../../contexts/PluginsContext';
 import type { Plugin } from '../../../contexts/PluginsContext';
 import PluginIcon from './PluginIcon';
 
-const STARTER_PLUGIN_URL = 'https://github.com/cloudcli-ai/cloudcli-plugin-starter';
-const TERMINAL_PLUGIN_URL = 'https://github.com/cloudcli-ai/cloudcli-plugin-terminal';
+const STARTER_PLUGIN_URL = 'https://github.com/alicomert/pixcode';
+const TERMINAL_PLUGIN_URL = 'https://github.com/alicomert/pixcode';
 
 /* ─── Toggle Switch ─────────────────────────────────────────────────────── */
 function ToggleSwitch({ checked, onChange, ariaLabel }: { checked: boolean; onChange: (v: boolean) => void; ariaLabel: string }) {
@@ -243,7 +243,7 @@ function StarterPluginCard({ onInstall, installing }: { onInstall: () => void; i
                 className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground/60 transition-colors hover:text-foreground"
               >
                 <GitBranch className="h-3 w-3" />
-                cloudcli-ai/cloudcli-plugin-starter
+                alicomert/pixcode
               </a>
             </div>
           </div>
@@ -304,7 +304,7 @@ function TerminalPluginCard({ onInstall, installing }: { onInstall: () => void; 
                 className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground/60 transition-colors hover:text-foreground"
               >
                 <GitBranch className="h-3 w-3" />
-                cloudcli-ai/cloudcli-plugin-terminal
+                alicomert/pixcode
               </a>
             </div>
           </div>
@@ -521,7 +521,7 @@ export default function PluginSettingsTab() {
         </a>
         <span className="text-muted-foreground/20">·</span>
         <a
-          href="https://cloudcli.ai/docs/plugin-overview"
+          href="https://github.com/alicomert/pixcode"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-muted-foreground/60 transition-colors hover:text-foreground"

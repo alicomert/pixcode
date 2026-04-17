@@ -1,11 +1,11 @@
-# Contributing to CloudCLI UI
+# Contributing to Pixcode
 
-Thanks for your interest in contributing to CloudCLI UI! Before you start, please take a moment to read through this guide.
+Thanks for your interest in contributing to Pixcode! Before you start, please take a moment to read through this guide.
 
 ## Before You Start
 
-- **Search first.** Check [existing issues](https://github.com/siteboon/claudecodeui/issues) and [pull requests](https://github.com/siteboon/claudecodeui/pulls) to avoid duplicating work.
-- **Discuss first** for new features. Open an [issue](https://github.com/siteboon/claudecodeui/issues/new) to discuss your idea before investing time in implementation. We may already have plans or opinions on how it should work.
+- **Search first.** Check [existing issues](https://github.com/alicomert/pixcode/issues) and [pull requests](https://github.com/alicomert/pixcode/pulls) to avoid duplicating work.
+- **Discuss first** for new features. Open an [issue](https://github.com/alicomert/pixcode/issues/new) to discuss your idea before investing time in implementation. We may already have plans or opinions on how it should work.
 - **Bug fixes are always welcome.** If you spot a bug, feel free to open a PR directly.
 
 ## Prerequisites

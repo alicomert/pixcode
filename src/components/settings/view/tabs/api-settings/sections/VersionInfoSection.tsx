@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { IS_PLATFORM } from '../../../../../../constants/config';
 import type { ReleaseInfo } from '../../../../../../types/sharedTypes';
 
-const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
+const GITHUB_REPO_URL = 'https://github.com/alicomert/pixcode';
 const DISCORD_URL = 'https://discord.gg/buxwujPNRE';
-const DOCS_URL = 'https://cloudcli.ai/docs/plugin-overview';
-const CLOUDCLI_URL = 'https://cloudcli.ai';
+const DOCS_URL = 'https://github.com/alicomert/pixcode';
+const PIXCODE_URL = 'https://github.com/alicomert/pixcode';
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -42,7 +42,7 @@ export default function VersionInfoSection({
 
   return (
     <div className="border-t border-border/50 pt-6">
-      {/* About CloudCLI */}
+      {/* About Pixcode */}
       <div className="space-y-4">
         {/* Logo + name + version */}
         <div className="flex items-center gap-3">
@@ -51,7 +51,7 @@ export default function VersionInfoSection({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-foreground">CloudCLI</span>
+              <span className="text-sm font-semibold text-foreground">Pixcode</span>
               <a
                 href={releasesUrl}
                 target="_blank"
@@ -120,25 +120,25 @@ export default function VersionInfoSection({
             Docs
           </a>
           <a
-            href={CLOUDCLI_URL}
+            href={PIXCODE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             <ExternalLink className="h-3 w-3" />
-            cloudcli.ai
+            github.com/alicomert/pixcode
           </a>
         </div>
 
         {/* Hosted CTA (OSS mode only) */}
         {!IS_PLATFORM && (
           <div className="rounded-xl border border-primary/10 bg-primary/5 p-4">
-            <h4 className="text-sm font-medium text-foreground">Try CloudCLI Hosted</h4>
+            <h4 className="text-sm font-medium text-foreground">Try Pixcode Hosted</h4>
             <p className="mt-1 text-xs text-muted-foreground">
               Team collaboration, shared MCP configs, settings sync across environments, and managed infrastructure.
             </p>
             <a
-              href={CLOUDCLI_URL}
+              href={PIXCODE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:underline"

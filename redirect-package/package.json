@@ -1,26 +1,26 @@
 {
   "name": "@siteboon/claude-code-ui",
   "version": "2.0.0",
-  "description": "This package has moved to @cloudcli-ai/cloudcli",
+  "description": "This package has moved to pixcode",
   "type": "module",
   "main": "index.js",
   "bin": {
     "claude-code-ui": "./bin.js",
-    "cloudcli": "./bin.js"
+    "pixcode": "./bin.js"
   },
-  "homepage": "https://cloudcli.ai",
+  "homepage": "https://github.com/alicomert/pixcode",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/siteboon/claudecodeui.git"
+    "url": "git+https://github.com/alicomert/pixcode.git"
   },
   "bugs": {
-    "url": "https://github.com/siteboon/claudecodeui/issues"
+    "url": "https://github.com/alicomert/pixcode/issues"
   },
   "keywords": [
     "claude code",
     "claude-code",
     "claude-code-ui",
-    "cloudcli",
+    "pixcode",
     "codex",
     "gemini",
     "gemini-cli",
@@ -34,10 +34,10 @@
     "ui",
     "mobile IDE"
   ],
-  "author": "CloudCLI UI Contributors",
+  "author": "Pixcode Contributors",
   "dependencies": {
-    "@cloudcli-ai/cloudcli": "*"
+    "pixcode": "*"
   },
-  "deprecated": "This package has been renamed to @cloudcli-ai/cloudcli. Please install @cloudcli-ai/cloudcli instead.",
+  "deprecated": "This package has been renamed to pixcode. Please install pixcode instead.",
   "license": "AGPL-3.0-or-later"
 }

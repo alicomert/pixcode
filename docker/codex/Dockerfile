@@ -1,11 +1,11 @@
 FROM docker/sandbox-templates:codex
 
 USER root
-COPY shared/install-cloudcli.sh /tmp/install-cloudcli.sh
-RUN chmod +x /tmp/install-cloudcli.sh && /tmp/install-cloudcli.sh
+COPY shared/install-pixcode.sh /tmp/install-pixcode.sh
+RUN chmod +x /tmp/install-pixcode.sh && /tmp/install-pixcode.sh
 
 USER agent
-RUN npm install -g @cloudcli-ai/cloudcli && cloudcli --version
+RUN npm install -g pixcode && pixcode --version
 
-COPY --chown=agent:agent shared/start-cloudcli.sh /home/agent/.cloudcli-start.sh
-RUN echo '. ~/.cloudcli-start.sh' >> /home/agent/.bashrc
+COPY --chown=agent:agent shared/start-pixcode.sh /home/agent/.pixcode-start.sh
+RUN echo '. ~/.pixcode-start.sh' >> /home/agent/.bashrc

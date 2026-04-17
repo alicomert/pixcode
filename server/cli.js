@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * CloudCLI CLI
+ * Pixcode CLI
  *
- * Provides command-line utilities for managing CloudCLI
+ * Provides command-line utilities for managing Pixcode
  *
  * Commands:
  *   (no args)     - Start the server (default)
@@ -61,9 +61,9 @@ const c = {
 // Load package.json for version info
 const packageJsonPath = path.join(APP_ROOT, 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-// Match the runtime fallback in load-env.js so "cloudcli status" reports the same default
+// Match the runtime fallback in load-env.js so "pixcode status" reports the same default
 // database location that the backend will actually use when no DATABASE_PATH is configured.
-const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.cloudcli', 'auth.db');
+const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.pixcode', 'auth.db');
 
 // Load environment variables from .env file if it exists
 function loadEnvFile() {
@@ -97,7 +97,7 @@ function getInstallDir() {
 
 // Show status command
 function showStatus() {
-    console.log(`\n${c.bright('CloudCLI UI - Status')}\n`);
+    console.log(`\n${c.bright('Pixcode - Status')}\n`);
     console.log(c.dim('═'.repeat(60)));
 
     // Version info
@@ -144,9 +144,9 @@ function showStatus() {
 
     console.log('\n' + c.dim('═'.repeat(60)));
     console.log(`\n${c.tip('[TIP]')} Hints:`);
-    console.log(`      ${c.dim('>')} Use ${c.bright('cloudcli --port 8080')} to run on a custom port`);
-    console.log(`      ${c.dim('>')} Use ${c.bright('cloudcli --database-path /path/to/db')} for custom database`);
-    console.log(`      ${c.dim('>')} Run ${c.bright('cloudcli help')} for all options`);
+    console.log(`      ${c.dim('>')} Use ${c.bright('pixcode --port 8080')} to run on a custom port`);
+    console.log(`      ${c.dim('>')} Use ${c.bright('pixcode --database-path /path/to/db')} for custom database`);
+    console.log(`      ${c.dim('>')} Run ${c.bright('pixcode help')} for all options`);
     console.log(`      ${c.dim('>')} Access the UI at http://localhost:${process.env.SERVER_PORT || process.env.PORT || '3001'}\n`);
 }
 
@@ -154,15 +154,14 @@ function showStatus() {
 function showHelp() {
     console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
-║              CloudCLI - Command Line Tool               ║
+║              Pixcode - Command Line Tool               ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 Usage:
-  claude-code-ui [command] [options]
-  cloudcli [command] [options]
+  pixcode [command] [options]
 
 Commands:
-  start          Start the CloudCLI server (default)
+  start          Start the Pixcode server (default)
   daemon         Manage persistent Linux service (system-first)
   sandbox        Manage Docker sandbox environments
   status         Show configuration and data locations
@@ -179,15 +178,15 @@ Options:
   -v, --version               Show version information
 
 Examples:
-  $ cloudcli                        # Start with defaults
-  $ cloudcli --port 8080            # Start on port 8080
-  $ cloudcli --no-daemon            # Force foreground mode
-  $ sudo cloudcli daemon install --mode system --port 3001
-  $ cloudcli daemon install --mode user --port 3001 --frontend-port 5173
-  $ cloudcli daemon doctor --mode system
-  $ cloudcli update --restart-daemon
-  $ cloudcli sandbox ~/my-project   # Run in a Docker sandbox
-  $ cloudcli status                 # Show configuration
+  $ pixcode                        # Start with defaults
+  $ pixcode --port 8080            # Start on port 8080
+  $ pixcode --no-daemon            # Force foreground mode
+  $ sudo pixcode daemon install --mode system --port 3001
+  $ pixcode daemon install --mode user --port 3001 --frontend-port 5173
+  $ pixcode daemon doctor --mode system
+  $ pixcode update --restart-daemon
+  $ pixcode sandbox ~/my-project   # Run in a Docker sandbox
+  $ pixcode status                 # Show configuration
 
 Environment Variables:
   SERVER_PORT         Set server port (default: 3001)
@@ -197,10 +196,10 @@ Environment Variables:
   CONTEXT_WINDOW      Set context window size (default: 160000)
 
 Documentation:
-  ${packageJson.homepage || 'https://github.com/siteboon/claudecodeui'}
+  ${packageJson.homepage || 'https://github.com/alicomert/pixcode'}
 
 Report Issues:
-  ${packageJson.bugs?.url || 'https://github.com/siteboon/claudecodeui/issues'}
+  ${packageJson.bugs?.url || 'https://github.com/alicomert/pixcode/issues'}
 `);
 }
 
@@ -224,12 +223,12 @@ function isNewerVersion(v1, v2) {
 async function checkForUpdates(silent = false) {
     try {
         const { execSync } = await import('child_process');
-        const latestVersion = execSync('npm show @cloudcli-ai/cloudcli version', { encoding: 'utf8' }).trim();
+        const latestVersion = execSync('npm show pixcode version', { encoding: 'utf8' }).trim();
         const currentVersion = packageJson.version;
 
         if (isNewerVersion(latestVersion, currentVersion)) {
             console.log(`\n${c.warn('[UPDATE]')} New version available: ${c.bright(latestVersion)} (current: ${currentVersion})`);
-            console.log(`         Run ${c.bright('cloudcli update')} to update\n`);
+            console.log(`         Run ${c.bright('pixcode update')} to update\n`);
             return { hasUpdate: true, latestVersion, currentVersion };
         } else if (!silent) {
             console.log(`${c.ok('[OK]')} You are on the latest version (${currentVersion})`);
@@ -257,7 +256,7 @@ async function updatePackage(options = {}) {
         }
 
         console.log(`${c.info('[INFO]')} Updating from ${currentVersion} to ${latestVersion}...`);
-        execSync('npm update -g @cloudcli-ai/cloudcli', { stdio: 'inherit' });
+        execSync('npm update -g pixcode', { stdio: 'inherit' });
         console.log(`${c.ok('[OK]')} Update complete!`);
 
         if (options.restartDaemon) {
@@ -278,22 +277,22 @@ async function updatePackage(options = {}) {
                 DAEMON_COMMAND_CONTEXT
             );
             console.log(`${c.tip('[TIP]')} Daemon unit detected. Restart to apply update: ${c.bright(restartCommand)}`);
-            console.log(`${c.tip('[TIP]')} Or update + restart in one step: ${c.bright('cloudcli update --restart-daemon')}`);
+            console.log(`${c.tip('[TIP]')} Or update + restart in one step: ${c.bright('pixcode update --restart-daemon')}`);
         } else {
-            console.log(`${c.tip('[TIP]')} Restart cloudcli to use the new version.`);
+            console.log(`${c.tip('[TIP]')} Restart pixcode to use the new version.`);
         }
     } catch (e) {
         console.error(`${c.error('[ERROR]')} Update failed: ${e.message}`);
-        console.log(`${c.tip('[TIP]')} Try running manually: npm update -g @cloudcli-ai/cloudcli`);
+        console.log(`${c.tip('[TIP]')} Try running manually: npm update -g pixcode`);
     }
 }
 
 // ── Sandbox command ─────────────────────────────────────────
 
 const SANDBOX_TEMPLATES = {
-    claude: 'docker.io/cloudcliai/sandbox:claude-code',
-    codex: 'docker.io/cloudcliai/sandbox:codex',
-    gemini: 'docker.io/cloudcliai/sandbox:gemini',
+    claude: 'ghcr.io/alicomert/pixcode-sandbox:claude-code',
+    codex: 'ghcr.io/alicomert/pixcode-sandbox:codex',
+    gemini: 'ghcr.io/alicomert/pixcode-sandbox:gemini',
 };
 
 const SANDBOX_SECRETS = {
@@ -359,11 +358,11 @@ function parseSandboxArgs(args) {
 
 function showSandboxHelp() {
     console.log(`
-${c.bright('CloudCLI Sandbox')} — Run CloudCLI inside Docker Sandboxes
+${c.bright('Pixcode Sandbox')} — Run Pixcode inside Docker Sandboxes
 
 Usage:
-  cloudcli sandbox <workspace>            Create and start a sandbox
-  cloudcli sandbox <subcommand> [name]    Manage sandboxes
+  pixcode sandbox <workspace>            Create and start a sandbox
+  pixcode sandbox <subcommand> [name]    Manage sandboxes
 
 Subcommands:
   ${c.bright('(default)')}    Create a sandbox and start the web UI
@@ -371,7 +370,7 @@ Subcommands:
   ${c.bright('start')}        Restart a stopped sandbox and re-launch the web UI
   ${c.bright('stop')}         Stop a sandbox (preserves state)
   ${c.bright('rm')}           Remove a sandbox
-  ${c.bright('logs')}         Show CloudCLI server logs
+  ${c.bright('logs')}         Show Pixcode server logs
   ${c.bright('help')}         Show this help
 
 Options:
@@ -382,13 +381,13 @@ Options:
       --port <port>         Host port for the web UI (default: 3001)
 
 Examples:
-  $ cloudcli sandbox ~/my-project
-  $ cloudcli sandbox ~/my-project --agent codex --port 8080
-  $ cloudcli sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
-  $ cloudcli sandbox ls
-  $ cloudcli sandbox stop my-project
-  $ cloudcli sandbox start my-project
-  $ cloudcli sandbox rm my-project
+  $ pixcode sandbox ~/my-project
+  $ pixcode sandbox ~/my-project --agent codex --port 8080
+  $ pixcode sandbox ~/my-project --env SERVER_PORT=8080 --env HOST=0.0.0.0
+  $ pixcode sandbox ls
+  $ pixcode sandbox stop my-project
+  $ pixcode sandbox start my-project
+  $ pixcode sandbox rm my-project
 
 Prerequisites:
   1. Install sbx CLI: https://docs.docker.com/ai/sandboxes/get-started/
@@ -402,8 +401,8 @@ Advanced usage:
   For branch mode, multiple workspaces, memory limits, network policies,
   or passing prompts to the agent, use sbx directly with the template:
 
-    sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/my-project --branch my-feature
-    sbx run --template docker.io/cloudcliai/sandbox:claude-code claude ~/project ~/libs:ro --memory 8g
+    sbx run --template ghcr.io/alicomert/pixcode-sandbox:claude-code claude ~/my-project --branch my-feature
+    sbx run --template ghcr.io/alicomert/pixcode-sandbox:claude-code claude ~/project ~/libs:ro --memory 8g
 
   Full Docker Sandboxes docs: https://docs.docker.com/ai/sandboxes/usage/
 `);
@@ -454,7 +453,7 @@ async function sandboxCommand(args) {
 
         case 'stop':
             if (!opts.name) {
-                console.error(`\n${c.error('❌')} Sandbox name required: cloudcli sandbox stop <name>\n`);
+                console.error(`\n${c.error('❌')} Sandbox name required: pixcode sandbox stop <name>\n`);
                 process.exit(1);
             }
             sbx(['stop', opts.name], { inherit: true });
@@ -462,7 +461,7 @@ async function sandboxCommand(args) {
 
         case 'rm':
             if (!opts.name) {
-                console.error(`\n${c.error('❌')} Sandbox name required: cloudcli sandbox rm <name>\n`);
+                console.error(`\n${c.error('❌')} Sandbox name required: pixcode sandbox rm <name>\n`);
                 process.exit(1);
             }
             sbx(['rm', opts.name], { inherit: true });
@@ -470,11 +469,11 @@ async function sandboxCommand(args) {
 
         case 'logs':
             if (!opts.name) {
-                console.error(`\n${c.error('❌')} Sandbox name required: cloudcli sandbox logs <name>\n`);
+                console.error(`\n${c.error('❌')} Sandbox name required: pixcode sandbox logs <name>\n`);
                 process.exit(1);
             }
             try {
-                sbx(['exec', opts.name, 'bash', '-c', 'cat /tmp/cloudcli-ui.log'], { inherit: true });
+                sbx(['exec', opts.name, 'bash', '-c', 'cat /tmp/pixcode-ui.log'], { inherit: true });
             } catch (e) {
                 console.error(`\n${c.error('❌')} Could not read logs: ${e.message || 'Is the sandbox running?'}\n`);
             }
@@ -482,7 +481,7 @@ async function sandboxCommand(args) {
 
         case 'start': {
             if (!opts.name) {
-                console.error(`\n${c.error('❌')} Sandbox name required: cloudcli sandbox start <name>\n`);
+                console.error(`\n${c.error('❌')} Sandbox name required: pixcode sandbox start <name>\n`);
                 process.exit(1);
             }
             console.log(`\n${c.info('▶')} Starting sandbox ${c.bright(opts.name)}...`);
@@ -493,8 +492,8 @@ async function sandboxCommand(args) {
             restartRun.unref();
             await new Promise(resolve => setTimeout(resolve, 5000));
 
-            console.log(`${c.info('▶')} Launching CloudCLI web server...`);
-            sbx(['exec', opts.name, 'bash', '-c', 'cloudcli start --port 3001 &']);
+            console.log(`${c.info('▶')} Launching Pixcode web server...`);
+            sbx(['exec', opts.name, 'bash', '-c', 'pixcode start --port 3001 &']);
 
             console.log(`${c.info('▶')} Forwarding port ${opts.port} → 3001...`);
             try {
@@ -516,15 +515,15 @@ async function sandboxCommand(args) {
                 }
             }
 
-            console.log(`\n${c.ok('✔')} ${c.bright('CloudCLI is ready!')}`);
+            console.log(`\n${c.ok('✔')} ${c.bright('Pixcode is ready!')}`);
             console.log(`  ${c.info('→')} ${c.bright(`http://localhost:${opts.port}`)}\n`);
             break;
         }
 
         case 'create': {
             if (!opts.workspace) {
-                console.error(`\n${c.error('❌')} Workspace path required: cloudcli sandbox <path>\n`);
-                console.log(`   Example: ${c.bright('cloudcli sandbox ~/my-project')}\n`);
+                console.error(`\n${c.error('❌')} Workspace path required: pixcode sandbox <path>\n`);
+                console.log(`   Example: ${c.bright('pixcode sandbox ~/my-project')}\n`);
                 process.exit(1);
             }
 
@@ -549,7 +548,7 @@ async function sandboxCommand(args) {
                 }
             } catch { /* sbx secret ls not available, skip check */ }
 
-            console.log(`\n${c.bright('CloudCLI Sandbox')}`);
+            console.log(`\n${c.bright('Pixcode Sandbox')}`);
             console.log(c.dim('─'.repeat(50)));
             console.log(`  Agent:     ${c.info(opts.agent)} ${c.dim(`(${secret} credentials)`)}`);
             console.log(`  Workspace: ${c.dim(workspace)}`);
@@ -591,9 +590,9 @@ async function sandboxCommand(args) {
                 }
             }
 
-            // Step 3: Start CloudCLI inside the sandbox
-            console.log(`${c.info('▶')} Launching CloudCLI web server...`);
-            sbx(['exec', opts.name, 'bash', '-c', 'cloudcli start --port 3001 &']);
+            // Step 3: Start Pixcode inside the sandbox
+            console.log(`${c.info('▶')} Launching Pixcode web server...`);
+            sbx(['exec', opts.name, 'bash', '-c', 'pixcode start --port 3001 &']);
 
             // Step 4: Forward port
             console.log(`${c.info('▶')} Forwarding port ${opts.port} → 3001...`);
@@ -617,14 +616,14 @@ async function sandboxCommand(args) {
             }
 
             // Done
-            console.log(`\n${c.ok('✔')} ${c.bright('CloudCLI is ready!')}`);
+            console.log(`\n${c.ok('✔')} ${c.bright('Pixcode is ready!')}`);
             console.log(`  ${c.info('→')} Open ${c.bright(`http://localhost:${opts.port}`)}`);
             console.log(`\n${c.dim('  Manage with:')}`);
             console.log(`  ${c.dim('$')} sbx ls`);
             console.log(`  ${c.dim('$')} sbx stop ${opts.name}`);
             console.log(`  ${c.dim('$')} sbx start ${opts.name}`);
             console.log(`  ${c.dim('$')} sbx rm ${opts.name}`);
-            console.log(`\n${c.dim('  Or install globally:')} npm install -g @cloudcli-ai/cloudcli\n`);
+            console.log(`\n${c.dim('  Or install globally:')} npm install -g pixcode\n`);
             break;
         }
 
@@ -687,7 +686,7 @@ function printSystemDaemonActiveNotice(port) {
         { subcommand: 'logs', mode: 'system' },
         DAEMON_COMMAND_CONTEXT
     );
-    console.log(`${c.ok('[OK]')} System daemon is active and managing CloudCLI.`);
+    console.log(`${c.ok('[OK]')} System daemon is active and managing Pixcode.`);
     console.log(`${c.info('[INFO]')} Health URL: ${c.bright(`http://localhost:${effectivePort}/health`)}`);
     console.log(`${c.info('[INFO]')} Status: ${c.bright(statusCommand)}`);
     console.log(`${c.info('[INFO]')} Stop: ${c.bright(stopCommand)}`);
@@ -739,19 +738,19 @@ function buildAutoInstallArgs(mode, options, frontendPort) {
 
 async function maybeAutoDaemonStart(options = {}) {
     if (process.platform !== 'linux') return false;
-    if (process.env.CLOUDCLI_DAEMON_MANAGED === '1') return false;
-    if (process.env.CLOUDCLI_NO_DAEMON === '1') return false;
-    if (process.env.CLOUDCLI_DAEMON_ATTEMPTED === '1') return false;
+    if (process.env.PIXCODE_DAEMON_MANAGED === '1') return false;
+    if (process.env.PIXCODE_NO_DAEMON === '1') return false;
+    if (process.env.PIXCODE_DAEMON_ATTEMPTED === '1') return false;
     if (options.noDaemon) return false;
 
-    process.env.CLOUDCLI_DAEMON_ATTEMPTED = '1';
+    process.env.PIXCODE_DAEMON_ATTEMPTED = '1';
     const daemonPort = Number(options.serverPort || process.env.SERVER_PORT || process.env.PORT || '3001');
     const frontendPort = Number(process.env.VITE_PORT || '5173');
     const systemArgs = buildAutoInstallArgs('system', options, frontendPort);
     const userArgs = buildAutoInstallArgs('user', options, frontendPort);
 
     try {
-        console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for CloudCLI...`);
+        console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for Pixcode...`);
         await handleDaemonCommand(systemArgs, {
             appRoot: APP_ROOT,
             defaultPort: process.env.SERVER_PORT || process.env.PORT || '3001',
@@ -882,7 +881,7 @@ async function main() {
         process.env.SERVER_PORT = process.env.PORT;
     }
     if (options.noDaemon) {
-        process.env.CLOUDCLI_NO_DAEMON = '1';
+        process.env.PIXCODE_NO_DAEMON = '1';
     }
     if (options.databasePath) {
         process.env.DATABASE_PATH = options.databasePath;
@@ -926,7 +925,7 @@ async function main() {
             break;
         default:
             console.error(`\n❌ Unknown command: ${command}`);
-            console.log('   Run "cloudcli help" for usage information.\n');
+            console.log('   Run "pixcode help" for usage information.\n');
             process.exit(1);
     }
 }

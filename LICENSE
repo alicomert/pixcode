@@ -665,8 +665,8 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 ADDITIONAL TERMS pursuant to Section 7 of the GNU Affero General Public
 License, Version 3
 
-The following additional terms apply to the CloudCLI UI project
-(https://github.com/siteboon/claudecodeui). These terms are authorized
+The following additional terms apply to the Pixcode project
+(https://github.com/alicomert/pixcode). These terms are authorized
 by Siteboon AI B.V. as copyright holder pursuant to Section 7 of the AGPL-3.0.
 
 1. Attribution Requirement (Section 7(b))
@@ -675,7 +675,7 @@ by Siteboon AI B.V. as copyright holder pursuant to Section 7 of the AGPL-3.0.
    must preserve the following attribution notice in their documentation,
    README, or Appropriate Legal Notices:
 
-     "CloudCLI UI (https://github.com/siteboon/claudecodeui)"
+     "Pixcode (https://github.com/alicomert/pixcode)"
 
    This notice must be reasonably prominent and not hidden in a manner
    designed to avoid notice by recipients of the software.
@@ -684,18 +684,18 @@ by Siteboon AI B.V. as copyright holder pursuant to Section 7 of the AGPL-3.0.
 
    You may not misrepresent the origin of this software. Modified
    versions of the software must be clearly and prominently marked as
-   such, and must not be presented as the original CloudCLI UI software.
+   such, and must not be presented as the original Pixcode software.
 
 3. Limitation on Publicity (Section 7(d))
 
-   The names "Siteboon" and "CloudCLI" may not be used for publicity
+   The names "Siteboon" and "Pixcode" may not be used for publicity
    purposes to endorse or promote products derived from this software
    without specific prior written permission from Siteboon AI B.V.
 
 4. No Trademark Rights (Section 7(e))
 
    This License does not grant permission to use the trade names,
-   trademarks, service marks, or product names "CloudCLI," "CloudCLI UI,"
+   trademarks, service marks, or product names "Pixcode," "Pixcode,"
    or "Siteboon," except as required for reasonable and customary use in
    describing the origin of the work and reproducing the content of the
    attribution notice required above.

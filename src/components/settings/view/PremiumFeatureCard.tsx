@@ -1,7 +1,7 @@
 import { ExternalLink, Lock } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-const CLOUDCLI_URL = 'https://cloudcli.ai';
+const PIXCODE_URL = 'https://github.com/alicomert/pixcode';
 
 type PremiumFeatureCardProps = {
   icon: ReactNode;
@@ -14,7 +14,7 @@ export default function PremiumFeatureCard({
   icon,
   title,
   description,
-  ctaText = 'Available with CloudCLI Pro',
+  ctaText = 'Available with Pixcode Pro',
 }: PremiumFeatureCardProps) {
   return (
     <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 p-5">
@@ -31,7 +31,7 @@ export default function PremiumFeatureCard({
             {description}
           </p>
           <a
-            href={CLOUDCLI_URL}
+            href={PIXCODE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:underline"

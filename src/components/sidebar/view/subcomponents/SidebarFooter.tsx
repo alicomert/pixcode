@@ -3,8 +3,8 @@ import type { TFunction } from 'i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
 
-const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
-const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
+const GITHUB_ISSUES_URL = 'https://github.com/alicomert/pixcode/issues/new';
+const GITHUB_REPO_URL = 'https://github.com/alicomert/pixcode';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/buxwujPNRE';
 
@@ -134,7 +134,7 @@ export default function SidebarFooter({
             rel="noopener noreferrer"
             className="text-[10px] text-muted-foreground/40 transition-colors hover:text-muted-foreground"
           >
-            CloudCLI v{currentVersion} – {t('branding.openSource')}
+            Pixcode v{currentVersion} – {t('branding.openSource')}
           </a>
         </div>
       )}

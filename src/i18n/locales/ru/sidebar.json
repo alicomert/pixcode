@@ -21,7 +21,7 @@
     "runClaudeCli": "Запустите Claude CLI в каталоге проекта для начала работы"
   },
   "app": {
-    "title": "CloudCLI",
+    "title": "Pixcode",
     "subtitle": "Интерфейс AI помощника для программирования"
   },
   "sessions": {
