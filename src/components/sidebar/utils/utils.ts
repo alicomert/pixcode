@@ -39,6 +39,52 @@ export const persistStarredProjects = (starredProjects: Set<string>) => {
   }
 };
 
+// Session-level starring is keyed by a stable composite of projectName + sessionId,
+// so the same session id cannot collide across different projects/providers.
+export const buildSessionStarKey = (projectName: string, sessionId: string): string =>
+  `${projectName}::${sessionId}`;
+
+export const loadStarredSessions = (): Set<string> => {
+  try {
+    const saved = localStorage.getItem('starredSessions');
+    return saved ? new Set<string>(JSON.parse(saved)) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+};
+
+export const persistStarredSessions = (starredSessions: Set<string>) => {
+  try {
+    localStorage.setItem('starredSessions', JSON.stringify([...starredSessions]));
+  } catch {
+    // Non-fatal; starring is a UX nicety.
+  }
+};
+
+// Lightweight file-extension detector from session title/summary.
+// Recognizes common extensions and keeps the result short for UI chips.
+const EXT_PATTERN = /(?:^|[\s/\\(\[`"'])([\w./-]+?\.(?:ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|kt|swift|c|cc|cpp|h|hpp|cs|php|sh|bash|zsh|json|ya?ml|toml|md|mdx|html?|css|scss|less|sql|prisma|graphql|gql|vue|svelte|astro|dart|lua|r|pl|ps1|tf|dockerfile|env))(?:$|[\s:,)\]`"'])/i;
+
+export const detectSessionFileExtensions = (text: string | null | undefined): string[] => {
+  if (!text) return [];
+  const found = new Set<string>();
+  // Use a global form to find multiple matches without mutating the shared regex above.
+  const globalPattern = new RegExp(EXT_PATTERN.source, 'gi');
+  let match: RegExpExecArray | null;
+  while ((match = globalPattern.exec(text)) !== null) {
+    const filename = match[1];
+    const dotIdx = filename.lastIndexOf('.');
+    if (dotIdx > -1) {
+      const ext = filename.slice(dotIdx + 1).toLowerCase();
+      if (ext && ext.length <= 10) {
+        found.add(ext);
+      }
+    }
+    if (found.size >= 3) break; // cap to keep UI compact
+  }
+  return [...found];
+};
+
 export const getSessionDate = (session: SessionWithProvider): Date => {
   if (session.__provider === 'cursor') {
     return new Date(session.createdAt || 0);

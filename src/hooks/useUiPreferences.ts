@@ -1,5 +1,7 @@
 import { useEffect, useReducer, useRef } from 'react';
 
+export type HistoryViewMode = 'flat' | 'grouped';
+
 type UiPreferences = {
   autoExpandTools: boolean;
   showRawParameters: boolean;
@@ -7,6 +9,7 @@ type UiPreferences = {
   autoScrollToBottom: boolean;
   sendByCtrlEnter: boolean;
   sidebarVisible: boolean;
+  historyView: HistoryViewMode;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
@@ -39,7 +42,12 @@ const DEFAULTS: UiPreferences = {
   autoScrollToBottom: true,
   sendByCtrlEnter: false,
   sidebarVisible: true,
+  historyView: 'flat',
 };
+
+const HISTORY_VIEW_VALUES: HistoryViewMode[] = ['flat', 'grouped'];
+const isHistoryViewMode = (value: unknown): value is HistoryViewMode =>
+  typeof value === 'string' && (HISTORY_VIEW_VALUES as string[]).includes(value);
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
 const VALID_KEYS = new Set<UiPreferenceKey>(PREFERENCE_KEYS); // prevents unknown keys from being written
@@ -64,14 +72,30 @@ const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   return fallback;
 };
 
-const readLegacyPreference = (key: UiPreferenceKey, fallback: boolean): boolean => {
+const coercePreferenceValue = <K extends UiPreferenceKey>(
+  key: K,
+  rawValue: unknown,
+  fallback: UiPreferences[K],
+): UiPreferences[K] => {
+  if (key === 'historyView') {
+    // historyView is a string enum, not a boolean. Fall back to default if invalid.
+    return (isHistoryViewMode(rawValue) ? rawValue : fallback) as UiPreferences[K];
+  }
+  // All other preferences are booleans.
+  return parseBoolean(rawValue, fallback as boolean) as UiPreferences[K];
+};
+
+const readLegacyPreference = <K extends UiPreferenceKey>(
+  key: K,
+  fallback: UiPreferences[K],
+): UiPreferences[K] => {
   try {
     const raw = localStorage.getItem(key);
     if (raw === null) return fallback;
 
     // Supports values written by both JSON.stringify and plain strings.
     const parsed = JSON.parse(raw);
-    return parseBoolean(parsed, fallback);
+    return coercePreferenceValue(key, parsed, fallback);
   } catch {
     return fallback;
   }
@@ -91,7 +115,11 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
         const parsedRecord = parsed as Record<string, unknown>;
 
         return PREFERENCE_KEYS.reduce((acc, key) => {
-          acc[key] = parseBoolean(parsedRecord[key], DEFAULTS[key]);
+          (acc[key] as UiPreferences[typeof key]) = coercePreferenceValue(
+            key,
+            parsedRecord[key],
+            DEFAULTS[key],
+          );
           return acc;
         }, { ...DEFAULTS });
       }
@@ -101,7 +129,7 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
   }
 
   return PREFERENCE_KEYS.reduce((acc, key) => {
-    acc[key] = readLegacyPreference(key, DEFAULTS[key]);
+    (acc[key] as UiPreferences[typeof key]) = readLegacyPreference(key, DEFAULTS[key]);
     return acc;
   }, { ...DEFAULTS });
 };
@@ -114,7 +142,7 @@ function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferenc
         return state;
       }
 
-      const nextValue = parseBoolean(value, state[key]);
+      const nextValue = coercePreferenceValue(key, value, state[key]);
       if (state[key] === nextValue) {
         return state;
       }
@@ -130,9 +158,9 @@ function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferenc
         if (!(key in updates)) continue;
 
         const value = updates[key];
-        const nextValue = parseBoolean(value, state[key]);
+        const nextValue = coercePreferenceValue(key, value, state[key]);
         if (nextState[key] !== nextValue) {
-          nextState[key] = nextValue;
+          (nextState[key] as UiPreferences[typeof key]) = nextValue;
           changed = true;
         }
       }

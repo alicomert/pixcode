@@ -25,10 +25,12 @@ type SidebarProjectItemProps = {
   editingSessionName: string;
   tasksEnabled: boolean;
   mcpServerStatus: MCPServerStatus;
+  isSessionStarred: (projectName: string, sessionId: string) => boolean;
   onEditingNameChange: (name: string) => void;
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectName: string) => void;
+  onToggleStarSession: (projectName: string, sessionId: string) => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
@@ -75,10 +77,12 @@ export default function SidebarProjectItem({
   editingSessionName,
   tasksEnabled,
   mcpServerStatus,
+  isSessionStarred,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
   onToggleStarProject,
+  onToggleStarSession,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
@@ -413,10 +417,12 @@ export default function SidebarProjectItem({
         currentTime={currentTime}
         editingSession={editingSession}
         editingSessionName={editingSessionName}
+        isSessionStarred={isSessionStarred}
         onEditingSessionNameChange={onEditingSessionNameChange}
         onStartEditingSession={onStartEditingSession}
         onCancelEditingSession={onCancelEditingSession}
         onSaveEditingSession={onSaveEditingSession}
+        onToggleStarSession={onToggleStarSession}
         onProjectSelect={onProjectSelect}
         onSessionSelect={onSessionSelect}
         onDeleteSession={onDeleteSession}

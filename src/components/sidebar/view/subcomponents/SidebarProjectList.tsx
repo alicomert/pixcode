@@ -29,10 +29,12 @@ export type SidebarProjectListProps = {
   mcpServerStatus: MCPServerStatus;
   getProjectSessions: (project: Project) => SessionWithProvider[];
   isProjectStarred: (projectName: string) => boolean;
+  isSessionStarred: (projectName: string, sessionId: string) => boolean;
   onEditingNameChange: (value: string) => void;
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectName: string) => void;
+  onToggleStarSession: (projectName: string, sessionId: string) => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
@@ -73,10 +75,12 @@ export default function SidebarProjectList({
   mcpServerStatus,
   getProjectSessions,
   isProjectStarred,
+  isSessionStarred,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
   onToggleStarProject,
+  onToggleStarSession,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
@@ -136,10 +140,12 @@ export default function SidebarProjectList({
       editingSessionName={editingSessionName}
       tasksEnabled={tasksEnabled}
       mcpServerStatus={mcpServerStatus}
+      isSessionStarred={isSessionStarred}
       onEditingNameChange={onEditingNameChange}
       onToggleProject={onToggleProject}
       onProjectSelect={onProjectSelect}
       onToggleStarProject={onToggleStarProject}
+      onToggleStarSession={onToggleStarSession}
       onStartEditingProject={onStartEditingProject}
       onCancelEditingProject={onCancelEditingProject}
       onSaveProjectName={onSaveProjectName}

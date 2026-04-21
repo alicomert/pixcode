@@ -294,7 +294,41 @@
     background: hsl(var(--background));
     box-shadow: 0 0 0 2px hsl(var(--nav-input-focus-ring));
   }
-  
+
+  /*
+   * Sidebar session item subtle accent line that slides in on hover.
+   * Uses transform+opacity only (GPU-accelerated), no layout thrash, no filters.
+   * The .group/item wrapper sets up the hover target in the TS component.
+   */
+  .session-item-accent {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--primary) / 0.0) 0%,
+      hsl(var(--primary) / 0.06) 50%,
+      hsl(var(--primary) / 0.0) 100%
+    );
+    opacity: 0;
+    transform: translateX(-12%);
+    transition: opacity 180ms ease, transform 280ms ease;
+    will-change: opacity, transform;
+  }
+  .group\/item:hover .session-item-accent {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Respect reduced motion preferences — disable the sliding accent. */
+  @media (prefers-reduced-motion: reduce) {
+    .session-item-accent {
+      transition: none;
+      transform: none;
+    }
+  }
+
   /* Modal and dropdown transitions */
   .modal-transition {
     transition: opacity 200ms ease-in-out,

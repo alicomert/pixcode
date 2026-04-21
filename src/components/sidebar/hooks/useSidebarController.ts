@@ -12,10 +12,13 @@ import type {
   SessionWithProvider,
 } from '../types/types';
 import {
+  buildSessionStarKey,
   filterProjects,
   getAllSessions,
   loadStarredProjects,
+  loadStarredSessions,
   persistStarredProjects,
+  persistStarredSessions,
   readProjectSortOrder,
   sortProjects,
 } from '../utils/utils';
@@ -110,6 +113,7 @@ export function useSidebarController({
   const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState<SessionDeleteConfirmation | null>(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [starredProjects, setStarredProjects] = useState<Set<string>>(() => loadStarredProjects());
+  const [starredSessions, setStarredSessions] = useState<Set<string>>(() => loadStarredSessions());
   const [searchMode, setSearchMode] = useState<'projects' | 'conversations'>('projects');
   const [conversationResults, setConversationResults] = useState<ConversationSearchResults | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -330,6 +334,26 @@ export function useSidebarController({
   const isProjectStarred = useCallback(
     (projectName: string) => starredProjects.has(projectName),
     [starredProjects],
+  );
+
+  const toggleStarSession = useCallback((projectName: string, sessionId: string) => {
+    setStarredSessions((prev) => {
+      const key = buildSessionStarKey(projectName, sessionId);
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      persistStarredSessions(next);
+      return next;
+    });
+  }, []);
+
+  const isSessionStarred = useCallback(
+    (projectName: string, sessionId: string) =>
+      starredSessions.has(buildSessionStarKey(projectName, sessionId)),
+    [starredSessions],
   );
 
   const getProjectSessions = useCallback(
@@ -599,11 +623,14 @@ export function useSidebarController({
     sessionDeleteConfirmation,
     showVersionModal,
     starredProjects,
+    starredSessions,
     filteredProjects,
     toggleProject,
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    toggleStarSession,
+    isSessionStarred,
     getProjectSessions,
     startEditing,
     cancelEditing,

@@ -33,7 +33,12 @@
     "loadingSessions": "Loading sessions...",
     "unnamed": "Unnamed",
     "loading": "Loading...",
-    "showMore": "Show more sessions"
+    "showMore": "Show more sessions",
+    "startToSee": "Start a new session to see it here."
+  },
+  "historyView": {
+    "flat": "Recent",
+    "grouped": "By project"
   },
   "tooltips": {
     "viewEnvironments": "View Environments",
@@ -46,6 +51,10 @@
     "removeFromFavorites": "Remove from favorites",
     "editSessionName": "Manually edit session name",
     "deleteSession": "Delete this session permanently",
+    "sessionActions": "Session actions",
+    "historyView": "History view",
+    "historyViewFlat": "Recent conversations",
+    "historyViewGrouped": "Grouped by project",
     "save": "Save",
     "cancel": "Cancel",
     "clearSearch": "Clear search"
@@ -66,6 +75,8 @@
     "save": "Save",
     "delete": "Delete",
     "rename": "Rename",
+    "starSession": "Star",
+    "unstarSession": "Remove star",
     "joinCommunity": "Join Community",
     "reportIssue": "Report Issue",
     "starOnGithub": "Star on GitHub"
@@ -88,7 +99,14 @@
     "oneHourAgo": "1 hour ago",
     "hoursAgo": "{{count}} hours ago",
     "oneDayAgo": "1 day ago",
-    "daysAgo": "{{count}} days ago"
+    "daysAgo": "{{count}} days ago",
+    "buckets": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "Previous 7 days",
+      "thisMonth": "Previous 30 days",
+      "older": "Older"
+    }
   },
   "messages": {
     "deleteConfirm": "Are you sure you want to delete this?",

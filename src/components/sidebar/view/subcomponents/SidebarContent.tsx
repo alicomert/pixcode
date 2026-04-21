@@ -4,10 +4,12 @@ import type { TFunction } from 'i18next';
 import { ScrollArea } from '../../../../shared/view/ui';
 import type { Project } from '../../../../types/app';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
+import type { HistoryViewMode } from '../../../../hooks/useUiPreferences';
 import type { ConversationSearchResults, SearchProgress } from '../../hooks/useSidebarController';
 import SidebarFooter from './SidebarFooter';
 import SidebarHeader from './SidebarHeader';
 import SidebarProjectList, { type SidebarProjectListProps } from './SidebarProjectList';
+import SidebarFlatSessionList, { type SidebarFlatSessionListProps } from './SidebarFlatSessionList';
 
 type SearchMode = 'projects' | 'conversations';
 
@@ -60,6 +62,9 @@ type SidebarContentProps = {
   onShowVersionModal: () => void;
   onShowSettings: () => void;
   projectListProps: SidebarProjectListProps;
+  flatListProps: SidebarFlatSessionListProps;
+  historyView: HistoryViewMode;
+  onHistoryViewChange: (mode: HistoryViewMode) => void;
   t: TFunction;
 };
 
@@ -88,6 +93,9 @@ export default function SidebarContent({
   onShowVersionModal,
   onShowSettings,
   projectListProps,
+  flatListProps,
+  historyView,
+  onHistoryViewChange,
   t,
 }: SidebarContentProps) {
   const showConversationSearch = searchMode === 'conversations' && searchFilter.trim().length >= 2;
@@ -112,6 +120,8 @@ export default function SidebarContent({
         isRefreshing={isRefreshing}
         onCreateProject={onCreateProject}
         onCollapseSidebar={onCollapseSidebar}
+        historyView={historyView}
+        onHistoryViewChange={onHistoryViewChange}
         t={t}
       />
 
@@ -210,6 +220,8 @@ export default function SidebarContent({
               ))}
             </div>
           ) : null
+        ) : historyView === 'flat' ? (
+          <SidebarFlatSessionList {...flatListProps} />
         ) : (
           <SidebarProjectList {...projectListProps} />
         )}

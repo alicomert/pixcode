@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
-import { useUiPreferences } from '../../../hooks/useUiPreferences';
+import { useUiPreferences, type HistoryViewMode } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
@@ -12,6 +12,7 @@ import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
+import type { SidebarFlatSessionListProps } from './subcomponents/SidebarFlatSessionList';
 
 type TaskMasterSidebarContext = {
   setCurrentProject: (project: Project) => void;
@@ -43,7 +44,7 @@ function Sidebar({
     'claudecodeui',
   );
   const { preferences, setPreference } = useUiPreferences();
-  const { sidebarVisible } = preferences;
+  const { sidebarVisible, historyView } = preferences;
   const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
   const { tasksEnabled } = useTasksSettings();
 
@@ -75,6 +76,8 @@ function Sidebar({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    toggleStarSession,
+    isSessionStarred,
     getProjectSessions,
     startEditing,
     cancelEditing,
@@ -132,6 +135,24 @@ function Sidebar({
     window.location.reload();
   };
 
+  // Shared editing-session callbacks so the grouped and flat list use identical behavior.
+  const startEditingSession = (sessionId: string, initialName: string) => {
+    setEditingSession(sessionId);
+    setEditingSessionName(initialName);
+  };
+  const cancelEditingSession = () => {
+    setEditingSession(null);
+    setEditingSessionName('');
+  };
+  const saveEditingSession = (
+    projectName: string,
+    sessionId: string,
+    summary: string,
+    provider: LLMProvider,
+  ) => {
+    void updateSessionSummary(projectName, sessionId, summary, provider);
+  };
+
   const projectListProps: SidebarProjectListProps = {
     projects,
     filteredProjects,
@@ -152,10 +173,12 @@ function Sidebar({
     mcpServerStatus,
     getProjectSessions,
     isProjectStarred,
+    isSessionStarred,
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
     onToggleStarProject: toggleStarProject,
+    onToggleStarSession: toggleStarSession,
     onStartEditingProject: startEditing,
     onCancelEditingProject: cancelEditing,
     onSaveProjectName: (projectName) => {
@@ -169,17 +192,31 @@ function Sidebar({
     },
     onNewSession,
     onEditingSessionNameChange: setEditingSessionName,
-    onStartEditingSession: (sessionId, initialName) => {
-      setEditingSession(sessionId);
-      setEditingSessionName(initialName);
-    },
-    onCancelEditingSession: () => {
-      setEditingSession(null);
-      setEditingSessionName('');
-    },
-    onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
-      void updateSessionSummary(projectName, sessionId, summary, provider);
-    },
+    onStartEditingSession: startEditingSession,
+    onCancelEditingSession: cancelEditingSession,
+    onSaveEditingSession: saveEditingSession,
+    t,
+  };
+
+  const flatListProps: SidebarFlatSessionListProps = {
+    projects,
+    filteredProjects,
+    selectedSession,
+    isLoading,
+    loadingProgress,
+    currentTime,
+    editingSession,
+    editingSessionName,
+    getProjectSessions,
+    isSessionStarred,
+    onEditingSessionNameChange: setEditingSessionName,
+    onStartEditingSession: startEditingSession,
+    onCancelEditingSession: cancelEditingSession,
+    onSaveEditingSession: saveEditingSession,
+    onToggleStarSession: toggleStarSession,
+    onProjectSelect: handleProjectSelect,
+    onSessionSelect: handleSessionClick,
+    onDeleteSession: showDeleteSessionConfirmation,
     t,
   };
 
@@ -270,6 +307,9 @@ function Sidebar({
             onShowVersionModal={() => setShowVersionModal(true)}
             onShowSettings={onShowSettings}
             projectListProps={projectListProps}
+            flatListProps={flatListProps}
+            historyView={historyView}
+            onHistoryViewChange={(mode: HistoryViewMode) => setPreference('historyView', mode)}
             t={t}
           />
         </>

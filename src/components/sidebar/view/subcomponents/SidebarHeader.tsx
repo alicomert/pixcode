@@ -1,7 +1,8 @@
-import { Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
+import { Folder, FolderPlus, List, MessageSquare, Plus, RefreshCw, Rows3, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { Button, Input } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
+import type { HistoryViewMode } from '../../../../hooks/useUiPreferences';
 import { cn } from '../../../../lib/utils';
 import GitHubStarBadge from './GitHubStarBadge';
 
@@ -21,8 +22,63 @@ type SidebarHeaderProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
+  historyView: HistoryViewMode;
+  onHistoryViewChange: (mode: HistoryViewMode) => void;
   t: TFunction;
 };
+
+type HistoryViewToggleProps = {
+  value: HistoryViewMode;
+  onChange: (mode: HistoryViewMode) => void;
+  t: TFunction;
+};
+
+// Small compact toggle between "Recent" (flat/ChatGPT-style) and "By project" (grouped).
+// Kept as a segmented control so the active state is obvious at a glance.
+function HistoryViewToggle({ value, onChange, t }: HistoryViewToggleProps) {
+  const base =
+    'flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all';
+  return (
+    <div
+      role="tablist"
+      aria-label={t('tooltips.historyView', { defaultValue: 'History view' })}
+      className="flex rounded-lg bg-muted/40 p-0.5"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={value === 'flat'}
+        onClick={() => onChange('flat')}
+        className={cn(
+          base,
+          value === 'flat'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+        title={t('tooltips.historyViewFlat', { defaultValue: 'Recent conversations' })}
+      >
+        <List className="h-3 w-3" />
+        {t('historyView.flat', { defaultValue: 'Recent' })}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={value === 'grouped'}
+        onClick={() => onChange('grouped')}
+        className={cn(
+          base,
+          value === 'grouped'
+            ? 'bg-background text-foreground shadow-sm'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+        title={t('tooltips.historyViewGrouped', { defaultValue: 'Grouped by project' })}
+      >
+        <Rows3 className="h-3 w-3" />
+        {t('historyView.grouped', { defaultValue: 'By project' })}
+      </button>
+    </div>
+  );
+}
 
 export default function SidebarHeader({
   isPWA,
@@ -38,6 +94,8 @@ export default function SidebarHeader({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
+  historyView,
+  onHistoryViewChange,
   t,
 }: SidebarHeaderProps) {
   const LogoBlock = () => (
@@ -112,6 +170,10 @@ export default function SidebarHeader({
         {/* Search bar */}
         {projectsCount > 0 && !isLoading && (
           <div className="mt-2.5 space-y-2">
+            {/* History view switch (only meaningful when browsing projects, not when searching conversations). */}
+            {searchMode === 'projects' && (
+              <HistoryViewToggle value={historyView} onChange={onHistoryViewChange} t={t} />
+            )}
             {/* Search mode toggle */}
             <div className="flex rounded-lg bg-muted/50 p-0.5">
               <button
@@ -205,6 +267,9 @@ export default function SidebarHeader({
         {/* Mobile search */}
         {projectsCount > 0 && !isLoading && (
           <div className="mt-2.5 space-y-2">
+            {searchMode === 'projects' && (
+              <HistoryViewToggle value={historyView} onChange={onHistoryViewChange} t={t} />
+            )}
             <div className="flex rounded-lg bg-muted/50 p-0.5">
               <button
                 onClick={() => onSearchModeChange('projects')}

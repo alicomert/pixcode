@@ -15,10 +15,12 @@ type SidebarProjectSessionsProps = {
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
+  isSessionStarred: (projectName: string, sessionId: string) => boolean;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
+  onToggleStarSession: (projectName: string, sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
   onDeleteSession: (
@@ -60,10 +62,12 @@ export default function SidebarProjectSessions({
   currentTime,
   editingSession,
   editingSessionName,
+  isSessionStarred,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
+  onToggleStarSession,
   onProjectSelect,
   onSessionSelect,
   onDeleteSession,
@@ -119,10 +123,12 @@ export default function SidebarProjectSessions({
             currentTime={currentTime}
             editingSession={editingSession}
             editingSessionName={editingSessionName}
+            isStarred={isSessionStarred(project.name, session.id)}
             onEditingSessionNameChange={onEditingSessionNameChange}
             onStartEditingSession={onStartEditingSession}
             onCancelEditingSession={onCancelEditingSession}
             onSaveEditingSession={onSaveEditingSession}
+            onToggleStarSession={onToggleStarSession}
             onProjectSelect={onProjectSelect}
             onSessionSelect={onSessionSelect}
             onDeleteSession={onDeleteSession}
