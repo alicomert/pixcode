@@ -68,6 +68,7 @@ import geminiRoutes from './routes/gemini.js';
 import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+import { ensurePortOpen } from './utils/port-access.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames } from './database/db.js';
 import { configureWebPush } from './services/vapid-keys.js';
@@ -2587,6 +2588,16 @@ async function startServer() {
             console.log('');
             console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
             console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
+
+            // Print LAN IP + open inbound firewall port (Linux auto, Windows/Mac
+            // ask interactively once, then persist the decision). Non-fatal on
+            // any error — LAN access often works without a rule anyway.
+            try {
+                await ensurePortOpen(Number(SERVER_PORT));
+            } catch (err) {
+                console.log(`${c.dim('[INFO]')} Port-access helper failed: ${err?.message || err}`);
+            }
+
             console.log(`${c.tip('[TIP]')}  Run "pixcode status" for full configuration details`);
             console.log('');
 
