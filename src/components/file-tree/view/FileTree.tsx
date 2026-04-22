@@ -154,7 +154,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
 
       {viewMode === 'detailed' && filteredFiles.length > 0 && <FileTreeDetailedColumns />}
 
-      <ScrollArea className="flex-1 px-2 py-1">
+      <ScrollArea className="flex-1" contentClassName="px-2 py-1">
         {/* New item input */}
         {operations.isCreating && (
           <div

@@ -125,7 +125,10 @@ export default function SidebarContent({
         t={t}
       />
 
-      <ScrollArea className="flex-1 overflow-y-auto overscroll-contain md:px-2.5 md:py-3">
+      <ScrollArea
+        className="flex-1 overscroll-contain"
+        contentClassName="md:px-2.5 md:py-3"
+      >
         {showConversationSearch ? (
           isSearching && !hasPartialResults ? (
             <div className="px-4 py-12 text-center md:py-8">

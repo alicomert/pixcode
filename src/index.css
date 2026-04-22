@@ -139,16 +139,23 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    /* Inter as primary — crisper than system Segoe UI on Windows at small
+       sizes. System fonts remain as the fallback so the app still looks
+       consistent if Inter fails to load. */
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     margin: 0;
     padding: 0;
     /* Default body copy is 15px / 1.55 — chat- and prose-friendly. Components
-       can still opt down to text-sm (14px) or text-xs (13px) for dense UI. */
+       can still opt down to text-sm (14px) or text-xs (13px) for dense UI.
+       Weight 450 (variable font) sits between regular and medium: noticeably
+       less spindly than 400 without looking bold. */
     font-size: 0.9375rem;
     line-height: 1.55;
-    font-feature-settings: "ss01", "cv11";
+    font-weight: 450;
+    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   html, body {
