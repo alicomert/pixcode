@@ -6,6 +6,7 @@ import { ReleaseInfo } from "../../../types/sharedTypes";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import type { InstallMode } from "../../../hooks/useVersionCheck";
 import { IS_PLATFORM } from "../../../constants/config";
+import { useGsapEntrance } from "../../../lib/animations";
 
 interface VersionUpgradeModalProps {
     isOpen: boolean;
@@ -49,6 +50,8 @@ export function VersionUpgradeModal({
     const [reloadCountdown, setReloadCountdown] = useState<number | null>(null);
     const [restartPhase, setRestartPhase] = useState<RestartPhase>('idle');
     const outputRef = useRef<HTMLDivElement>(null);
+    const modalRef = useRef<HTMLDivElement>(null);
+    useGsapEntrance(modalRef, 'modal');
 
     // Auto-scroll the log pane as new output streams in.
     useEffect(() => {
@@ -219,7 +222,10 @@ export function VersionUpgradeModal({
             />
 
             {/* Modal */}
-            <div className="relative mx-4 max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+            <div
+                ref={modalRef}
+                className="relative mx-4 max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">

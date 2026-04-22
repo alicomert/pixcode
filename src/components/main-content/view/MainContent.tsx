@@ -1,4 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
+
+import { cn } from '../../../lib/utils';
+import { useGsapCrossfade } from '../../../lib/animations';
 import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
@@ -57,6 +60,11 @@ function MainContent({
 
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
 
+  // Subtle crossfade when switching tabs — drives a small fade+rise on the
+  // active content column whenever activeTab changes.
+  const tabContentRef = useRef<HTMLDivElement>(null);
+  useGsapCrossfade(tabContentRef, activeTab);
+
   const {
     editingFile,
     editorWidth,
@@ -108,7 +116,20 @@ function MainContent({
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className={`flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
+        {/*
+          Center the main content column when no editor is open so chat and
+          tab views don't hug the sidebar (ChatGPT-style breathing room).
+          When the editor is docked we hand the full flex area back so the
+          editor + content split fills the viewport.
+        */}
+        <div
+          ref={tabContentRef}
+          className={cn(
+            'flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden',
+            editorExpanded && 'hidden',
+            !editingFile && 'mx-auto w-full max-w-[1100px] px-4 md:px-8',
+          )}
+        >
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <ErrorBoundary showDetails>
               <ChatInterface

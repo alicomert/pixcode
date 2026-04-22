@@ -13,6 +13,24 @@ export default {
         "2xl": "1400px",
       },
     },
+    // Font scale tuned for a ChatGPT/Claude feel — base is 15px, small labels
+    // stay readable at 13px, display sizes grow proportionally.
+    fontSize: {
+      'xs': ['0.8125rem', { lineHeight: '1.15rem' }],       // 13px
+      'sm': ['0.875rem', { lineHeight: '1.35rem' }],        // 14px
+      'base': ['0.9375rem', { lineHeight: '1.55rem' }],     // 15px
+      'md': ['1rem', { lineHeight: '1.6rem' }],             // 16px
+      'lg': ['1.0625rem', { lineHeight: '1.7rem' }],        // 17px
+      'xl': ['1.1875rem', { lineHeight: '1.8rem' }],        // 19px
+      '2xl': ['1.375rem', { lineHeight: '2rem' }],          // 22px
+      '3xl': ['1.75rem', { lineHeight: '2.25rem' }],        // 28px
+      '4xl': ['2.125rem', { lineHeight: '2.5rem' }],        // 34px
+      '5xl': ['2.75rem', { lineHeight: '1' }],
+      '6xl': ['3.5rem', { lineHeight: '1' }],
+      '7xl': ['4.5rem', { lineHeight: '1' }],
+      '8xl': ['6rem', { lineHeight: '1' }],
+      '9xl': ['8rem', { lineHeight: '1' }],
+    },
     extend: {
       colors: {
         border: "hsl(var(--border))",
@@ -49,10 +67,15 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      // Softer radius scale — every step is one tier more rounded so the whole
+      // app inherits ChatGPT-style curves without touching every component.
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        md: "calc(var(--radius) - 2px)",
+        lg: "var(--radius)",
+        xl: "calc(var(--radius) + 4px)",
+        '2xl': "calc(var(--radius) + 8px)",
+        '3xl': "calc(var(--radius) + 16px)",
       },
       spacing: {
         'safe-area-inset-bottom': 'env(safe-area-inset-bottom)',

@@ -243,7 +243,7 @@ export default function SidebarSessionItem({
           'hover:bg-accent/60',
           isSelected && 'bg-accent text-accent-foreground',
           isStarred && !isSelected && 'bg-yellow-50/40 hover:bg-yellow-100/40 dark:bg-yellow-900/10 dark:hover:bg-yellow-900/20',
-          compact ? 'rounded-lg px-2 py-2' : 'rounded-md px-2 py-1.5',
+          compact ? 'rounded-xl px-3 py-2.5' : 'rounded-lg px-3 py-2',
         )}
         onClick={isEditing ? undefined : () => onSessionSelect(session, project.name)}
       >

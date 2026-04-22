@@ -113,7 +113,7 @@ export default function SidebarHeader({
     <div className="flex-shrink-0">
       {/* Desktop header */}
       <div
-        className="hidden px-3 pb-2 pt-3 md:block"
+        className="hidden px-4 pb-3 pt-4 md:block"
         style={{}}
       >
         <div className="flex items-center justify-between gap-2">
@@ -133,13 +133,13 @@ export default function SidebarHeader({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+              className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
               onClick={onRefresh}
               disabled={isRefreshing}
               title={t('tooltips.refresh')}
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 ${
+                className={`h-4 w-4 ${
                   isRefreshing ? 'animate-spin' : ''
                 }`}
               />
@@ -147,20 +147,20 @@ export default function SidebarHeader({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+              className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
               onClick={onCreateProject}
               title={t('tooltips.createProject')}
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+              className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
               onClick={onCollapseSidebar}
               title={t('tooltips.hideSidebar')}
             >
-              <PanelLeftClose className="h-3.5 w-3.5" />
+              <PanelLeftClose className="h-4 w-4" />
             </Button>
           </div>
         </div>

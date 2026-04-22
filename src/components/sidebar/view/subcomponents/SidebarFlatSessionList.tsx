@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { Inbox } from 'lucide-react';
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
+import { animateStaggerIn } from '../../../../lib/animations';
 import { getSessionDate } from '../../utils/utils';
 import SidebarProjectsState from './SidebarProjectsState';
 import SidebarSessionItem from './SidebarSessionItem';
@@ -158,9 +159,9 @@ export default function SidebarFlatSessionList({
   }
 
   return (
-    <div className="space-y-3 px-1 pb-4">
+    <FlatSessionListBody buckets={buckets}>
       {buckets.map((bucket) => (
-        <div key={bucket.key} className="space-y-0.5">
+        <div key={bucket.key} className="space-y-0.5" data-stagger-item>
           <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             {t(bucket.labelKey, { defaultValue: bucket.fallback })}
           </div>
@@ -188,6 +189,33 @@ export default function SidebarFlatSessionList({
           ))}
         </div>
       ))}
+    </FlatSessionListBody>
+  );
+}
+
+// Wrapper that runs a one-shot stagger animation when the list of buckets
+// first appears or its bucket count changes (e.g. a new "Today" group
+// arrives). Hidden behind useEffect so SSR / reduced-motion users are safe.
+function FlatSessionListBody({
+  buckets,
+  children,
+}: {
+  buckets: TimeBucket[];
+  children: ReactNode;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastCountRef = useRef(0);
+
+  useEffect(() => {
+    if (buckets.length === 0) return;
+    if (buckets.length === lastCountRef.current) return;
+    lastCountRef.current = buckets.length;
+    animateStaggerIn(containerRef.current, '[data-stagger-item]', { stagger: 0.04, y: 4 });
+  }, [buckets.length]);
+
+  return (
+    <div ref={containerRef} className="space-y-3 px-1 pb-4">
+      {children}
     </div>
   );
 }
