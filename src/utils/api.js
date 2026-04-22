@@ -89,6 +89,10 @@ export const api = {
     authenticatedFetch(`/api/gemini/sessions/${sessionId}`, {
       method: 'DELETE',
     }),
+  deleteQwenSession: (sessionId) =>
+    authenticatedFetch(`/api/qwen/sessions/${sessionId}`, {
+      method: 'DELETE',
+    }),
   deleteProject: (projectName, force = false, deleteData = false) => {
     const params = new URLSearchParams();
     if (force) params.set('force', 'true');

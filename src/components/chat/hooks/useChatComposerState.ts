@@ -40,6 +40,7 @@ interface UseChatComposerStateArgs {
   claudeModel: string;
   codexModel: string;
   geminiModel: string;
+  qwenModel: string;
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
@@ -112,6 +113,7 @@ export function useChatComposerState({
   claudeModel,
   codexModel,
   geminiModel,
+  qwenModel,
   isLoading,
   canAbortSession,
   tokenBudget,
@@ -281,7 +283,7 @@ export function useChatComposerState({
           projectName: selectedProject.name,
           sessionId: currentSessionId,
           provider,
-          model: provider === 'cursor' ? cursorModel : provider === 'codex' ? codexModel : provider === 'gemini' ? geminiModel : claudeModel,
+          model: provider === 'cursor' ? cursorModel : provider === 'codex' ? codexModel : provider === 'gemini' ? geminiModel : provider === 'qwen' ? qwenModel : claudeModel,
           tokenUsage: tokenBudget,
         };
 
@@ -333,6 +335,7 @@ export function useChatComposerState({
       currentSessionId,
       cursorModel,
       geminiModel,
+      qwenModel,
       handleBuiltInCommand,
       handleCustomCommand,
       input,
@@ -571,7 +574,9 @@ export function useChatComposerState({
                 ? 'codex-settings'
                 : provider === 'gemini'
                   ? 'gemini-settings'
-                  : 'claude-settings';
+                  : provider === 'qwen'
+                    ? 'qwen-settings'
+                    : 'claude-settings';
           const savedSettings = safeLocalStorage.getItem(settingsKey);
           if (savedSettings) {
             return JSON.parse(savedSettings);
@@ -638,6 +643,25 @@ export function useChatComposerState({
             toolsSettings,
           },
         });
+      } else if (provider === 'qwen') {
+        // Qwen Code takes the same spawn protocol as Gemini since it's a
+        // Gemini-CLI fork — same `--prompt / --resume / --model` flags,
+        // same stream-json output, same permissionMode semantics.
+        sendMessage({
+          type: 'qwen-command',
+          command: messageContent,
+          sessionId: effectiveSessionId,
+          options: {
+            cwd: resolvedProjectPath,
+            projectPath: resolvedProjectPath,
+            sessionId: effectiveSessionId,
+            resume: Boolean(effectiveSessionId),
+            model: qwenModel,
+            sessionSummary,
+            permissionMode,
+            toolsSettings,
+          },
+        });
       } else {
         sendMessage({
           type: 'claude-command',
@@ -676,6 +700,7 @@ export function useChatComposerState({
       attachedImages,
       claudeModel,
       codexModel,
+      qwenModel,
       currentSessionId,
       cursorModel,
       executeCommand,

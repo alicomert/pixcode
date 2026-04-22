@@ -40,6 +40,7 @@ const PROVIDER_LABELS: Record<LLMProvider, string> = {
   cursor: 'Cursor',
   codex: 'Codex',
   gemini: 'Gemini',
+  qwen: 'Qwen Code',
 };
 
 // Provider accent colors kept subtle so they work on both light and dark backgrounds
@@ -49,6 +50,7 @@ const PROVIDER_ACCENT: Record<LLMProvider, string> = {
   cursor: 'bg-sky-500/10 text-sky-600 dark:bg-sky-400/10 dark:text-sky-300 ring-1 ring-sky-500/15',
   codex: 'bg-violet-500/10 text-violet-600 dark:bg-violet-400/10 dark:text-violet-300 ring-1 ring-violet-500/15',
   gemini: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-300 ring-1 ring-emerald-500/15',
+  qwen: 'bg-amber-500/10 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300 ring-1 ring-amber-500/15',
 };
 
 export default function SidebarSessionItem({

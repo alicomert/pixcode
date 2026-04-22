@@ -13,6 +13,7 @@ import type {
 
 type ProviderAuthStatusPayload = {
   authenticated?: boolean;
+  installed?: boolean;
   email?: string | null;
   method?: string | null;
   error?: string | null;
@@ -35,6 +36,7 @@ const toProviderAuthStatus = (
   fallbackError: string | null = null,
 ): ProviderAuthStatus => ({
   authenticated: Boolean(payload.authenticated),
+  installed: typeof payload.installed === 'boolean' ? payload.installed : null,
   email: payload.email ?? null,
   method: payload.method ?? null,
   error: payload.error ?? fallbackError,
@@ -79,6 +81,7 @@ export function useProviderAuthStatus(
       if (!response.ok) {
         setProviderStatus(provider, {
           authenticated: false,
+          installed: null,
           email: null,
           method: null,
           loading: false,
@@ -93,6 +96,7 @@ export function useProviderAuthStatus(
       console.error(`Error checking ${provider} auth status:`, caughtError);
       setProviderStatus(provider, {
         authenticated: false,
+        installed: null,
         email: null,
         method: null,
         loading: false,

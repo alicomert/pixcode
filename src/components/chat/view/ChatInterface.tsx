@@ -74,6 +74,8 @@ function ChatInterface({
     setCodexModel,
     geminiModel,
     setGeminiModel,
+    qwenModel,
+    setQwenModel,
     permissionMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
@@ -183,6 +185,7 @@ function ChatInterface({
     claudeModel,
     codexModel,
     geminiModel,
+    qwenModel,
     isLoading,
     canAbortSession,
     tokenBudget,
@@ -283,7 +286,9 @@ function ChatInterface({
           ? t('messageTypes.codex')
           : provider === 'gemini'
             ? t('messageTypes.gemini')
-            : t('messageTypes.claude');
+            : provider === 'qwen'
+              ? t('messageTypes.qwen', { defaultValue: 'Qwen Code' })
+              : t('messageTypes.claude');
 
     return (
       <div className="flex h-full items-center justify-center">
@@ -321,6 +326,8 @@ function ChatInterface({
           setCodexModel={setCodexModel}
           geminiModel={geminiModel}
           setGeminiModel={setGeminiModel}
+          qwenModel={qwenModel}
+          setQwenModel={setQwenModel}
           tasksEnabled={tasksEnabled}
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}
@@ -409,7 +416,9 @@ function ChatInterface({
                   ? t('messageTypes.codex')
                   : provider === 'gemini'
                     ? t('messageTypes.gemini')
-                    : t('messageTypes.claude'),
+                    : provider === 'qwen'
+                      ? t('messageTypes.qwen', { defaultValue: 'Qwen Code' })
+                      : t('messageTypes.claude'),
           })}
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
