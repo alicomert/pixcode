@@ -100,24 +100,23 @@ export default function SidebarHeader({
 }: SidebarHeaderProps) {
   const LogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-        {/*
-          Pixcode "P" mark — same geometry as public/favicon.svg so the brand
-          reads consistently from the browser tab down to the sidebar badge.
-        */}
-        <svg
-          className="h-3.5 w-3.5 text-primary-foreground"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M4 3h10a6 6 0 0 1 0 12H8v6H4V3zM8 7h6a2 2 0 0 1 0 4H8V7z"
-          />
-        </svg>
-      </div>
+      {/*
+        Pixcode "P" mark — same path data as public/logo.svg so the brand
+        reads consistently from tab favicon down to the sidebar header.
+        Rendered directly on the sidebar background (no tile) to match the
+        raster reference; brand purple #5C3FFC fills the glyph on both
+        light and dark themes.
+      */}
+      <svg
+        className="h-6 w-6 flex-shrink-0"
+        viewBox="0 0 500 500"
+        aria-hidden="true"
+      >
+        <g transform="translate(0 500) scale(0.1 -0.1)" fill="#5C3FFC">
+          <path d="M2037 3800 c-104 -40 -191 -134 -231 -250 -23 -67 -20 -82 22 -109 31 -20 287 -177 1009 -618 40 -24 82 -56 93 -70 27 -34 27 -102 0 -136 -11 -13 -106 -78 -212 -143 -106 -64 -201 -124 -210 -132 -16 -14 -18 -41 -18 -302 0 -291 2 -310 38 -310 16 0 267 148 610 359 180 111 270 173 310 213 216 217 215 574 -3 793 -37 38 -107 89 -185 136 -69 42 -253 154 -410 249 -434 264 -509 307 -563 326 -57 20 -191 17 -250 -6z" />
+          <path d="M1803 2994 c-10 -5 -13 -156 -13 -709 0 -671 1 -706 20 -767 27 -89 93 -184 167 -240 89 -67 157 -90 281 -96 92 -4 105 -2 117 14 12 16 14 134 15 735 0 669 -1 718 -17 737 -20 23 -514 322 -541 327 -9 2 -23 2 -29 -1z" />
+        </g>
+      </svg>
       <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{t('app.title')}</h1>
     </div>
   );
