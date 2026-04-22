@@ -81,13 +81,13 @@ Der schnellste Einstieg – keine lokale Einrichtung erforderlich. Erhalte eine 
 Pixcode sofort mit **npx** ausprobieren (erfordert **Node.js** v22+):
 
 ```bash
-npx pixcode
+npx @pixelbyte-software/pixcode
 ```
 
 Oder **global** installieren für regelmäßige Nutzung:
 
 ```bash
-npm install -g pixcode
+npm install -g @pixelbyte-software/pixcode
 pixcode
 ```
 
@@ -100,7 +100,7 @@ Die **[Dokumentation →](https://github.com/alicomert/pixcode)** enthält weite
 Agents in isolierten Sandboxes mit Hypervisor-Isolation ausführen. Standardmäßig wird Claude Code gestartet. Erfordert die [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
 
 ```
-npx pixcode@latest sandbox ~/my-project
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
 ```
 
 Unterstützt Claude Code, Codex und Gemini CLI. Weitere Details in der [Sandbox-Dokumentation](docker/).
@@ -115,7 +115,7 @@ Pixcode ist die Open-Source-UI-Schicht, die Pixcode antreibt. Du kannst es auf d
 |---|---|---|
 | **Am besten für** | Entwickler:innen, die eine vollständige UI für lokale Agent-Sitzungen auf ihrem eigenen Rechner möchten | Teams und Entwickler:innen, die Agents in der Cloud betreiben möchten, überall erreichbar |
 | **Zugriff** | Browser via `[deineIP]:port` | Browser, jede IDE, REST API, n8n |
-| **Einrichtung** | `npx pixcode` | Keine Einrichtung erforderlich |
+| **Einrichtung** | `npx @pixelbyte-software/pixcode` | Keine Einrichtung erforderlich |
 | **Rechner muss laufen** | Ja | Nein |
 | **Mobiler Zugriff** | Jeder Browser im Netzwerk | Jedes Gerät, native App in Entwicklung |
 | **Verfügbare Sitzungen** | Alle Sitzungen automatisch aus `~/.claude` erkannt | Alle Sitzungen in deiner Cloud-Umgebung |

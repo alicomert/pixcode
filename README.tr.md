@@ -81,13 +81,13 @@ Başlamanın en hızlı yolu — yerel kurulum yok. Web, mobil uygulama, API vey
 Pixcode'yi **npx** ile anında dene (**Node.js** v22+ gerekir):
 
 ```
-npx pixcode
+npx @pixelbyte-software/pixcode
 ```
 
 Veya düzenli kullanım için **genel olarak** kur:
 
 ```
-npm install -g pixcode
+npm install -g @pixelbyte-software/pixcode
 cloudcli
 ```
 
@@ -100,7 +100,7 @@ Tam yapılandırma seçenekleri, PM2, uzak sunucu kurulumu ve daha fazlası içi
 Ajanları hipervizör seviyesinde izolasyonlu sandbox'larda çalıştır. Varsayılan olarak Claude Code başlar. [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/) gerekir.
 
 ```
-npx pixcode@latest sandbox ~/my-project
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
 ```
 
 Claude Code, Codex ve Gemini CLI destekler. Kurulum ve gelişmiş seçenekler için [sandbox dokümantasyonuna](docker/) bak.
@@ -116,7 +116,7 @@ Pixcode, Pixcode Cloud'u güçlendiren açık kaynak arayüz katmanıdır. Kendi
 |---|---|---|---|
 | **En iyi şunun için** | Kendi makinende yerel ajan oturumları | Web/mobil IDE ile izole ajanlar | Ajanlarını bulutta isteyen ekipler |
 | **Nasıl erişilir** | `[yourip]:port` üzerinden tarayıcıda | `localhost:port` üzerinden tarayıcıda | Tarayıcı, herhangi bir IDE, REST API, n8n |
-| **Kurulum** | `npx pixcode` | `npx pixcode@latest sandbox ~/project` | Kurulum gerekmez |
+| **Kurulum** | `npx @pixelbyte-software/pixcode` | `npx @pixelbyte-software/pixcode@latest sandbox ~/project` | Kurulum gerekmez |
 | **İzolasyon** | Kendi host'unda çalışır | Hipervizör seviyesi sandbox (microVM) | Tam bulut izolasyonu |
 | **Makinenin açık kalması gerek** | Evet | Evet | Hayır |
 | **Mobil erişim** | Ağındaki herhangi bir tarayıcı | Ağındaki herhangi bir tarayıcı | Herhangi bir cihaz, native uygulama yolda |

@@ -245,7 +245,7 @@
     "viewFullRelease": "Vedi release completa",
     "updateProgress": "Progresso aggiornamento:",
     "manualUpgrade": "Aggiornamento manuale:",
-    "npmUpgradeCommand": "npm install -g @cloudcli-ai/cloudcli@latest",
+    "npmUpgradeCommand": "npm install -g @pixelbyte-software/pixcode@latest",
     "manualUpgradeHint": "Oppure clicca \"Aggiorna ora\" per eseguire l'aggiornamento automaticamente.",
     "updateCompleted": "Aggiornamento completato con successo!",
     "restartServer": "Riavvia il server per applicare le modifiche.",

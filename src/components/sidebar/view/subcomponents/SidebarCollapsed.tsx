@@ -2,7 +2,7 @@ import { Settings, Sparkles, PanelLeftOpen, Bug } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/buxwujPNRE';
-const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
+const GITHUB_ISSUES_URL = 'https://github.com/alicomert/pixcode/issues/new';
 
 function DiscordIcon({ className }: { className?: string }) {
   return (

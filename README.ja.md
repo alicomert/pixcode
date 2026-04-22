@@ -77,13 +77,13 @@
 **npx** で今すぐ Pixcode を試せます（**Node.js** v22+ が必要）：
 
 ```bash
-npx pixcode
+npx @pixelbyte-software/pixcode
 ```
 
 または、普段使いするなら **グローバル** にインストール：
 
 ```bash
-npm install -g pixcode
+npm install -g @pixelbyte-software/pixcode
 pixcode
 ```
 
@@ -96,7 +96,7 @@ pixcode
 ハイパーバイザーレベルの分離でエージェントをサンドボックスで実行します。デフォルトでは Claude Code が起動します。[`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/) が必要です。
 
 ```
-npx pixcode@latest sandbox ~/my-project
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
 ```
 
 Claude Code、Codex、Gemini CLI に対応。詳細は[サンドボックスのドキュメント](docker/)をご覧ください。
@@ -111,7 +111,7 @@ Pixcode は、Pixcode を支えるオープンソースの UI レイヤーです
 |---|---|---|
 | **対象ユーザー** | 自分のマシン上でローカルの agent セッションに対してフル UI を使いたい開発者 | クラウド上で動く agents をどこからでも利用したいチーム／開発者 |
 | **アクセス方法** | ブラウザ（`[yourip]:port`） | ブラウザ、任意の IDE、REST API、n8n |
-| **セットアップ** | `npx pixcode` | セットアップ不要 |
+| **セットアップ** | `npx @pixelbyte-software/pixcode` | セットアップ不要 |
 | **マシンの稼働継続** | はい | いいえ |
 | **モバイルアクセス** | 同一ネットワーク内の任意のブラウザ | 任意のデバイス（ネイティブアプリも準備中） |
 | **利用可能なセッション** | `~/.claude` から全セッションを自動検出 | クラウド環境内の全セッション |

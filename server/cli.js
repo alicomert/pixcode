@@ -623,7 +623,7 @@ async function sandboxCommand(args) {
             console.log(`  ${c.dim('$')} sbx stop ${opts.name}`);
             console.log(`  ${c.dim('$')} sbx start ${opts.name}`);
             console.log(`  ${c.dim('$')} sbx rm ${opts.name}`);
-            console.log(`\n${c.dim('  Or install globally:')} npm install -g pixcode\n`);
+            console.log(`\n${c.dim('  Or install globally:')} npm install -g @pixelbyte-software/pixcode\n`);
             break;
         }
 

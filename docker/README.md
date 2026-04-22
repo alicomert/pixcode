@@ -29,7 +29,7 @@ sbx secret set -g anthropic
 ### 3. Launch Claude Code
 
 ```bash
-npx pixcode@latest sandbox ~/my-project
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
 ```
 
 Open **http://localhost:3001**. Set a password on first visit. Start building.
@@ -41,11 +41,11 @@ Store the matching API key and pass `--agent`:
 ```bash
 # OpenAI Codex
 sbx secret set -g openai
-npx pixcode@latest sandbox ~/my-project --agent codex
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project --agent codex
 
 # Gemini CLI
 sbx secret set -g google
-npx pixcode@latest sandbox ~/my-project --agent gemini
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project --agent gemini
 ```
 
 ### Available templates
@@ -68,7 +68,7 @@ sbx rm my-project                    # Remove everything
 sbx exec my-project bash             # Open a shell inside the sandbox
 ```
 
-If you install Pixcode globally (`npm install -g pixcode`), you can also use:
+If you install Pixcode globally (`npm install -g @pixelbyte-software/pixcode`), you can also use:
 
 ```bash
 pixcode sandbox ls
@@ -92,7 +92,7 @@ Your project directory is mounted bidirectionally — edits propagate in real ti
 Set variables at creation time with `--env`:
 
 ```bash
-npx pixcode@latest sandbox ~/my-project --env SERVER_PORT=8080
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project --env SERVER_PORT=8080
 ```
 
 Or inside a running sandbox:

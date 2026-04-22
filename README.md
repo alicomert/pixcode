@@ -81,13 +81,13 @@ The fastest way to get started — no local setup required. Get a fully managed,
 Try Pixcode instantly with **npx** (requires **Node.js** v22+):
 
 ```
-npx pixcode
+npx @pixelbyte-software/pixcode
 ```
 
 Or install **globally** for regular use:
 
 ```
-npm install -g pixcode
+npm install -g @pixelbyte-software/pixcode
 pixcode
 ```
 
@@ -135,7 +135,7 @@ Notes:
 Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
 
 ```
-npx pixcode@latest sandbox ~/my-project
+npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
 ```
 
 Supports Claude Code, Codex, and Gemini CLI. See the [sandbox docs](docker/) for setup and advanced options.
@@ -151,7 +151,7 @@ Pixcode is the open source UI layer that powers Pixcode. You can self-host it on
 |---|---|---|---|
 | **Best for** | Local agent sessions on your own machine | Isolated agents with web/mobile IDE | Teams who want agents in the cloud |
 | **How you access it** | Browser via `[yourip]:port` | Browser via `localhost:port` | Browser, any IDE, REST API, n8n |
-| **Setup** | `npx pixcode` | `npx pixcode@latest sandbox ~/project` | No setup required |
+| **Setup** | `npx @pixelbyte-software/pixcode` | `npx @pixelbyte-software/pixcode@latest sandbox ~/project` | No setup required |
 | **Isolation** | Runs on your host | Hypervisor-level sandbox (microVM) | Full cloud isolation |
 | **Machine needs to stay on** | Yes | Yes | No |
 | **Mobile access** | Any browser on your network | Any browser on your network | Any device, native app coming |

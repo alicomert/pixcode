@@ -373,7 +373,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
             ? 'npm run update:platform'
             : installMode === 'git'
                 ? 'git checkout main && git pull && npm install'
-                : 'npm install -g pixcode@latest';
+                : 'npm install -g @pixelbyte-software/pixcode@latest';
 
         const updateCwd = IS_PLATFORM || installMode === 'git'
             ? projectRoot

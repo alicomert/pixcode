@@ -40,8 +40,8 @@ function Sidebar({
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
   const { updateAvailable, latestVersion, currentVersion, releaseInfo, installMode } = useVersionCheck(
-    'siteboon',
-    'claudecodeui',
+    'alicomert',
+    'pixcode',
   );
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible, historyView } = preferences;
