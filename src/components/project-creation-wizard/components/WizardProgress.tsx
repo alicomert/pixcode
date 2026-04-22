@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { WizardStep } from '../types';
 

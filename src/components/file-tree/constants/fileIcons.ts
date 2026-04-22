@@ -35,7 +35,7 @@ import {
   Terminal,
   Video,
   Workflow,
-} from 'lucide-react';
+} from '@/lib/icons';
 import type { FileIconData, FileIconMap } from '../types/types';
 
 export const ICON_SIZE_CLASS = 'w-4 h-4 flex-shrink-0';

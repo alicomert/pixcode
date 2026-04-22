@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronsUpDown, FileText } from 'lucide-react';
+import { ChevronsUpDown, FileText } from '@/lib/icons';
 
 import {
   Card,

@@ -1,4 +1,4 @@
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare } from '@/lib/icons';
 
 const loadingDotAnimationDelays = ['0s', '0.1s', '0.2s'];
 

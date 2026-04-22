@@ -1,4 +1,4 @@
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw } from '@/lib/icons';
 import { useEffect, useState } from 'react';
 
 type NewBranchModalProps = {

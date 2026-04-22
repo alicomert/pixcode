@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from 'react';
-import { SendHorizonalIcon, SquareIcon } from 'lucide-react';
+import { SendHorizonalIcon, SquareIcon } from '@/lib/icons';
 
 import { cn } from '../../../lib/utils';
 import { Button } from './Button';

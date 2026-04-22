@@ -1,4 +1,4 @@
-import { Check, GitBranch, LogIn } from 'lucide-react';
+import { Check, GitBranch, LogIn } from '@/lib/icons';
 
 type OnboardingStepProgressProps = {
   currentStep: number;

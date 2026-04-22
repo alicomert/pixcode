@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Info } from '@/lib/icons';
 import { useState } from 'react';
 import { getStatusBadgeClass } from '../../utils/gitPanelUtils';
 

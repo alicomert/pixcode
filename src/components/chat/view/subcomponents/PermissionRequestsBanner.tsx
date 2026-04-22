@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlertIcon } from 'lucide-react';
+import { ShieldAlertIcon } from '@/lib/icons';
 
 import type { PendingPermissionRequest } from '../../types/types';
 import { buildClaudeToolPermissionEntry, formatToolInputForDisplay } from '../../utils/chatPermissions';

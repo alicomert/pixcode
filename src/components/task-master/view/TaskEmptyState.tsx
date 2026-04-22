@@ -1,4 +1,4 @@
-import { FileText, Settings, Terminal } from 'lucide-react';
+import { FileText, Settings, Terminal } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../../lib/utils';
 import type { PrdFile } from '../types';

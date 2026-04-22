@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
-import { Inbox } from 'lucide-react';
+import { Inbox } from '@/lib/icons';
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { animateStaggerIn } from '../../../../lib/animations';

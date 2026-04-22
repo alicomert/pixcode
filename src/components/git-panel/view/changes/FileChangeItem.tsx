@@ -1,4 +1,4 @@
-import { ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronRight, Trash2 } from '@/lib/icons';
 import type { FileStatusCode } from '../../types/types';
 import { getStatusBadgeClass, getStatusLabel } from '../../utils/gitPanelUtils';
 import GitDiffViewer from '../shared/GitDiffViewer';

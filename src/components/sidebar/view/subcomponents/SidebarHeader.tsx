@@ -1,4 +1,4 @@
-import { Folder, FolderPlus, List, MessageSquare, Plus, RefreshCw, Rows3, Search, X, PanelLeftClose } from 'lucide-react';
+import { Folder, FolderPlus, List, MessageSquare, Plus, RefreshCw, Rows3, Search, X, PanelLeftClose } from '@/lib/icons';
 import type { TFunction } from 'i18next';
 import { Button, Input } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';

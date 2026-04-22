@@ -6,7 +6,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-} from 'lucide-react';
+} from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { Terminal } from '@xterm/xterm';
 import { sendSocketMessage } from '../../utils/socket';

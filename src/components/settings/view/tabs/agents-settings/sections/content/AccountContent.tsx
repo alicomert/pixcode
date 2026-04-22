@@ -1,4 +1,4 @@
-import { LogIn } from 'lucide-react';
+import { LogIn } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';

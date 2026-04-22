@@ -1,4 +1,4 @@
-import { AlertTriangle, Save } from 'lucide-react';
+import { AlertTriangle, Save } from '@/lib/icons';
 
 type OverwriteConfirmModalProps = {
   isOpen: boolean;

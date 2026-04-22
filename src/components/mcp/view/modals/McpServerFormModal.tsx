@@ -1,4 +1,4 @@
-import { FolderOpen, Globe, X } from 'lucide-react';
+import { FolderOpen, Globe, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '../../../../shared/view/ui';

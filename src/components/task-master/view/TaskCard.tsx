@@ -9,7 +9,7 @@ import {
   Minus,
   Pause,
   X,
-} from 'lucide-react';
+} from '@/lib/icons';
 import { cn } from '../../../lib/utils';
 import { Tooltip } from '../../../shared/view/ui';
 import type { TaskMasterTask } from '../types';

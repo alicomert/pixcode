@@ -1,4 +1,4 @@
-import { Check, ChevronDown, GitCommit, RefreshCw, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, GitCommit, RefreshCw, Sparkles } from '@/lib/icons';
 import { useState } from 'react';
 import type { ConfirmationRequest } from '../../types/types';
 

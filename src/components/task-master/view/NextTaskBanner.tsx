@@ -10,7 +10,7 @@ import {
   Target,
   Terminal,
   Zap,
-} from 'lucide-react';
+} from '@/lib/icons';
 import { cn } from '../../../lib/utils';
 import { useTaskMaster } from '../context/TaskMasterContext';
 import TaskDetailModal from './TaskDetailModal';

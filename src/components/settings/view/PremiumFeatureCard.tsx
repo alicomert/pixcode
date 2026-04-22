@@ -1,4 +1,4 @@
-import { ExternalLink, Lock } from 'lucide-react';
+import { ExternalLink, Lock } from '@/lib/icons';
 import type { ReactNode } from 'react';
 
 const PIXCODE_URL = 'https://github.com/alicomert/pixcode';

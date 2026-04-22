@@ -1,4 +1,4 @@
-import { Settings, Sparkles, PanelLeftOpen, Bug } from 'lucide-react';
+import { Settings, Sparkles, PanelLeftOpen, Bug } from '@/lib/icons';
 import type { TFunction } from 'i18next';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/buxwujPNRE';

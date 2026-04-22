@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, X } from 'lucide-react';
+import { ExternalLink, FileText, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 
 type TaskHelpModalProps = {

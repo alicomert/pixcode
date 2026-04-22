@@ -4,7 +4,7 @@ import {
   Eye,
   Languages,
   Maximize2,
-} from 'lucide-react';
+} from '@/lib/icons';
 import type { PreferenceToggleItem } from './types';
 
 export const HANDLE_POSITION_STORAGE_KEY = 'quickSettingsHandlePosition';

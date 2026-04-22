@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Brain, X } from 'lucide-react';
+import { Brain, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { thinkingModes } from '../../constants/thinkingModes';
 

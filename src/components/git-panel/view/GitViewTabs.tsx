@@ -1,4 +1,4 @@
-import { FileText, GitBranch, History } from 'lucide-react';
+import { FileText, GitBranch, History } from '@/lib/icons';
 import type { GitPanelView } from '../types/types';
 
 type GitViewTabsProps = {

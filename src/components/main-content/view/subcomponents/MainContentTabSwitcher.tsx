@@ -1,4 +1,4 @@
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, type LucideIcon } from 'lucide-react';
+import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, type LucideIcon } from '@/lib/icons';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip, PillBar, Pill } from '../../../../shared/view/ui';
@@ -79,7 +79,7 @@ export default function MainContentTabSwitcher({
               className="px-2.5 py-[5px]"
             >
               {tab.kind === 'builtin' ? (
-                <tab.icon className="h-3.5 w-3.5" strokeWidth={isActive ? 2.2 : 1.8} />
+                <tab.icon className="h-3.5 w-3.5" />
               ) : (
                 <PluginIcon
                   pluginName={tab.pluginName}

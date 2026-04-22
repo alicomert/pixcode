@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { Edit2, MoreHorizontal, Star, Trash2 } from 'lucide-react';
+import { Edit2, MoreHorizontal, Star, Trash2 } from '@/lib/icons';
 import type { TFunction } from 'i18next';
 import { cn } from '../../../../lib/utils';
 

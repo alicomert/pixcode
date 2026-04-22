@@ -1,4 +1,4 @@
-import { FolderPlus, GitBranch } from 'lucide-react';
+import { FolderPlus, GitBranch } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { WorkspaceType } from '../types';
 

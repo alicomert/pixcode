@@ -1,4 +1,4 @@
-import { ExternalLink, KeyRound, X } from 'lucide-react';
+import { ExternalLink, KeyRound, X } from '@/lib/icons';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import { DEFAULT_PROJECT_FOR_EMPTY_SHELL, IS_PLATFORM } from '../../../constants/config';
 import type { LLMProvider } from '../../../types/app';

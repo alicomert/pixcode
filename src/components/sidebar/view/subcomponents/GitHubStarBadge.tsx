@@ -1,4 +1,4 @@
-import { Star, X } from 'lucide-react';
+import { Star, X } from '@/lib/icons';
 import { useGitHubStars } from '../../../../hooks/useGitHubStars';
 import { IS_PLATFORM } from '../../../../constants/config';
 

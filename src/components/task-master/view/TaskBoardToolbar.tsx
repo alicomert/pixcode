@@ -9,7 +9,7 @@ import {
   List,
   Plus,
   Search,
-} from 'lucide-react';
+} from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../../lib/utils';
 import type { PrdFile, TaskBoardSortField, TaskBoardSortOrder, TaskBoardView } from '../types';

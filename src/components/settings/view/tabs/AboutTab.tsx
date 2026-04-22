@@ -1,9 +1,9 @@
-import { ExternalLink, MessageSquare, Star } from 'lucide-react';
+import { ExternalLink, MessageSquare, Star } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
 import { useVersionCheck } from '../../../../hooks/useVersionCheck';
 import PremiumFeatureCard from '../PremiumFeatureCard';
-import { Cloud, Users } from 'lucide-react';
+import { Cloud, Users } from '@/lib/icons';
 
 const GITHUB_REPO_URL = 'https://github.com/alicomert/pixcode';
 const DISCORD_URL = 'https://discord.gg/buxwujPNRE';

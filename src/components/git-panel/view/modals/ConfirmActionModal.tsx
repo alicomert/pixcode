@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Check, Download, RotateCcw, Trash2, Upload } from 'lucide-react';
+import { Check, Download, RotateCcw, Trash2, Upload } from '@/lib/icons';
 import {
   CONFIRMATION_ACTION_LABELS,
   CONFIRMATION_BUTTON_CLASSES,

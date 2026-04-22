@@ -1,7 +1,7 @@
 
 
 import { useTranslation } from 'react-i18next';
-import { Languages } from 'lucide-react';
+import { Languages } from '@/lib/icons';
 
 import { languages } from '../../../i18n/languages';
 

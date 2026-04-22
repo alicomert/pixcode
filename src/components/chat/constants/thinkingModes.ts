@@ -1,4 +1,4 @@
-import { Brain, Zap, Sparkles, Atom } from 'lucide-react';
+import { Brain, Zap, Sparkles, Atom } from '@/lib/icons';
 
 export const thinkingModes = [
   {

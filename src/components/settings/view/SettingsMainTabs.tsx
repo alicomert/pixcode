@@ -1,4 +1,4 @@
-import { GitBranch, Info, Key, Puzzle } from 'lucide-react';
+import { GitBranch, Info, Key, Puzzle } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { SettingsMainTab } from '../types/types';
 

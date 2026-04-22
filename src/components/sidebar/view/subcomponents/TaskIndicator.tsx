@@ -1,5 +1,5 @@
-import { AlertCircle, CheckCircle, Settings, X } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { AlertCircle, CheckCircle, Settings, X } from '@/lib/icons';
+import type { LucideIcon } from '@/lib/icons';
 import { cn } from '../../../../lib/utils';
 
 type TaskIndicatorStatus =

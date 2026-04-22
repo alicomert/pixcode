@@ -1,4 +1,4 @@
-import { History, RefreshCw } from 'lucide-react';
+import { History, RefreshCw } from '@/lib/icons';
 import { useCallback, useState } from 'react';
 import type { GitDiffMap, GitCommitSummary } from '../../types/types';
 import CommitHistoryItem from './CommitHistoryItem';

@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Loader2 } from '@/lib/icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { LLMProvider } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';

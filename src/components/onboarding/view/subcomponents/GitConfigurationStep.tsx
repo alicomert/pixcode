@@ -1,4 +1,4 @@
-import { GitBranch, Mail, User } from 'lucide-react';
+import { GitBranch, Mail, User } from '@/lib/icons';
 
 type GitConfigurationStepProps = {
   gitName: string;

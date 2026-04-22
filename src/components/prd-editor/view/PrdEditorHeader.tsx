@@ -11,7 +11,7 @@ import {
   Sparkles,
   Sun,
   X,
-} from 'lucide-react';
+} from '@/lib/icons';
 import { cn } from '../../../lib/utils';
 
 type PrdEditorHeaderProps = {

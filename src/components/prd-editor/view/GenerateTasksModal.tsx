@@ -1,4 +1,4 @@
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X } from '@/lib/icons';
 import { PRD_DOCS_URL } from '../constants';
 
 type GenerateTasksModalProps = {

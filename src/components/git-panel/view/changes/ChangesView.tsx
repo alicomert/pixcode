@@ -1,4 +1,4 @@
-import { GitBranch, GitCommit, RefreshCw } from 'lucide-react';
+import { GitBranch, GitCommit, RefreshCw } from '@/lib/icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ConfirmationRequest, FileStatusCode, GitDiffMap, GitStatusResponse } from '../../types/types';
 import { getAllChangedFiles, hasChangedFiles } from '../../utils/gitPanelUtils';

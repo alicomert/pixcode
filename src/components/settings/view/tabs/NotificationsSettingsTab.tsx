@@ -1,4 +1,4 @@
-import { Bell, BellOff, BellRing, Loader2 } from 'lucide-react';
+import { Bell, BellOff, BellRing, Loader2 } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { NotificationPreferencesState } from '../../types/types';
 

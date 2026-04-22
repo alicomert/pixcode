@@ -1,4 +1,4 @@
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X } from '@/lib/icons';
 
 type CreateTaskModalProps = {
   isOpen: boolean;

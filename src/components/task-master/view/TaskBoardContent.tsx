@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react';
+import { Search } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../../lib/utils';
 import type { TaskBoardView, TaskKanbanColumn, TaskMasterTask, TaskSelection } from '../types';
