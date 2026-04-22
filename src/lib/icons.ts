@@ -15,16 +15,19 @@
  *
  * Heroicons outline 24x24 is the baseline — the stroke-1.5 feel matches the
  * ChatGPT/Claude look the redesign is targeting. All icons accept
- * `className` (height/width via Tailwind h-*/w-*). Heroicons do NOT accept
- * Lucide's `size` or `strokeWidth` props — if any call site needs those,
- * migrate them to className-based sizing at that site.
+ * `className` (size via Tailwind h-N and w-N utilities). Heroicons do NOT
+ * accept Lucide's `size` or `strokeWidth` props — if any call site needs
+ * those, migrate them to className-based sizing at that site.
  */
 
+import type { ComponentType, SVGProps } from 'react';
 import {
   AdjustmentsHorizontalIcon,
   ArrowDownIcon,
   ArrowDownTrayIcon,
+  ArrowLeftIcon,
   ArrowPathIcon,
+  ArrowRightIcon,
   ArrowRightEndOnRectangleIcon,
   ArrowTopRightOnSquareIcon,
   ArrowUpCircleIcon,
@@ -52,7 +55,9 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronUpDownIcon,
+  ChevronUpIcon,
   ClipboardDocumentCheckIcon,
+  ClipboardIcon,
   ClockIcon,
   CloudIcon,
   CodeBracketIcon,
@@ -66,9 +71,11 @@ import {
   ExclamationTriangleIcon,
   EyeIcon,
   EyeSlashIcon,
+  FlagIcon,
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
+  FunnelIcon,
   GlobeAltIcon,
   InboxIcon,
   InformationCircleIcon,
@@ -77,19 +84,24 @@ import {
   ListBulletIcon,
   LockClosedIcon,
   MagnifyingGlassIcon,
+  MinusIcon,
   MoonIcon,
   PaperAirplaneIcon,
+  PauseIcon,
   PencilIcon,
   PencilSquareIcon,
   PhotoIcon,
+  PlayIcon,
   PlusIcon,
   PuzzlePieceIcon,
+  QuestionMarkCircleIcon,
   QueueListIcon,
   ServerIcon,
   ServerStackIcon,
   ShieldCheckIcon,
   ShieldExclamationIcon,
   SparklesIcon,
+  Squares2X2Icon,
   StarIcon,
   StopIcon,
   SunIcon,
@@ -114,7 +126,9 @@ import {
   Box as LucideBox,
   Braces as LucideBraces,
   Brain as LucideBrain,
+  Circle as LucideCircle,
   Coffee as LucideCoffee,
+  Columns as LucideColumns,
   Cog as LucideCog,
   Cpu as LucideCpu,
   Database as LucideDatabase,
@@ -130,6 +144,7 @@ import {
   GitBranch as LucideGitBranch,
   GitCommit as LucideGitCommit,
   Github as LucideGithub,
+  GripVertical as LucideGripVertical,
   Hash as LucideHash,
   Hexagon as LucideHexagon,
   Image as LucideImage,
@@ -137,9 +152,18 @@ import {
   NotebookPen as LucideNotebookPen,
   Scroll as LucideScroll,
   SquareFunction as LucideSquareFunction,
+  Target as LucideTarget,
   Video as LucideVideo,
   Workflow as LucideWorkflow,
 } from 'lucide-react';
+
+/**
+ * Back-compat type alias for the old `LucideIcon` type. Every icon exported
+ * by this module (Heroicons and Lucide-fallback alike) is a React component
+ * that accepts `className` plus standard SVG props, so this shape is wide
+ * enough to describe both.
+ */
+export type LucideIcon = ComponentType<SVGProps<SVGSVGElement> & { className?: string }>;
 
 // ===== Heroicons aliased to the old Lucide names used throughout the app =====
 
@@ -150,7 +174,11 @@ export { ArrowDownIcon };
 export const ArrowUp = ArrowUpIcon;
 export const ArrowUpCircle = ArrowUpCircleIcon;
 export const ArrowUpDown = ArrowsUpDownIcon;
+export const ArrowLeft = ArrowLeftIcon;
+export const ArrowRight = ArrowRightIcon;
+export const ArrowDownToLine = ArrowDownTrayIcon;
 export const ChevronDown = ChevronDownIcon;
+export const ChevronUp = ChevronUpIcon;
 export { ChevronDownIcon };
 export const ChevronLeft = ChevronLeftIcon;
 export const ChevronRight = ChevronRightIcon;
@@ -180,7 +208,9 @@ export const ShieldAlertIcon = ShieldExclamationIcon;
 
 // Content / files
 export const BookOpen = BookOpenIcon;
+export const Clipboard = ClipboardIcon;
 export const ClipboardCheck = ClipboardDocumentCheckIcon;
+export const Clock = ClockIcon;
 export const Code2 = CodeBracketIcon;
 export const Copy = DocumentDuplicateIcon;
 export const FileText = DocumentTextIcon;
@@ -196,9 +226,17 @@ export const Save = BookmarkSquareIcon;
 export const TableProperties = TableCellsIcon;
 
 // Actions
+export const Edit = PencilIcon;
 export const Edit2 = PencilIcon;
 export const Edit3 = PencilSquareIcon;
+export const Filter = FunnelIcon;
+export const Flag = FlagIcon;
+export const Grid = Squares2X2Icon;
+export const HelpCircle = QuestionMarkCircleIcon;
+export const Minus = MinusIcon;
+export const Pause = PauseIcon;
 export const Pencil = PencilIcon;
+export const Play = PlayIcon;
 export const Plus = PlusIcon;
 export const Trash2 = TrashIcon;
 export const MoreHorizontal = EllipsisHorizontalIcon;
@@ -282,3 +320,9 @@ export const Scroll = LucideScroll;
 export const SquareFunction = LucideSquareFunction;
 export const Video = LucideVideo;
 export const Workflow = LucideWorkflow;
+
+// Geometric shapes and dev-UI primitives Heroicons doesn't supply cleanly
+export const Circle = LucideCircle;
+export const Columns = LucideColumns;
+export const GripVertical = LucideGripVertical;
+export const Target = LucideTarget;
