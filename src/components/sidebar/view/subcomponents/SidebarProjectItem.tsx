@@ -5,6 +5,7 @@ import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
 import { getTaskIndicatorStatus } from '../../utils/utils';
+import ItemActionsMenu, { type MenuAction } from './ItemActionsMenu';
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
 
@@ -356,46 +357,55 @@ export default function SidebarProjectItem({
               </>
             ) : (
               <>
-                <div
-                  className={cn(
-                    'w-6 h-6 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center rounded cursor-pointer touch:opacity-100',
-                    isStarred ? 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20 opacity-100' : 'hover:bg-accent',
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    toggleStarProject();
-                  }}
-                  title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
-                >
-                  <Star
-                    className={cn(
-                      'w-3 h-3 transition-colors',
-                      isStarred
-                        ? 'text-yellow-600 dark:text-yellow-400 fill-current'
-                        : 'text-muted-foreground',
-                    )}
-                  />
-                </div>
-                <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onStartEditingProject(project);
-                  }}
-                  title={t('tooltips.renameProject')}
-                >
-                  <Edit3 className="h-3 w-3" />
-                </div>
-                <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDeleteProject(project);
-                  }}
-                  title={t('tooltips.deleteProject')}
-                >
-                  <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
-                </div>
+                {/*
+                  Permanent star pill — visible even when the row isn't hovered,
+                  matches the compact session-item indicator style.
+                */}
+                {isStarred && (
+                  <div
+                    className="flex h-6 w-6 cursor-pointer items-center justify-center rounded hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleStarProject();
+                    }}
+                    title={t('tooltips.removeFromFavorites')}
+                  >
+                    <Star className="h-3 w-3 fill-current text-yellow-600 dark:text-yellow-400" />
+                  </div>
+                )}
+                {/*
+                  Consolidated "⋯" menu — same component the session row uses,
+                  so Rename / Star / Delete live in one portal popup instead of
+                  three hover-only icons that were easy to miss.
+                */}
+                <ItemActionsMenu
+                  triggerLabel={t('tooltips.projectActions', { defaultValue: 'Project actions' })}
+                  actions={
+                    [
+                      {
+                        id: 'rename',
+                        label: t('actions.rename'),
+                        icon: Edit3,
+                        onClick: () => onStartEditingProject(project),
+                      },
+                      {
+                        id: 'star',
+                        label: isStarred
+                          ? t('tooltips.removeFromFavorites')
+                          : t('tooltips.addToFavorites'),
+                        icon: Star,
+                        onClick: toggleStarProject,
+                      },
+                      {
+                        id: 'delete',
+                        label: t('actions.delete', { defaultValue: 'Delete' }),
+                        icon: Trash2,
+                        onClick: () => onDeleteProject(project),
+                        danger: true,
+                      },
+                    ] as MenuAction[]
+                  }
+                />
                 {isExpanded ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
                 ) : (
