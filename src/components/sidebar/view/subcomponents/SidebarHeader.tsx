@@ -101,8 +101,21 @@ export default function SidebarHeader({
   const LogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
       <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-        <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        {/*
+          Pixcode "P" mark — same geometry as public/favicon.svg so the brand
+          reads consistently from the browser tab down to the sidebar badge.
+        */}
+        <svg
+          className="h-3.5 w-3.5 text-primary-foreground"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            clipRule="evenodd"
+            d="M4 3h10a6 6 0 0 1 0 12H8v6H4V3zM8 7h6a2 2 0 0 1 0 4H8V7z"
+          />
         </svg>
       </div>
       <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{t('app.title')}</h1>

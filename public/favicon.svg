@@ -1,9 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Background fills entire canvas -->
-  <rect x="0" y="0" width="64" height="64" fill="hsl(240 5.9% 10%)"/>
-  
-  <!-- MessageSquare icon - exact same as sidebar -->
-  <g transform="translate(32, 32) scale(1.333) translate(-12, -12)" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </g>
+<!--
+  App favicon — rounded-square brand tile with the Pixcode "P" in white.
+  Renders crisply at 16/32/48px browser favicons and scales for PWA icons
+  in public/icons/* without rework.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="32" height="32">
+  <rect width="24" height="24" rx="5" fill="#2563eb"/>
+  <path
+    fill="#fff"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M4 3h10a6 6 0 0 1 0 12H8v6H4V3zM8 7h6a2 2 0 0 1 0 4H8V7z"
+  />
 </svg>
