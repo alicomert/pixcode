@@ -3,6 +3,28 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## Unreleased
+
+Ports upstream `siteboon/claudecodeui` v1.30.0 features on top of Pixcode's v1.29.5 base. The release-it tooling will generate the final numbered entry when the next Pixcode version is cut.
+
+### New Features
+
+* **i18n:** add Turkish (tr) and Italian (it) language support (upstream PRs [#677](https://github.com/siteboon/claudecodeui/pull/677), [#678](https://github.com/siteboon/claudecodeui/pull/678))
+* introduce Claude Opus 4.6 as an explicit model option and bump `@anthropic-ai/claude-agent-sdk` to ^0.2.116
+* Claude env variables such as `ANTHROPIC_BASE_URL` from `.claude/settings.json` are now forwarded to the Claude Agent SDK subprocess
+* new UI primitives (Alert, Card, Collapsible, Command, Confirmation, Dialog, Reasoning, Shimmer, PromptInput, Queue) usable from `@/shared/view/ui`
+* add `PlanDisplay` and `ToolStatusBadge` helpers for the upcoming chat redesign
+* add history view switch (Recent / By project), session action menu, session starring, and time-bucketed flat list in the sidebar
+
+### Refactoring
+
+* provider runtimes consolidated under `server/modules/providers/*` with auth/sessions/MCP split into dedicated providers (upstream PR [#666](https://github.com/siteboon/claudecodeui/pull/666))
+* chat composer, tool display, plan mode, and session model selector rebuilt on top of the new primitives (upstream refactor commits [7763e60](https://github.com/siteboon/claudecodeui/commit/7763e60), [5758bee](https://github.com/siteboon/claudecodeui/commit/5758bee), [ec0ff97](https://github.com/siteboon/claudecodeui/commit/ec0ff97))
+
+### Bug Fixes
+
+* iOS scrolling in main chat area, mobile permission mode button tap target and provider selector sizing, PlanDisplay raw params migration, precise Claude SDK denial detection
+
 ## [1.29.5](https://github.com/alicomert/pixcode/compare/v1.29.4...v1.29.5) (2026-04-16)
 
 ### Bug Fixes
