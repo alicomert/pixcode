@@ -149,9 +149,17 @@ function mapCliOptionsToSDK(options = {}) {
 
   const sdkOptions = {};
 
-  if (process.env.CLAUDE_CLI_PATH) {
-    sdkOptions.pathToClaudeCodeExecutable = process.env.CLAUDE_CLI_PATH;
-  }
+  // Forward all host env vars (e.g. ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN) to the subprocess.
+  // Since claude-agent-sdk 0.2.113+, options.env REPLACES process.env in the subprocess
+  // instead of overlaying it. Without spreading process.env here, users who rely on
+  // ANTHROPIC_BASE_URL, HTTP(S)_PROXY, etc. would silently lose those settings.
+  sdkOptions.env = { ...process.env };
+
+  // Use CLAUDE_CLI_PATH if explicitly set, otherwise fall back to the "claude" binary on PATH.
+  // The SDK (>=0.2.113) looks for a bundled native binary as an optional dependency by default;
+  // this fallback keeps users who installed via the official installer working even when
+  // `npm prune --production` removed those optional deps.
+  sdkOptions.pathToClaudeCodeExecutable = process.env.CLAUDE_CLI_PATH || 'claude';
 
   // Map working directory
   if (cwd) {
