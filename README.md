@@ -13,7 +13,16 @@
   <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
 </p>
 
-<div align="right"><i><b>English</b> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a> · <a href="./README.it.md">Italiano</a></i></div>
+<p align="center">
+  <a href="./README.md"><img src="https://img.shields.io/badge/English-5C3FFC?style=for-the-badge&logoColor=white" alt="English"></a>
+  <a href="./README.tr.md"><img src="https://img.shields.io/badge/T%C3%BCrk%C3%A7e-4B4B4B?style=for-the-badge" alt="Türkçe"></a>
+  <a href="./README.ru.md"><img src="https://img.shields.io/badge/%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-4B4B4B?style=for-the-badge" alt="Русский"></a>
+  <a href="./README.de.md"><img src="https://img.shields.io/badge/Deutsch-4B4B4B?style=for-the-badge" alt="Deutsch"></a>
+  <a href="./README.it.md"><img src="https://img.shields.io/badge/Italiano-4B4B4B?style=for-the-badge" alt="Italiano"></a>
+  <a href="./README.ja.md"><img src="https://img.shields.io/badge/%E6%97%A5%E6%9C%AC%E8%AA%9E-4B4B4B?style=for-the-badge" alt="日本語"></a>
+  <a href="./README.ko.md"><img src="https://img.shields.io/badge/%ED%95%9C%EA%B5%AD%EC%96%B4-4B4B4B?style=for-the-badge" alt="한국어"></a>
+  <a href="./README.zh-CN.md"><img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-4B4B4B?style=for-the-badge" alt="中文"></a>
+</p>
 
 ---
 
