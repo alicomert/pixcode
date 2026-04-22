@@ -392,23 +392,42 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         res.flushHeaders();
     }
 
+    // Single-source end guard. When spawn() fails with ENOENT both the
+    // 'error' and 'close' handlers can fire on the child, and before this
+    // guard both would try to write a `done` event + call res.end(), which
+    // crashed the process with ERR_HTTP_HEADERS_SENT.
+    let ended = false;
+    const endStream = () => {
+        if (ended) return;
+        ended = true;
+        clearInterval(heartbeat);
+        res.end();
+    };
+
     const send = (event, payload) => {
+        if (ended) return;
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
 
-    send('log', { stream: 'meta', chunk: `Running: ${updateCommand}\n` });
-
-    const child = spawn('sh', ['-c', updateCommand], {
-        cwd: updateCwd,
-        env: process.env
-    });
-
     // Heartbeat keeps intermediate proxies from closing an idle connection
-    // during long npm installs.
+    // during long npm installs. Declared before spawn so the handlers below
+    // can reference it, and guarded against writes after end.
     const heartbeat = setInterval(() => {
+        if (ended) return;
         res.write(': ping\n\n');
     }, 15000);
+
+    send('log', { stream: 'meta', chunk: `Running: ${updateCommand}\n` });
+
+    // Cross-platform shell invocation. Using { shell: true } delegates to
+    // cmd.exe on Windows and /bin/sh on POSIX, so the endpoint no longer
+    // fails with `spawn sh ENOENT` on Windows installs.
+    const child = spawn(updateCommand, {
+        cwd: updateCwd,
+        env: process.env,
+        shell: true,
+    });
 
     let clientAborted = false;
     req.on('close', () => {
@@ -418,37 +437,40 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         }
     });
 
-    child.stdout.on('data', (data) => {
+    child.stdout?.on('data', (data) => {
         send('log', { stream: 'stdout', chunk: data.toString() });
     });
 
-    child.stderr.on('data', (data) => {
+    child.stderr?.on('data', (data) => {
         send('log', { stream: 'stderr', chunk: data.toString() });
     });
 
     child.on('error', (error) => {
-        clearInterval(heartbeat);
+        if (ended) return;
         console.error('Update process error:', error);
         send('done', { success: false, error: error.message });
-        res.end();
+        endStream();
     });
 
     child.on('close', (code) => {
-        clearInterval(heartbeat);
-        if (clientAborted) return;
+        if (ended) return;
+        if (clientAborted) {
+            endStream();
+            return;
+        }
         if (code === 0) {
             send('done', {
                 success: true,
                 version: SERVER_VERSION,
-                message: 'Update completed. Restart the server to apply changes.'
+                message: 'Update completed. Restart the server to apply changes.',
             });
         } else {
             send('done', {
                 success: false,
-                error: `Update command exited with code ${code}`
+                error: `Update command exited with code ${code}`,
             });
         }
-        res.end();
+        endStream();
     });
 });
 
