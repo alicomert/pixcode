@@ -223,7 +223,7 @@ function isNewerVersion(v1, v2) {
 async function checkForUpdates(silent = false) {
     try {
         const { execSync } = await import('child_process');
-        const latestVersion = execSync('npm show pixcode version', { encoding: 'utf8' }).trim();
+        const latestVersion = execSync('npm show @pixelbyte-software/pixcode version', { encoding: 'utf8' }).trim();
         const currentVersion = packageJson.version;
 
         if (isNewerVersion(latestVersion, currentVersion)) {
@@ -256,7 +256,7 @@ async function updatePackage(options = {}) {
         }
 
         console.log(`${c.info('[INFO]')} Updating from ${currentVersion} to ${latestVersion}...`);
-        execSync('npm update -g pixcode', { stdio: 'inherit' });
+        execSync('npm update -g @pixelbyte-software/pixcode', { stdio: 'inherit' });
         console.log(`${c.ok('[OK]')} Update complete!`);
 
         if (options.restartDaemon) {
@@ -283,7 +283,7 @@ async function updatePackage(options = {}) {
         }
     } catch (e) {
         console.error(`${c.error('[ERROR]')} Update failed: ${e.message}`);
-        console.log(`${c.tip('[TIP]')} Try running manually: npm update -g pixcode`);
+        console.log(`${c.tip('[TIP]')} Try running manually: npm update -g @pixelbyte-software/pixcode`);
     }
 }
 
