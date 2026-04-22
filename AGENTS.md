@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Web UI (`pixcode` / "CloudCLI UI") for Claude Code, Cursor CLI, Codex, and Gemini CLI. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins.
+Web UI (`pixcode`) for Claude Code, Cursor CLI, Codex, and Gemini CLI. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins.
 
 ## Stack & topology
 

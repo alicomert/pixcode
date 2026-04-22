@@ -447,7 +447,7 @@
   },
   "pluginSettings": {
     "title": "Eklentiler",
-    "description": "Arayüzü özel eklentilerle genişlet. Git'ten yükle veya ~/.claude-code-ui/plugins/ klasörüne bir dizin bırak.",
+    "description": "Arayüzü özel eklentilerle genişlet. Git'ten yükle veya ~/.pixcode/plugins/ klasörüne bir dizin bırak.",
     "installPlaceholder": "https://github.com/kullanici/benim-eklentim",
     "installButton": "Yükle",
     "installing": "Yükleniyor…",

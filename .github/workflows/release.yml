@@ -9,7 +9,7 @@ on:
         default: 'patch'
         type: string
       release_name:
-        description: 'Custom release name (optional, defaults to "CloudCLI UI vX.Y.Z")'
+        description: 'Custom release name (optional, defaults to "Pixcode vX.Y.Z")'
         required: false
         type: string
 

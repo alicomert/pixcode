@@ -447,7 +447,7 @@
   },
   "pluginSettings": {
     "title": "Plugin",
-    "description": "Estendi l'interfaccia con plugin personalizzati. Installa da git o inserisci una cartella in ~/.claude-code-ui/plugins/",
+    "description": "Estendi l'interfaccia con plugin personalizzati. Installa da git o inserisci una cartella in ~/.pixcode/plugins/",
     "installPlaceholder": "https://github.com/utente/mio-plugin",
     "installButton": "Installa",
     "installing": "Installazione…",

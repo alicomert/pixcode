@@ -11,8 +11,6 @@
 <p align="center">
   <a href="https://github.com/alicomert/pixcode"><img src="https://img.shields.io/badge/☁️_Pixcode_Cloud-Hemen_Dene-0066FF?style=for-the-badge" alt="Pixcode Cloud"></a>
   <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Toplulu%C4%9Fa%20Kat%C4%B1l-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord'a Katıl"></a>
-  <br><br>
-  <a href="https://trendshift.io/repositories/15586" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15586" alt="siteboon%2Fclaudecodeui | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
 <div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">中文</a> · <a href="./README.ja.md">日本語</a> · <b>Türkçe</b> · <a href="./README.it.md">Italiano</a></i></div>
@@ -88,7 +86,7 @@ Veya düzenli kullanım için **genel olarak** kur:
 
 ```
 npm install -g @pixelbyte-software/pixcode
-cloudcli
+pixcode
 ```
 
 `http://localhost:3001` adresini aç — mevcut tüm oturumların otomatik olarak keşfedilir.

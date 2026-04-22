@@ -427,7 +427,7 @@
   },
   "pluginSettings": {
     "title": "Плагины",
-    "description": "Расширяйте интерфейс с помощью кастомных плагинов. Установите из git или добавьте папку в ~/.claude-code-ui/plugins/",
+    "description": "Расширяйте интерфейс с помощью кастомных плагинов. Установите из git или добавьте папку в ~/.pixcode/plugins/",
     "installPlaceholder": "https://github.com/user/my-plugin",
     "installButton": "Установить",
     "installing": "Установка…",

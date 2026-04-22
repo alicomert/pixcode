@@ -18,8 +18,8 @@ Thanks for your interest in contributing to Pixcode! Before you start, please ta
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/<your-username>/claudecodeui.git
-   cd claudecodeui
+   git clone https://github.com/<your-username>/pixcode.git
+   cd pixcode
    ```
 3. Install dependencies:
    ```bash
@@ -37,7 +37,7 @@ Thanks for your interest in contributing to Pixcode! Before you start, please ta
 ## Project Structure
 
 ```
-claudecodeui/
+pixcode/
 ├── src/              # React frontend (Vite + Tailwind)
 │   ├── components/   # UI components
 │   ├── contexts/     # React context providers

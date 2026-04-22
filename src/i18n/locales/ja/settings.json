@@ -447,7 +447,7 @@
   },
   "pluginSettings": {
     "title": "プラグイン",
-    "description": "カスタムプラグインでインターフェースを拡張します。gitからインストールするか、~/.claude-code-ui/plugins/ にフォルダを配置してください。",
+    "description": "カスタムプラグインでインターフェースを拡張します。gitからインストールするか、~/.pixcode/plugins/ にフォルダを配置してください。",
     "installPlaceholder": "https://github.com/user/my-plugin",
     "installButton": "インストール",
     "installing": "インストール中…",

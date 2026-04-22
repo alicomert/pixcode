@@ -1,3 +1,0 @@
-[submodule "plugins/starter"]
-	path = plugins/starter
-	url = https://github.com/cloudcli-ai/cloudcli-plugin-starter.git

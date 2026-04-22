@@ -21,7 +21,7 @@
     "runClaudeCli": "Başlamak için bir proje dizininde Claude CLI çalıştır"
   },
   "app": {
-    "title": "CloudCLI",
+    "title": "Pixcode",
     "subtitle": "AI kodlama asistanı arayüzü"
   },
   "sessions": {

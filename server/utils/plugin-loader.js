@@ -3,8 +3,8 @@ import path from 'path';
 import os from 'os';
 import { spawn } from 'child_process';
 
-const PLUGINS_DIR = path.join(os.homedir(), '.claude-code-ui', 'plugins');
-const PLUGINS_CONFIG_PATH = path.join(os.homedir(), '.claude-code-ui', 'plugins.json');
+const PLUGINS_DIR = path.join(os.homedir(), '.pixcode', 'plugins');
+const PLUGINS_CONFIG_PATH = path.join(os.homedir(), '.pixcode', 'plugins.json');
 
 const REQUIRED_MANIFEST_FIELDS = ['name', 'displayName', 'entry'];
 

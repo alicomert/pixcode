@@ -427,7 +427,7 @@
   },
   "pluginSettings": {
     "title": "Plugins",
-    "description": "Erweitere die Oberfläche mit eigenen Plugins. Installiere sie von Git oder lege einen Ordner in ~/.claude-code-ui/plugins/ ab.",
+    "description": "Erweitere die Oberfläche mit eigenen Plugins. Installiere sie von Git oder lege einen Ordner in ~/.pixcode/plugins/ ab.",
     "installPlaceholder": "https://github.com/benutzer/mein-plugin",
     "installButton": "Installieren",
     "installing": "Wird installiert…",
