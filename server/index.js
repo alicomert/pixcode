@@ -54,7 +54,6 @@ import projectsRoutes, {
     validateWorkspacePath,
     normalizeWorkspacePath,
 } from './routes/projects.js';
-import cliAuthRoutes from './routes/cli-auth.js';
 import userRoutes from './routes/user.js';
 import codexRoutes from './routes/codex.js';
 import geminiRoutes from './routes/gemini.js';
