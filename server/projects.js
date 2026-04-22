@@ -260,6 +260,49 @@ function areStringArraysEqual(first, second) {
   return first.every((value, index) => value === second[index]);
 }
 
+// Qwen Code mirrors Gemini CLI's on-disk layout (~/.qwen/tmp/<projectDir>/
+// with a `.project_root` file + `chats/*.json`), because Qwen is a fork of
+// Gemini CLI. The listing / session / message helpers below duplicate the
+// Gemini ones rather than sharing a parametric implementation, keeping
+// provider-specific logic discoverable in one place.
+async function listQwenCliProjectEntries() {
+  const qwenTmpDir = path.join(os.homedir(), '.qwen', 'tmp');
+  try {
+    await fs.access(qwenTmpDir);
+  } catch {
+    return [];
+  }
+
+  let projectDirs;
+  try {
+    projectDirs = await fs.readdir(qwenTmpDir);
+  } catch {
+    return [];
+  }
+
+  const entries = [];
+  for (const projectDir of projectDirs) {
+    const projectRootFile = path.join(qwenTmpDir, projectDir, '.project_root');
+    let projectRoot;
+    try {
+      projectRoot = (await fs.readFile(projectRootFile, 'utf8')).trim();
+    } catch {
+      continue;
+    }
+
+    const normalizedProjectRoot = normalizeComparablePath(projectRoot);
+    if (!normalizedProjectRoot) continue;
+
+    entries.push({
+      projectDir,
+      projectRoot: path.resolve(projectRoot),
+      normalizedProjectRoot,
+    });
+  }
+
+  return entries;
+}
+
 async function listGeminiCliProjectEntries() {
   const geminiTmpDir = path.join(os.homedir(), '.gemini', 'tmp');
   try {
@@ -322,7 +365,7 @@ function addDiscoveredProject(discoveredProjectsByPath, projectPath, provider) {
   discoveredProjectsByPath.get(normalizedProjectPath).providers.add(provider);
 }
 
-async function discoverProjectsFromHistory(codexSessionsIndexRef = null, geminiCliProjectsRef = null) {
+async function discoverProjectsFromHistory(codexSessionsIndexRef = null, geminiCliProjectsRef = null, qwenCliProjectsRef = null) {
   const discoveredProjectsByPath = new Map();
 
   if (codexSessionsIndexRef && !codexSessionsIndexRef.sessionsByProject) {
@@ -344,6 +387,14 @@ async function discoverProjectsFromHistory(codexSessionsIndexRef = null, geminiC
   const geminiCliEntries = geminiCliProjectsRef?.entries || await listGeminiCliProjectEntries();
   for (const entry of geminiCliEntries) {
     addDiscoveredProject(discoveredProjectsByPath, entry.projectRoot, 'gemini');
+  }
+
+  if (qwenCliProjectsRef && !qwenCliProjectsRef.entries) {
+    qwenCliProjectsRef.entries = await listQwenCliProjectEntries();
+  }
+  const qwenCliEntries = qwenCliProjectsRef?.entries || await listQwenCliProjectEntries();
+  for (const entry of qwenCliEntries) {
+    addDiscoveredProject(discoveredProjectsByPath, entry.projectRoot, 'qwen');
   }
 
   for (const session of sessionManager.sessions.values()) {
@@ -402,8 +453,8 @@ function mergeDiscoveredProjectsIntoConfig(config, discoveredProjects) {
   return { config: nextConfig, changed };
 }
 
-async function syncAutoDiscoveredProjects(config, codexSessionsIndexRef = null, geminiCliProjectsRef = null) {
-  const discoveredProjects = await discoverProjectsFromHistory(codexSessionsIndexRef, geminiCliProjectsRef);
+async function syncAutoDiscoveredProjects(config, codexSessionsIndexRef = null, geminiCliProjectsRef = null, qwenCliProjectsRef = null) {
+  const discoveredProjects = await discoverProjectsFromHistory(codexSessionsIndexRef, geminiCliProjectsRef, qwenCliProjectsRef);
   if (discoveredProjects.length === 0) {
     return config;
   }
@@ -581,12 +632,13 @@ async function getProjects(progressCallback = null) {
   const existingProjects = new Set();
   const codexSessionsIndexRef = { sessionsByProject: null };
   const geminiCliProjectsRef = { entries: null };
+  const qwenCliProjectsRef = { entries: null };
   let totalProjects = 0;
   let processedProjects = 0;
   let directories = [];
 
   try {
-    config = await syncAutoDiscoveredProjects(config, codexSessionsIndexRef, geminiCliProjectsRef);
+    config = await syncAutoDiscoveredProjects(config, codexSessionsIndexRef, geminiCliProjectsRef, qwenCliProjectsRef);
   } catch (error) {
     console.warn('Failed to sync auto-discovered projects:', error.message);
   }
@@ -646,6 +698,7 @@ async function getProjects(progressCallback = null) {
       detectedAt: projectConfig.detectedAt || null,
       sessions: [],
       geminiSessions: [],
+      qwenSessions: [],
       sessionMeta: {
         hasMore: false,
         total: 0
@@ -699,6 +752,21 @@ async function getProjects(progressCallback = null) {
       project.geminiSessions = [];
     }
     applyCustomSessionNames(project.geminiSessions, 'gemini');
+
+    try {
+      // Qwen Code sessions — sourced purely from ~/.qwen/tmp since the adapter
+      // uses its own session IDs. Mirrors the Gemini branch above; sessionManager
+      // handles both Gemini and Qwen live sessions so UI continuations land in
+      // the right place regardless of provider.
+      const qwenCliSessions = await getQwenCliSessions(actualProjectDir, {
+        qwenCliProjectsRef,
+      });
+      project.qwenSessions = qwenCliSessions;
+    } catch (e) {
+      console.warn(`Could not load Qwen Code sessions for project ${entry.name}:`, e.message);
+      project.qwenSessions = [];
+    }
+    applyCustomSessionNames(project.qwenSessions, 'qwen');
 
     try {
       const taskMasterResult = await detectTaskMasterFolder(actualProjectDir);
@@ -762,6 +830,7 @@ async function getProjects(progressCallback = null) {
         detectedAt: projectConfig.detectedAt || null,
         sessions: [],
         geminiSessions: [],
+        qwenSessions: [],
         sessionMeta: {
           hasMore: false,
           total: 0
@@ -785,6 +854,15 @@ async function getProjects(progressCallback = null) {
         console.warn(`Could not load Codex sessions for tracked project ${projectName}:`, e.message);
       }
       applyCustomSessionNames(project.codexSessions, 'codex');
+
+      try {
+        project.qwenSessions = await getQwenCliSessions(actualProjectDir, {
+          qwenCliProjectsRef,
+        });
+      } catch (e) {
+        console.warn(`Could not load Qwen Code sessions for tracked project ${projectName}:`, e.message);
+      }
+      applyCustomSessionNames(project.qwenSessions, 'qwen');
 
       try {
         const uiSessions = sessionManager.getProjectSessions(actualProjectDir) || [];
@@ -2092,6 +2170,7 @@ async function searchConversations(query, limit = 50, onProjectResult = null, si
   let config = await loadProjectConfig();
   const codexSessionsIndexRef = { sessionsByProject: null };
   const geminiCliProjectsRef = { entries: null };
+  const qwenCliProjectsRef = { entries: null };
   const results = [];
   let totalMatches = 0;
   const words = safeQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0);
@@ -2174,7 +2253,7 @@ async function searchConversations(query, limit = 50, onProjectResult = null, si
   };
 
   try {
-    config = await syncAutoDiscoveredProjects(config, codexSessionsIndexRef, geminiCliProjectsRef);
+    config = await syncAutoDiscoveredProjects(config, codexSessionsIndexRef, geminiCliProjectsRef, qwenCliProjectsRef);
   } catch (error) {
     console.warn('Failed to sync auto-discovered projects for search:', error.message);
   }
@@ -2653,6 +2732,126 @@ async function searchGeminiSessionsForProject(
   }
 }
 
+// Qwen Code session listing — same chats/*.json payload Gemini emits since
+// Qwen is a Gemini CLI fork. Kept as its own function (instead of a shared
+// parametric helper) so future Qwen-specific protocol drift has one
+// obvious place to land.
+async function getQwenCliSessions(projectPath, options = {}) {
+  const { qwenCliProjectsRef = null } = options;
+  const normalizedProjectPath = normalizeComparablePath(projectPath);
+  if (!normalizedProjectPath) return [];
+
+  const sessions = [];
+  const qwenTmpDir = path.join(os.homedir(), '.qwen', 'tmp');
+
+  if (qwenCliProjectsRef && !qwenCliProjectsRef.entries) {
+    qwenCliProjectsRef.entries = await listQwenCliProjectEntries();
+  }
+  const qwenCliEntries = qwenCliProjectsRef?.entries || await listQwenCliProjectEntries();
+
+  for (const entry of qwenCliEntries) {
+    if (entry.normalizedProjectRoot !== normalizedProjectPath) continue;
+    const projectDir = entry.projectDir;
+    const chatsDir = path.join(qwenTmpDir, projectDir, 'chats');
+    let chatFiles;
+    try {
+      chatFiles = await fs.readdir(chatsDir);
+    } catch {
+      continue;
+    }
+
+    for (const chatFile of chatFiles) {
+      if (!chatFile.endsWith('.json')) continue;
+      try {
+        const filePath = path.join(chatsDir, chatFile);
+        const data = await fs.readFile(filePath, 'utf8');
+        const session = JSON.parse(data);
+        if (!session.messages || !Array.isArray(session.messages)) continue;
+
+        const sessionId = session.sessionId || chatFile.replace('.json', '');
+        const firstUserMsg = session.messages.find(m => m.type === 'user');
+        let summary = 'Qwen Code Session';
+        if (firstUserMsg) {
+          const text = Array.isArray(firstUserMsg.content)
+            ? firstUserMsg.content.filter(p => p.text).map(p => p.text).join(' ')
+            : (typeof firstUserMsg.content === 'string' ? firstUserMsg.content : '');
+          if (text) {
+            summary = text.length > 50 ? text.substring(0, 50) + '...' : text;
+          }
+        }
+
+        sessions.push({
+          id: sessionId,
+          summary,
+          messageCount: session.messages.length,
+          lastActivity: session.lastUpdated || session.startTime || null,
+          provider: 'qwen'
+        });
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return sessions.sort((a, b) =>
+    new Date(b.lastActivity || 0) - new Date(a.lastActivity || 0)
+  );
+}
+
+async function getQwenCliSessionMessages(sessionId) {
+  const qwenTmpDir = path.join(os.homedir(), '.qwen', 'tmp');
+  let projectDirs;
+  try {
+    projectDirs = await fs.readdir(qwenTmpDir);
+  } catch {
+    return [];
+  }
+
+  for (const projectDir of projectDirs) {
+    const chatsDir = path.join(qwenTmpDir, projectDir, 'chats');
+    let chatFiles;
+    try {
+      chatFiles = await fs.readdir(chatsDir);
+    } catch {
+      continue;
+    }
+
+    for (const chatFile of chatFiles) {
+      if (!chatFile.endsWith('.json')) continue;
+      try {
+        const filePath = path.join(chatsDir, chatFile);
+        const data = await fs.readFile(filePath, 'utf8');
+        const session = JSON.parse(data);
+        const fileSessionId = session.sessionId || chatFile.replace('.json', '');
+        if (fileSessionId !== sessionId) continue;
+
+        return (session.messages || []).map(msg => {
+          const role = msg.type === 'user' ? 'user'
+            : (msg.type === 'qwen' || msg.type === 'assistant') ? 'assistant'
+            : msg.type;
+
+          let content = '';
+          if (typeof msg.content === 'string') {
+            content = msg.content;
+          } else if (Array.isArray(msg.content)) {
+            content = msg.content.filter(p => p.text).map(p => p.text).join('\n');
+          }
+
+          return {
+            type: 'message',
+            message: { role, content },
+            timestamp: msg.timestamp || null
+          };
+        });
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  return [];
+}
+
 async function getGeminiCliSessions(projectPath, options = {}) {
   const { geminiCliProjectsRef = null } = options;
   const normalizedProjectPath = normalizeComparablePath(projectPath);
@@ -2788,5 +2987,7 @@ export {
   deleteCodexSession,
   getGeminiCliSessions,
   getGeminiCliSessionMessages,
+  getQwenCliSessions,
+  getQwenCliSessionMessages,
   searchConversations
 };

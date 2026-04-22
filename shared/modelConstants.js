@@ -75,6 +75,26 @@ export const CODEX_MODELS = {
 };
 
 /**
+ * Qwen Code Models
+ * Covers free tier (Qwen OAuth), Alibaba Coding Plan paid tier, and OpenAI-compat BYOK.
+ * Defaults to the coder-focused variant users actually want for Pixcode.
+ */
+export const QWEN_MODELS = {
+  OPTIONS: [
+    { value: "qwen3-coder-plus", label: "Qwen3 Coder Plus" },
+    { value: "qwen3-coder-next", label: "Qwen3 Coder Next" },
+    { value: "qwen3-coder-480B-A35B-instruct", label: "Qwen3 Coder 480B (Instruct)" },
+    { value: "qwen3-coder-30B-A3B", label: "Qwen3 Coder 30B" },
+    { value: "qwen3.5-plus", label: "Qwen3.5 Plus" },
+    { value: "qwen3-max", label: "Qwen3 Max" },
+    { value: "glm-4.7", label: "GLM-4.7 (Alibaba Coding Plan)" },
+    { value: "kimi-k2.5", label: "Kimi K2.5 (Alibaba Coding Plan)" },
+  ],
+
+  DEFAULT: "qwen3-coder-plus",
+};
+
+/**
  * Gemini Models
  */
 export const GEMINI_MODELS = {

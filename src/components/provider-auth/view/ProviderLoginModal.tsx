@@ -37,6 +37,13 @@ const getProviderCommand = ({
     return IS_PLATFORM ? 'codex login --device-auth' : 'codex login';
   }
 
+  if (provider === 'qwen') {
+    // `qwen` starts the TUI and auto-opens the /auth flow on first launch,
+    // which triggers the same browser-based OAuth popup Gemini uses. Once the
+    // user completes login, the shell just needs to exit to return to the UI.
+    return 'qwen';
+  }
+
   return 'gemini status';
 };
 
@@ -44,6 +51,7 @@ const getProviderTitle = (provider: LLMProvider) => {
   if (provider === 'claude') return 'Claude CLI Login';
   if (provider === 'cursor') return 'Cursor CLI Login';
   if (provider === 'codex') return 'Codex CLI Login';
+  if (provider === 'qwen') return 'Qwen Code Login';
   return 'Gemini CLI Configuration';
 };
 

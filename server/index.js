@@ -47,6 +47,7 @@ import { queryClaudeSDK, abortClaudeSDKSession, isClaudeSDKSessionActive, getAct
 import { spawnCursor, abortCursorSession, isCursorSessionActive, getActiveCursorSessions } from './cursor-cli.js';
 import { queryCodex, abortCodexSession, isCodexSessionActive, getActiveCodexSessions } from './openai-codex.js';
 import { spawnGemini, abortGeminiSession, isGeminiSessionActive, getActiveGeminiSessions } from './gemini-cli.js';
+import { spawnQwen, abortQwenSession, isQwenSessionActive, getActiveQwenSessions } from './qwen-code-cli.js';
 import sessionManager from './sessionManager.js';
 import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
@@ -65,6 +66,7 @@ import projectsRoutes, {
 import userRoutes from './routes/user.js';
 import codexRoutes from './routes/codex.js';
 import geminiRoutes from './routes/gemini.js';
+import qwenRoutes from './routes/qwen.js';
 import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
 import providerRoutes from './modules/providers/provider.routes.js';
@@ -77,7 +79,7 @@ import { IS_PLATFORM } from './constants/config.js';
 import { getConnectableHost } from '../shared/networkHosts.js';
 import { buildDaemonCliCommand, handleDaemonCommand } from './daemon-manager.js';
 
-const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini'];
+const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen'];
 
 // File system watchers for provider project/session folders
 const PROVIDER_WATCH_PATHS = [
@@ -87,6 +89,10 @@ const PROVIDER_WATCH_PATHS = [
     { provider: 'gemini', rootPath: path.join(os.homedir(), '.gemini', 'projects') },
     { provider: 'gemini_sessions', rootPath: path.join(os.homedir(), '.gemini', 'sessions') },
     { provider: 'gemini_cli', rootPath: path.join(os.homedir(), '.gemini', 'tmp') },
+    // Qwen Code is a Gemini-CLI fork so its on-disk layout mirrors ~/.gemini/.
+    { provider: 'qwen', rootPath: path.join(os.homedir(), '.qwen', 'projects') },
+    { provider: 'qwen_sessions', rootPath: path.join(os.homedir(), '.qwen', 'sessions') },
+    { provider: 'qwen_cli', rootPath: path.join(os.homedir(), '.qwen', 'tmp') },
 ];
 const WATCHER_IGNORED_PATTERNS = [
     '**/node_modules/**',
@@ -332,6 +338,9 @@ app.use('/api/codex', authenticateToken, codexRoutes);
 
 // Gemini API Routes (protected)
 app.use('/api/gemini', authenticateToken, geminiRoutes);
+
+// Qwen Code API Routes (protected)
+app.use('/api/qwen', authenticateToken, qwenRoutes);
 
 // Plugins API Routes (protected)
 app.use('/api/plugins', authenticateToken, pluginsRoutes);
@@ -1502,6 +1511,12 @@ function handleChatConnection(ws, request) {
                 console.log('🔄 Session:', data.options?.sessionId ? 'Resume' : 'New');
                 console.log('🤖 Model:', data.options?.model || 'default');
                 await spawnGemini(data.command, data.options, writer);
+            } else if (data.type === 'qwen-command') {
+                console.log('[DEBUG] Qwen Code message:', data.command || '[Continue/Resume]');
+                console.log('📁 Project:', data.options?.projectPath || data.options?.cwd || 'Unknown');
+                console.log('🔄 Session:', data.options?.sessionId ? 'Resume' : 'New');
+                console.log('🤖 Model:', data.options?.model || 'default');
+                await spawnQwen(data.command, data.options, writer);
             } else if (data.type === 'cursor-resume') {
                 // Backward compatibility: treat as cursor-command with resume and no prompt
                 console.log('[DEBUG] Cursor resume session (compat):', data.sessionId);
@@ -1521,6 +1536,8 @@ function handleChatConnection(ws, request) {
                     success = abortCodexSession(data.sessionId);
                 } else if (provider === 'gemini') {
                     success = abortGeminiSession(data.sessionId);
+                } else if (provider === 'qwen') {
+                    success = abortQwenSession(data.sessionId);
                 } else {
                     // Use Claude Agents SDK
                     success = await abortClaudeSDKSession(data.sessionId);
@@ -1555,6 +1572,8 @@ function handleChatConnection(ws, request) {
                     isActive = isCodexSessionActive(sessionId);
                 } else if (provider === 'gemini') {
                     isActive = isGeminiSessionActive(sessionId);
+                } else if (provider === 'qwen') {
+                    isActive = isQwenSessionActive(sessionId);
                 } else {
                     // Use Claude Agents SDK
                     isActive = isClaudeSDKSessionActive(sessionId);
@@ -1588,7 +1607,8 @@ function handleChatConnection(ws, request) {
                     claude: getActiveClaudeSDKSessions(),
                     cursor: getActiveCursorSessions(),
                     codex: getActiveCodexSessions(),
-                    gemini: getActiveGeminiSessions()
+                    gemini: getActiveGeminiSessions(),
+                    qwen: getActiveQwenSessions()
                 };
                 writer.send({
                     type: 'active-sessions',
@@ -1697,7 +1717,11 @@ function handleShellConnection(ws) {
                 if (isPlainShell) {
                     welcomeMsg = `\x1b[36mStarting terminal in: ${projectPath}\x1b[0m\r\n`;
                 } else {
-                    const providerName = provider === 'cursor' ? 'Cursor' : (provider === 'codex' ? 'Codex' : (provider === 'gemini' ? 'Gemini' : 'Claude'));
+                    const providerName = provider === 'cursor' ? 'Cursor'
+                        : provider === 'codex' ? 'Codex'
+                        : provider === 'gemini' ? 'Gemini'
+                        : provider === 'qwen' ? 'Qwen Code'
+                        : 'Claude';
                     welcomeMsg = hasSession ?
                         `\x1b[36mResuming ${providerName} session ${sessionId} in: ${projectPath}\x1b[0m\r\n` :
                         `\x1b[36mStarting new ${providerName} session in: ${projectPath}\x1b[0m\r\n`;
@@ -1769,6 +1793,31 @@ function handleShellConnection(ws) {
                                 }
                             } catch (err) {
                                 console.error('Failed to get Gemini CLI session ID:', err);
+                            }
+                        }
+
+                        if (hasSession && resumeId) {
+                            shellCommand = `${command} --resume "${resumeId}"`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else if (provider === 'qwen') {
+                        // Qwen Code shares Gemini CLI's --resume semantics (it's a fork),
+                        // so the resume path resolves the backend-tracked cliSessionId the
+                        // same way. Falls back to a fresh session when the ID can't be found.
+                        const command = initialCommand || 'qwen';
+                        let resumeId = sessionId;
+                        if (hasSession && sessionId) {
+                            try {
+                                const sess = sessionManager.getSession(sessionId);
+                                if (sess && sess.cliSessionId) {
+                                    resumeId = sess.cliSessionId;
+                                    if (!safeSessionIdPattern.test(resumeId)) {
+                                        resumeId = null;
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Failed to get Qwen Code CLI session ID:', err);
                             }
                         }
 
@@ -2086,6 +2135,18 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
                 breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
                 unsupported: true,
                 message: 'Token usage tracking not available for Gemini sessions'
+            });
+        }
+
+        // Qwen Code is a Gemini CLI fork and doesn't expose per-session token
+        // accounting either; treat it the same way.
+        if (provider === 'qwen') {
+            return res.json({
+                used: 0,
+                total: 0,
+                breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
+                unsupported: true,
+                message: 'Token usage tracking not available for Qwen Code sessions'
             });
         }
 

@@ -36,6 +36,13 @@ const providerCards = [
     iconContainerClassName: 'bg-teal-100 dark:bg-teal-900/30',
     loginButtonClassName: 'bg-teal-600 hover:bg-teal-700',
   },
+  {
+    provider: 'qwen' as const,
+    title: 'Qwen Code',
+    connectedClassName: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800',
+    iconContainerClassName: 'bg-orange-100 dark:bg-orange-900/30',
+    loginButtonClassName: 'bg-orange-600 hover:bg-orange-700',
+  },
 ];
 
 export default function AgentConnectionsStep({

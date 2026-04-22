@@ -133,7 +133,13 @@ const parseMcpUpsertPayload = (payload: unknown): UpsertProviderMcpServerInput =
 
 const parseProvider = (value: unknown): LLMProvider => {
   const normalized = normalizeProviderParam(value);
-  if (normalized === 'claude' || normalized === 'codex' || normalized === 'cursor' || normalized === 'gemini') {
+  if (
+    normalized === 'claude' ||
+    normalized === 'codex' ||
+    normalized === 'cursor' ||
+    normalized === 'gemini' ||
+    normalized === 'qwen'
+  ) {
     return normalized;
   }
 
