@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+
 import { authenticatedFetch } from "../../../utils/api";
 import { ReleaseInfo } from "../../../types/sharedTypes";
 import { copyTextToClipboard } from "../../../utils/clipboard";
@@ -16,6 +17,17 @@ interface VersionUpgradeModalProps {
 }
 
 const RELOAD_COUNTDOWN_START = 30;
+const HEALTH_POLL_TIMEOUT_MS = 60_000;
+const HEALTH_POLL_INTERVAL_MS = 1500;
+
+type DoneEvent = {
+    success: boolean;
+    error?: string;
+    version?: string;
+    message?: string;
+};
+
+type RestartPhase = 'idle' | 'restarting' | 'waiting' | 'ready' | 'timeout' | 'error';
 
 export function VersionUpgradeModal({
     isOpen,
@@ -35,6 +47,15 @@ export function VersionUpgradeModal({
     const [updateOutput, setUpdateOutput] = useState('');
     const [updateError, setUpdateError] = useState('');
     const [reloadCountdown, setReloadCountdown] = useState<number | null>(null);
+    const [restartPhase, setRestartPhase] = useState<RestartPhase>('idle');
+    const outputRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll the log pane as new output streams in.
+    useEffect(() => {
+        if (outputRef.current) {
+            outputRef.current.scrollTop = outputRef.current.scrollHeight;
+        }
+    }, [updateOutput]);
 
     useEffect(() => {
         if (!IS_PLATFORM || reloadCountdown === null || reloadCountdown <= 0) {
@@ -54,45 +75,147 @@ export function VersionUpgradeModal({
         return () => window.clearTimeout(timeoutId);
     }, [reloadCountdown]);
 
+    const appendOutput = useCallback((chunk: string) => {
+        setUpdateOutput(prev => prev + chunk);
+    }, []);
+
+    const pollHealthUntilReady = useCallback(async (): Promise<boolean> => {
+        const deadline = Date.now() + HEALTH_POLL_TIMEOUT_MS;
+        // Give the server a moment to actually exit before we start polling.
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        while (Date.now() < deadline) {
+            try {
+                const response = await fetch('/health', { cache: 'no-store' });
+                if (response.ok) {
+                    // Confirm we can parse the payload too.
+                    await response.json();
+                    return true;
+                }
+            } catch {
+                // Server still down — keep polling.
+            }
+            await new Promise(resolve => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS));
+        }
+        return false;
+    }, []);
+
+    const triggerRestart = useCallback(async () => {
+        setRestartPhase('restarting');
+        appendOutput('\nRestarting server...\n');
+        try {
+            const response = await authenticatedFetch('/api/system/restart', { method: 'POST' });
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || `Restart request failed (HTTP ${response.status})`);
+            }
+        } catch (error: any) {
+            appendOutput(`\n⚠️ Restart request failed: ${error.message}\n`);
+            appendOutput('Please restart the server manually, then refresh this page.\n');
+            setRestartPhase('error');
+            return;
+        }
+
+        setRestartPhase('waiting');
+        const isBack = await pollHealthUntilReady();
+        if (isBack) {
+            appendOutput('\n✅ Server is back online. Reloading...\n');
+            setRestartPhase('ready');
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            appendOutput('\n⚠️ Server did not come back within 60s.\n');
+            appendOutput('Start it again manually (e.g. `pixcode` or your daemon/pm2), then refresh.\n');
+            setRestartPhase('timeout');
+        }
+    }, [appendOutput, pollHealthUntilReady]);
+
+    const streamUpdate = useCallback(async (): Promise<DoneEvent> => {
+        const response = await authenticatedFetch('/api/system/update', { method: 'POST' });
+        if (!response.ok || !response.body) {
+            throw new Error(`Update request failed (HTTP ${response.status})`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let doneEvent: DoneEvent | null = null;
+
+        for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+
+            for (;;) {
+                const sepIdx = buffer.indexOf('\n\n');
+                if (sepIdx === -1) break;
+                const raw = buffer.slice(0, sepIdx);
+                buffer = buffer.slice(sepIdx + 2);
+
+                let eventName = 'message';
+                const dataLines: string[] = [];
+                for (const line of raw.split('\n')) {
+                    if (line.startsWith(':')) continue; // comment/heartbeat
+                    if (line.startsWith('event: ')) eventName = line.slice(7).trim();
+                    else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
+                }
+                if (dataLines.length === 0) continue;
+
+                try {
+                    const parsed = JSON.parse(dataLines.join('\n'));
+                    if (eventName === 'log' && typeof parsed.chunk === 'string') {
+                        appendOutput(parsed.chunk);
+                    } else if (eventName === 'done') {
+                        doneEvent = parsed as DoneEvent;
+                    }
+                } catch {
+                    // Ignore malformed frames.
+                }
+            }
+        }
+
+        if (!doneEvent) {
+            throw new Error('Update stream ended without completion event');
+        }
+        return doneEvent;
+    }, [appendOutput]);
+
     const handleUpdateNow = useCallback(async () => {
         setIsUpdating(true);
         setUpdateOutput('Starting update...\n');
         setReloadCountdown(IS_PLATFORM ? RELOAD_COUNTDOWN_START : null);
         setUpdateError('');
+        setRestartPhase('idle');
 
         try {
-            // Call the backend API to run the update command
-            const response = await authenticatedFetch('/api/system/update', {
-                method: 'POST',
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                setUpdateOutput(prev => prev + data.output + '\n');
-                setUpdateOutput(prev => prev + '\n✅ Update completed successfully!\n');
-                setUpdateOutput(prev => prev + 'Please restart the server to apply changes.' + '\n');
+            const result = await streamUpdate();
+            if (result.success) {
+                appendOutput('\n✅ Update completed successfully!\n');
+                setIsUpdating(false);
+                await triggerRestart();
             } else {
-                setUpdateError(data.error || 'Update failed');
-                setUpdateOutput(prev => prev + '\n❌ Update failed: ' + (data.error || 'Unknown error') + '\n');
+                const msg = result.error || 'Update failed';
+                setUpdateError(msg);
+                appendOutput(`\n❌ Update failed: ${msg}\n`);
+                setIsUpdating(false);
             }
         } catch (error: any) {
             setUpdateError(error.message);
-            setUpdateOutput(prev => prev + '\n❌ Update failed: ' + error.message + '\n');
-        } finally {
+            appendOutput(`\n❌ Update failed: ${error.message}\n`);
             setIsUpdating(false);
         }
-    }, []);
+    }, [appendOutput, streamUpdate, triggerRestart]);
 
     if (!isOpen) return null;
+
+    const isBusy = isUpdating || restartPhase === 'restarting' || restartPhase === 'waiting';
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
             <button
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-                onClick={onClose}
+                onClick={isBusy ? undefined : onClose}
                 aria-label={t('versionUpdate.ariaLabels.closeModal')}
+                disabled={isBusy}
             />
 
             {/* Modal */}
@@ -114,7 +237,8 @@ export function VersionUpgradeModal({
                     </div>
                     <button
                         onClick={onClose}
-                        className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                        disabled={isBusy}
+                        className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                     >
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -165,10 +289,23 @@ export function VersionUpgradeModal({
                 {(updateOutput || updateError) && (
                     <div className="space-y-2">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('versionUpdate.updateProgress')}</h3>
-                        <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 p-4 dark:bg-gray-950">
+                        <div
+                            ref={outputRef}
+                            className="max-h-48 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 p-4 dark:bg-gray-950"
+                        >
                             <pre className="whitespace-pre-wrap font-mono text-xs text-green-400">{updateOutput}</pre>
                         </div>
-                        {IS_PLATFORM && reloadCountdown !== null && (
+                        {restartPhase === 'waiting' && (
+                            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200">
+                                Waiting for server to come back online... this can take up to a minute.
+                            </div>
+                        )}
+                        {restartPhase === 'timeout' && (
+                            <div className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800 dark:border-yellow-900/40 dark:bg-yellow-900/20 dark:text-yellow-200">
+                                Server did not restart automatically. Start it again (daemon/pm2/your wrapper) and refresh the page.
+                            </div>
+                        )}
+                        {IS_PLATFORM && reloadCountdown !== null && restartPhase === 'idle' && (
                             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200">
                                 {reloadCountdown === 0
                                     ? 'Refresh the page now. If that doesn\'t work, RESTART the environment.'
@@ -202,10 +339,19 @@ export function VersionUpgradeModal({
                 <div className="flex gap-2 pt-2">
                     <button
                         onClick={onClose}
-                        className="flex-1 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                        disabled={isBusy}
+                        className="flex-1 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                     >
                         {updateOutput ? t('versionUpdate.buttons.close') : t('versionUpdate.buttons.later')}
                     </button>
+                    {(restartPhase === 'timeout' || restartPhase === 'error') && (
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                        >
+                            Refresh page
+                        </button>
+                    )}
                     {!updateOutput && (
                         <>
                             <button

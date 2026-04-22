@@ -13,6 +13,14 @@ const __dirname = getModuleDir(import.meta.url);
 // Resolving the app root once keeps every repo-level lookup below aligned across both layouts.
 const APP_ROOT = findAppRoot(__dirname);
 const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
+const SERVER_VERSION = (() => {
+    try {
+        const pkgRaw = fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8');
+        return JSON.parse(pkgRaw).version || '0.0.0';
+    } catch {
+        return '0.0.0';
+    }
+})();
 const DAEMON_COMMAND_CONTEXT = {
     appRoot: APP_ROOT,
     cliEntry: path.join(APP_ROOT, 'server', 'cli.js'),
@@ -283,7 +291,8 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        installMode
+        installMode,
+        version: SERVER_VERSION
     });
 });
 
@@ -358,78 +367,106 @@ app.use(express.static(path.join(APP_ROOT, 'dist'), {
 // /api/config endpoint removed - no longer needed
 // Frontend now uses window.location for WebSocket URLs
 
-// System update endpoint
+// System update endpoint — streams live output via Server-Sent Events so the
+// UI sees npm/git progress in real time instead of waiting ~2 minutes for the
+// buffered response.
 app.post('/api/system/update', authenticateToken, async (req, res) => {
-    try {
-        // Get the project root directory (parent of server directory)
-        const projectRoot = APP_ROOT;
+    const projectRoot = APP_ROOT;
+    console.log('Starting system update from directory:', projectRoot);
 
-        console.log('Starting system update from directory:', projectRoot);
+    const updateCommand = IS_PLATFORM
+        ? 'npm run update:platform'
+        : installMode === 'git'
+            ? 'git checkout main && git pull && npm install'
+            : 'npm install -g @pixelbyte-software/pixcode@latest';
 
-        // Platform deployments use their own update workflow from the project root.
-        const updateCommand = IS_PLATFORM
-        // In platform, husky and dev dependencies are not needed
-            ? 'npm run update:platform'
-            : installMode === 'git'
-                ? 'git checkout main && git pull && npm install'
-                : 'npm install -g @pixelbyte-software/pixcode@latest';
+    const updateCwd = IS_PLATFORM || installMode === 'git'
+        ? projectRoot
+        : os.homedir();
 
-        const updateCwd = IS_PLATFORM || installMode === 'git'
-            ? projectRoot
-            : os.homedir();
-
-        const child = spawn('sh', ['-c', updateCommand], {
-            cwd: updateCwd,
-            env: process.env
-        });
-
-        let output = '';
-        let errorOutput = '';
-
-        child.stdout.on('data', (data) => {
-            const text = data.toString();
-            output += text;
-            console.log('Update output:', text);
-        });
-
-        child.stderr.on('data', (data) => {
-            const text = data.toString();
-            errorOutput += text;
-            console.error('Update error:', text);
-        });
-
-        child.on('close', (code) => {
-            if (code === 0) {
-                res.json({
-                    success: true,
-                    output: output || 'Update completed successfully',
-                    message: 'Update completed. Please restart the server to apply changes.'
-                });
-            } else {
-                res.status(500).json({
-                    success: false,
-                    error: 'Update command failed',
-                    output: output,
-                    errorOutput: errorOutput
-                });
-            }
-        });
-
-        child.on('error', (error) => {
-            console.error('Update process error:', error);
-            res.status(500).json({
-                success: false,
-                error: error.message
-            });
-        });
-
-    } catch (error) {
-        console.error('System update error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
     }
+
+    const send = (event, payload) => {
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    send('log', { stream: 'meta', chunk: `Running: ${updateCommand}\n` });
+
+    const child = spawn('sh', ['-c', updateCommand], {
+        cwd: updateCwd,
+        env: process.env
+    });
+
+    // Heartbeat keeps intermediate proxies from closing an idle connection
+    // during long npm installs.
+    const heartbeat = setInterval(() => {
+        res.write(': ping\n\n');
+    }, 15000);
+
+    let clientAborted = false;
+    req.on('close', () => {
+        if (!res.writableEnded) {
+            clientAborted = true;
+            try { child.kill(); } catch { /* noop */ }
+        }
+    });
+
+    child.stdout.on('data', (data) => {
+        send('log', { stream: 'stdout', chunk: data.toString() });
+    });
+
+    child.stderr.on('data', (data) => {
+        send('log', { stream: 'stderr', chunk: data.toString() });
+    });
+
+    child.on('error', (error) => {
+        clearInterval(heartbeat);
+        console.error('Update process error:', error);
+        send('done', { success: false, error: error.message });
+        res.end();
+    });
+
+    child.on('close', (code) => {
+        clearInterval(heartbeat);
+        if (clientAborted) return;
+        if (code === 0) {
+            send('done', {
+                success: true,
+                version: SERVER_VERSION,
+                message: 'Update completed. Restart the server to apply changes.'
+            });
+        } else {
+            send('done', {
+                success: false,
+                error: `Update command exited with code ${code}`
+            });
+        }
+        res.end();
+    });
+});
+
+// Restart endpoint — exits the current process so an external wrapper
+// (systemd/pm2/daemon manager) can bring the server back on the new code.
+// Foreground installs without a wrapper will simply stop; the UI reports this.
+app.post('/api/system/restart', authenticateToken, (req, res) => {
+    res.json({
+        success: true,
+        version: SERVER_VERSION,
+        message: 'Server is shutting down for restart. Reconnecting...'
+    });
+
+    // Give the response time to flush before we exit.
+    setTimeout(() => {
+        console.log('Restart requested via /api/system/restart — exiting process.');
+        process.exit(0);
+    }, 250);
 });
 
 app.get('/api/projects', authenticateToken, async (req, res) => {
