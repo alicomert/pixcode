@@ -10,6 +10,26 @@ import {
   setProviderCredentials,
   PROVIDER_ENV_VARS,
 } from '@/services/provider-credentials.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS service
+import { getProviderModels, clearProviderModelCache } from '@/services/provider-models.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS shared module
+import {
+  CLAUDE_MODELS,
+  CODEX_MODELS,
+  GEMINI_MODELS,
+  QWEN_MODELS,
+  CURSOR_MODELS,
+} from '../../../shared/modelConstants.js';
+
+const STATIC_MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ value: string; label: string }>> = {
+  claude: CLAUDE_MODELS.OPTIONS,
+  codex: CODEX_MODELS.OPTIONS,
+  cursor: CURSOR_MODELS.OPTIONS,
+  gemini: GEMINI_MODELS.OPTIONS,
+  qwen: QWEN_MODELS.OPTIONS,
+};
 import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import http from 'node:http';
@@ -346,6 +366,36 @@ router.post(
     });
 
     res.json(createApiSuccessResponse({ forwarded: true, port }));
+  }),
+);
+
+/**
+ * GET /api/providers/:provider/models?refresh=1
+ * Merged model catalog: hardcoded defaults + live API discovery when an
+ * API key is configured. Ships a stable baseline so dropdowns never sit
+ * empty, then overlays whatever the upstream API reports so users get
+ * new models without a Pixcode release. 6-hour cache; pass `refresh=1`
+ * to force an upstream hit.
+ */
+router.get(
+  '/:provider/models',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const forceRefresh = String(req.query.refresh || '').toLowerCase() === '1';
+    const result = await getProviderModels(provider, {
+      forceRefresh,
+      staticList: STATIC_MODELS_BY_PROVIDER[provider] ?? [],
+    });
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.delete(
+  '/:provider/models/cache',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    await clearProviderModelCache(provider);
+    res.json(createApiSuccessResponse({ cleared: true, provider }));
   }),
 );
 

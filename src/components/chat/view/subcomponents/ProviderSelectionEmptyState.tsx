@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown } from "@/lib/icons";
+import { Check, ChevronDown, Loader2, RefreshCw } from "@/lib/icons";
 import { useTranslation } from "react-i18next";
 
 import { useServerPlatform } from "../../../../hooks/useServerPlatform";
+import { useProviderModels } from "../../../../hooks/useProviderModels";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import {
   CLAUDE_MODELS,
@@ -123,6 +124,22 @@ export default function ProviderSelectionEmptyState({
     () => (isWindowsServer ? PROVIDER_GROUPS.filter((p) => p.id !== "cursor") : PROVIDER_GROUPS),
     [isWindowsServer],
   );
+
+  // Live catalog for the currently active provider only. The other
+  // providers keep their static lists in the picker to avoid N
+  // simultaneous requests on every session change; users who want a fresh
+  // list switch to that provider and hit Refresh.
+  const {
+    models: liveModels,
+    loading: liveLoading,
+    refresh: refreshModels,
+  } = useProviderModels(provider, getModelConfig(provider).OPTIONS);
+
+  const effectiveProviderGroups = useMemo(() => {
+    return visibleProviderGroups.map((group) =>
+      group.id === provider ? { ...group, models: liveModels } : group,
+    );
+  }, [visibleProviderGroups, provider, liveModels]);
 
   useEffect(() => {
     if (isWindowsServer && provider === "cursor") {
@@ -245,13 +262,35 @@ export default function ProviderSelectionEmptyState({
                       defaultValue: "No models found.",
                     })}
                   </CommandEmpty>
-                  {visibleProviderGroups.map((group) => (
+                  {effectiveProviderGroups.map((group) => (
                     <CommandGroup
                       key={group.id}
                       heading={
-                        <span className="flex items-center gap-1.5">
-                          <SessionProviderLogo provider={group.id} className="h-3.5 w-3.5 shrink-0" />
-                          {group.name}
+                        <span className="flex items-center justify-between gap-1.5">
+                          <span className="flex items-center gap-1.5">
+                            <SessionProviderLogo provider={group.id} className="h-3.5 w-3.5 shrink-0" />
+                            {group.name}
+                          </span>
+                          {group.id === provider && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void refreshModels();
+                              }}
+                              disabled={liveLoading}
+                              title="Refresh models from provider API"
+                              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground hover:text-foreground disabled:opacity-50"
+                            >
+                              {liveLoading ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}
+                              Refresh
+                            </button>
+                          )}
                         </span>
                       }
                     >
