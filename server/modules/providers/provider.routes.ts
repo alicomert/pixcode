@@ -412,96 +412,132 @@ router.delete(
  */
 router.post(
   '/:provider/install',
-  (req: Request, res: Response) => {
-    (async () => {
-      let parsed: LLMProvider;
+  asyncHandler(async (req: Request, res: Response) => {
+    const parsed = parseProvider(req.params.provider);
+    const installCmd = PROVIDER_INSTALL_COMMANDS[parsed];
+    if (!installCmd) {
+      throw new AppError(
+        `${parsed} cannot be installed automatically — please follow the documented install steps.`,
+        { code: 'PROVIDER_NOT_AUTO_INSTALLABLE', statusCode: 400 },
+      );
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+    // Single done-event + end-stream guard. Every exit path funnels through
+    // `finish(done)` so we can't ship a closed stream without an explicit
+    // done event — which was the root cause of the frontend's
+    // "Install stream ended unexpectedly" error.
+    let finished = false;
+    const send = (event: string, payload: unknown) => {
+      if (finished) return;
       try {
-        parsed = parseProvider(req.params.provider);
-      } catch (err) {
-        res.status(400).json({ success: false, error: (err as Error).message });
-        return;
-      }
-
-      const installCmd = PROVIDER_INSTALL_COMMANDS[parsed];
-      if (!installCmd) {
-        res.status(400).json({
-          success: false,
-          error: `${parsed} cannot be installed automatically — please follow the documented install steps.`,
-        });
-        return;
-      }
-
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache, no-transform');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      if (typeof res.flushHeaders === 'function') res.flushHeaders();
-
-      let ended = false;
-      const send = (event: string, payload: unknown) => {
-        if (ended) return;
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
-      };
-      const endStream = () => {
-        if (ended) return;
-        ended = true;
-        clearInterval(heartbeat);
-        res.end();
-      };
-
-      // Heartbeat every 15s — proxies love to close an idle long install.
-      const heartbeat = setInterval(() => {
-        if (ended) return;
-        res.write(': ping\n\n');
-      }, 15000);
-
-      send('log', { stream: 'meta', chunk: `Running: ${installCmd}\n` });
-
-      // Cross-platform shell so Windows (cmd.exe) and POSIX (/bin/sh) both work.
-      const child = spawn(installCmd, {
-        shell: true,
-        env: process.env,
-      });
-
-      req.on('close', () => {
-        if (res.writableEnded) return;
-        try { child.kill(); } catch { /* noop */ }
-        endStream();
-      });
-
-      child.stdout?.on('data', (data: Buffer) => send('log', { stream: 'stdout', chunk: data.toString() }));
-      child.stderr?.on('data', (data: Buffer) => send('log', { stream: 'stderr', chunk: data.toString() }));
-
-      child.on('error', (err: Error) => {
-        if (ended) return;
-        send('done', { success: false, error: err.message });
-        endStream();
-      });
-
-      child.on('close', (code: number | null) => {
-        if (ended) return;
-        if (code === 0) {
-          send('done', {
-            success: true,
-            exitCode: 0,
-            message: `${parsed} installed. Refreshing auth status…`,
-          });
-        } else {
-          send('done', {
-            success: false,
-            exitCode: code,
-            error: `Install command exited with code ${code}`,
-          });
-        }
-        endStream();
-      });
-    })().catch((err) => {
+      } catch (err) {
+        console.warn(`[provider-install:${parsed}] Write failed:`, (err as Error)?.message);
+      }
+    };
+    const heartbeat = setInterval(() => {
+      if (finished) return;
+      try { res.write(': ping\n\n'); } catch { /* socket gone */ }
+    }, 15000);
+    const finish = (donePayload: Record<string, unknown>) => {
+      if (finished) return;
+      finished = true;
+      clearInterval(heartbeat);
       try {
-        res.status(500).json({ success: false, error: err?.message || String(err) });
-      } catch { /* response already started */ }
+        res.write(`event: done\n`);
+        res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
+      } catch { /* socket gone */ }
+      try { res.end(); } catch { /* already ended */ }
+    };
+
+    send('log', { stream: 'meta', chunk: `Running: ${installCmd}\n` });
+    console.log(`[provider-install:${parsed}] Spawning:`, installCmd);
+
+    // Force cmd.exe on Windows; /bin/sh elsewhere. Using `shell: true`
+    // deferred to Node's default, which occasionally mis-parsed commands
+    // with `@scope/name` on Windows and the child exited before emitting
+    // anything useful. Being explicit here also lets us log the full
+    // argv we actually ran, for debugging.
+    const isWindows = process.platform === 'win32';
+    const shellPath = isWindows
+      ? (process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe')
+      : '/bin/sh';
+    const shellArgs = isWindows
+      ? ['/d', '/s', '/c', installCmd]
+      : ['-c', installCmd];
+
+    let child;
+    try {
+      child = spawn(shellPath, shellArgs, {
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+    } catch (err) {
+      const msg = (err as Error)?.message || String(err);
+      console.error(`[provider-install:${parsed}] Spawn threw:`, msg);
+      finish({ success: false, error: `Failed to spawn install shell: ${msg}` });
+      return;
+    }
+
+    // If the client disconnects mid-install, still send a done event on
+    // the off-chance the socket is half-open, then kill the child.
+    req.on('close', () => {
+      if (finished) return;
+      console.log(`[provider-install:${parsed}] Client disconnected, killing child`);
+      try { child.kill(); } catch { /* noop */ }
+      finish({ success: false, error: 'Client disconnected before install finished' });
     });
-  },
+
+    child.stdout?.on('data', (data: Buffer) => {
+      send('log', { stream: 'stdout', chunk: data.toString() });
+    });
+    child.stderr?.on('data', (data: Buffer) => {
+      send('log', { stream: 'stderr', chunk: data.toString() });
+    });
+
+    child.on('error', (err: Error) => {
+      console.error(`[provider-install:${parsed}] Child error:`, err.message);
+      finish({ success: false, error: `Install process error: ${err.message}` });
+    });
+
+    child.on('close', (code: number | null, signal: string | null) => {
+      console.log(`[provider-install:${parsed}] Child exited code=${code} signal=${signal}`);
+      if (code === 0) {
+        finish({
+          success: true,
+          exitCode: 0,
+          message: `${parsed} installed. Refreshing auth status…`,
+        });
+      } else {
+        finish({
+          success: false,
+          exitCode: code,
+          signal,
+          error: signal
+            ? `Install killed by signal ${signal}`
+            : `Install command exited with code ${code}`,
+        });
+      }
+    });
+
+    // Hard timeout — 10 minutes. Some providers pull heavy native modules
+    // on first install; anything longer is almost certainly stuck.
+    const timeout = setTimeout(() => {
+      if (finished) return;
+      console.warn(`[provider-install:${parsed}] Hit 10-minute timeout, killing child`);
+      try { child.kill('SIGKILL'); } catch { /* noop */ }
+      finish({ success: false, error: 'Install timed out after 10 minutes' });
+    }, 10 * 60 * 1000);
+    child.on('close', () => clearTimeout(timeout));
+  }),
 );
 
 router.post(
