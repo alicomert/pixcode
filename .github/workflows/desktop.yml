@@ -41,11 +41,14 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      # No `cache: npm` here — the desktop/ sub-package doesn't commit a
+      # lockfile yet (regenerated on every CI run with `npm install`),
+      # which would make the cache action fail with a missing path. Once
+      # we commit a desktop/package-lock.json we can re-enable caching
+      # with `cache-dependency-path: desktop/package-lock.json`.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
 
       # Linux runners need extras for node-gyp + AppImage/deb packaging.
       - name: Install Linux build deps
