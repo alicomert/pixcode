@@ -14,9 +14,9 @@ import {
 } from "../../../../../shared/modelConstants";
 import type { ProjectSession, LLMProvider } from "../../../../types/app";
 import { NextTaskBanner } from "../../../task-master";
+import { cn } from "../../../../lib/utils";
 import {
   Dialog,
-  DialogTrigger,
   DialogContent,
   DialogTitle,
   Command,
@@ -25,7 +25,6 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-  Card,
 } from "../../../../shared/view/ui";
 
 type ProviderSelectionEmptyStateProps = {
@@ -50,49 +49,29 @@ type ProviderSelectionEmptyStateProps = {
   setInput: React.Dispatch<React.SetStateAction<string>>;
 };
 
-type ProviderGroup = {
+type ProviderCard = {
   id: LLMProvider;
   name: string;
-  models: { value: string; label: string }[];
+  // Tailwind tokens for the active-card accent — kept as two classes so the
+  // border and background can be composed independently for light/dark.
+  accentBorder: string;
+  accentBg: string;
 };
 
-const PROVIDER_GROUPS: ProviderGroup[] = [
-  { id: "claude", name: "Anthropic", models: CLAUDE_MODELS.OPTIONS },
-  { id: "cursor", name: "Cursor", models: CURSOR_MODELS.OPTIONS },
-  { id: "codex", name: "OpenAI", models: CODEX_MODELS.OPTIONS },
-  { id: "gemini", name: "Google", models: GEMINI_MODELS.OPTIONS },
-  { id: "qwen", name: "Alibaba / Qwen", models: QWEN_MODELS.OPTIONS },
+const PROVIDER_CARDS: ProviderCard[] = [
+  { id: "claude", name: "Claude", accentBorder: "border-blue-500/60", accentBg: "bg-blue-500/5 dark:bg-blue-400/10" },
+  { id: "codex", name: "Codex", accentBorder: "border-slate-500/60", accentBg: "bg-slate-500/5 dark:bg-slate-400/10" },
+  { id: "cursor", name: "Cursor", accentBorder: "border-purple-500/60", accentBg: "bg-purple-500/5 dark:bg-purple-400/10" },
+  { id: "gemini", name: "Gemini", accentBorder: "border-indigo-500/60", accentBg: "bg-indigo-500/5 dark:bg-indigo-400/10" },
+  { id: "qwen", name: "Qwen Code", accentBorder: "border-orange-500/60", accentBg: "bg-orange-500/5 dark:bg-orange-400/10" },
 ];
 
-function getModelConfig(p: LLMProvider) {
+function getStaticConfig(p: LLMProvider) {
   if (p === "claude") return CLAUDE_MODELS;
   if (p === "codex") return CODEX_MODELS;
   if (p === "gemini") return GEMINI_MODELS;
   if (p === "qwen") return QWEN_MODELS;
   return CURSOR_MODELS;
-}
-
-function getCurrentModel(
-  p: LLMProvider,
-  c: string,
-  cu: string,
-  co: string,
-  g: string,
-  q: string,
-) {
-  if (p === "claude") return c;
-  if (p === "codex") return co;
-  if (p === "gemini") return g;
-  if (p === "qwen") return q;
-  return cu;
-}
-
-function getProviderDisplayName(p: LLMProvider) {
-  if (p === "claude") return "Claude";
-  if (p === "cursor") return "Cursor";
-  if (p === "codex") return "Codex";
-  if (p === "qwen") return "Qwen Code";
-  return "Gemini";
 }
 
 export default function ProviderSelectionEmptyState({
@@ -118,28 +97,13 @@ export default function ProviderSelectionEmptyState({
 }: ProviderSelectionEmptyStateProps) {
   const { t } = useTranslation("chat");
   const { isWindowsServer } = useServerPlatform();
-  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const visibleProviderGroups = useMemo(
-    () => (isWindowsServer ? PROVIDER_GROUPS.filter((p) => p.id !== "cursor") : PROVIDER_GROUPS),
+  // Cursor has no cross-platform CLI on Windows servers — hide the card
+  // there so users don't try to select something they can't run.
+  const visibleCards = useMemo(
+    () => (isWindowsServer ? PROVIDER_CARDS.filter((p) => p.id !== "cursor") : PROVIDER_CARDS),
     [isWindowsServer],
   );
-
-  // Live catalog for the currently active provider only. The other
-  // providers keep their static lists in the picker to avoid N
-  // simultaneous requests on every session change; users who want a fresh
-  // list switch to that provider and hit Refresh.
-  const {
-    models: liveModels,
-    loading: liveLoading,
-    refresh: refreshModels,
-  } = useProviderModels(provider, getModelConfig(provider).OPTIONS);
-
-  const effectiveProviderGroups = useMemo(() => {
-    return visibleProviderGroups.map((group) =>
-      group.id === provider ? { ...group, models: liveModels } : group,
-    );
-  }, [visibleProviderGroups, provider, liveModels]);
 
   useEffect(() => {
     if (isWindowsServer && provider === "cursor") {
@@ -148,65 +112,53 @@ export default function ProviderSelectionEmptyState({
     }
   }, [isWindowsServer, provider, setProvider]);
 
+  // Currently-selected model per provider — plumbed through state props
+  // rather than localStorage reads so the cards react to live switches.
+  const currentModelByProvider = useMemo<Record<LLMProvider, string>>(
+    () => ({
+      claude: claudeModel,
+      cursor: cursorModel,
+      codex: codexModel,
+      gemini: geminiModel,
+      qwen: qwenModel,
+    }),
+    [claudeModel, cursorModel, codexModel, geminiModel, qwenModel],
+  );
+
+  const setterByProvider = useCallback(
+    (p: LLMProvider, value: string) => {
+      if (p === "claude") { setClaudeModel(value); localStorage.setItem("claude-model", value); }
+      else if (p === "codex") { setCodexModel(value); localStorage.setItem("codex-model", value); }
+      else if (p === "gemini") { setGeminiModel(value); localStorage.setItem("gemini-model", value); }
+      else if (p === "qwen") { setQwenModel(value); localStorage.setItem("qwen-model", value); }
+      else { setCursorModel(value); localStorage.setItem("cursor-model", value); }
+    },
+    [setClaudeModel, setCodexModel, setCursorModel, setGeminiModel, setQwenModel],
+  );
+
+  // Model picker modal state — only renders for the card the user
+  // clicked "Change model" on, so we pull live catalog for just that
+  // provider instead of all five.
+  const [modelPickerFor, setModelPickerFor] = useState<LLMProvider | null>(null);
+
+  const selectProvider = useCallback(
+    (p: LLMProvider) => {
+      setProvider(p);
+      localStorage.setItem("selected-provider", p);
+      setTimeout(() => textareaRef.current?.focus(), 60);
+    },
+    [setProvider, textareaRef],
+  );
+
   const nextTaskPrompt = t("tasks.nextTaskPrompt", {
     defaultValue: "Start the next task",
   });
 
-  const currentModel = getCurrentModel(
-    provider,
-    claudeModel,
-    cursorModel,
-    codexModel,
-    geminiModel,
-    qwenModel,
-  );
-
-  const currentModelLabel = useMemo(() => {
-    const config = getModelConfig(provider);
-    const found = config.OPTIONS.find(
-      (o: { value: string; label: string }) => o.value === currentModel,
-    );
-    return found?.label || currentModel;
-  }, [provider, currentModel]);
-
-  const setModelForProvider = useCallback(
-    (providerId: LLMProvider, modelValue: string) => {
-      if (providerId === "claude") {
-        setClaudeModel(modelValue);
-        localStorage.setItem("claude-model", modelValue);
-      } else if (providerId === "codex") {
-        setCodexModel(modelValue);
-        localStorage.setItem("codex-model", modelValue);
-      } else if (providerId === "gemini") {
-        setGeminiModel(modelValue);
-        localStorage.setItem("gemini-model", modelValue);
-      } else if (providerId === "qwen") {
-        setQwenModel(modelValue);
-        localStorage.setItem("qwen-model", modelValue);
-      } else {
-        setCursorModel(modelValue);
-        localStorage.setItem("cursor-model", modelValue);
-      }
-    },
-    [setClaudeModel, setCursorModel, setCodexModel, setGeminiModel, setQwenModel],
-  );
-
-  const handleModelSelect = useCallback(
-    (providerId: LLMProvider, modelValue: string) => {
-      setProvider(providerId);
-      localStorage.setItem("selected-provider", providerId);
-      setModelForProvider(providerId, modelValue);
-      setDialogOpen(false);
-      setTimeout(() => textareaRef.current?.focus(), 100);
-    },
-    [setProvider, setModelForProvider, textareaRef],
-  );
-
   if (!selectedSession && !currentSessionId) {
     return (
-      <div className="flex h-full items-center justify-center px-4">
-        <div className="w-full max-w-md">
-          <div className="mb-8 text-center">
+      <div className="flex h-full flex-col items-center justify-center px-4 py-6">
+        <div className="w-full max-w-3xl">
+          <div className="mb-6 text-center">
             <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
               {t("providerSelection.title")}
             </h2>
@@ -215,137 +167,87 @@ export default function ProviderSelectionEmptyState({
             </p>
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Card
-                className="group mx-auto max-w-xs cursor-pointer border-border/60 transition-all duration-150 hover:border-border hover:shadow-md active:scale-[0.99]"
-                role="button"
-                tabIndex={0}
-              >
-                <div className="flex items-center gap-2 p-3">
-                  <SessionProviderLogo
-                    provider={provider}
-                    className="h-5 w-5 shrink-0"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-semibold text-foreground">
-                        {getProviderDisplayName(provider)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">·</span>
-                      <span className="truncate text-xs text-foreground">
-                        {currentModelLabel}
-                      </span>
+          {/* Provider card grid — tap a card to select, tap "Change model"
+              to swap which model that provider runs. */}
+          <div className="mx-auto grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {visibleCards.map((card) => {
+              const isActive = provider === card.id;
+              const currentModel = currentModelByProvider[card.id];
+              const config = getStaticConfig(card.id);
+              const currentLabel =
+                config.OPTIONS.find((o: { value: string; label: string }) => o.value === currentModel)?.label
+                ?? currentModel;
+
+              return (
+                <div
+                  key={card.id}
+                  className={cn(
+                    "group relative flex flex-col gap-2 rounded-xl border bg-card p-3 transition-all duration-150",
+                    isActive
+                      ? `${card.accentBorder} ${card.accentBg} shadow-sm`
+                      : "border-border/60 hover:border-border hover:shadow-sm",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => selectProvider(card.id)}
+                    className="flex items-center gap-2 text-left"
+                  >
+                    <SessionProviderLogo provider={card.id} className="h-6 w-6 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">
+                        {card.name}
+                      </div>
+                      <div className="truncate text-[11px] text-muted-foreground">
+                        {currentLabel}
+                      </div>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {t("providerSelection.clickToChange", {
-                        defaultValue: "Click to change model",
-                      })}
-                    </p>
-                  </div>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-y-0.5" />
+                    {isActive && (
+                      <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModelPickerFor(card.id)}
+                    className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                  >
+                    <span>{t("providerSelection.changeModel", { defaultValue: "Change model" })}</span>
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
                 </div>
-              </Card>
-            </DialogTrigger>
-
-            <DialogContent className="max-w-md overflow-hidden p-0">
-              <DialogTitle>Model Selector</DialogTitle>
-              <Command>
-                <CommandInput
-                  placeholder={t("providerSelection.searchModels", {
-                    defaultValue: "Search models...",
-                  })}
-                />
-                <CommandList className="max-h-[350px]">
-                  <CommandEmpty>
-                    {t("providerSelection.noModelsFound", {
-                      defaultValue: "No models found.",
-                    })}
-                  </CommandEmpty>
-                  {effectiveProviderGroups.map((group) => (
-                    <CommandGroup
-                      key={group.id}
-                      heading={
-                        <span className="flex items-center justify-between gap-1.5">
-                          <span className="flex items-center gap-1.5">
-                            <SessionProviderLogo provider={group.id} className="h-3.5 w-3.5 shrink-0" />
-                            {group.name}
-                          </span>
-                          {group.id === provider && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                void refreshModels();
-                              }}
-                              disabled={liveLoading}
-                              title="Refresh models from provider API"
-                              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground hover:text-foreground disabled:opacity-50"
-                            >
-                              {liveLoading ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <RefreshCw className="h-3 w-3" />
-                              )}
-                              Refresh
-                            </button>
-                          )}
-                        </span>
-                      }
-                    >
-                      {group.models.map((model) => {
-                        const isSelected = provider === group.id && currentModel === model.value;
-                        return (
-                          <CommandItem
-                            key={`${group.id}-${model.value}`}
-                            value={`${group.name} ${model.label}`}
-                            onSelect={() => handleModelSelect(group.id, model.value)}
-                          >
-                            <span className="flex-1 truncate">{model.label}</span>
-                            {isSelected && (
-                              <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
-                            )}
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  ))}
-                </CommandList>
-              </Command>
-            </DialogContent>
-          </Dialog>
-
-          <p className="mt-4 text-center text-sm text-muted-foreground/70">
-            {
-              {
-                claude: t("providerSelection.readyPrompt.claude", {
-                  model: claudeModel,
-                }),
-                cursor: t("providerSelection.readyPrompt.cursor", {
-                  model: cursorModel,
-                }),
-                codex: t("providerSelection.readyPrompt.codex", {
-                  model: codexModel,
-                }),
-                gemini: t("providerSelection.readyPrompt.gemini", {
-                  model: geminiModel,
-                }),
-                qwen: t("providerSelection.readyPrompt.qwen", {
-                  model: qwenModel,
-                  defaultValue: "Ready to use Qwen Code with {{model}}. Start typing your message below.",
-                }),
-              }[provider]
-            }
-          </p>
+              );
+            })}
+          </div>
 
           {provider && tasksEnabled && isTaskMasterInstalled && (
-            <div className="mt-5">
-              <NextTaskBanner
-                onStartTask={() => setInput(nextTaskPrompt)}
-                onShowAllTasks={onShowAllTasks}
-              />
+            <div className="mt-5 flex justify-center">
+              <div className="w-full max-w-md">
+                <NextTaskBanner
+                  onStartTask={() => setInput(nextTaskPrompt)}
+                  onShowAllTasks={onShowAllTasks}
+                />
+              </div>
             </div>
+          )}
+
+          {/* Model picker dialog — renders only for the active card */}
+          {modelPickerFor && (
+            <ModelPickerDialog
+              provider={modelPickerFor}
+              open={Boolean(modelPickerFor)}
+              onOpenChange={(open) => !open && setModelPickerFor(null)}
+              currentValue={currentModelByProvider[modelPickerFor]}
+              onSelect={(value) => {
+                setterByProvider(modelPickerFor, value);
+                // If picking a model for a different provider than the
+                // currently-active one, also switch provider — feels more
+                // natural than "I picked Gemini model but Claude is still
+                // selected".
+                if (provider !== modelPickerFor) selectProvider(modelPickerFor);
+                setModelPickerFor(null);
+              }}
+              staticFallback={getStaticConfig(modelPickerFor).OPTIONS}
+            />
           )}
         </div>
       </div>
@@ -377,4 +279,102 @@ export default function ProviderSelectionEmptyState({
   }
 
   return null;
+}
+
+// ---------- Model picker dialog ----------
+/**
+ * Renders the live model catalog for one provider with a Refresh button.
+ * Falls back to the hardcoded list from shared/modelConstants while the
+ * backend discovery is in flight, and surfaces any `error` the backend
+ * returned (e.g. "No API key configured") so users understand why the
+ * list is shorter than they expected.
+ */
+function ModelPickerDialog({
+  provider,
+  open,
+  onOpenChange,
+  currentValue,
+  onSelect,
+  staticFallback,
+}: {
+  provider: LLMProvider;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentValue: string;
+  onSelect: (value: string) => void;
+  staticFallback: { value: string; label: string }[];
+}) {
+  const { t } = useTranslation("chat");
+  const { models, loading, error, refresh } = useProviderModels(provider, staticFallback);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md overflow-hidden p-0">
+        <DialogTitle className="sr-only">
+          {t("providerSelection.selectModel", { defaultValue: "Select model" })}
+        </DialogTitle>
+        <div className="flex items-center justify-between border-b border-border/60 px-3 py-2">
+          <div className="flex items-center gap-2">
+            <SessionProviderLogo provider={provider} className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-semibold text-foreground">
+              {provider === "qwen" ? "Qwen Code" : provider[0].toUpperCase() + provider.slice(1)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            title={t("providerSelection.refreshModels", { defaultValue: "Refresh from provider API" })}
+          >
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            {t("providerSelection.refresh", { defaultValue: "Refresh" })}
+          </button>
+        </div>
+
+        <Command>
+          <CommandInput
+            placeholder={t("providerSelection.searchModels", {
+              defaultValue: "Search models...",
+            })}
+          />
+          <CommandList className="max-h-[320px]">
+            <CommandEmpty>
+              {t("providerSelection.noModelsFound", {
+                defaultValue: "No models found.",
+              })}
+            </CommandEmpty>
+            <CommandGroup>
+              {models.map((model) => {
+                const isSelected = currentValue === model.value;
+                return (
+                  <CommandItem
+                    key={model.value}
+                    value={`${model.label} ${model.value}`}
+                    onSelect={() => onSelect(model.value)}
+                  >
+                    <span className="flex-1 truncate">{model.label}</span>
+                    {model.source === "api" && (
+                      <span className="mr-2 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-emerald-700 dark:text-emerald-300">
+                        live
+                      </span>
+                    )}
+                    {isSelected && (
+                      <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+
+        {error && (
+          <div className="border-t border-border/60 bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+            {error}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }

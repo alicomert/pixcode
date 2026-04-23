@@ -165,15 +165,34 @@ export async function getProviderModels(provider, opts = {}) {
         };
     }
 
-    // Try a live discovery — silent fail to the static catalog so the UI
-    // still works without API keys configured.
+    // Pick up credentials from Pixcode's UI store first, then fall back to
+    // the native env vars so a user who already exported ANTHROPIC_API_KEY
+    // (or authenticated Claude Code via OAuth — the SDK writes the key into
+    // process.env on boot) gets live models without re-entering anything.
+    const creds = await getProviderCredentials(provider);
+    const envKey = {
+        claude: process.env.ANTHROPIC_API_KEY,
+        codex: process.env.OPENAI_API_KEY,
+        qwen: process.env.OPENAI_API_KEY || process.env.QWEN_API_KEY,
+        gemini: process.env.GEMINI_API_KEY,
+    }[provider];
+    const envBase = {
+        claude: process.env.ANTHROPIC_BASE_URL,
+        codex: process.env.OPENAI_BASE_URL,
+        qwen: process.env.OPENAI_BASE_URL,
+        gemini: undefined,
+    }[provider];
+    const apiKey = creds?.apiKey || envKey;
+    const baseUrl = creds?.baseUrl || envBase || undefined;
+
     let liveModels = [];
     let error;
-    try {
-        const creds = await getProviderCredentials(provider);
-        const apiKey = creds?.apiKey;
-        const baseUrl = creds?.baseUrl || undefined;
-        if (apiKey) {
+    if (!apiKey) {
+        // Be explicit so the UI can surface a useful hint rather than just
+        // showing the static baseline with no reason given.
+        error = `No ${provider} API key configured. Save one in Settings > Agents > API Key to enable live discovery.`;
+    } else {
+        try {
             if (provider === 'claude') {
                 liveModels = await discoverAnthropic(apiKey, baseUrl);
             } else if (provider === 'codex') {
@@ -187,9 +206,9 @@ export async function getProviderModels(provider, opts = {}) {
             } else if (provider === 'gemini') {
                 liveModels = await discoverGoogle(apiKey);
             }
+        } catch (err) {
+            error = err?.message || String(err);
         }
-    } catch (err) {
-        error = err?.message || String(err);
     }
 
     const merged = mergeCatalogs(normalizeList(liveModels), staticCatalog);
