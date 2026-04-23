@@ -10,8 +10,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/alicomert/pixcode"><img src="https://img.shields.io/badge/☁️_Pixcode_Cloud-Coming_Soon-0066FF?style=for-the-badge" alt="Pixcode Cloud"></a>
+  <a href="https://github.com/alicomert/pixcode/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87_Download-Desktop_App-0066FF?style=for-the-badge" alt="Download Desktop App"></a>
+  <a href="https://www.npmjs.com/package/@pixelbyte-software/pixcode"><img src="https://img.shields.io/badge/npm-install_-g-CB3837?style=for-the-badge&logo=npm&logoColor=white" alt="npm"></a>
   <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
+</p>
+
+<p align="center">
+  <strong>📦 Desktop installers:</strong>
+  <a href="https://github.com/alicomert/pixcode/releases/latest">Windows · macOS · Linux</a>
+  &nbsp;·&nbsp;
+  <strong>☁️ Pixcode Cloud:</strong> coming soon
 </p>
 
 <p align="center">

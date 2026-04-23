@@ -1,0 +1,29 @@
+{
+  "name": "pixcode-desktop",
+  "version": "1.31.1",
+  "description": "Electron installer shell for Pixcode. Tray + autostart + native installers for Windows, macOS, and Linux. Built and published alongside the main @pixelbyte-software/pixcode release.",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "main": "electron/main.cjs",
+  "homepage": "https://github.com/alicomert/pixcode",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alicomert/pixcode.git",
+    "directory": "desktop"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "@pixelbyte-software/pixcode": "1.31.1",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^26.0.12"
+  }
+}

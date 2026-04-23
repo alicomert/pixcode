@@ -1,0 +1,8 @@
+node_modules/
+dist-installer/
+package-lock.json.bak
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

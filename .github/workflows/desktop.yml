@@ -1,0 +1,102 @@
+# Build Pixcode desktop installers for Windows, macOS, and Linux and
+# attach them to the GitHub Release of the matching tag. Triggered on
+# any `v*` tag push (which release-it does after publishing to npm), or
+# manually from the Actions tab when a build needs a rerun.
+#
+# The Electron wrapper lives in `desktop/` as an isolated sub-package —
+# that way `npm install` in the repo root never pulls Electron devDeps
+# for web/server developers. Only this workflow installs the wrapper
+# deps, and only on its matrix runners.
+name: Desktop Installers
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to attach artifacts to (e.g. v1.31.1)'
+        required: true
+        type: string
+
+# action-gh-release needs write access to the release to upload assets.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      # Linux runners need extras for node-gyp + AppImage/deb packaging.
+      - name: Install Linux build deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-3-0 libnotify4 libnss3 libxtst6 xdg-utils \
+            libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 \
+            fuse libfuse2
+        working-directory: .
+
+      # `npm install` (not `npm ci`) since desktop/ may not have a
+      # checked-in lockfile yet — harmless on first run, regenerated
+      # locally by `cd desktop && npm install` before we commit one.
+      - name: Install Electron wrapper deps
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+        shell: bash
+
+      - name: Build installer
+        env:
+          # electron-builder treats GH_TOKEN as auto-upload intent — keep it
+          # unset so we can attach artifacts ourselves with clear naming.
+          GH_TOKEN: ""
+        run: npm run dist
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixcode-${{ matrix.os }}
+          path: |
+            desktop/dist-installer/*.exe
+            desktop/dist-installer/*.dmg
+            desktop/dist-installer/*.AppImage
+            desktop/dist-installer/*.deb
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            desktop/dist-installer/*.exe
+            desktop/dist-installer/*.dmg
+            desktop/dist-installer/*.AppImage
+            desktop/dist-installer/*.deb
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
