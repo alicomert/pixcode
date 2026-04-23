@@ -30,12 +30,19 @@
  * Jobs linger 10 minutes after completion so late subscribers still see
  * the outcome.
  */
-import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+// Use cross-spawn instead of node:child_process.spawn. On Windows, node's
+// spawn cannot invoke `.cmd` / `.bat` files without `shell: true`, and with
+// `shell: true` it tokenises on spaces — so a valid npm path like
+// `C:\Program Files\nodejs\npm.cmd` gets split into "C:\Program" + "Files...".
+// cross-spawn shells out through cmd.exe with proper quoting transparently
+// and is already a transitive dependency we can safely re-use.
+import spawn from 'cross-spawn';
 
 const jobs = new Map();
 const FINISHED_TTL_MS = 10 * 60 * 1000;
@@ -263,8 +270,10 @@ export function createInstallJob({ provider, installCmd, packageName }) {
             env: { ...process.env, npm_config_yes: 'true' },
             stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true,
-            // On Windows, .cmd files need a shell to be invokable by spawn().
-            shell: process.platform === 'win32' && !useNodeRunner,
+            // cross-spawn handles .cmd/.bat resolution itself — no shell
+            // needed. Passing `shell: true` here would re-introduce the
+            // space-in-path tokenisation bug that caused "'C:\Program' is
+            // not recognized" on Windows installs of Node.
         });
     } catch (err) {
         const message = err?.message || String(err);

@@ -397,9 +397,19 @@ app.use(express.static(path.join(APP_ROOT, 'dist'), {
 // System update endpoint — streams live output via Server-Sent Events so the
 // UI sees npm/git progress in real time instead of waiting ~2 minutes for the
 // buffered response.
+//
+// Three update modes, picked in order of specificity:
+//   1. PIXCODE_RUNTIME_DIR set → "desktop wrapper" path. Pulls the latest
+//      npm tarball, extracts it to the writable runtime dir, and triggers
+//      a server restart so the Electron wrapper respawns with new code.
+//      ~4 MB download, ~10 s; no npm/git/shell required on the host.
+//   2. installMode === 'git' → `git pull && npm install` in-place.
+//   3. fallback → `npm install -g …` (classic npm-distributed install).
 app.post('/api/system/update', authenticateToken, async (req, res) => {
     const projectRoot = APP_ROOT;
     console.log('Starting system update from directory:', projectRoot);
+
+    const runtimeDir = process.env.PIXCODE_RUNTIME_DIR || null;
 
     const updateCommand = IS_PLATFORM
         ? 'npm run update:platform'
@@ -444,6 +454,120 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         if (ended) return;
         res.write(': ping\n\n');
     }, 15000);
+
+    // ────────────────────────────────────────────────────────────────
+    // Runtime-dir mode — the desktop wrapper (pixcode-desktop) sets
+    // PIXCODE_RUNTIME_DIR to a writable directory it owns and forks this
+    // server from there. Updates download the npm tarball directly and
+    // swap it in-place, which is ~4 MB vs. ~85 MB for a full installer
+    // re-download. No shell, npm, or git required on the host.
+    // ────────────────────────────────────────────────────────────────
+    if (runtimeDir) {
+        send('log', { stream: 'meta', chunk: `Update mode: runtime-dir\n` });
+        send('log', { stream: 'meta', chunk: `Runtime: ${runtimeDir}\n` });
+
+        try {
+            // 1. Resolve the latest version from the npm registry.
+            send('log', { stream: 'meta', chunk: 'Querying registry for latest version…\n' });
+            const registryRes = await fetch('https://registry.npmjs.org/@pixelbyte-software/pixcode');
+            if (!registryRes.ok) throw new Error(`Registry returned HTTP ${registryRes.status}`);
+            const metadata = await registryRes.json();
+            const latestVersion = metadata['dist-tags']?.latest;
+            const latestEntry = latestVersion ? metadata.versions?.[latestVersion] : null;
+            const tarballUrl = latestEntry?.dist?.tarball;
+            if (!latestVersion || !tarballUrl) throw new Error('Registry response missing latest/tarball');
+
+            send('log', { stream: 'meta', chunk: `Current: ${SERVER_VERSION} → Latest: ${latestVersion}\n` });
+
+            if (latestVersion === SERVER_VERSION) {
+                send('done', {
+                    success: true,
+                    version: SERVER_VERSION,
+                    alreadyLatest: true,
+                    message: 'Already on the latest version.',
+                });
+                endStream();
+                return;
+            }
+
+            // 2. Download the tarball stream and pipe it through tar's
+            //    extractor into a staging directory. Doing the extract
+            //    under `.staging` first means the live runtime stays
+            //    intact if the download fails partway through.
+            send('log', { stream: 'meta', chunk: `Downloading ${tarballUrl}\n` });
+            const tarballRes = await fetch(tarballUrl);
+            if (!tarballRes.ok || !tarballRes.body) {
+                throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
+            }
+
+            const stagingDir = path.join(runtimeDir, '.staging');
+            const backupDir = path.join(runtimeDir, '.previous');
+            fs.rmSync(stagingDir, { recursive: true, force: true });
+            fs.mkdirSync(stagingDir, { recursive: true });
+
+            const { Readable } = await import('node:stream');
+            const tarModule = await import('tar');
+            const tarExtract = tarModule.x || tarModule.default?.x;
+            if (!tarExtract) throw new Error('tar extractor not available');
+
+            // npm tarballs always root at `package/` — strip:1 lifts the
+            // contents to the staging dir directly so paths match the
+            // existing runtime layout.
+            await new Promise((resolve, reject) => {
+                const webStream = tarballRes.body;
+                const nodeStream = typeof Readable.fromWeb === 'function' && webStream?.getReader
+                    ? Readable.fromWeb(webStream)
+                    : webStream;
+                const extractor = tarExtract({ cwd: stagingDir, strip: 1 });
+                nodeStream.pipe(extractor);
+                extractor.on('finish', resolve);
+                extractor.on('error', reject);
+                nodeStream.on('error', reject);
+            });
+
+            send('log', { stream: 'meta', chunk: 'Swapping runtime…\n' });
+
+            // 3. Atomic swap: move every top-level entry from staging into
+            //    the runtime, keeping a .previous snapshot for rollback.
+            //    We don't blow away the whole runtime because userData
+            //    may contain wrapper-managed files (auth DB cache, etc.)
+            //    that we don't want to touch.
+            fs.rmSync(backupDir, { recursive: true, force: true });
+            fs.mkdirSync(backupDir, { recursive: true });
+            for (const entry of fs.readdirSync(stagingDir)) {
+                const src = path.join(stagingDir, entry);
+                const dst = path.join(runtimeDir, entry);
+                if (fs.existsSync(dst)) {
+                    fs.renameSync(dst, path.join(backupDir, entry));
+                }
+                fs.renameSync(src, dst);
+            }
+            fs.rmSync(stagingDir, { recursive: true, force: true });
+
+            send('done', {
+                success: true,
+                version: latestVersion,
+                message: `Updated to ${latestVersion}. Restarting…`,
+            });
+            endStream();
+
+            // 4. Self-exit so the Electron wrapper respawns the server
+            //    against the freshly-extracted files. 250 ms gives the
+            //    SSE stream time to flush the done event before we die.
+            setTimeout(() => {
+                // Exit code 42 is a convention the wrapper watches for —
+                // it means "clean update restart, please respawn".
+                console.log('[update] Restarting for runtime-dir update');
+                process.exit(42);
+            }, 250);
+            return;
+        } catch (error) {
+            console.error('Runtime-dir update failed:', error);
+            send('done', { success: false, error: error?.message || String(error) });
+            endStream();
+            return;
+        }
+    }
 
     send('log', { stream: 'meta', chunk: `Running: ${updateCommand}\n` });
 

@@ -20,6 +20,9 @@ export type ProviderAuthStatusByProvider = Record<AgentProvider, AuthStatus>;
 export type AgentsSettingsTabProps = {
   providerAuthStatus: ProviderAuthStatusByProvider;
   onProviderLogin: (provider: AgentProvider) => void;
+  /** Re-check auth/install state for a specific provider (used by
+   *  AccountContent to refresh immediately after a successful install). */
+  onRefreshProviderAuth?: (provider: AgentProvider) => Promise<void>;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
   cursorPermissions: CursorPermissionsState;
@@ -47,6 +50,7 @@ export type AgentCategoryContentSectionProps = {
   selectedAgent: AgentProvider;
   selectedCategory: AgentCategory;
   agentContextById: AgentContextByProvider;
+  onRefreshProviderAuth?: (provider: AgentProvider) => Promise<void>;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
   cursorPermissions: CursorPermissionsState;

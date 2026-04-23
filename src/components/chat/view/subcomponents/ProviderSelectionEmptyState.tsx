@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, Download, Loader2, Lock, RefreshCw } from "@/lib/icons";
+import { Check, ChevronDown, Download, Loader2, Lock, RefreshCw, X } from "@/lib/icons";
 import { useTranslation } from "react-i18next";
 
 import { useServerPlatform } from "../../../../hooks/useServerPlatform";
@@ -335,10 +335,16 @@ export default function ProviderSelectionEmptyState({
               open={Boolean(installerFor)}
               onOpenChange={(open) => !open && setInstallerFor(null)}
               onInstalled={async () => {
-                await refreshProviderAuthStatuses();
+                // Refresh first so the unlocked state is visible the moment
+                // the dialog closes. If the refresh hangs or throws, we still
+                // close the dialog and select the provider — the user can
+                // manually refresh from Settings if anything is off.
+                try { await refreshProviderAuthStatuses(); } catch { /* noop */ }
+                const justInstalled = installerFor;
                 setInstallerFor(null);
-                selectProvider(installerFor);
+                if (justInstalled) selectProvider(justInstalled);
               }}
+              onClose={() => setInstallerFor(null)}
             />
           )}
         </div>
@@ -485,11 +491,13 @@ function ProviderInstallDialog({
   open,
   onOpenChange,
   onInstalled,
+  onClose,
 }: {
   provider: LLMProvider;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onInstalled: () => void | Promise<void>;
+  onClose: () => void;
 }) {
   const { t } = useTranslation("chat");
   const [state, setState] = useState<InstallDialogState>("idle");
@@ -607,6 +615,18 @@ function ProviderInstallDialog({
               </div>
             </div>
           </div>
+          {/* Explicit close affordance. Dialog primitive also closes on ESC
+              or overlay-click, but users reasonably expect an X — especially
+              after install where the auto-close may fail (e.g. network blip
+              during the auth-status refresh). */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("providerSelection.close", { defaultValue: "Close" })}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         <div className="space-y-3 p-4">
@@ -639,10 +659,19 @@ function ProviderInstallDialog({
           )}
 
           {state === "done" && (
-            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-[12px] text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-200">
-              {t("providerSelection.installDone", {
-                defaultValue: "Installed. You can start chatting now.",
-              })}
+            <div className="space-y-3">
+              <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-[12px] text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-200">
+                {t("providerSelection.installDone", {
+                  defaultValue: "Installed. You can start chatting now.",
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-foreground px-3 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
+              >
+                {t("providerSelection.continue", { defaultValue: "Continue" })}
+              </button>
             </div>
           )}
 

@@ -24,9 +24,11 @@ const getProviderCommand = (provider: LLMProvider, customCommand?: string) => {
   if (customCommand) return customCommand;
   if (provider === 'claude') return 'claude --dangerously-skip-permissions /login';
   if (provider === 'cursor') return 'cursor-agent login';
-  // Codex supports a true device-auth flow — perfect for remote/VPS setups
-  // where the localhost callback can't reach the user's browser.
-  if (provider === 'codex') return IS_PLATFORM ? 'codex login --device-auth' : 'codex login --device-auth';
+  // Plain `codex login` lets the installed CLI pick its own flow (browser
+  // callback locally, device-code on headless). Hardcoding --device-auth
+  // broke newer @openai/codex releases that dropped the flag — the shell
+  // returned "Process exited with code 1" before printing the auth prompt.
+  if (provider === 'codex') return 'codex login';
   // Qwen's full TUI (`qwen` alone) re-draws its ASCII banner on every xterm
   // resize and flooded the embedded terminal. `qwen auth` is a line-oriented
   // subcommand — prints help + auth menu and exits cleanly, no splash spam.

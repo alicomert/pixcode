@@ -76,7 +76,14 @@ export function useProviderAuthStatus(
     setProviderLoading(provider);
 
     try {
-      const response = await authenticatedFetch(PROVIDER_AUTH_STATUS_ENDPOINTS[provider]);
+      // cache: 'no-store' so a recent install flips `installed: true`
+      // immediately — without this the browser can serve the previous
+      // "installed: false" response from memory for a few seconds and the
+      // card appears frozen as locked even though the backend now reports
+      // the provider as ready.
+      const response = await authenticatedFetch(PROVIDER_AUTH_STATUS_ENDPOINTS[provider], {
+        cache: 'no-store',
+      });
 
       if (!response.ok) {
         setProviderStatus(provider, {

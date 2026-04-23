@@ -376,6 +376,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     codexPermissionMode,
     setCodexPermissionMode,
     providerAuthStatus,
+    refreshProviderAuthStatuses,
+    checkProviderAuthStatus,
     geminiPermissionMode,
     setGeminiPermissionMode,
     openLoginForProvider,

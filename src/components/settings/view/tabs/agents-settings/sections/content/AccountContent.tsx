@@ -21,6 +21,10 @@ type AccountContentProps = {
   agent: AgentProvider;
   authStatus: AuthStatus;
   onLogin: () => void;
+  /** Re-query /auth-status for this provider. Triggered after a successful
+   *  install so the "not installed" view flips to login controls without
+   *  waiting for the user to reopen the modal. */
+  onRefreshAuth?: () => void | Promise<void>;
 };
 
 type AgentVisualConfig = {
@@ -81,12 +85,16 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
 // ---------- Install-runner dialog ----------
 type InstallState = 'idle' | 'running' | 'done' | 'error';
 
-function useInstaller(agent: AgentProvider) {
+function useInstaller(agent: AgentProvider, onDone?: () => void | Promise<void>) {
   const [state, setState] = useState<InstallState>('idle');
   const [log, setLog] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const jobIdRef = useRef<string | null>(null);
+  // Keep the latest onDone in a ref so listeners registered inside `run()`
+  // always see the freshest closure without needing to resubscribe.
+  const onDoneRef = useRef(onDone);
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
 
   // Close any open EventSource on unmount; does NOT cancel the job,
   // since the child process runs independently on the server.
@@ -150,6 +158,11 @@ function useInstaller(agent: AgentProvider) {
         if (payload.success) {
           setState('done');
           setError(null);
+          // Tell the parent to re-check auth status. Without this, the
+          // "CLI not installed" screen stays rendered even after the
+          // binary has successfully landed in ~/.pixcode/cli-bin — the
+          // parent's authStatus snapshot was taken before install ran.
+          try { void onDoneRef.current?.(); } catch { /* non-fatal */ }
         } else {
           setError(payload.error || 'Install failed');
           setState('error');
@@ -201,10 +214,10 @@ function useInstaller(agent: AgentProvider) {
   return { state, log, error, run, cancel, reset };
 }
 
-export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
+export default function AccountContent({ agent, authStatus, onLogin, onRefreshAuth }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const [copied, setCopied] = useState(false);
-  const installer = useInstaller(agent);
+  const installer = useInstaller(agent, onRefreshAuth);
 
   // Fall back to a neutral config for unknown providers so we never crash the
   // render path (a defensive net on top of the registered provider list).

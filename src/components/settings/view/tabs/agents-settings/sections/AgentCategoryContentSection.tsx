@@ -8,6 +8,7 @@ export default function AgentCategoryContentSection({
   selectedAgent,
   selectedCategory,
   agentContextById,
+  onRefreshProviderAuth,
   claudePermissions,
   onClaudePermissionsChange,
   cursorPermissions,
@@ -23,6 +24,7 @@ export default function AgentCategoryContentSection({
           agent={selectedAgent}
           authStatus={agentContextById[selectedAgent].authStatus}
           onLogin={agentContextById[selectedAgent].onLogin}
+          onRefreshAuth={onRefreshProviderAuth ? () => onRefreshProviderAuth(selectedAgent) : undefined}
         />
       )}
 

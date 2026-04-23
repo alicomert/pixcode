@@ -11,6 +11,7 @@ import AgentSelectorSection from './sections/AgentSelectorSection';
 export default function AgentsSettingsTab({
   providerAuthStatus,
   onProviderLogin,
+  onRefreshProviderAuth,
   claudePermissions,
   onClaudePermissionsChange,
   cursorPermissions,
@@ -89,6 +90,7 @@ export default function AgentsSettingsTab({
           selectedAgent={selectedAgent}
           selectedCategory={selectedCategory}
           agentContextById={agentContextById}
+          onRefreshProviderAuth={onRefreshProviderAuth}
           claudePermissions={claudePermissions}
           onClaudePermissionsChange={onClaudePermissionsChange}
           cursorPermissions={cursorPermissions}
