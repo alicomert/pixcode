@@ -4,7 +4,7 @@ services:
   pixcode:
     # Pin to a concrete tag in production — :latest is convenient for dev but
     # makes rollbacks lossy.
-    image: alicomert/pixcode:latest
+    image: pixelbytesoftware/pixcode:latest
     container_name: pixcode
     restart: unless-stopped
     ports:
