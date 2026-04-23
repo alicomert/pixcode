@@ -322,6 +322,9 @@
       },
       "gemini": {
         "description": "Google Gemini AI 助手"
+      },
+      "qwen": {
+        "description": "阿里巴巴 Qwen Code CLI (Gemini CLI 分支)"
       }
     },
     "connectionStatus": "连接状态",

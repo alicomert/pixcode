@@ -322,6 +322,9 @@
       },
       "gemini": {
         "description": "Assistente AI Google Gemini"
+      },
+      "qwen": {
+        "description": "Alibaba Qwen Code CLI (fork di Gemini CLI)"
       }
     },
     "connectionStatus": "Stato connessione",
