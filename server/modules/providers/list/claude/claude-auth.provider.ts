@@ -18,15 +18,21 @@ type ClaudeCredentialsStatus = {
 export class ClaudeProviderAuth implements IProviderAuth {
   /**
    * Checks whether the Claude Code CLI is available on this host.
+   *
+   * NOTE: `cross-spawn.sync` does NOT throw on ENOENT — it returns a result
+   * object with `error` populated. The try/catch alone was always returning
+   * true and every provider appeared "installed". We now require both
+   * `!result.error` and a numeric exit status (0 for `--version`) before
+   * trusting the install.
    */
   private checkInstalled(): boolean {
-      const cliPath = process.env.CLAUDE_CLI_PATH || 'claude';
-      try {
-        spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
-        return true;
-      } catch {
-        return false;
-      }
+    const cliPath = process.env.CLAUDE_CLI_PATH || 'claude';
+    try {
+      const result = spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
+      return !result.error && result.status === 0;
+    } catch {
+      return false;
+    }
   }
 
   /**

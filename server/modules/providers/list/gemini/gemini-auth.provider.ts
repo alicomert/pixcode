@@ -22,8 +22,8 @@ export class GeminiProviderAuth implements IProviderAuth {
   private checkInstalled(): boolean {
     const cliPath = process.env.GEMINI_PATH || 'gemini';
     try {
-      spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
+      const result = spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
+      return !result.error && result.status === 0;
     } catch {
       return false;
     }

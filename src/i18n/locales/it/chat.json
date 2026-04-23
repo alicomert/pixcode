@@ -18,7 +18,8 @@
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
-    "gemini": "Gemini"
+    "gemini": "Gemini",
+    "qwen": "Qwen Code"
   },
   "tools": {
     "settings": "Impostazioni strumento",
