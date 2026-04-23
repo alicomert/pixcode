@@ -27,7 +27,12 @@ const getProviderCommand = (provider: LLMProvider, customCommand?: string) => {
   // Codex supports a true device-auth flow — perfect for remote/VPS setups
   // where the localhost callback can't reach the user's browser.
   if (provider === 'codex') return IS_PLATFORM ? 'codex login --device-auth' : 'codex login --device-auth';
-  if (provider === 'qwen') return 'qwen';
+  // Qwen's full TUI (`qwen` alone) re-draws its ASCII banner on every xterm
+  // resize and flooded the embedded terminal. `qwen auth` is a line-oriented
+  // subcommand — prints help + auth menu and exits cleanly, no splash spam.
+  // Users then type `qwen auth qwen-oauth` or `qwen auth coding-plan`
+  // themselves, which opens the auth flow only on demand.
+  if (provider === 'qwen') return 'qwen auth';
   return 'gemini'; // Gemini opens its own /auth panel
 };
 
@@ -339,86 +344,6 @@ function ApiKeyTab({ provider, onSaved }: { provider: LLMProvider; onSaved: () =
   );
 }
 
-// ---------- Browser-tab instructions (Qwen + Gemini) ----------
-/**
- * Qwen Code renders a full-screen TUI (ASCII banner + splash) the moment
- * it boots. Inside xterm.js that TUI mis-measures its column count on the
- * first frame, re-runs its render pipeline, and the banner stacks on top
- * of itself every refresh — users saw 20+ copies of the splash stacked in
- * the login modal. Rather than mounting a terminal, we point users at the
- * API Key flow (our form) and/or the native terminal on their host.
- *
- * Gemini's browser flow is just a "set GEMINI_API_KEY" instruction; same
- * story — no shell needed.
- */
-function BrowserInstructionsView({
-  provider,
-  onOpenApiKey,
-}: {
-  provider: 'qwen' | 'gemini';
-  onOpenApiKey: () => void;
-}) {
-  const isQwen = provider === 'qwen';
-  const title = isQwen ? 'Qwen Code' : 'Gemini';
-  const docsUrl = isQwen
-    ? 'https://github.com/QwenLM/qwen-code'
-    : 'https://aistudio.google.com/app/apikey';
-  const docsLabel = isQwen ? 'Qwen Code Docs' : 'Google AI Studio';
-  const shellCommand = isQwen ? 'qwen' : 'gemini';
-
-  return (
-    <div className="flex flex-1 flex-col overflow-y-auto bg-gray-50 p-8 dark:bg-gray-900/50">
-      <div className="mx-auto w-full max-w-lg space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-            <KeyRound className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <h4 className="text-lg font-semibold text-foreground">{title} Browser Login</h4>
-            <p className="text-sm text-muted-foreground">Two ways to authenticate — pick whichever fits.</p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border/60 bg-background p-5 shadow-sm">
-          <div className="mb-4 text-sm font-semibold text-foreground">Option 1 — API Key (recommended)</div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Paste an API key into the form Pixcode already has for you. Works on servers where a browser OAuth callback can&apos;t reach your laptop.
-          </p>
-          <button
-            onClick={onOpenApiKey}
-            className="inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
-          >
-            Open API Key tab
-          </button>
-        </div>
-
-        <div className="rounded-xl border border-border/60 bg-background p-5 shadow-sm">
-          <div className="mb-4 text-sm font-semibold text-foreground">Option 2 — Native terminal</div>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Run this in a terminal on the server (or your machine, if Pixcode is local):
-          </p>
-          <code className="mb-3 block rounded-md bg-muted px-3 py-2 font-mono text-sm text-foreground">
-            {shellCommand}{isQwen ? '  →  /auth' : ''}
-          </code>
-          {isQwen && (
-            <p className="mb-3 text-xs text-muted-foreground">
-              Inside the TUI, type <code className="rounded bg-muted px-1 font-mono">/auth</code> and pick an auth method. The CLI stores credentials at <code className="rounded bg-muted px-1 font-mono">~/.qwen/</code> — Pixcode picks them up automatically.
-            </p>
-          )}
-          <a
-            href={docsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline dark:text-blue-400"
-          >
-            {docsLabel} <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ---------- Main modal ----------
 export default function ProviderLoginModal({
   isOpen,
@@ -486,37 +411,26 @@ export default function ProviderLoginModal({
         {/* Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {tab === 'browser' ? (
-            // Qwen Code's TUI keeps re-drawing its ASCII banner inside xterm
-            // (it recalculates width on every frame and xterm's column count
-            // arrives late), flooding the pane with stacked splash screens.
-            // Gemini's browser flow is API-key-based, not OAuth, so a shell
-            // adds nothing useful. For both we show instructions + a shortcut
-            // to the API Key tab instead of mounting a terminal.
-            provider === 'qwen' || provider === 'gemini' ? (
-              <BrowserInstructionsView
-                provider={provider}
-                onOpenApiKey={() => setTab('apiKey')}
-              />
-            ) : (
-              <div className="flex flex-1 flex-col overflow-hidden">
-                <div className="min-h-0 flex-1">
-                  <StandaloneShell
-                    project={DEFAULT_PROJECT_FOR_EMPTY_SHELL}
-                    command={command}
-                    onComplete={handleComplete}
-                    minimal={true}
-                  />
-                </div>
-                {/* Paste-callback fallback — visible for providers that use
-                    localhost OAuth callbacks. Codex is excluded because its
-                    --device-auth flow never opens a callback server. */}
-                {(provider === 'claude' || provider === 'cursor') && (
-                  <div className="border-t border-border/40 bg-background/50 px-4 py-3">
-                    <CallbackPasteSection provider={provider} />
-                  </div>
-                )}
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <div className="min-h-0 flex-1">
+                <StandaloneShell
+                  project={DEFAULT_PROJECT_FOR_EMPTY_SHELL}
+                  command={command}
+                  onComplete={handleComplete}
+                  minimal={true}
+                />
               </div>
-            )
+              {/* Paste-callback fallback — visible for providers that use
+                  localhost OAuth callbacks. Codex is excluded because its
+                  --device-auth flow never opens a callback server; Gemini
+                  is API-key-only (no callback). Qwen's `qwen auth` path
+                  does use localhost callback when the user picks qwen-oauth. */}
+              {(provider === 'claude' || provider === 'cursor' || provider === 'qwen') && (
+                <div className="border-t border-border/40 bg-background/50 px-4 py-3">
+                  <CallbackPasteSection provider={provider} />
+                </div>
+              )}
+            </div>
           ) : (
             <ApiKeyTab provider={provider} onSaved={() => handleComplete(0)} />
           )}
