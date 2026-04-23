@@ -140,7 +140,10 @@ function showStatus() {
     const envExists = fs.existsSync(envFilePath);
     console.log(`\n${c.info('[INFO]')} Configuration File:`);
     console.log(`       ${c.dim(envFilePath)}`);
-    console.log(`       Status: ${envExists ? c.ok('[OK] Exists') : c.warn('[WARN] Not found (using defaults)')}`);
+    // Missing .env is fine — Pixcode ships sensible defaults. Keep this
+    // purely informational so users don't misread an "[INFO] optional"
+    // line as an install-time failure.
+    console.log(`       Status: ${envExists ? c.ok('[OK] Exists') : c.info('[INFO] Optional — running on defaults')}`);
 
     console.log('\n' + c.dim('═'.repeat(60)));
     console.log(`\n${c.tip('[TIP]')} Hints:`);

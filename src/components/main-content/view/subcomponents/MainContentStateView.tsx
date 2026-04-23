@@ -1,9 +1,9 @@
-import { Folder } from '@/lib/icons';
+import { Folder, Sparkles } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { MainContentStateViewProps } from '../../types/types';
 import MobileMenuButton from './MobileMenuButton';
 
-export default function MainContentStateView({ mode, isMobile, onMenuClick }: MainContentStateViewProps) {
+export default function MainContentStateView({ mode, isMobile, onMenuClick, onQuickStartSession }: MainContentStateViewProps) {
   const { t } = useTranslation();
 
   const isLoading = mode === 'loading';
@@ -41,11 +41,22 @@ export default function MainContentStateView({ mode, isMobile, onMenuClick }: Ma
             </div>
             <h2 className="mb-2 text-xl font-semibold text-foreground">{t('mainContent.chooseProject')}</h2>
             <p className="mb-5 text-sm leading-relaxed text-muted-foreground">{t('mainContent.selectProjectDescription')}</p>
-            <div className="rounded-xl border border-primary/10 bg-primary/5 p-3.5">
-              <p className="text-sm text-primary">
-                <strong>{t('mainContent.tip')}:</strong> {isMobile ? t('mainContent.createProjectMobile') : t('mainContent.createProjectDesktop')}
-              </p>
-            </div>
+            {onQuickStartSession ? (
+              <button
+                type="button"
+                onClick={() => { void onQuickStartSession(); }}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              >
+                <Sparkles className="h-4 w-4" />
+                {t('mainContent.startChatting', { defaultValue: 'Start a new chat' })}
+              </button>
+            ) : (
+              <div className="rounded-xl border border-primary/10 bg-primary/5 p-3.5">
+                <p className="text-sm text-primary">
+                  <strong>{t('mainContent.tip')}:</strong> {isMobile ? t('mainContent.createProjectMobile') : t('mainContent.createProjectDesktop')}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -241,6 +241,54 @@ export async function validateWorkspacePath(requestedPath) {
 }
 
 /**
+ * POST /api/projects/quick-start
+ *
+ * Zero-config project creation: picks the next available
+ * `pixcode-project-N` slot under WORKSPACES_BASE, creates the directory,
+ * registers it, and returns the project record. Used by the "start
+ * chatting without setting up a project first" landing flow — we want
+ * the user to type + send a message and have a real workspace appear
+ * underneath them without prompting for a name or path up front.
+ */
+router.post('/quick-start', async (req, res) => {
+  try {
+    await fs.mkdir(WORKSPACES_BASE, { recursive: true });
+
+    let entries = [];
+    try {
+      entries = await fs.readdir(WORKSPACES_BASE, { withFileTypes: true });
+    } catch { /* empty is fine */ }
+    const taken = new Set(
+      entries.filter((e) => e.isDirectory()).map((e) => e.name.toLowerCase()),
+    );
+
+    let nextIndex = 1;
+    let name = '';
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const candidate = `pixcode-project-${nextIndex}`;
+      if (!taken.has(candidate.toLowerCase())) {
+        name = candidate;
+        break;
+      }
+      nextIndex += 1;
+      if (nextIndex > 9999) {
+        return res.status(500).json({ error: 'No free pixcode-project slot (exhausted 1..9999)' });
+      }
+    }
+
+    const absolutePath = path.join(WORKSPACES_BASE, name);
+    await fs.mkdir(absolutePath, { recursive: true });
+    const project = await addProjectManually(absolutePath);
+
+    res.json({ success: true, project, suggestedName: name });
+  } catch (error) {
+    console.error('[projects] quick-start failed:', error);
+    res.status(500).json({ error: error.message || 'Failed to quick-start project' });
+  }
+});
+
+/**
  * Create a new workspace
  * POST /api/projects/create-workspace
  *

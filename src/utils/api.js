@@ -113,6 +113,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(workspaceData),
     }),
+  // Server picks the next pixcode-project-N slot — used by the
+  // "just start chatting" flow before the user has created a project.
+  quickStartProject: () =>
+    authenticatedFetch('/api/projects/quick-start', {
+      method: 'POST',
+      body: '{}',
+    }),
   readFile: (projectName, filePath) =>
     authenticatedFetch(`/api/projects/${projectName}/file?filePath=${encodeURIComponent(filePath)}`),
   readFileBlob: (projectName, filePath) =>

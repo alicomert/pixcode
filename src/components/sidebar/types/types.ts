@@ -28,6 +28,11 @@ export type SidebarProps = {
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onNewSession: (project: Project) => void;
+  /** Zero-config new-chat action: auto-creates a pixcode-project-N on the
+   *  server and lands the user on the chat screen. Plumbed through to
+   *  SidebarHeader's "New chat" button and to MainContentStateView's
+   *  primary CTA in the no-project landing state. */
+  onQuickStartSession?: () => void | Promise<void>;
   onSessionDelete?: (sessionId: string) => void;
   onProjectDelete?: (projectName: string) => void;
   isLoading: boolean;

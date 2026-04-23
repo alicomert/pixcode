@@ -78,6 +78,7 @@ import {
     PROVIDER_ENV_VARS,
     setProviderCredentials,
 } from './services/provider-credentials.js';
+import { primeCliBinPath } from './services/install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames } from './database/db.js';
 import { configureWebPush } from './services/vapid-keys.js';
@@ -2639,6 +2640,17 @@ async function startServer() {
             await applyAllStoredCredentialsToEnv();
         } catch (err) {
             console.warn('[provider-credentials] Failed to apply stored credentials:', err?.message || err);
+        }
+
+        // Prepend the pixcode-managed CLI sandbox
+        // (~/.pixcode/cli-bin/node_modules/.bin) to PATH so any provider CLI
+        // installed via the in-app installer is instantly resolvable by
+        // cross-spawn calls in the provider adapters — no server restart
+        // required, no need to touch the user's shell PATH.
+        try {
+            primeCliBinPath();
+        } catch (err) {
+            console.warn('[install-jobs] Failed to prime CLI bin path:', err?.message || err);
         }
 
         // Check if running in production mode (dist folder exists)

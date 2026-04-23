@@ -1,0 +1,338 @@
+/**
+ * In-memory install-job registry + sandboxed local CLI installer.
+ *
+ * Why not `npm install -g`:
+ *   - Requires admin/sudo on Windows and most Linux distros. When Pixcode
+ *     runs as a non-privileged daemon, -g fails with EACCES and the user
+ *     sees a blank log with no actionable error.
+ *   - Even on Windows desktop, npm's global prefix is sometimes broken
+ *     (AppData permissions, antivirus quarantining node_modules/.bin).
+ *   - CI/docker/VPS setups often don't have `npm` on the daemon's PATH at
+ *     all, even when the user's interactive shell does.
+ *
+ * What we do instead:
+ *   - Install targets go into `~/.pixcode/cli-bin/` as LOCAL dependencies
+ *     of a pixcode-owned package.json (no -g, no sudo, no UAC).
+ *   - Resolve `npm` from the same Node install that's running the server
+ *     (sibling file to `process.execPath`) so PATH environment doesn't
+ *     matter.
+ *   - On server boot, `~/.pixcode/cli-bin/node_modules/.bin` is prepended
+ *     to `process.env.PATH`. Every existing `cross-spawn(binary)` call
+ *     (in claude-auth, gemini-cli, qwen-code-cli, etc.) then resolves to
+ *     the locally installed binary without any change to the adapter code.
+ *
+ * The HTTP/stream side of the API is the same as before:
+ *   - POST /install → spawns the child, returns { jobId }
+ *   - GET  /install/:jobId/stream → EventSource that replays the buffered
+ *     transcript and then streams live chunks.
+ *   - DELETE /install/:jobId → cancels an in-flight install.
+ *
+ * Jobs linger 10 minutes after completion so late subscribers still see
+ * the outcome.
+ */
+import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+const jobs = new Map();
+const FINISHED_TTL_MS = 10 * 60 * 1000;
+const HARD_TIMEOUT_MS = 10 * 60 * 1000;
+
+export const CLI_HOME = path.join(os.homedir(), '.pixcode', 'cli-bin');
+export const CLI_BIN_DIR = path.join(CLI_HOME, 'node_modules', '.bin');
+
+/**
+ * npm package → the binary name it installs. Used to verify the install
+ * actually dropped an executable we can run, since npm can exit(0) even
+ * when a package has no `bin` entry or our PATH wiring is wrong.
+ */
+const PACKAGE_BINARIES = {
+    '@anthropic-ai/claude-code': 'claude',
+    '@openai/codex': 'codex',
+    '@google/gemini-cli': 'gemini',
+    '@qwen-code/qwen-code': 'qwen',
+};
+
+/**
+ * Make sure `CLI_HOME` exists with a minimal package.json so `npm install`
+ * doesn't walk up to some unrelated parent and pollute it.
+ */
+function ensureCliHome() {
+    fs.mkdirSync(CLI_HOME, { recursive: true });
+    const pkgPath = path.join(CLI_HOME, 'package.json');
+    if (!fs.existsSync(pkgPath)) {
+        const pkg = {
+            name: 'pixcode-cli-bin',
+            private: true,
+            version: '0.0.0',
+            description:
+                'Pixcode-managed sandbox for provider CLIs (claude/codex/gemini/qwen). '
+                + 'Safe to delete; Pixcode will re-create it on next install.',
+        };
+        fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+    }
+}
+
+/**
+ * Prepend the pixcode-managed bin dir to PATH. Called at server boot so
+ * every subsequent `spawn('claude'|'gemini'|'codex'|'qwen', …)` in the
+ * provider adapters (which use cross-spawn with bare names) resolves to
+ * the locally installed binary without any per-adapter change.
+ */
+export function primeCliBinPath(env = process.env) {
+    ensureCliHome();
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const current = env.PATH || env.Path || '';
+    if (current.split(sep).some((entry) => path.resolve(entry || '') === path.resolve(CLI_BIN_DIR))) {
+        return;
+    }
+    const next = current ? `${CLI_BIN_DIR}${sep}${current}` : CLI_BIN_DIR;
+    env.PATH = next;
+    if ('Path' in env) env.Path = next;
+}
+
+/**
+ * Resolve `npm` next to the currently-running `node` binary. This is
+ * more reliable than trusting PATH — when Pixcode runs as a daemon, PATH
+ * is often minimal and doesn't include the user's node install.
+ */
+function resolveNpmCommand() {
+    const nodeDir = path.dirname(process.execPath);
+    const isWindows = process.platform === 'win32';
+    const candidates = isWindows
+        ? ['npm.cmd', 'npm.exe']
+        : ['npm'];
+    for (const c of candidates) {
+        const full = path.join(nodeDir, c);
+        if (fs.existsSync(full)) return full;
+    }
+    // Windows sometimes ships npm in a sibling "npm" directory.
+    if (isWindows) {
+        const siblingNpm = path.join(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+        if (fs.existsSync(siblingNpm)) {
+            return siblingNpm; // we'll invoke `node <npm-cli.js>`
+        }
+    }
+    // Fall back to bare name and let the shell resolve.
+    return isWindows ? 'npm.cmd' : 'npm';
+}
+
+function packageFromCommand(installCmd) {
+    // Legacy callers still pass `npm install -g <pkg>` strings — extract
+    // the @scope/name so the local installer can reuse the same input.
+    const match = String(installCmd).match(/@[^\s]+\/[^\s]+|[\w.-]+(?:@[\w.-]+)?$/);
+    return match ? match[0] : installCmd;
+}
+
+export function createInstallJob({ provider, installCmd, packageName }) {
+    const pkg = packageName || packageFromCommand(installCmd);
+    const id = randomUUID();
+    const emitter = new EventEmitter();
+    emitter.setMaxListeners(20);
+
+    const job = {
+        id,
+        provider,
+        installCmd,
+        package: pkg,
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        finishedAt: null,
+        exitCode: null,
+        error: null,
+        logs: [],
+        emitter,
+        child: null,
+        timer: null,
+    };
+
+    const appendLog = (stream, chunk) => {
+        const entry = { stream, chunk, at: Date.now() };
+        job.logs.push(entry);
+        if (job.logs.length > 2000) {
+            job.logs.splice(0, job.logs.length - 2000);
+        }
+        emitter.emit('log', entry);
+    };
+
+    try {
+        ensureCliHome();
+    } catch (err) {
+        job.status = 'error';
+        job.error = `Could not create ${CLI_HOME}: ${err?.message || err}`;
+        job.finishedAt = new Date().toISOString();
+        appendLog('stderr', job.error + '\n');
+        emitter.emit('done', buildDonePayload(job));
+        scheduleCleanup(job);
+        jobs.set(id, job);
+        return job;
+    }
+
+    appendLog('meta', `Installing ${pkg} into ${CLI_HOME}\n`);
+    appendLog('meta', `(sandboxed — no sudo / admin required)\n`);
+
+    const npmCmd = resolveNpmCommand();
+    const useNodeRunner = npmCmd.endsWith('.js');
+
+    const cmd = useNodeRunner ? process.execPath : npmCmd;
+    const args = useNodeRunner
+        ? [npmCmd, 'install', pkg, '--no-audit', '--no-fund', '--loglevel=http']
+        : ['install', pkg, '--no-audit', '--no-fund', '--loglevel=http'];
+
+    appendLog('meta', `$ ${cmd} ${args.join(' ')}\n`);
+
+    let child;
+    try {
+        child = spawn(cmd, args, {
+            cwd: CLI_HOME,
+            env: { ...process.env, npm_config_yes: 'true' },
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true,
+            // On Windows, .cmd files need a shell to be invokable by spawn().
+            shell: process.platform === 'win32' && !useNodeRunner,
+        });
+    } catch (err) {
+        const message = err?.message || String(err);
+        console.error(`[install-job:${provider}:${id}] Spawn failed:`, message);
+        job.status = 'error';
+        job.error = `Failed to launch npm: ${message}`;
+        job.finishedAt = new Date().toISOString();
+        appendLog('stderr', job.error + '\n');
+        emitter.emit('done', buildDonePayload(job));
+        scheduleCleanup(job);
+        jobs.set(id, job);
+        return job;
+    }
+
+    job.child = child;
+    child.stdout.on('data', (buf) => appendLog('stdout', buf.toString()));
+    child.stderr.on('data', (buf) => appendLog('stderr', buf.toString()));
+
+    child.on('error', (err) => {
+        if (job.status !== 'running') return;
+        job.status = 'error';
+        job.error = `npm process error: ${err.message}`;
+        job.finishedAt = new Date().toISOString();
+        appendLog('stderr', job.error + '\n');
+        emitter.emit('done', buildDonePayload(job));
+        scheduleCleanup(job);
+    });
+
+    child.on('close', (code, signal) => {
+        if (job.status !== 'running') return;
+        job.exitCode = code ?? null;
+        job.finishedAt = new Date().toISOString();
+
+        if (code !== 0) {
+            job.status = 'error';
+            job.error = signal
+                ? `Install killed by signal ${signal}`
+                : `npm exited with code ${code}`;
+            emitter.emit('done', buildDonePayload(job));
+            scheduleCleanup(job);
+            return;
+        }
+
+        // Verify the binary actually landed. If we don't check, a package
+        // without a `bin` entry (or a half-extracted tarball) would still
+        // read as "success" and the user would be confused when auth
+        // status stays red.
+        const binName = PACKAGE_BINARIES[pkg] || provider;
+        const binaryPath = findInstalledBinary(binName);
+        if (!binaryPath) {
+            job.status = 'error';
+            job.error = `npm exited cleanly but ${binName} was not found in ${CLI_BIN_DIR}`;
+            appendLog('stderr', job.error + '\n');
+            emitter.emit('done', buildDonePayload(job));
+            scheduleCleanup(job);
+            return;
+        }
+
+        // Make sure our live server process can resolve the new binary
+        // from this moment on, without a restart. primeCliBinPath is
+        // idempotent so re-calling after each install is cheap.
+        primeCliBinPath();
+
+        appendLog('meta', `✓ Installed ${binName} → ${binaryPath}\n`);
+        job.status = 'done';
+        job.binaryPath = binaryPath;
+        emitter.emit('done', buildDonePayload(job));
+        scheduleCleanup(job);
+    });
+
+    job.timer = setTimeout(() => {
+        if (job.status !== 'running') return;
+        try { child.kill('SIGKILL'); } catch { /* noop */ }
+        job.status = 'error';
+        job.error = 'Install timed out after 10 minutes';
+        job.finishedAt = new Date().toISOString();
+        appendLog('stderr', job.error + '\n');
+        emitter.emit('done', buildDonePayload(job));
+        scheduleCleanup(job);
+    }, HARD_TIMEOUT_MS);
+
+    jobs.set(id, job);
+    return job;
+}
+
+function findInstalledBinary(name) {
+    const isWindows = process.platform === 'win32';
+    const candidates = isWindows
+        ? [`${name}.cmd`, `${name}.exe`, name]
+        : [name];
+    for (const c of candidates) {
+        const full = path.join(CLI_BIN_DIR, c);
+        if (fs.existsSync(full)) return full;
+    }
+    return null;
+}
+
+function buildDonePayload(job) {
+    if (job.status === 'done') {
+        return {
+            success: true,
+            exitCode: job.exitCode,
+            binaryPath: job.binaryPath,
+            message: `${job.provider} installed. Refreshing auth status…`,
+        };
+    }
+    return {
+        success: false,
+        exitCode: job.exitCode,
+        error: job.error || 'Install failed',
+    };
+}
+
+function scheduleCleanup(job) {
+    if (job.timer) {
+        clearTimeout(job.timer);
+        job.timer = null;
+    }
+    setTimeout(() => {
+        jobs.delete(job.id);
+    }, FINISHED_TTL_MS);
+}
+
+export function getInstallJob(id) {
+    return jobs.get(id) || null;
+}
+
+export function cancelInstallJob(id) {
+    const job = jobs.get(id);
+    if (!job) return false;
+    if (job.status !== 'running') return false;
+    try { job.child?.kill(); } catch { /* noop */ }
+    job.status = 'error';
+    job.error = 'Install cancelled';
+    job.finishedAt = new Date().toISOString();
+    job.emitter.emit('done', buildDonePayload(job));
+    scheduleCleanup(job);
+    return true;
+}
+
+export function snapshotDonePayload(job) {
+    return buildDonePayload(job);
+}

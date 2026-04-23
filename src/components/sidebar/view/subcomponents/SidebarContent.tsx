@@ -54,6 +54,7 @@ type SidebarContentProps = {
   onRefresh: () => void;
   isRefreshing: boolean;
   onCreateProject: () => void;
+  onQuickStartSession?: () => void | Promise<void>;
   onCollapseSidebar: () => void;
   updateAvailable: boolean;
   releaseInfo: ReleaseInfo | null;
@@ -85,6 +86,7 @@ export default function SidebarContent({
   onRefresh,
   isRefreshing,
   onCreateProject,
+  onQuickStartSession,
   onCollapseSidebar,
   updateAvailable,
   releaseInfo,
@@ -119,6 +121,7 @@ export default function SidebarContent({
         onRefresh={onRefresh}
         isRefreshing={isRefreshing}
         onCreateProject={onCreateProject}
+        onQuickStartSession={onQuickStartSession}
         onCollapseSidebar={onCollapseSidebar}
         historyView={historyView}
         onHistoryViewChange={onHistoryViewChange}

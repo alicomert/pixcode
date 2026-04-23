@@ -1,4 +1,4 @@
-import { Folder, FolderPlus, List, MessageSquare, Plus, RefreshCw, Rows3, Search, X, PanelLeftClose } from '@/lib/icons';
+import { Folder, FolderPlus, List, MessageSquare, Plus, RefreshCw, Rows3, Search, Sparkles, X, PanelLeftClose } from '@/lib/icons';
 import type { TFunction } from 'i18next';
 import { Button, Input } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
@@ -21,6 +21,7 @@ type SidebarHeaderProps = {
   onRefresh: () => void;
   isRefreshing: boolean;
   onCreateProject: () => void;
+  onQuickStartSession?: () => void | Promise<void>;
   onCollapseSidebar: () => void;
   historyView: HistoryViewMode;
   onHistoryViewChange: (mode: HistoryViewMode) => void;
@@ -93,6 +94,7 @@ export default function SidebarHeader({
   onRefresh,
   isRefreshing,
   onCreateProject,
+  onQuickStartSession,
   onCollapseSidebar,
   historyView,
   onHistoryViewChange,
@@ -182,6 +184,22 @@ export default function SidebarHeader({
         </div>
 
         <GitHubStarBadge />
+
+        {/* "New chat" primary CTA — mirrors the ChatGPT/Claude.ai sidebar.
+            Clicking asks the server to create a pixcode-project-N slot and
+            drops the user straight onto the chat surface, so there's no
+            wizard sitting between "I want to talk to an AI" and the
+            composer. */}
+        {onQuickStartSession && (
+          <button
+            type="button"
+            onClick={() => { void onQuickStartSession(); }}
+            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+          >
+            <Sparkles className="h-4 w-4" />
+            {t('sidebar.newChat', { defaultValue: 'New chat' })}
+          </button>
+        )}
 
         {/* Search bar */}
         {projectsCount > 0 && !isLoading && (

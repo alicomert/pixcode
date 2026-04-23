@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, LogIn, Download, ExternalLink, Loader2, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
@@ -85,89 +85,114 @@ function useInstaller(agent: AgentProvider) {
   const [state, setState] = useState<InstallState>('idle');
   const [log, setLog] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+  const jobIdRef = useRef<string | null>(null);
+
+  // Close any open EventSource on unmount; does NOT cancel the job,
+  // since the child process runs independently on the server.
+  useEffect(() => {
+    return () => {
+      try { esRef.current?.close(); } catch { /* noop */ }
+    };
+  }, []);
 
   const run = async () => {
     setState('running');
     setLog('');
     setError(null);
-    const controller = new AbortController();
-    abortRef.current = controller;
+    try { esRef.current?.close(); } catch { /* noop */ }
+    esRef.current = null;
+    jobIdRef.current = null;
 
+    let jobId: string;
     try {
+      // Kick off the install. The server returns immediately with
+      // { jobId }; the child keeps running in the background.
       const response = await authenticatedFetch(`/api/providers/${agent}/install`, {
         method: 'POST',
-        // Explicit empty JSON body so Express's body-parser sees a well-formed
-        // request and doesn't hold the stream waiting for body bytes — a
-        // silent hang there was making req.on('close') fire on the server
-        // before npm even produced its first line of output.
         body: '{}',
-        signal: controller.signal,
       });
-      if (!response.ok || !response.body) {
-        const body = await response.json().catch(() => ({}));
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body?.success) {
         throw new Error(body?.error || `HTTP ${response.status}`);
       }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let doneEvent: { success: boolean; error?: string; message?: string } | null = null;
-
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        for (;;) {
-          const sep = buffer.indexOf('\n\n');
-          if (sep === -1) break;
-          const raw = buffer.slice(0, sep);
-          buffer = buffer.slice(sep + 2);
-          let event = 'message';
-          const dataLines: string[] = [];
-          for (const line of raw.split('\n')) {
-            if (line.startsWith(':')) continue;
-            if (line.startsWith('event: ')) event = line.slice(7).trim();
-            else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
-          }
-          if (dataLines.length === 0) continue;
-          try {
-            const parsed = JSON.parse(dataLines.join('\n'));
-            if (event === 'log' && typeof parsed.chunk === 'string') {
-              setLog((prev) => prev + parsed.chunk);
-            } else if (event === 'done') {
-              doneEvent = parsed;
-            }
-          } catch {
-            // bad frame — ignore
-          }
-        }
-      }
-
-      if (!doneEvent) throw new Error('Install stream ended unexpectedly');
-      if (doneEvent.success) {
-        setState('done');
-      } else {
-        setError(doneEvent.error || 'Install failed');
-        setState('error');
-      }
+      jobId = body.data?.jobId;
+      if (!jobId) throw new Error('Server did not return a job id');
+      jobIdRef.current = jobId;
     } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        setState('idle');
-      } else {
-        setError(err?.message || 'Install failed');
+      setError(err?.message || 'Install failed to start');
+      setState('error');
+      return;
+    }
+
+    // EventSource can't send custom headers, so the server accepts
+    // ?token= as a query-string auth fallback (same pattern as the
+    // conversations search endpoint).
+    const token = localStorage.getItem('auth-token') || '';
+    const url =
+      `/api/providers/${agent}/install/${jobId}/stream`
+      + (token ? `?token=${encodeURIComponent(token)}` : '');
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.addEventListener('log', (evt) => {
+      try {
+        const payload = JSON.parse((evt as MessageEvent).data);
+        if (typeof payload.chunk === 'string') {
+          setLog((prev) => prev + payload.chunk);
+        }
+      } catch { /* ignore bad frame */ }
+    });
+
+    es.addEventListener('done', (evt) => {
+      try {
+        const payload = JSON.parse((evt as MessageEvent).data);
+        if (payload.success) {
+          setState('done');
+          setError(null);
+        } else {
+          setError(payload.error || 'Install failed');
+          setState('error');
+        }
+      } catch {
+        setError('Install ended with an unreadable status');
         setState('error');
       }
-    } finally {
-      abortRef.current = null;
-    }
+      try { es.close(); } catch { /* noop */ }
+      esRef.current = null;
+    });
+
+    es.onerror = () => {
+      // EventSource auto-reconnects on transient errors (that's the whole
+      // point of using it). Only surface an error if the stream has gone
+      // to CLOSED without ever producing a `done` — the callback above
+      // normally transitions state before we get here.
+      if (es.readyState === EventSource.CLOSED && state !== 'done' && state !== 'error') {
+        setError('Lost connection to install stream. The install may still be running on the server.');
+        setState('error');
+        esRef.current = null;
+      }
+    };
   };
 
-  const cancel = () => {
-    abortRef.current?.abort();
+  const cancel = async () => {
+    const jobId = jobIdRef.current;
+    try { esRef.current?.close(); } catch { /* noop */ }
+    esRef.current = null;
+    if (jobId) {
+      try {
+        await authenticatedFetch(`/api/providers/${agent}/install/${jobId}`, {
+          method: 'DELETE',
+        });
+      } catch { /* best effort */ }
+    }
+    setState('idle');
   };
 
   const reset = () => {
+    try { esRef.current?.close(); } catch { /* noop */ }
+    esRef.current = null;
+    jobIdRef.current = null;
     setState('idle');
     setLog('');
     setError(null);

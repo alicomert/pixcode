@@ -425,6 +425,38 @@ export function useProjectsState({
     [isMobile, navigate],
   );
 
+  /**
+   * Zero-config "just start chatting" entry point.
+   *
+   * Hits POST /api/projects/quick-start which picks the next available
+   * pixcode-project-N slot, mkdir's it, and registers it. We then merge
+   * it into the projects list and select it so the user lands directly
+   * on the chat screen with the provider picker. No wizard, no path
+   * prompt — we want the friction of starting a new conversation to
+   * match what users expect from ChatGPT/Claude.ai.
+   */
+  const handleQuickStartSession = useCallback(async () => {
+    try {
+      const response = await api.quickStartProject();
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body?.project) {
+        console.error('[quick-start] failed:', body);
+        return;
+      }
+      const project = body.project as Project;
+      setProjects((prev) => (
+        prev.some((p) => p.name === project.name) ? prev : [project, ...prev]
+      ));
+      setSelectedProject(project);
+      setSelectedSession(null);
+      setActiveTab('chat');
+      navigate('/');
+      if (isMobile) setSidebarOpen(false);
+    } catch (err) {
+      console.error('[quick-start] error:', err);
+    }
+  }, [isMobile, navigate]);
+
   const handleSessionDelete = useCallback(
     (sessionIdToDelete: string) => {
       if (selectedSession?.id === sessionIdToDelete) {
@@ -513,6 +545,7 @@ export function useProjectsState({
       onProjectSelect: handleProjectSelect,
       onSessionSelect: handleSessionSelect,
       onNewSession: handleNewSession,
+      onQuickStartSession: handleQuickStartSession,
       onSessionDelete: handleSessionDelete,
       onProjectDelete: handleProjectDelete,
       isLoading: isLoadingProjects,
@@ -526,6 +559,7 @@ export function useProjectsState({
     }),
     [
       handleNewSession,
+      handleQuickStartSession,
       handleProjectDelete,
       handleProjectSelect,
       handleSessionDelete,

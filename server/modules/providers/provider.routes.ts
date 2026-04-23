@@ -14,6 +14,14 @@ import {
 // @ts-ignore — plain-JS service
 import { getProviderModels, clearProviderModelCache } from '@/services/provider-models.js';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS service
+import {
+  createInstallJob,
+  getInstallJob,
+  cancelInstallJob,
+  snapshotDonePayload,
+} from '@/services/install-jobs.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — plain-JS shared module
 import {
   CLAUDE_MODELS,
@@ -33,7 +41,6 @@ const STATIC_MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ value: string; labe
 import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import http from 'node:http';
-import { spawn } from 'node:child_process';
 
 /**
  * npm-global install command per provider. Used by POST
@@ -41,14 +48,27 @@ import { spawn } from 'node:child_process';
  * users don't have to drop into a shell just to get a CLI on the host.
  * Cursor uses its own install script, not npm.
  */
+/**
+ * npm package name per provider. The in-app installer drops these into
+ * ~/.pixcode/cli-bin/ as LOCAL deps (no -g, no sudo). A sibling string
+ * for display ("npm install -g …") is surfaced in the UI so users who
+ * prefer to install manually still see a recognizable command.
+ */
+const PROVIDER_INSTALL_PACKAGES: Record<LLMProvider, string | null> = {
+  claude: '@anthropic-ai/claude-code',
+  codex: '@openai/codex',
+  gemini: '@google/gemini-cli',
+  qwen: '@qwen-code/qwen-code',
+  // Cursor ships via a bash script hosted at cursor.com; safer to ask
+  // users to run it themselves than to pipe-to-bash from our server.
+  cursor: null,
+};
+
 const PROVIDER_INSTALL_COMMANDS: Record<LLMProvider, string | null> = {
   claude: 'npm install -g @anthropic-ai/claude-code',
   codex: 'npm install -g @openai/codex',
   gemini: 'npm install -g @google/gemini-cli',
   qwen: 'npm install -g @qwen-code/qwen-code',
-  // Cursor's installer is a bash script hosted at cursor.com; safer to
-  // ask users to run it themselves rather than pipe-to-bash from our
-  // server process.
   cursor: null,
 };
 
@@ -401,25 +421,60 @@ router.delete(
 
 /**
  * POST /api/providers/:provider/install
- * SSE stream. Runs the provider's npm-global install command server-side so
- * users can kick off the install from the UI instead of pasting a command
- * into a terminal. Each stdout/stderr chunk streams as a `log` event; a
- * final `done` event carries the exit code and whether a retry is worth it.
- *
- * Fires once; if already installed, the backend still re-runs the command —
- * npm will reinstall / bump to latest, which is what users usually want when
- * they hit "Install" on a "not installed" card that has since stale-updated.
+ * Kicks off the install in the background and immediately returns
+ * `{ jobId }`. The actual log stream is fetched separately via
+ * GET /install/:jobId/stream (EventSource). This split solves the
+ * "Client disconnected before install finished" class of errors,
+ * where a single long-lived POST SSE would get torn down by dev
+ * proxies, service-worker reloads, or Vite HMR and short-circuit
+ * an in-flight install. The child now outlives the request.
  */
 router.post(
   '/:provider/install',
   asyncHandler(async (req: Request, res: Response) => {
     const parsed = parseProvider(req.params.provider);
+    const packageName = PROVIDER_INSTALL_PACKAGES[parsed];
     const installCmd = PROVIDER_INSTALL_COMMANDS[parsed];
-    if (!installCmd) {
+    if (!packageName || !installCmd) {
       throw new AppError(
         `${parsed} cannot be installed automatically — please follow the documented install steps.`,
         { code: 'PROVIDER_NOT_AUTO_INSTALLABLE', statusCode: 400 },
       );
+    }
+
+    const job = createInstallJob({ provider: parsed, installCmd, packageName });
+    res.json(createApiSuccessResponse({
+      jobId: job.id,
+      provider: parsed,
+      installCmd,
+      startedAt: job.startedAt,
+    }));
+  }),
+);
+
+/**
+ * GET /api/providers/:provider/install/:jobId/stream
+ * SSE endpoint (EventSource-friendly). Replays every buffered log line
+ * to the new subscriber, then forwards live stdout/stderr until the
+ * child exits. Clients can reconnect freely — reconnects replay from
+ * the start, so you never miss output, even if the browser dropped
+ * the previous connection while npm was mid-download.
+ *
+ * EventSource can't set custom headers, so this endpoint also accepts
+ * ?token=... as a fallback auth channel (same pattern the search
+ * endpoint uses).
+ */
+router.get(
+  '/:provider/install/:jobId/stream',
+  asyncHandler(async (req: Request, res: Response) => {
+    const parsed = parseProvider(req.params.provider);
+    const jobId = readPathParam(req.params.jobId, 'jobId');
+    const job = getInstallJob(jobId);
+    if (!job || job.provider !== parsed) {
+      throw new AppError('Install job not found or already expired.', {
+        code: 'INSTALL_JOB_NOT_FOUND',
+        statusCode: 404,
+      });
     }
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -427,138 +482,82 @@ router.post(
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
-    // Disable Nagle so every heartbeat / log chunk goes out as a separate
-    // TCP packet — important for SSE readers that only know a message
-    // arrived once the socket flushes.
     try {
       (res.socket as NodeJS.Socket & { setNoDelay?: (on: boolean) => void })?.setNoDelay?.(true);
-    } catch { /* non-fatal */ }
+    } catch { /* noop */ }
 
-    // Single done-event + end-stream guard. Every exit path funnels through
-    // `finish(done)` so we can't ship a closed stream without an explicit
-    // done event — which was the root cause of the frontend's
-    // "Install stream ended unexpectedly" error.
-    let finished = false;
-    const send = (event: string, payload: unknown) => {
-      if (finished) return;
+    let closed = false;
+    const write = (event: string, payload: unknown) => {
+      if (closed) return;
       try {
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(payload)}\n\n`);
-      } catch (err) {
-        console.warn(`[provider-install:${parsed}] Write failed:`, (err as Error)?.message);
-      }
-    };
-    // Tighter heartbeat cadence (5s) than the previous 15s. Some home /
-    // corporate proxies (and a few ad-blockers) close what they think is
-    // an idle connection after ~10s; a 5-second ping keeps them honest
-    // *before* the first npm line of output lands.
-    const heartbeat = setInterval(() => {
-      if (finished) return;
-      try { res.write(': ping\n\n'); } catch { /* socket gone */ }
-    }, 5000);
-    const finish = (donePayload: Record<string, unknown>) => {
-      if (finished) return;
-      finished = true;
-      clearInterval(heartbeat);
-      try {
-        res.write(`event: done\n`);
-        res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
       } catch { /* socket gone */ }
-      try { res.end(); } catch { /* already ended */ }
     };
 
-    // Prime the stream with an immediate ping + the meta log. Without the
-    // ping, the first byte the browser sees is the meta frame — some
-    // clients wait for the full frame before exposing `response.body` to
-    // JS, and proxies sitting in front of Pixcode buffer until enough
-    // bytes arrive. The padding forces the socket to flush early.
+    // Immediate primer + heartbeat, same as before — keeps intermediary
+    // proxies from treating the connection as idle.
     try { res.write(': start\n\n'); } catch { /* noop */ }
-    send('log', { stream: 'meta', chunk: `Running: ${installCmd}\n` });
-    console.log(`[provider-install:${parsed}] Spawning:`, installCmd);
+    const heartbeat = setInterval(() => {
+      if (closed) return;
+      try { res.write(': ping\n\n'); } catch { /* noop */ }
+    }, 5000);
 
-    // Force cmd.exe on Windows; /bin/sh elsewhere. Using `shell: true`
-    // deferred to Node's default, which occasionally mis-parsed commands
-    // with `@scope/name` on Windows and the child exited before emitting
-    // anything useful. Being explicit here also lets us log the full
-    // argv we actually ran, for debugging.
-    const isWindows = process.platform === 'win32';
-    const shellPath = isWindows
-      ? (process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe')
-      : '/bin/sh';
-    const shellArgs = isWindows
-      ? ['/d', '/s', '/c', installCmd]
-      : ['-c', installCmd];
+    // Replay the buffered transcript first so late subscribers see
+    // every line npm has already produced.
+    for (const entry of job.logs) {
+      write('log', { stream: entry.stream, chunk: entry.chunk });
+    }
 
-    let child;
-    try {
-      child = spawn(shellPath, shellArgs, {
-        env: process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      });
-    } catch (err) {
-      const msg = (err as Error)?.message || String(err);
-      console.error(`[provider-install:${parsed}] Spawn threw:`, msg);
-      finish({ success: false, error: `Failed to spawn install shell: ${msg}` });
+    const onLog = (entry: { stream: string; chunk: string }) => {
+      write('log', { stream: entry.stream, chunk: entry.chunk });
+    };
+    const onDone = (payload: Record<string, unknown>) => {
+      write('done', payload);
+      cleanup();
+      try { res.end(); } catch { /* noop */ }
+    };
+
+    const cleanup = () => {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      job.emitter.off('log', onLog);
+      job.emitter.off('done', onDone);
+    };
+
+    if (job.status !== 'running') {
+      // Job already finished — replay the terminal done frame and exit.
+      write('done', snapshotDonePayload(job));
+      cleanup();
+      try { res.end(); } catch { /* noop */ }
       return;
     }
 
-    // Client disconnect detection. Node fires 'close' on req both when the
-    // browser aborts *and* after we call res.end() ourselves, so the
-    // `finished` guard is essential — otherwise the handler stomps on the
-    // genuine close we just sent. We also distinguish a true disconnect
-    // (socket not writable) from our own res.end() by re-checking
-    // res.writableEnded: if we already ended, it's our own event and
-    // there's nothing to do.
+    job.emitter.on('log', onLog);
+    job.emitter.once('done', onDone);
+
     req.on('close', () => {
-      if (finished) return;
-      if (res.writableEnded) return;
-      console.log(`[provider-install:${parsed}] Client disconnected before child exited, killing`);
-      try { child.kill(); } catch { /* noop */ }
-      finish({ success: false, error: 'Client disconnected before install finished' });
+      // Client walked away. DO NOT cancel the install — detaching is fine.
+      cleanup();
     });
+  }),
+);
 
-    child.stdout?.on('data', (data: Buffer) => {
-      send('log', { stream: 'stdout', chunk: data.toString() });
-    });
-    child.stderr?.on('data', (data: Buffer) => {
-      send('log', { stream: 'stderr', chunk: data.toString() });
-    });
-
-    child.on('error', (err: Error) => {
-      console.error(`[provider-install:${parsed}] Child error:`, err.message);
-      finish({ success: false, error: `Install process error: ${err.message}` });
-    });
-
-    child.on('close', (code: number | null, signal: string | null) => {
-      console.log(`[provider-install:${parsed}] Child exited code=${code} signal=${signal}`);
-      if (code === 0) {
-        finish({
-          success: true,
-          exitCode: 0,
-          message: `${parsed} installed. Refreshing auth status…`,
-        });
-      } else {
-        finish({
-          success: false,
-          exitCode: code,
-          signal,
-          error: signal
-            ? `Install killed by signal ${signal}`
-            : `Install command exited with code ${code}`,
-        });
-      }
-    });
-
-    // Hard timeout — 10 minutes. Some providers pull heavy native modules
-    // on first install; anything longer is almost certainly stuck.
-    const timeout = setTimeout(() => {
-      if (finished) return;
-      console.warn(`[provider-install:${parsed}] Hit 10-minute timeout, killing child`);
-      try { child.kill('SIGKILL'); } catch { /* noop */ }
-      finish({ success: false, error: 'Install timed out after 10 minutes' });
-    }, 10 * 60 * 1000);
-    child.on('close', () => clearTimeout(timeout));
+router.delete(
+  '/:provider/install/:jobId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const parsed = parseProvider(req.params.provider);
+    const jobId = readPathParam(req.params.jobId, 'jobId');
+    const job = getInstallJob(jobId);
+    if (!job || job.provider !== parsed) {
+      throw new AppError('Install job not found.', {
+        code: 'INSTALL_JOB_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    const cancelled = cancelInstallJob(jobId);
+    res.json(createApiSuccessResponse({ cancelled }));
   }),
 );
 

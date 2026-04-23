@@ -26,6 +26,7 @@ function Sidebar({
   onProjectSelect,
   onSessionSelect,
   onNewSession,
+  onQuickStartSession,
   onSessionDelete,
   onProjectDelete,
   isLoading,
@@ -299,6 +300,7 @@ function Sidebar({
             }}
             isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
+            onQuickStartSession={onQuickStartSession}
             onCollapseSidebar={handleCollapseSidebar}
             updateAvailable={updateAvailable}
             releaseInfo={releaseInfo}
