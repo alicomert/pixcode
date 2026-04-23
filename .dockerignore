@@ -1,0 +1,27 @@
+# Keep the build context small and deterministic. We rebuild dist/ and
+# dist-server/ inside the image, so any local output is noise.
+.git
+.github
+.vscode
+.idea
+node_modules
+dist
+dist-server
+coverage
+.env
+.env.*
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Repo-only files that don't belong in the image.
+.husky
+.claude
+tests
+test
+docs
+
+# Local plugins submodule content — the runtime image pulls plugins via the
+# plugin-loader at runtime, not from the build context.
+plugins/starter/*

@@ -1,0 +1,30 @@
+# Minimal compose file for running Pixcode from the published image or a
+# local build. `docker compose up -d` after `docker login` is enough.
+services:
+  pixcode:
+    # Pin to a concrete tag in production — :latest is convenient for dev but
+    # makes rollbacks lossy.
+    image: alicomert/pixcode:latest
+    container_name: pixcode
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      # SERVER_PORT mirrors what the backend binds inside the container; keep
+      # this aligned with the port in EXPOSE/HEALTHCHECK if you change it.
+      SERVER_PORT: "3001"
+      HOST: "0.0.0.0"
+      # Pass TZ so logs/auth timestamps match the host — optional but nicer
+      # in support threads.
+      TZ: "${TZ:-UTC}"
+    volumes:
+      # Preserves the SQLite auth DB, the provider-CLI install sandbox, and
+      # anything else stored under ~/.pixcode.
+      - pixcode-data:/root/.pixcode
+      # Expose the host's home directory read-write if you want Pixcode to
+      # operate on your real projects. Omit this line for a fully sandboxed
+      # deployment.
+      # - ${HOME:-/home/you}:/projects
+
+volumes:
+  pixcode-data:
