@@ -23,12 +23,21 @@ const compareVersions = (v1: string, v2: string) => {
 
 export type InstallMode = 'git' | 'npm';
 
+// Baked into the bundle by vite.config.js at build time (see `define`).
+// This is the version of *this* UI, not whatever the backend reports —
+// it's our ground truth when /health is missing, stale, or served by
+// an older daemon that predates the version-reporting endpoint.
+const BUNDLED_UI_VERSION =
+  typeof __PIXCODE_UI_VERSION__ === 'string' ? __PIXCODE_UI_VERSION__ : '0.0.0';
+
 export const useVersionCheck = (owner: string, repo: string) => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [releaseInfo, setReleaseInfo] = useState<ReleaseInfo | null>(null);
   const [installMode, setInstallMode] = useState<InstallMode>('git');
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  // Seed from the bundled version so the UI never starts out with a
+  // blank "Current Version" field, even before /health responds.
+  const [currentVersion, setCurrentVersion] = useState<string>(BUNDLED_UI_VERSION);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,11 +50,15 @@ export const useVersionCheck = (owner: string, repo: string) => {
         if (data.installMode === 'npm' || data.installMode === 'git') {
           setInstallMode(data.installMode);
         }
-        if (typeof data.version === 'string') {
+        // Only accept the server's version if it looks like a real semver.
+        // Older daemons (pre-SERVER_VERSION commit) omit the field entirely
+        // — falling back to the bundled version is more accurate than
+        // leaving the UI blank or stuck on the last-known-but-stale value.
+        if (typeof data.version === 'string' && /^\d+\.\d+\.\d+/.test(data.version)) {
           setCurrentVersion(data.version);
         }
       } catch {
-        // Leave defaults in place on error.
+        // Network/daemon trouble — keep the bundled fallback in place.
       }
     };
 
@@ -70,6 +83,9 @@ export const useVersionCheck = (owner: string, repo: string) => {
         if (data.tag_name) {
           const latest = data.tag_name.replace(/^v/, '');
           setLatestVersion(latest);
+          // Only flag an update when the published release is strictly
+          // newer than what's running. An older latest (e.g. local 1.30.2
+          // vs. npm 1.30.1) must NOT surface as an available update.
           setUpdateAvailable(compareVersions(latest, currentVersion) > 0);
 
           setReleaseInfo({
@@ -96,5 +112,5 @@ export const useVersionCheck = (owner: string, repo: string) => {
     return () => clearInterval(interval);
   }, [owner, repo, currentVersion]);
 
-  return { updateAvailable, latestVersion, currentVersion: currentVersion ?? '', releaseInfo, installMode };
+  return { updateAvailable, latestVersion, currentVersion, releaseInfo, installMode };
 };

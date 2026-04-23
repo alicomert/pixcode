@@ -1,7 +1,21 @@
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { getConnectableHost, normalizeLoopbackHost } from './shared/networkHosts.js'
+
+// Read our package.json version at build time so the UI always knows
+// its own ground-truth version. Without this the frontend depends
+// entirely on /health, and an older daemon serving the UI would
+// happily report a stale version that confuses the update dialog.
+const PKG_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+    return pkg.version || '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+})()
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
@@ -20,6 +34,12 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    define: {
+      // Baked-in UI version. Consumed via __PIXCODE_UI_VERSION__ at
+      // runtime so the frontend can tell whether the server it's
+      // talking to is older/newer/same as the bundle it shipped with.
+      __PIXCODE_UI_VERSION__: JSON.stringify(PKG_VERSION),
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url))
