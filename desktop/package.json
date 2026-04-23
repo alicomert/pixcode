@@ -4,6 +4,11 @@
   "description": "Electron installer shell for Pixcode. Tray + autostart + native installers for Windows, macOS, and Linux. Built and published alongside the main @pixelbyte-software/pixcode release.",
   "private": true,
   "license": "AGPL-3.0-or-later",
+  "author": {
+    "name": "Pixcode Contributors",
+    "email": "support@pixcode.dev",
+    "url": "https://github.com/alicomert/pixcode"
+  },
   "main": "electron/main.cjs",
   "homepage": "https://github.com/alicomert/pixcode",
   "repository": {
