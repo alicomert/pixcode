@@ -7,6 +7,9 @@ import spawn from 'cross-spawn';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS module, typed via inference
+import { getProviderCredentials } from '@/services/provider-credentials.js';
 
 type QwenCredentialsStatus = {
   authenticated: boolean;
@@ -64,10 +67,27 @@ export class QwenProviderAuth implements IProviderAuth {
   }
 
   private async checkCredentials(): Promise<QwenCredentialsStatus> {
+    // Pixcode-managed credentials come first. If the user saved an API key
+    // through our Settings > Agents > API Key form, we trust that no
+    // matter what the environment or ~/.qwen/* files say. Base URL is
+    // optional — some users point at Alibaba's default endpoint.
+    try {
+      const creds = await getProviderCredentials('qwen');
+      if (creds?.apiKey) {
+        const label = creds.baseUrl
+          ? `API Key · ${(() => { try { return new URL(creds.baseUrl).host; } catch { return creds.baseUrl; } })()}`
+          : 'API Key Auth';
+        return { authenticated: true, email: label, method: 'pixcode_store' };
+      }
+    } catch { /* fall through */ }
+
     if (process.env.QWEN_API_KEY?.trim()) {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
-    if (process.env.OPENAI_API_KEY?.trim() && process.env.OPENAI_BASE_URL?.trim()) {
+    // Loosened: base URL is optional. Qwen Code also works with the default
+    // Alibaba endpoint baked into the CLI. Previously required both env vars
+    // and silently failed when the user only pasted an API key.
+    if (process.env.OPENAI_API_KEY?.trim()) {
       return { authenticated: true, email: 'OpenAI-Compatible Auth', method: 'api_key' };
     }
 

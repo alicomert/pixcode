@@ -7,6 +7,9 @@ import spawn from 'cross-spawn';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS module
+import { getProviderCredentials } from '@/services/provider-credentials.js';
 
 type CodexCredentialsStatus = {
   authenticated: boolean;
@@ -49,6 +52,18 @@ export class CodexProviderAuth implements IProviderAuth {
    * Reads Codex auth.json and checks OAuth tokens or an API key fallback.
    */
   private async checkCredentials(): Promise<CodexCredentialsStatus> {
+    // Pixcode-UI-saved OpenAI credentials count as authenticated — covers
+    // users who paste a key through our Settings > Agents form.
+    try {
+      const creds = await getProviderCredentials('codex');
+      if (creds?.apiKey) {
+        const label = creds.baseUrl
+          ? `API Key · ${(() => { try { return new URL(creds.baseUrl).host; } catch { return creds.baseUrl; } })()}`
+          : 'API Key Auth';
+        return { authenticated: true, email: label, method: 'pixcode_store' };
+      }
+    } catch { /* fall through */ }
+
     try {
       const authPath = path.join(os.homedir(), '.codex', 'auth.json');
       const content = await readFile(authPath, 'utf8');

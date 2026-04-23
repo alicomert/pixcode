@@ -7,6 +7,9 @@ import spawn from 'cross-spawn';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS module
+import { getProviderCredentials } from '@/services/provider-credentials.js';
 
 type GeminiCredentialsStatus = {
   authenticated: boolean;
@@ -62,6 +65,15 @@ export class GeminiProviderAuth implements IProviderAuth {
    * Checks Gemini credentials from API key env vars or local OAuth credential files.
    */
   private async checkCredentials(): Promise<GeminiCredentialsStatus> {
+    // Pixcode-UI-saved API key takes priority (users expect the form to
+    // reflect as authenticated right after Save).
+    try {
+      const creds = await getProviderCredentials('gemini');
+      if (creds?.apiKey) {
+        return { authenticated: true, email: 'API Key Auth', method: 'pixcode_store' };
+      }
+    } catch { /* fall through */ }
+
     if (process.env.GEMINI_API_KEY?.trim()) {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }

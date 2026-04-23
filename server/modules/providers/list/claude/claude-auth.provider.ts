@@ -7,6 +7,9 @@ import spawn from 'cross-spawn';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS module
+import { getProviderCredentials } from '@/services/provider-credentials.js';
 
 type ClaudeCredentialsStatus = {
   authenticated: boolean;
@@ -82,6 +85,19 @@ export class ClaudeProviderAuth implements IProviderAuth {
    * Checks Claude credentials in the same priority order used by Claude Code.
    */
   private async checkCredentials(): Promise<ClaudeCredentialsStatus> {
+    // Pixcode-UI-saved credentials win. Users who paste a key into our
+    // Settings > Agents form expect authenticated status immediately,
+    // regardless of env var timing.
+    try {
+      const creds = await getProviderCredentials('claude');
+      if (creds?.apiKey) {
+        const label = creds.baseUrl
+          ? `API Key · ${(() => { try { return new URL(creds.baseUrl).host; } catch { return creds.baseUrl; } })()}`
+          : 'API Key Auth';
+        return { authenticated: true, email: label, method: 'pixcode_store' };
+      }
+    } catch { /* fall through */ }
+
     if (process.env.ANTHROPIC_API_KEY?.trim()) {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
