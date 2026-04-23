@@ -4,6 +4,7 @@
     "account": "Hesap",
     "permissions": "İzinler",
     "mcpServers": "MCP Sunucuları",
+    "configuration": "Yapılandırma",
     "appearance": "Görünüm"
   },
   "account": {
@@ -381,6 +382,17 @@
     }
   },
   "agents": {
+    "config": {
+      "blurb": "{{name}} CLI'nin başlarken okuduğu dosyaları burada gör ve düzenle. Kaydet dediğinde doğrudan home dizinine yazılır.",
+      "refresh": "Yenile",
+      "save": "Kaydet",
+      "revert": "Geri Al",
+      "saved": "Kaydedildi",
+      "loading": "Yükleniyor…",
+      "notCreated": "yeni",
+      "readonly": "salt-okunur",
+      "noFiles": "Bu ajan için kayıtlı yapılandırma dosyası yok."
+    },
     "authStatus": {
       "checking": "Kontrol ediliyor...",
       "connected": "Bağlı",

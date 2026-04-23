@@ -121,11 +121,21 @@ export default function ProviderSelectionEmptyState({
     }
   }, [isWindowsServer, provider, setProvider]);
 
-  // Pull install status for every provider once on mount so we can grey
-  // out cards for CLIs that aren't on the host.
+  // Pull install status for every provider ONLY when we're actually
+  // about to render the picker (no session selected). Gating on the
+  // picker condition avoids a race where the user clicks an existing
+  // session in the sidebar: for a tick before `selectedSession` resolves
+  // the component still sees null/null, and without this guard it would
+  // fire five /auth/status requests and briefly flash the picker before
+  // the chat view mounts. Extra 300ms debounce ensures navigations
+  // faster than that never trigger a fetch at all.
   useEffect(() => {
-    void refreshProviderAuthStatuses();
-  }, [refreshProviderAuthStatuses]);
+    if (selectedSession || currentSessionId) return;
+    const timer = window.setTimeout(() => {
+      void refreshProviderAuthStatuses();
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [selectedSession, currentSessionId, refreshProviderAuthStatuses]);
 
   // If the currently-active provider turns out to be uninstalled, bounce
   // the selection to the first installed one so the composer isn't stuck
@@ -281,13 +291,18 @@ export default function ProviderSelectionEmptyState({
                       {t("providerSelection.install", { defaultValue: "Install now" })}
                     </button>
                   ) : (
+                    // Primary affordance is showing the active model name —
+                    // clicking still opens the picker, but it reads as a
+                    // live value ("Opus 4.1") rather than an action
+                    // ("Change model"). Matches composer footer behaviour.
                     <button
                       type="button"
                       onClick={() => setModelPickerFor(card.id)}
-                      className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+                      className="flex items-center justify-between rounded-md border border-border/60 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-accent/60"
+                      title={t("providerSelection.changeModel", { defaultValue: "Change model" }) as string}
                     >
-                      <span>{t("providerSelection.changeModel", { defaultValue: "Change model" })}</span>
-                      <ChevronDown className="h-3 w-3" />
+                      <span className="truncate font-medium">{currentLabel}</span>
+                      <ChevronDown className="ml-1 h-3 w-3 flex-shrink-0 text-muted-foreground" />
                     </button>
                   )}
                 </div>

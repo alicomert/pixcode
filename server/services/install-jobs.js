@@ -30,6 +30,7 @@
  * Jobs linger 10 minutes after completion so late subscribers still see
  * the outcome.
  */
+import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
@@ -114,8 +115,17 @@ export function primeCliBinPath(env = process.env) {
  * override detection.
  */
 export function resolveProviderExecutables(env = process.env) {
+    // Claude is intentionally omitted. The Claude Agent SDK ships a bundled
+    // native binary per platform (@anthropic-ai/claude-agent-sdk-<os>-<arch>)
+    // and resolves it automatically. Exporting CLAUDE_CLI_PATH here would
+    // override that and hand a `.cmd` shim to Node's spawn on Windows,
+    // which then throws EINVAL (spawn can't exec .cmd files directly).
+    //
+    // The other providers use cross-spawn in our own adapters, which
+    // handles .cmd/.bat resolution on Windows. Forcing an absolute path
+    // there is still helpful because cross-spawn.sync without quoting
+    // can hit edge cases when PATH contains spaces.
     const providers = [
-        { name: 'claude', envKey: 'CLAUDE_CLI_PATH' },
         { name: 'codex', envKey: 'CODEX_CLI_PATH' },
         { name: 'gemini', envKey: 'GEMINI_CLI_PATH' },
         { name: 'qwen', envKey: 'QWEN_CLI_PATH' },
@@ -125,6 +135,146 @@ export function resolveProviderExecutables(env = process.env) {
         if (env[envKey]) continue;
         const resolved = findExecutableOnPath(name, env);
         if (resolved) env[envKey] = resolved;
+    }
+}
+
+/**
+ * Cross-platform lookup for the Claude Code CLI executable. The
+ * @anthropic-ai/claude-agent-sdk SDK spawns its target with plain
+ * `child_process.spawn(command, args)` — no shell, no cross-spawn — which
+ * means:
+ *   - On Unix, `"claude"` resolves via PATH + shebang. Works out of the box.
+ *   - On Windows, `"claude"` does NOT resolve (Node doesn't traverse PATHEXT
+ *     for bare names), and spawning a `.cmd` shim directly throws EINVAL
+ *     after Node 20.12's CVE-2024-27980 fix. We have to hand the SDK the
+ *     real `.exe` target instead.
+ *
+ * We use the OS's own `where`/`which` so we stay consistent with whatever
+ * the user sees in their shell. When `where` yields a `.cmd` shim, we
+ * peek inside it (npm-generated shims quote the underlying `.exe` path)
+ * and return that real binary.
+ *
+ * Returns the absolute path, or `null` if nothing turned up — callers
+ * should leave `pathToClaudeCodeExecutable` unset so the SDK falls back
+ * to its own bundled native binary.
+ */
+export function resolveClaudeExecutable() {
+    const isWindows = process.platform === 'win32';
+    try {
+        if (isWindows) {
+            // `where.exe` returns one path per line. Prefer `.exe` over any
+            // `.cmd` or `.ps1` shim because Node's spawn can exec .exe
+            // directly — .cmd needs shell:true which the SDK doesn't set.
+            const stdout = execFileSync('where', ['claude'], {
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
+            }).trim();
+            const candidates = stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+            const exe = candidates.find((p) => p.toLowerCase().endsWith('.exe'));
+            if (exe && fs.existsSync(exe)) return exe;
+            // Only a `.cmd` shim found. Parse it for the real .exe target.
+            for (const candidate of candidates) {
+                if (candidate.toLowerCase().endsWith('.cmd')) {
+                    const underlying = parseNpmCmdShim(candidate);
+                    if (underlying) return underlying;
+                }
+            }
+            return candidates[0] || null;
+        }
+        const stdout = execFileSync('which', ['claude'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        return stdout || null;
+    } catch {
+        // `where`/`which` returns non-zero when nothing matches. Fall back
+        // to null so the SDK uses its own resolver.
+        return null;
+    }
+}
+
+/**
+ * Cross-platform lookup for a POSIX `bash` the Claude CLI can drive. On
+ * Windows, `claude.exe` hard-requires a `bash.exe` (typically from Git
+ * for Windows) and exits with code 1 + a guidance message if it can't
+ * find one. The CLI reads the path from `CLAUDE_CODE_GIT_BASH_PATH`
+ * when set, otherwise probes a short list of known install locations —
+ * which are exactly the ones we try below.
+ *
+ * Returns the absolute path or null. On non-Windows platforms we skip
+ * the probe entirely and rely on the system `bash` that Claude expects
+ * to already be on PATH.
+ */
+export function resolveGitBashPath() {
+    if (process.platform !== 'win32') return null;
+
+    if (process.env.CLAUDE_CODE_GIT_BASH_PATH
+        && fs.existsSync(process.env.CLAUDE_CODE_GIT_BASH_PATH)) {
+        return process.env.CLAUDE_CODE_GIT_BASH_PATH;
+    }
+
+    // 1. `where.exe bash` first — the user already has it on PATH if any
+    //    shell launcher (VS Code, etc.) set it up. Prefer this over our
+    //    hard-coded list because it reflects their actual install.
+    try {
+        const stdout = execFileSync('where', ['bash'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        const first = stdout.split(/\r?\n/)[0]?.trim();
+        if (first && fs.existsSync(first)) return first;
+    } catch { /* fall through to hard-coded probes */ }
+
+    // 2. Known Git-for-Windows install locations. Covers system-wide,
+    //    per-user, scoop, and chocolatey defaults.
+    const home = os.homedir();
+    const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+
+    const candidates = [
+        path.join(programFiles, 'Git', 'bin', 'bash.exe'),
+        path.join(programFiles, 'Git', 'usr', 'bin', 'bash.exe'),
+        path.join(programFilesX86, 'Git', 'bin', 'bash.exe'),
+        path.join(programFilesX86, 'Git', 'usr', 'bin', 'bash.exe'),
+        path.join(localAppData, 'Programs', 'Git', 'bin', 'bash.exe'),
+        path.join(localAppData, 'Programs', 'Git', 'usr', 'bin', 'bash.exe'),
+        // Scoop's default install path for the git package
+        path.join(home, 'scoop', 'apps', 'git', 'current', 'bin', 'bash.exe'),
+    ];
+
+    for (const candidate of candidates) {
+        try {
+            if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                return candidate;
+            }
+        } catch { /* ignore */ }
+    }
+
+    return null;
+}
+
+/**
+ * Extract the real .exe target from an npm-generated Windows .cmd shim.
+ *
+ * The shim looks like:
+ *   @"%_prog%" "%dp0%\node_modules\@anthropic-ai\claude-code\bin\claude.exe" %*
+ * We capture the first quoted `.exe` path, then expand `%~dp0` / `%dp0`
+ * to the shim's own directory so the returned path is absolute.
+ */
+function parseNpmCmdShim(cmdPath) {
+    try {
+        const content = fs.readFileSync(cmdPath, 'utf8');
+        const match = content.match(/"([^"]+\.exe)"/i);
+        if (!match) return null;
+        const rel = match[1];
+        const dir = path.dirname(cmdPath);
+        const resolved = rel
+            .replace(/%~?dp0%?\\?/gi, `${dir}${path.sep}`)
+            .replace(/%~dp0/gi, dir);
+        return fs.existsSync(resolved) ? resolved : null;
+    } catch {
+        return null;
     }
 }
 

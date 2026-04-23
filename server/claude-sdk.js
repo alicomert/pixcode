@@ -26,6 +26,7 @@ import {
 } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
+import { resolveClaudeExecutable, resolveGitBashPath } from './services/install-jobs.js';
 import { createNormalizedMessage } from './shared/utils.js';
 
 const activeSessions = new Map();
@@ -155,11 +156,33 @@ function mapCliOptionsToSDK(options = {}) {
   // ANTHROPIC_BASE_URL, HTTP(S)_PROXY, etc. would silently lose those settings.
   sdkOptions.env = { ...process.env };
 
-  // Use CLAUDE_CLI_PATH if explicitly set, otherwise fall back to the "claude" binary on PATH.
-  // The SDK (>=0.2.113) looks for a bundled native binary as an optional dependency by default;
-  // this fallback keeps users who installed via the official installer working even when
-  // `npm prune --production` removed those optional deps.
-  sdkOptions.pathToClaudeCodeExecutable = process.env.CLAUDE_CLI_PATH || 'claude';
+  // Claude Code on Windows hard-requires a POSIX bash (typically from Git
+  // for Windows) and reads its path from CLAUDE_CODE_GIT_BASH_PATH. If the
+  // user has git-bash installed but hasn't exported that var, the CLI
+  // exits with code 1 + a guidance message and the pixcode UI just sees
+  // an opaque "Claude Code process exited with code 1" error. Auto-probing
+  // a handful of known install locations lets the CLI boot transparently.
+  if (!sdkOptions.env.CLAUDE_CODE_GIT_BASH_PATH) {
+    const bashPath = resolveGitBashPath();
+    if (bashPath) sdkOptions.env.CLAUDE_CODE_GIT_BASH_PATH = bashPath;
+  }
+
+  // Resolve the Claude Code CLI path cross-platform. The SDK uses plain
+  // `child_process.spawn(command, args)` with no shell — and its own
+  // `nb()` helper treats anything not ending in .js/.mjs/.ts as a native
+  // executable. That means:
+  //   - Unix: bare `"claude"` works (kernel PATH + shebang handle it).
+  //   - Windows: bare `"claude"` fails ("native binary not found"). A
+  //     `.cmd` shim fails with EINVAL (post-CVE-2024 Node refuses .cmd
+  //     without shell:true). We need the underlying `.exe` instead.
+  // `resolveClaudeExecutable()` does a `where`/`which` lookup and, on
+  // Windows, peeks inside npm .cmd shims to recover the real .exe target.
+  // If nothing is found we leave the option unset so the SDK falls through
+  // to its own bundled-native-binary resolver.
+  const resolvedClaudePath = process.env.CLAUDE_CLI_PATH || resolveClaudeExecutable();
+  if (resolvedClaudePath) {
+    sdkOptions.pathToClaudeCodeExecutable = resolvedClaudePath;
+  }
 
   // Map working directory
   if (cwd) {

@@ -40,7 +40,16 @@ const STATIC_MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ value: string; labe
 };
 import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import fs from 'node:fs/promises';
 import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+
+import {
+  MAX_CONFIG_FILE_SIZE_BYTES,
+  PROVIDER_CONFIG_FILES,
+  type ProviderConfigFile,
+} from '@/modules/providers/shared/provider-configs.js';
 
 /**
  * npm-global install command per provider. Used by POST
@@ -577,6 +586,195 @@ router.post(
       scope: payload.scope === 'user' ? 'user' : 'project',
     });
     res.status(201).json(createApiSuccessResponse({ results }));
+  }),
+);
+
+// ============================================================================
+// Provider config files — read / edit the per-CLI settings/env files from
+// inside Pixcode rather than making the user open a text editor themselves.
+// The registry at server/modules/providers/shared/provider-configs.ts is the
+// single source of truth for which files exist; the client pulls this list
+// via GET /config-files and then reads/writes individual files by id.
+// ============================================================================
+
+// Resolve a config descriptor from (provider, fileId). Throws a 404
+// AppError if either isn't registered so the client sees a clear failure
+// instead of a generic 500.
+const resolveConfigFile = (provider: string, fileId: string): { descriptor: ProviderConfigFile; absolutePath: string } => {
+  const list = PROVIDER_CONFIG_FILES[provider];
+  if (!list) {
+    throw new AppError(`No config files registered for provider "${provider}"`, {
+      code: 'PROVIDER_CONFIG_UNKNOWN_PROVIDER',
+      statusCode: 404,
+    });
+  }
+  const descriptor = list.find((entry) => entry.id === fileId);
+  if (!descriptor) {
+    throw new AppError(`Unknown config file "${fileId}" for provider "${provider}"`, {
+      code: 'PROVIDER_CONFIG_UNKNOWN_FILE',
+      statusCode: 404,
+    });
+  }
+  // Always resolve relative to the server's os.homedir() — we never trust
+  // the client for any part of the path. `path.resolve` then normalises
+  // out any `..` segments the registry might accidentally contain.
+  const absolutePath = path.resolve(os.homedir(), descriptor.relativePath);
+  return { descriptor, absolutePath };
+};
+
+router.get(
+  '/:provider/config-files',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = String(req.params.provider);
+    const list = PROVIDER_CONFIG_FILES[provider];
+    if (!list) {
+      throw new AppError(`No config files registered for provider "${provider}"`, {
+        code: 'PROVIDER_CONFIG_UNKNOWN_PROVIDER',
+        statusCode: 404,
+      });
+    }
+    const files = await Promise.all(
+      list.map(async (entry: ProviderConfigFile) => {
+        const absolutePath = path.resolve(os.homedir(), entry.relativePath);
+        let exists = false;
+        let size: number | null = null;
+        let updatedAt: string | null = null;
+        try {
+          const stat = await fs.stat(absolutePath);
+          exists = stat.isFile();
+          size = stat.size;
+          updatedAt = stat.mtime.toISOString();
+        } catch (err) {
+          // ENOENT is the expected path for "user hasn't created this yet".
+          // Anything else (EACCES, EISDIR, …) we surface as a hint rather
+          // than blow up the whole list response.
+          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+            console.warn(`[provider-configs] stat ${absolutePath}:`, (err as Error).message);
+          }
+        }
+        return {
+          id: entry.id,
+          label: entry.label,
+          format: entry.format,
+          readonly: Boolean(entry.readonly),
+          description: entry.description ?? null,
+          relativePath: entry.relativePath,
+          absolutePath,
+          exists,
+          size,
+          updatedAt,
+        };
+      }),
+    );
+    res.json(createApiSuccessResponse({ provider, files }));
+  }),
+);
+
+router.get(
+  '/:provider/config-files/:fileId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = String(req.params.provider);
+    const fileId = String(req.params.fileId);
+    const { descriptor, absolutePath } = resolveConfigFile(provider, fileId);
+
+    try {
+      const stat = await fs.stat(absolutePath);
+      if (!stat.isFile()) {
+        throw new AppError(`${absolutePath} is not a regular file`, {
+          code: 'PROVIDER_CONFIG_NOT_FILE',
+          statusCode: 409,
+        });
+      }
+      if (stat.size > MAX_CONFIG_FILE_SIZE_BYTES) {
+        throw new AppError(
+          `Config file is larger than ${MAX_CONFIG_FILE_SIZE_BYTES} bytes — refusing to load`,
+          { code: 'PROVIDER_CONFIG_TOO_LARGE', statusCode: 413 },
+        );
+      }
+      const contents = await fs.readFile(absolutePath, 'utf8');
+      res.json(createApiSuccessResponse({
+        id: descriptor.id,
+        label: descriptor.label,
+        format: descriptor.format,
+        readonly: Boolean(descriptor.readonly),
+        relativePath: descriptor.relativePath,
+        absolutePath,
+        exists: true,
+        size: stat.size,
+        updatedAt: stat.mtime.toISOString(),
+        contents,
+      }));
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Report "file doesn't exist yet" with empty contents so the UI can
+        // still open an editor and let the user create it with a save.
+        res.json(createApiSuccessResponse({
+          id: descriptor.id,
+          label: descriptor.label,
+          format: descriptor.format,
+          readonly: Boolean(descriptor.readonly),
+          relativePath: descriptor.relativePath,
+          absolutePath,
+          exists: false,
+          size: 0,
+          updatedAt: null,
+          contents: '',
+        }));
+        return;
+      }
+      throw err;
+    }
+  }),
+);
+
+router.put(
+  '/:provider/config-files/:fileId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = String(req.params.provider);
+    const fileId = String(req.params.fileId);
+    const { descriptor, absolutePath } = resolveConfigFile(provider, fileId);
+
+    if (descriptor.readonly) {
+      throw new AppError(`${descriptor.label} is read-only`, {
+        code: 'PROVIDER_CONFIG_READONLY',
+        statusCode: 403,
+      });
+    }
+
+    const contents = typeof req.body?.contents === 'string' ? req.body.contents : '';
+    if (Buffer.byteLength(contents, 'utf8') > MAX_CONFIG_FILE_SIZE_BYTES) {
+      throw new AppError(
+        `Refusing to write: contents exceed ${MAX_CONFIG_FILE_SIZE_BYTES} bytes`,
+        { code: 'PROVIDER_CONFIG_TOO_LARGE', statusCode: 413 },
+      );
+    }
+
+    // Light format validation — catches "pasted a stray character and now
+    // the CLI refuses to start" before we actually save the file. We don't
+    // try to be strict about TOML / env formats because a user who's
+    // editing these probably knows the grammar better than our regex.
+    if (descriptor.format === 'json') {
+      try {
+        JSON.parse(contents || '{}');
+      } catch (err) {
+        throw new AppError(`Invalid JSON: ${(err as Error).message}`, {
+          code: 'PROVIDER_CONFIG_INVALID_JSON',
+          statusCode: 400,
+        });
+      }
+    }
+
+    await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+    await fs.writeFile(absolutePath, contents, 'utf8');
+
+    const stat = await fs.stat(absolutePath);
+    res.json(createApiSuccessResponse({
+      id: descriptor.id,
+      relativePath: descriptor.relativePath,
+      absolutePath,
+      size: stat.size,
+      updatedAt: stat.mtime.toISOString(),
+    }));
   }),
 );
 

@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import os from 'os';
-import { addProjectManually } from '../projects.js';
+import { addProjectManually, extractProjectDirectory } from '../projects.js';
 
 const router = express.Router();
 
@@ -241,14 +241,99 @@ export async function validateWorkspacePath(requestedPath) {
 }
 
 /**
+ * Is this `pixcode-project-N` slot already in use? "In use" means the
+ * user has sent at least one message under any provider — presence of a
+ * session file under ~/.claude/projects/<encoded>/, ~/.codex/sessions/,
+ * or ~/.gemini/… is our signal. We keep it best-effort: if we can't
+ * probe a provider's session dir (no permissions, path missing), we
+ * treat it as "no sessions for this provider" rather than raise.
+ *
+ * Checking the on-disk workspace dir for files is NOT a reliable signal
+ * — providers store their history outside the workspace, so a project
+ * that has had 20 messages still has an empty folder.
+ */
+async function projectHasAnySessions(workspacePath) {
+  const home = os.homedir();
+  // encodeProjectName strips drive separators (C:\ → -C--…) and dots so
+  // `extractProjectDirectory` can round-trip. Using the same encoder as
+  // the rest of projects.js keeps us aligned with however Claude's CLI
+  // computes its per-project directory name.
+  const slug = workspacePath.replace(/[\\/:]/g, '-').replace(/\./g, '-');
+
+  const probes = [
+    // Claude Code: JSONL-per-session files under a per-project subdir.
+    path.join(home, '.claude', 'projects', slug),
+    // Codex writes session logs under ~/.codex/sessions — they're cross-project
+    // so we can't cheaply attribute them to a specific slot; skip.
+    // Gemini: same layout as Claude.
+    path.join(home, '.gemini', 'projects', slug),
+    // Qwen Code (Gemini fork): same layout.
+    path.join(home, '.qwen', 'projects', slug),
+  ];
+
+  for (const dir of probes) {
+    try {
+      const entries = await fs.readdir(dir);
+      if (entries.some((name) => name.endsWith('.jsonl') || name.endsWith('.json'))) {
+        return true;
+      }
+    } catch {
+      // Missing / unreadable dir just means "no sessions here", not fatal.
+    }
+  }
+  return false;
+}
+
+/**
+ * GET /api/projects/:projectName/dir-status
+ *
+ * Lightweight "does the workspace still exist on disk?" check used by
+ * the chat composer to detect deleted-directory sessions. We decode the
+ * project name back to an absolute path and stat it — a slug alone isn't
+ * useful because the user may have deleted the workspace while the
+ * session metadata still lives under ~/.<provider>/projects/.
+ *
+ * Returns `{ exists, path, isDirectory }` so the UI can lock the
+ * composer and surface a "directory deleted" warning instead of letting
+ * the user fire prompts into a void.
+ */
+router.get('/:projectName/dir-status', async (req, res) => {
+  const { projectName } = req.params;
+  try {
+    const actualPath = await extractProjectDirectory(projectName);
+    if (!actualPath) {
+      return res.json({ exists: false, path: null, isDirectory: false });
+    }
+    try {
+      const stat = await fs.stat(actualPath);
+      return res.json({
+        exists: true,
+        path: actualPath,
+        isDirectory: stat.isDirectory(),
+      });
+    } catch (err) {
+      // ENOENT is the typical "user rm -rf'd the workspace" path.
+      if (err.code === 'ENOENT') {
+        return res.json({ exists: false, path: actualPath, isDirectory: false });
+      }
+      throw err;
+    }
+  } catch (error) {
+    console.error(`[projects] dir-status ${projectName}:`, error);
+    res.status(500).json({ error: error.message || 'Failed to check project directory' });
+  }
+});
+
+/**
  * POST /api/projects/quick-start
  *
- * Zero-config project creation: picks the next available
- * `pixcode-project-N` slot under WORKSPACES_BASE, creates the directory,
- * registers it, and returns the project record. Used by the "start
- * chatting without setting up a project first" landing flow — we want
- * the user to type + send a message and have a real workspace appear
- * underneath them without prompting for a name or path up front.
+ * Zero-config project creation: **reuses** the first unused
+ * `pixcode-project-N` slot if one exists, otherwise creates the next
+ * free index. "Unused" = no session files on disk for any provider.
+ * Without reuse, clicking "New chat" rapidly stacks up pixcode-project-1
+ * through pixcode-project-N and litters the workspace — the UX we want
+ * matches ChatGPT's "New chat" which reuses the empty canvas until the
+ * user actually commits a message.
  */
 router.post('/quick-start', async (req, res) => {
   try {
@@ -258,30 +343,65 @@ router.post('/quick-start', async (req, res) => {
     try {
       entries = await fs.readdir(WORKSPACES_BASE, { withFileTypes: true });
     } catch { /* empty is fine */ }
-    const taken = new Set(
-      entries.filter((e) => e.isDirectory()).map((e) => e.name.toLowerCase()),
-    );
 
-    let nextIndex = 1;
-    let name = '';
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const candidate = `pixcode-project-${nextIndex}`;
-      if (!taken.has(candidate.toLowerCase())) {
-        name = candidate;
-        break;
+    // Pixcode-owned slots, sorted by numeric index so reuse is deterministic
+    // and picks the lowest idle slot (pixcode-project-1 before -3).
+    const existingSlots = entries
+      .filter((e) => e.isDirectory() && /^pixcode-project-\d+$/i.test(e.name))
+      .map((e) => ({
+        name: e.name,
+        index: parseInt(e.name.split('-').pop(), 10) || 0,
+      }))
+      .sort((a, b) => a.index - b.index);
+
+    // 1. First pass: reuse the lowest-indexed slot that has no sessions.
+    for (const slot of existingSlots) {
+      const absolutePath = path.join(WORKSPACES_BASE, slot.name);
+      const used = await projectHasAnySessions(absolutePath);
+      if (!used) {
+        let project;
+        try {
+          project = await addProjectManually(absolutePath);
+        } catch (err) {
+          // addProjectManually throws when the project is already
+          // registered. That's fine — look it up via its encoded name
+          // instead of creating a duplicate.
+          const msg = err?.message || '';
+          if (!/already configured/i.test(msg)) throw err;
+          project = {
+            name: absolutePath.replace(/[\\/:]/g, '-').replace(/\./g, '-'),
+            path: absolutePath,
+            fullPath: absolutePath,
+            displayName: slot.name,
+            isManuallyAdded: true,
+            sessions: [],
+            cursorSessions: [],
+          };
+        }
+        return res.json({
+          success: true,
+          project,
+          suggestedName: slot.name,
+          reused: true,
+        });
       }
+    }
+
+    // 2. No idle slot — create the next free index above what exists.
+    const takenIndices = new Set(existingSlots.map((s) => s.index));
+    let nextIndex = 1;
+    while (takenIndices.has(nextIndex)) {
       nextIndex += 1;
       if (nextIndex > 9999) {
         return res.status(500).json({ error: 'No free pixcode-project slot (exhausted 1..9999)' });
       }
     }
-
+    const name = `pixcode-project-${nextIndex}`;
     const absolutePath = path.join(WORKSPACES_BASE, name);
     await fs.mkdir(absolutePath, { recursive: true });
     const project = await addProjectManually(absolutePath);
 
-    res.json({ success: true, project, suggestedName: name });
+    res.json({ success: true, project, suggestedName: name, reused: false });
   } catch (error) {
     console.error('[projects] quick-start failed:', error);
     res.status(500).json({ error: error.message || 'Failed to quick-start project' });

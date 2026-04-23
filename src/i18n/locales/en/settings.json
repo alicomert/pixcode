@@ -4,6 +4,7 @@
     "account": "Account",
     "permissions": "Permissions",
     "mcpServers": "MCP Servers",
+    "configuration": "Configuration",
     "appearance": "Appearance"
   },
   "account": {
@@ -381,6 +382,17 @@
     }
   },
   "agents": {
+    "config": {
+      "blurb": "View or edit the files the {{name}} CLI reads on startup. Saves write directly to your home directory.",
+      "refresh": "Refresh",
+      "save": "Save",
+      "revert": "Revert",
+      "saved": "Saved",
+      "loading": "Loading…",
+      "notCreated": "new",
+      "readonly": "read-only",
+      "noFiles": "No config files are registered for this agent yet."
+    },
     "authStatus": {
       "checking": "Checking...",
       "connected": "Connected",

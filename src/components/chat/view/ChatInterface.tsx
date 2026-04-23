@@ -10,6 +10,7 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { useProjectDirectoryStatus } from '../hooks/useProjectDirectoryStatus';
 import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
@@ -20,6 +21,41 @@ type PendingViewSession = {
   sessionId: string | null;
   startedAt: number;
 };
+
+/**
+ * Red banner surfaced at the top of the chat pane when the selected
+ * project's workspace has been deleted outside Pixcode. Silent when the
+ * directory is healthy, loud when it's gone. Pairs with the composer
+ * disable below so the session becomes effectively read-only.
+ */
+function ProjectDeletedBanner({ path }: { path: string | null }) {
+  const { t } = useTranslation('chat');
+  return (
+    <div className="flex flex-shrink-0 items-start gap-3 border-b border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+      <svg className="mt-0.5 h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold">
+          {t('projectDeleted.title', { defaultValue: 'Workspace directory is missing' })}
+        </div>
+        <div className="mt-0.5 text-xs opacity-90">
+          {t('projectDeleted.body', {
+            defaultValue: 'The folder for this session has been deleted or moved. The conversation is read-only until you recreate the directory.',
+          })}
+          {path && (
+            <>
+              {' '}
+              <code className="rounded bg-red-500/10 px-1 font-mono text-[11px]">{path}</code>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ChatInterface({
   selectedProject,
@@ -304,9 +340,19 @@ function ChatInterface({
     );
   }
 
+  // Directory-deleted detection — banner + composer lock. Using the hook
+  // here (rather than inside the banner) lets us thread the "disabled"
+  // flag into ChatComposer, which keeps the send button greyed out and
+  // stops a trailing typed prompt from ever leaving the page.
+  const directoryStatus = useProjectDirectoryStatus(selectedProject?.name);
+  const isProjectMissing = directoryStatus.isDeleted;
+
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full flex-col">
+        {isProjectMissing && (
+          <ProjectDeletedBanner path={directoryStatus.status?.path ?? null} />
+        )}
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
           onWheel={handleScroll}
@@ -359,7 +405,12 @@ function ChatInterface({
           handlePermissionDecision={handlePermissionDecision}
           handleGrantToolPermission={handleGrantToolPermission}
           claudeStatus={claudeStatus}
-          isLoading={isLoading}
+          // Force the composer into its "disabled" state when the
+          // workspace directory is gone. isLoading already disables send,
+          // so piggybacking keeps the UX consistent without threading a
+          // new prop through. Safe because the user isn't genuinely in a
+          // streaming state — the "loading" affordance reads as "busy".
+          isLoading={isLoading || isProjectMissing}
           onAbortSession={handleAbortSession}
           provider={provider}
           permissionMode={permissionMode}

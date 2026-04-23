@@ -141,6 +141,20 @@ export function useChatSessionState({
   const activeSessionId = selectedSession?.id || currentSessionId || null;
   const [pendingUserMessage, setPendingUserMessage] = useState<ChatMessage | null>(null);
 
+  // Clear the "waiting-for-session-id" pending bubble when the user starts
+  // a new chat. Without this, typing "hello" in project A, clicking "New
+  // chat" before the backend assigned a session id, and landing on a
+  // blank project B would keep showing "hello" as a ghost message in the
+  // empty canvas. We detect "new chat" as a selectedProject change
+  // combined with no selectedSession.
+  const prevProjectNameRef = useRef<string | null>(selectedProject?.name ?? null);
+  const currentProjectName = selectedProject?.name ?? null;
+  if (currentProjectName !== prevProjectNameRef.current) {
+    prevProjectNameRef.current = currentProjectName;
+    if (!selectedSession && pendingUserMessage) setPendingUserMessage(null);
+    if (!selectedSession) setCurrentSessionId(null);
+  }
+
   // Tell the store which session we're viewing so it only re-renders for this one
   const prevActiveForStoreRef = useRef<string | null>(null);
   if (activeSessionId !== prevActiveForStoreRef.current) {

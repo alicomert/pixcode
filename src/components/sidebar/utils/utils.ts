@@ -168,12 +168,45 @@ export const getAllSessions = (
     __provider: 'codex' as const,
   }));
 
-  const geminiSessions = (project.geminiSessions || []).map((session) => ({
-    ...session,
-    __provider: 'gemini' as const,
-  }));
+  // Qwen is a Gemini-CLI fork: its session JSONs often land in ~/.gemini/tmp/
+  // when users run `qwen` via a shell that inherits the Gemini config path.
+  // We detect these by the `qwen_` ID prefix (which we set ourselves in
+  // server/qwen-code-cli.js) or by an explicit `provider: 'qwen'` field, and
+  // re-tag them so the sidebar shows the correct logo + label.
+  const isQwenIdentified = (session: { id?: string; provider?: string }) =>
+    (typeof session.id === 'string' && session.id.startsWith('qwen_'))
+    || session.provider === 'qwen';
 
-  return [...claudeSessions, ...cursorSessions, ...codexSessions, ...geminiSessions].sort(
+  const rawGemini = project.geminiSessions || [];
+  const geminiSessions = rawGemini
+    .filter((s) => !isQwenIdentified(s))
+    .map((session) => ({ ...session, __provider: 'gemini' as const }));
+  const qwenFromGeminiPool = rawGemini
+    .filter((s) => isQwenIdentified(s))
+    .map((session) => ({ ...session, __provider: 'qwen' as const }));
+
+  const qwenSessions = [
+    ...(project.qwenSessions || []).map((session) => ({
+      ...session,
+      __provider: 'qwen' as const,
+    })),
+    ...qwenFromGeminiPool,
+  ];
+
+  // Dedupe by id in case a single qwen session leaks into both pools on the
+  // backend — the second copy just gets dropped silently.
+  const byId = new Map<string, SessionWithProvider>();
+  for (const s of [
+    ...claudeSessions,
+    ...cursorSessions,
+    ...codexSessions,
+    ...geminiSessions,
+    ...qwenSessions,
+  ] as SessionWithProvider[]) {
+    if (!byId.has(s.id)) byId.set(s.id, s);
+  }
+
+  return [...byId.values()].sort(
     (a, b) => getSessionDate(b).getTime() - getSessionDate(a).getTime(),
   );
 };

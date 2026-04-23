@@ -2,6 +2,7 @@ import type { AgentCategoryContentSectionProps } from '../types';
 import { McpServers } from '../../../../../mcp';
 
 import AccountContent from './content/AccountContent';
+import ConfigContent from './content/ConfigContent';
 import PermissionsContent from './content/PermissionsContent';
 
 export default function AgentCategoryContentSection({
@@ -112,6 +113,10 @@ export default function AgentCategoryContentSection({
           selectedProvider={selectedAgent}
           currentProjects={projects}
         />
+      )}
+
+      {selectedCategory === 'config' && (
+        <ConfigContent agent={selectedAgent} />
       )}
     </div>
   );
