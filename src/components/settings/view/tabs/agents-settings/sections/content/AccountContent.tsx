@@ -97,6 +97,11 @@ function useInstaller(agent: AgentProvider) {
     try {
       const response = await authenticatedFetch(`/api/providers/${agent}/install`, {
         method: 'POST',
+        // Explicit empty JSON body so Express's body-parser sees a well-formed
+        // request and doesn't hold the stream waiting for body bytes — a
+        // silent hang there was making req.on('close') fire on the server
+        // before npm even produced its first line of output.
+        body: '{}',
         signal: controller.signal,
       });
       if (!response.ok || !response.body) {

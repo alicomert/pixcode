@@ -427,6 +427,12 @@ router.post(
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
+    // Disable Nagle so every heartbeat / log chunk goes out as a separate
+    // TCP packet — important for SSE readers that only know a message
+    // arrived once the socket flushes.
+    try {
+      (res.socket as NodeJS.Socket & { setNoDelay?: (on: boolean) => void })?.setNoDelay?.(true);
+    } catch { /* non-fatal */ }
 
     // Single done-event + end-stream guard. Every exit path funnels through
     // `finish(done)` so we can't ship a closed stream without an explicit
@@ -442,10 +448,14 @@ router.post(
         console.warn(`[provider-install:${parsed}] Write failed:`, (err as Error)?.message);
       }
     };
+    // Tighter heartbeat cadence (5s) than the previous 15s. Some home /
+    // corporate proxies (and a few ad-blockers) close what they think is
+    // an idle connection after ~10s; a 5-second ping keeps them honest
+    // *before* the first npm line of output lands.
     const heartbeat = setInterval(() => {
       if (finished) return;
       try { res.write(': ping\n\n'); } catch { /* socket gone */ }
-    }, 15000);
+    }, 5000);
     const finish = (donePayload: Record<string, unknown>) => {
       if (finished) return;
       finished = true;
@@ -457,6 +467,12 @@ router.post(
       try { res.end(); } catch { /* already ended */ }
     };
 
+    // Prime the stream with an immediate ping + the meta log. Without the
+    // ping, the first byte the browser sees is the meta frame — some
+    // clients wait for the full frame before exposing `response.body` to
+    // JS, and proxies sitting in front of Pixcode buffer until enough
+    // bytes arrive. The padding forces the socket to flush early.
+    try { res.write(': start\n\n'); } catch { /* noop */ }
     send('log', { stream: 'meta', chunk: `Running: ${installCmd}\n` });
     console.log(`[provider-install:${parsed}] Spawning:`, installCmd);
 
@@ -487,11 +503,17 @@ router.post(
       return;
     }
 
-    // If the client disconnects mid-install, still send a done event on
-    // the off-chance the socket is half-open, then kill the child.
+    // Client disconnect detection. Node fires 'close' on req both when the
+    // browser aborts *and* after we call res.end() ourselves, so the
+    // `finished` guard is essential — otherwise the handler stomps on the
+    // genuine close we just sent. We also distinguish a true disconnect
+    // (socket not writable) from our own res.end() by re-checking
+    // res.writableEnded: if we already ended, it's our own event and
+    // there's nothing to do.
     req.on('close', () => {
       if (finished) return;
-      console.log(`[provider-install:${parsed}] Client disconnected, killing child`);
+      if (res.writableEnded) return;
+      console.log(`[provider-install:${parsed}] Client disconnected before child exited, killing`);
       try { child.kill(); } catch { /* noop */ }
       finish({ success: false, error: 'Client disconnected before install finished' });
     });
