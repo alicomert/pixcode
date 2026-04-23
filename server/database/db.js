@@ -10,6 +10,10 @@ import {
   PUSH_SUBSCRIPTIONS_TABLE_SQL,
   SESSION_NAMES_TABLE_SQL,
   SESSION_NAMES_LOOKUP_INDEX_SQL,
+  TELEGRAM_CONFIG_TABLE_SQL,
+  TELEGRAM_LINKS_TABLE_SQL,
+  TELEGRAM_LINKS_CHAT_INDEX_SQL,
+  TELEGRAM_LINKS_CODE_INDEX_SQL,
   DATABASE_SCHEMA_SQL
 } from './schema.js';
 
@@ -111,6 +115,10 @@ const runMigrations = () => {
     db.exec(APP_CONFIG_TABLE_SQL);
     db.exec(SESSION_NAMES_TABLE_SQL);
     db.exec(SESSION_NAMES_LOOKUP_INDEX_SQL);
+    db.exec(TELEGRAM_CONFIG_TABLE_SQL);
+    db.exec(TELEGRAM_LINKS_TABLE_SQL);
+    db.exec(TELEGRAM_LINKS_CHAT_INDEX_SQL);
+    db.exec(TELEGRAM_LINKS_CODE_INDEX_SQL);
 
     console.log('Database migrations completed successfully');
   } catch (error) {
@@ -559,6 +567,99 @@ const appConfigDb = {
   }
 };
 
+// Telegram integration database operations
+const telegramConfigDb = {
+  get: () => {
+    try {
+      return db.prepare('SELECT bot_token, bot_username, updated_at FROM telegram_config WHERE id = 1').get() || null;
+    } catch (err) {
+      console.warn('telegramConfigDb.get failed:', err.message);
+      return null;
+    }
+  },
+  set: (botToken, botUsername = null) => {
+    db.prepare(
+      `INSERT INTO telegram_config (id, bot_token, bot_username, updated_at)
+       VALUES (1, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(id) DO UPDATE SET
+         bot_token = excluded.bot_token,
+         bot_username = excluded.bot_username,
+         updated_at = CURRENT_TIMESTAMP`
+    ).run(botToken, botUsername);
+  },
+  clear: () => {
+    db.prepare('DELETE FROM telegram_config WHERE id = 1').run();
+  },
+};
+
+const telegramLinksDb = {
+  // Write a fresh pairing code for a user and wipe any prior verification —
+  // regenerating a code implies "start over", not "keep the old binding".
+  setPairingCode: (userId, code, expiresAt, language) => {
+    db.prepare(
+      `INSERT INTO telegram_links (user_id, pairing_code, pairing_code_expires_at, language, updated_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         pairing_code = excluded.pairing_code,
+         pairing_code_expires_at = excluded.pairing_code_expires_at,
+         language = excluded.language,
+         chat_id = NULL,
+         telegram_username = NULL,
+         verified_at = NULL,
+         updated_at = CURRENT_TIMESTAMP`
+    ).run(userId, code, expiresAt, language);
+  },
+  findByPairingCode: (code) => {
+    return db.prepare(
+      `SELECT user_id, pairing_code, pairing_code_expires_at, language
+       FROM telegram_links WHERE pairing_code = ?`
+    ).get(code) || null;
+  },
+  verify: (userId, chatId, telegramUsername) => {
+    db.prepare(
+      `UPDATE telegram_links
+       SET chat_id = ?, telegram_username = ?, verified_at = CURRENT_TIMESTAMP,
+           pairing_code = NULL, pairing_code_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ?`
+    ).run(chatId, telegramUsername, userId);
+  },
+  getByUserId: (userId) => {
+    return db.prepare(
+      `SELECT user_id, chat_id, telegram_username, language, pairing_code, pairing_code_expires_at,
+              verified_at, notifications_enabled, bridge_enabled, updated_at
+       FROM telegram_links WHERE user_id = ?`
+    ).get(userId) || null;
+  },
+  getByChatId: (chatId) => {
+    return db.prepare(
+      `SELECT user_id, chat_id, telegram_username, language, notifications_enabled, bridge_enabled
+       FROM telegram_links WHERE chat_id = ?`
+    ).get(chatId) || null;
+  },
+  listVerified: () => {
+    return db.prepare(
+      `SELECT user_id, chat_id, telegram_username, language, notifications_enabled, bridge_enabled
+       FROM telegram_links WHERE chat_id IS NOT NULL AND verified_at IS NOT NULL`
+    ).all();
+  },
+  updatePreferences: (userId, { language, notificationsEnabled, bridgeEnabled }) => {
+    // Only update keys the caller provided — partial updates are expected
+    // from the UI (toggling one switch at a time).
+    const sets = [];
+    const params = [];
+    if (language !== undefined) { sets.push('language = ?'); params.push(language); }
+    if (notificationsEnabled !== undefined) { sets.push('notifications_enabled = ?'); params.push(notificationsEnabled ? 1 : 0); }
+    if (bridgeEnabled !== undefined) { sets.push('bridge_enabled = ?'); params.push(bridgeEnabled ? 1 : 0); }
+    if (!sets.length) return;
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(userId);
+    db.prepare(`UPDATE telegram_links SET ${sets.join(', ')} WHERE user_id = ?`).run(...params);
+  },
+  unlink: (userId) => {
+    db.prepare('DELETE FROM telegram_links WHERE user_id = ?').run(userId);
+  },
+};
+
 // Backward compatibility - keep old names pointing to new system
 const githubTokensDb = {
   createGithubToken: (userId, tokenName, githubToken, description = null) => {
@@ -589,5 +690,7 @@ export {
   sessionNamesDb,
   applyCustomSessionNames,
   appConfigDb,
+  telegramConfigDb,
+  telegramLinksDb,
   githubTokensDb // Backward compatibility
 };

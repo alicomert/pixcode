@@ -1,5 +1,6 @@
 import webPush from 'web-push';
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionNamesDb } from '../database/db.js';
+import { notifyUser as notifyTelegramUser } from './telegram/bot.js';
 
 const KIND_TO_PREF_KEY = {
   action_required: 'actionRequired',
@@ -175,15 +176,29 @@ function notifyUserIfEnabled({ userId, event }) {
   }
 
   const preferences = notificationPreferencesDb.getPreferences(userId);
-  if (!shouldSendPush(preferences, event)) {
-    return;
-  }
   if (isDuplicate(event)) {
     return;
   }
 
-  sendWebPush(userId, event).catch((err) => {
-    console.error('Web push send error:', err);
+  if (shouldSendPush(preferences, event)) {
+    sendWebPush(userId, event).catch((err) => {
+      console.error('Web push send error:', err);
+    });
+  }
+
+  // Telegram is gated independently of web-push: a user might want Telegram
+  // pings without enabling browser push, or vice-versa. The telegram service
+  // reads its own per-user notifications_enabled flag.
+  const providerLabel = PROVIDER_LABELS[event.provider] || event.provider || 'Session';
+  const sessionTitle = event.meta?.sessionName || providerLabel;
+  const errorText = event.meta?.error || '';
+  notifyTelegramUser({
+    userId,
+    kind: event.kind,
+    title: sessionTitle,
+    error: errorText,
+  }).catch((err) => {
+    console.warn('[telegram] notify failed:', err?.message || err);
   });
 }
 

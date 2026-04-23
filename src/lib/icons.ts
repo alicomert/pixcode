@@ -63,6 +63,7 @@ import {
   CodeBracketIcon,
   Cog6ToothIcon,
   CommandLineIcon,
+  DevicePhoneMobileIcon,
   DocumentDuplicateIcon,
   DocumentTextIcon,
   EllipsisHorizontalIcon,
@@ -94,6 +95,7 @@ import {
   PlayIcon,
   PlusIcon,
   PuzzlePieceIcon,
+  QrCodeIcon,
   QuestionMarkCircleIcon,
   QueueListIcon,
   ServerIcon,
@@ -274,6 +276,8 @@ export const Server = ServerIcon;
 export const ServerCrash = ServerStackIcon;
 export const Settings = Cog6ToothIcon;
 export const Settings2 = AdjustmentsHorizontalIcon;
+export const Smartphone = DevicePhoneMobileIcon;
+export const QrCode = QrCodeIcon;
 export const Sparkles = SparklesIcon;
 export const Star = StarIcon;
 export const Sun = SunIcon;

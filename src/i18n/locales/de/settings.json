@@ -95,6 +95,8 @@
     "apiTokens": "API & Token",
     "tasks": "Aufgaben",
     "plugins": "Plugins",
+    "mobile": "Mobil nutzen",
+    "telegram": "Telegram",
     "about": "Info"
   },
   "appearanceSettings": {

@@ -96,6 +96,8 @@
     "tasks": "Attività",
     "notifications": "Notifiche",
     "plugins": "Plugin",
+    "mobile": "Usa da mobile",
+    "telegram": "Telegram",
     "about": "Informazioni"
   },
   "notifications": {

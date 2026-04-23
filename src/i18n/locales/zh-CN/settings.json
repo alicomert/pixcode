@@ -96,6 +96,8 @@
     "tasks": "任务",
     "notifications": "通知",
     "plugins": "插件",
+    "mobile": "移动端使用",
+    "telegram": "Telegram",
     "about": "关于"
   },
   "notifications": {

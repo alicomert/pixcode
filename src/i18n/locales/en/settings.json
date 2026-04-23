@@ -96,7 +96,87 @@
     "tasks": "Tasks",
     "notifications": "Notifications",
     "plugins": "Plugins",
+    "mobile": "Use from Mobile",
+    "telegram": "Telegram",
     "about": "About"
+  },
+  "mobile": {
+    "title": "Use from Mobile",
+    "description": "Scan a QR code with your phone to open Pixcode on any device in the same network.",
+    "refresh": "Refresh",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "loading": "Detecting network addresses…",
+    "noEndpoints": "No LAN addresses were detected. Make sure your device is connected to a network.",
+    "error": "Could not load network endpoints.",
+    "hostLabel": "Host",
+    "portLabel": "Port",
+    "steps": {
+      "sameNetwork": "Connect your phone to the same Wi-Fi network as this computer.",
+      "scan": "Open the camera app and scan one of the QR codes below.",
+      "login": "Sign in with your Pixcode credentials the first time."
+    },
+    "external": {
+      "title": "External Access",
+      "description": "Expose Pixcode beyond your local network so you can reach it from the internet.",
+      "upnpTitle": "Router port mapping (UPnP)",
+      "upnpDescription": "One-click port forwarding via your router. Works on most home routers; fails silently on CGNAT or enterprise networks.",
+      "upnpEnable": "Enable UPnP",
+      "upnpDisable": "Disable UPnP",
+      "upnpEnabled": "UPnP mapping active",
+      "upnpUnsupported": "UPnP is not available on this network.",
+      "tunnelTitle": "Secure tunnel",
+      "tunnelDescription": "If UPnP is unavailable, install cloudflared or ngrok and start a tunnel — we'll auto-detect and show the QR here.",
+      "tunnelStart": "Start tunnel",
+      "tunnelStop": "Stop tunnel",
+      "tunnelRunning": "Tunnel running",
+      "tunnelUnavailable": "No tunnel binary found on this machine.",
+      "externalUrl": "External URL"
+    }
+  },
+  "telegram": {
+    "title": "Telegram",
+    "description": "Receive task completion notifications and chat with your agents from Telegram.",
+    "comingSoon": "Telegram integration is being prepared.",
+    "botToken": "Bot Token",
+    "botTokenPlaceholder": "123456:ABC-DEF…",
+    "botTokenHelp": "Create a bot with @BotFather and paste the token here.",
+    "saveToken": "Save & Start Bot",
+    "saving": "Saving…",
+    "botRunning": "Bot running as @{{username}}",
+    "botStopped": "Bot stopped",
+    "stopBot": "Stop Bot",
+    "removeToken": "Remove Token",
+    "pairing": {
+      "title": "Pair with your Telegram account",
+      "description": "Message your bot, then enter this 6-digit code inside the chat. The code refreshes every 10 minutes.",
+      "code": "Pairing Code",
+      "regenerate": "Generate new code",
+      "verified": "Paired with Telegram account",
+      "notPaired": "No Telegram account paired yet."
+    },
+    "linkedAccount": {
+      "title": "Paired Account",
+      "username": "@{{username}}",
+      "language": "Replies in {{language}}",
+      "unpair": "Unpair"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Send agent completion and error events to your Telegram chat.",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "bridge": {
+      "title": "Chat Bridge",
+      "description": "Messages you send to the bot become prompts for your most recent session. Replies come back to Telegram.",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "errors": {
+      "invalidToken": "Telegram rejected this bot token.",
+      "networkError": "Could not reach Telegram servers."
+    }
   },
   "notifications": {
     "title": "Notifications",

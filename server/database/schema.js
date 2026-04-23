@@ -40,6 +40,34 @@ export const SESSION_NAMES_TABLE_SQL = `CREATE TABLE IF NOT EXISTS session_names
 
 export const SESSION_NAMES_LOOKUP_INDEX_SQL = `CREATE INDEX IF NOT EXISTS idx_session_names_lookup ON session_names(session_id, provider);`;
 
+// Telegram integration: one global bot config row (id = 1), plus per-user links.
+// The singleton CHECK keeps callers from accidentally inserting a second config
+// — we only ever host one bot per Pixcode instance, and swapping tokens is an
+// UPDATE, not an INSERT.
+export const TELEGRAM_CONFIG_TABLE_SQL = `CREATE TABLE IF NOT EXISTS telegram_config (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  bot_token TEXT NOT NULL,
+  bot_username TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);`;
+
+export const TELEGRAM_LINKS_TABLE_SQL = `CREATE TABLE IF NOT EXISTS telegram_links (
+  user_id INTEGER PRIMARY KEY,
+  chat_id TEXT,
+  telegram_username TEXT,
+  language TEXT DEFAULT 'en',
+  pairing_code TEXT,
+  pairing_code_expires_at DATETIME,
+  verified_at DATETIME,
+  notifications_enabled INTEGER NOT NULL DEFAULT 1,
+  bridge_enabled INTEGER NOT NULL DEFAULT 1,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);`;
+
+export const TELEGRAM_LINKS_CHAT_INDEX_SQL = `CREATE INDEX IF NOT EXISTS idx_telegram_links_chat ON telegram_links(chat_id);`;
+export const TELEGRAM_LINKS_CODE_INDEX_SQL = `CREATE INDEX IF NOT EXISTS idx_telegram_links_code ON telegram_links(pairing_code);`;
+
 export const DATABASE_SCHEMA_SQL = `PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -99,4 +127,12 @@ ${SESSION_NAMES_TABLE_SQL}
 ${SESSION_NAMES_LOOKUP_INDEX_SQL}
 
 ${APP_CONFIG_TABLE_SQL}
+
+${TELEGRAM_CONFIG_TABLE_SQL}
+
+${TELEGRAM_LINKS_TABLE_SQL}
+
+${TELEGRAM_LINKS_CHAT_INDEX_SQL}
+
+${TELEGRAM_LINKS_CODE_INDEX_SQL}
 `;

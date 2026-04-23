@@ -96,6 +96,8 @@
     "tasks": "タスク",
     "notifications": "通知",
     "plugins": "プラグイン",
+    "mobile": "モバイルで使う",
+    "telegram": "Telegram",
     "about": "概要"
   },
   "notifications": {

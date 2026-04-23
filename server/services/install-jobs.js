@@ -86,12 +86,84 @@ export function primeCliBinPath(env = process.env) {
     ensureCliHome();
     const sep = process.platform === 'win32' ? ';' : ':';
     const current = env.PATH || env.Path || '';
-    if (current.split(sep).some((entry) => path.resolve(entry || '') === path.resolve(CLI_BIN_DIR))) {
-        return;
+    if (!current.split(sep).some((entry) => path.resolve(entry || '') === path.resolve(CLI_BIN_DIR))) {
+        const next = current ? `${CLI_BIN_DIR}${sep}${current}` : CLI_BIN_DIR;
+        env.PATH = next;
+        if ('Path' in env) env.Path = next;
     }
-    const next = current ? `${CLI_BIN_DIR}${sep}${current}` : CLI_BIN_DIR;
-    env.PATH = next;
-    if ('Path' in env) env.Path = next;
+    // Once PATH is ready, resolve any well-known provider binaries to absolute
+    // paths and export them as *_CLI_PATH env vars. This side-steps a Windows
+    // gotcha: `child_process.spawn('claude', …)` does NOT auto-resolve .cmd /
+    // .bat extensions, and the Claude Agent SDK calls spawn directly instead
+    // of via cross-spawn — so a bare "claude" on PATH works in a shell but
+    // fails inside the SDK. Pinning the full path side-steps it entirely.
+    resolveProviderExecutables(env);
+}
+
+/**
+ * Scan PATH (plus known native-installer locations) for every provider
+ * binary we ship support for, and export *_CLI_PATH env vars pointing to
+ * the absolute executable. Existing vars are left alone so users can
+ * override detection.
+ */
+export function resolveProviderExecutables(env = process.env) {
+    const providers = [
+        { name: 'claude', envKey: 'CLAUDE_CLI_PATH' },
+        { name: 'codex', envKey: 'CODEX_CLI_PATH' },
+        { name: 'gemini', envKey: 'GEMINI_CLI_PATH' },
+        { name: 'qwen', envKey: 'QWEN_CLI_PATH' },
+        { name: 'cursor-agent', envKey: 'CURSOR_CLI_PATH' },
+    ];
+    for (const { name, envKey } of providers) {
+        if (env[envKey]) continue;
+        const resolved = findExecutableOnPath(name, env);
+        if (resolved) env[envKey] = resolved;
+    }
+}
+
+/**
+ * Search PATH for an executable, including the Windows extension variants.
+ * Returns the absolute path or null. Plain Node has no cross-platform
+ * equivalent of `which`, so we roll our own — it's small enough to not be
+ * worth an extra dependency.
+ */
+export function findExecutableOnPath(name, env = process.env) {
+    const isWindows = process.platform === 'win32';
+    const sep = isWindows ? ';' : ':';
+    const paths = (env.PATH || env.Path || '').split(sep).filter(Boolean);
+
+    // Common native-installer / per-user fallback paths that aren't always on
+    // the daemon's PATH but are on the user's interactive shell PATH. We
+    // union them in so "pixcode --no-daemon" and "pixcode daemon" agree.
+    const home = os.homedir();
+    if (isWindows) {
+        paths.push(path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'npm'));
+        paths.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Programs', `${name}-code`));
+        paths.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'AnthropicClaude'));
+    } else {
+        paths.push(path.join(home, '.local', 'bin'));
+        paths.push(path.join(home, '.npm-global', 'bin'));
+        paths.push('/usr/local/bin');
+        paths.push('/opt/homebrew/bin');
+    }
+
+    const exts = isWindows
+        ? ['.cmd', '.exe', '.bat', '.ps1', '']
+        : [''];
+
+    for (const dir of paths) {
+        for (const ext of exts) {
+            const candidate = path.join(dir, name + ext);
+            try {
+                if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+                    return candidate;
+                }
+            } catch {
+                // Permission denied / broken symlink — ignore and keep looking.
+            }
+        }
+    }
+    return null;
 }
 
 /**

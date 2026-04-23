@@ -95,6 +95,8 @@
     "apiTokens": "API и токены",
     "tasks": "Задачи",
     "plugins": "Плагины",
+    "mobile": "С мобильного",
+    "telegram": "Telegram",
     "about": "О программе"
   },
   "appearanceSettings": {

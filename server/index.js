@@ -70,6 +70,9 @@ import qwenRoutes from './routes/qwen.js';
 import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+import networkRoutes from './routes/network.js';
+import telegramRoutes from './routes/telegram.js';
+import { restoreBotFromConfig } from './services/telegram/bot.js';
 import { ensurePortOpen } from './utils/port-access.js';
 import {
     applyAllStoredCredentialsToEnv,
@@ -358,6 +361,12 @@ app.use('/api/sessions', authenticateToken, messagesRoutes);
 
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
+
+// Network discovery / QR endpoints (protected)
+app.use('/api/network', authenticateToken, networkRoutes);
+
+// Telegram integration (protected)
+app.use('/api/telegram', authenticateToken, telegramRoutes);
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', agentRoutes);
@@ -2652,6 +2661,12 @@ async function startServer() {
         } catch (err) {
             console.warn('[install-jobs] Failed to prime CLI bin path:', err?.message || err);
         }
+
+        // Restore any previously-configured Telegram bot. This is best-effort:
+        // a bad token or network blip should warn, not crash the server.
+        restoreBotFromConfig().catch((err) => {
+            console.warn('[telegram] restore failed:', err?.message || err);
+        });
 
         // Check if running in production mode (dist folder exists)
         const distIndexPath = path.join(APP_ROOT, 'dist', 'index.html');

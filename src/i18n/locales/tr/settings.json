@@ -96,7 +96,87 @@
     "tasks": "Görevler",
     "notifications": "Bildirimler",
     "plugins": "Eklentiler",
+    "mobile": "Mobilden Kullan",
+    "telegram": "Telegram",
     "about": "Hakkında"
+  },
+  "mobile": {
+    "title": "Mobilden Kullan",
+    "description": "Aynı ağdaki bir cihazdan Pixcode'u açmak için telefonunla QR kodunu tara.",
+    "refresh": "Yenile",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı!",
+    "loading": "Ağ adresleri tespit ediliyor…",
+    "noEndpoints": "Yerel ağda adres bulunamadı. Cihazının bir ağa bağlı olduğundan emin ol.",
+    "error": "Ağ uç noktaları yüklenemedi.",
+    "hostLabel": "Host",
+    "portLabel": "Port",
+    "steps": {
+      "sameNetwork": "Telefonunu bu bilgisayarla aynı Wi-Fi ağına bağla.",
+      "scan": "Kamera uygulamasını aç ve aşağıdaki QR kodlarından birini tara.",
+      "login": "İlk girişte Pixcode hesabınla oturum aç."
+    },
+    "external": {
+      "title": "Dışarıdan Erişim",
+      "description": "Pixcode'u yerel ağ dışından, internet üzerinden erişilebilir hale getir.",
+      "upnpTitle": "Router port yönlendirme (UPnP)",
+      "upnpDescription": "Router üzerinden tek tıkla port açma. Çoğu ev modeminde çalışır; CGNAT veya kurumsal ağda sessizce başarısız olur.",
+      "upnpEnable": "UPnP'yi Etkinleştir",
+      "upnpDisable": "UPnP'yi Kapat",
+      "upnpEnabled": "UPnP yönlendirmesi aktif",
+      "upnpUnsupported": "Bu ağda UPnP kullanılamıyor.",
+      "tunnelTitle": "Güvenli tünel",
+      "tunnelDescription": "UPnP yoksa cloudflared veya ngrok kur ve bir tünel başlat — otomatik algılayıp QR'ını burada gösteririz.",
+      "tunnelStart": "Tüneli Başlat",
+      "tunnelStop": "Tüneli Durdur",
+      "tunnelRunning": "Tünel çalışıyor",
+      "tunnelUnavailable": "Bu bilgisayarda tünel uygulaması bulunamadı.",
+      "externalUrl": "Dış URL"
+    }
+  },
+  "telegram": {
+    "title": "Telegram",
+    "description": "Görev bitişi bildirimleri al ve ajanlarınla Telegram'dan konuş.",
+    "comingSoon": "Telegram entegrasyonu hazırlanıyor.",
+    "botToken": "Bot Token",
+    "botTokenPlaceholder": "123456:ABC-DEF…",
+    "botTokenHelp": "@BotFather ile bir bot oluştur ve token'ı buraya yapıştır.",
+    "saveToken": "Kaydet & Botu Başlat",
+    "saving": "Kaydediliyor…",
+    "botRunning": "Bot çalışıyor: @{{username}}",
+    "botStopped": "Bot durduruldu",
+    "stopBot": "Botu Durdur",
+    "removeToken": "Token'ı Kaldır",
+    "pairing": {
+      "title": "Telegram hesabınla eşleş",
+      "description": "Bota mesaj at ve sohbette bu 6 haneli kodu gir. Kod her 10 dakikada yenilenir.",
+      "code": "Eşleştirme Kodu",
+      "regenerate": "Yeni kod oluştur",
+      "verified": "Telegram hesabı eşleşti",
+      "notPaired": "Henüz Telegram hesabı eşleştirilmedi."
+    },
+    "linkedAccount": {
+      "title": "Eşleşen Hesap",
+      "username": "@{{username}}",
+      "language": "Cevaplar: {{language}}",
+      "unpair": "Bağlantıyı Kes"
+    },
+    "notifications": {
+      "title": "Bildirimler",
+      "description": "Ajan tamamlanma ve hata olaylarını Telegram sohbetine gönder.",
+      "enabled": "Açık",
+      "disabled": "Kapalı"
+    },
+    "bridge": {
+      "title": "Sohbet Köprüsü",
+      "description": "Bota yazdığın mesajlar son oturumuna prompt olarak iletilir. Yanıtlar Telegram'a döner.",
+      "enabled": "Açık",
+      "disabled": "Kapalı"
+    },
+    "errors": {
+      "invalidToken": "Telegram bu bot token'ını reddetti.",
+      "networkError": "Telegram sunucularına ulaşılamadı."
+    }
   },
   "notifications": {
     "title": "Bildirimler",

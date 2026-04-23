@@ -10,6 +10,8 @@ import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
+import MobileSettingsTab from '../view/tabs/mobile-settings/MobileSettingsTab';
+import TelegramSettingsTab from '../view/tabs/telegram-settings/TelegramSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useWebPush } from '../../../hooks/useWebPush';
@@ -154,6 +156,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               {activeTab === 'api' && <CredentialsSettingsTab />}
 
               {activeTab === 'plugins' && <PluginSettingsTab />}
+
+              {activeTab === 'mobile' && <MobileSettingsTab />}
+
+              {activeTab === 'telegram' && <TelegramSettingsTab />}
 
               {activeTab === 'about' && <AboutTab />}
             </div>
