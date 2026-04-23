@@ -9,6 +9,7 @@ import os from 'os';
 import sessionManager from './sessionManager.js';
 import GeminiResponseHandler from './gemini-response-handler.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
+import { buildSpawnEnv } from './services/provider-credentials.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
 
@@ -168,11 +169,16 @@ async function spawnGemini(command, options = {}, ws) {
         spawnArgs = ['-c', 'exec "$0" "$@"', geminiPath, ...args];
     }
 
+    // Pixcode UI-saved API key (stored in ~/.pixcode/provider-credentials.json)
+    // overlays on top of process.env so Gemini picks it up without the user
+    // exporting GEMINI_API_KEY in their shell.
+    const spawnEnv = await buildSpawnEnv('gemini');
+
     return new Promise((resolve, reject) => {
         const geminiProcess = spawnFunction(spawnCmd, spawnArgs, {
             cwd: workingDir,
             stdio: ['pipe', 'pipe', 'pipe'],
-            env: { ...process.env } // Inherit all environment variables
+            env: spawnEnv,
         });
         let terminalNotificationSent = false;
         let terminalFailureReason = null;

@@ -71,6 +71,13 @@ import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { ensurePortOpen } from './utils/port-access.js';
+import {
+    applyAllStoredCredentialsToEnv,
+    applyProviderCredentialsToEnv,
+    listProviderCredentialSummaries,
+    PROVIDER_ENV_VARS,
+    setProviderCredentials,
+} from './services/provider-credentials.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames } from './database/db.js';
 import { configureWebPush } from './services/vapid-keys.js';
@@ -2624,6 +2631,15 @@ async function startServer() {
 
         // Configure Web Push (VAPID keys)
         configureWebPush();
+
+        // Load any provider API keys saved through the UI into process.env so
+        // the Claude/Codex SDKs pick them up automatically. Spawn-based
+        // adapters (Gemini, Qwen) layer their own env on top via buildSpawnEnv.
+        try {
+            await applyAllStoredCredentialsToEnv();
+        } catch (err) {
+            console.warn('[provider-credentials] Failed to apply stored credentials:', err?.message || err);
+        }
 
         // Check if running in production mode (dist folder exists)
         const distIndexPath = path.join(APP_ROOT, 'dist', 'index.html');

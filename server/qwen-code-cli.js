@@ -17,6 +17,7 @@ import os from 'os';
 import sessionManager from './sessionManager.js';
 import QwenResponseHandler from './qwen-response-handler.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
+import { buildSpawnEnv } from './services/provider-credentials.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
 
@@ -118,11 +119,17 @@ async function spawnQwen(command, options = {}, ws) {
         spawnArgs = ['-c', 'exec "$0" "$@"', qwenPath, ...args];
     }
 
+    // Credentials stored in ~/.pixcode/provider-credentials.json take
+    // precedence over the host shell env, so an API key saved via the
+    // Pixcode UI reaches the Qwen subprocess even when the user never
+    // exported it in their login shell.
+    const spawnEnv = await buildSpawnEnv('qwen');
+
     return new Promise((resolve, reject) => {
         const qwenProcess = spawnFunction(spawnCmd, spawnArgs, {
             cwd: workingDir,
             stdio: ['pipe', 'pipe', 'pipe'],
-            env: { ...process.env },
+            env: spawnEnv,
         });
 
         let terminalNotificationSent = false;

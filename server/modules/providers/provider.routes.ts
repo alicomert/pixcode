@@ -2,8 +2,17 @@ import express, { type Request, type Response } from 'express';
 
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — plain-JS service, typed via inference
+import {
+  applyProviderCredentialsToEnv,
+  listProviderCredentialSummaries,
+  setProviderCredentials,
+  PROVIDER_ENV_VARS,
+} from '@/services/provider-credentials.js';
 import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import http from 'node:http';
 
 const router = express.Router();
 
@@ -198,6 +207,127 @@ router.delete(
       workspacePath,
     });
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * GET /api/providers/credentials
+ * Summary for every provider (hasKey + baseUrl + updatedAt). Used by the
+ * Settings UI to pre-fill the "API Key" tab.
+ */
+router.get(
+  '/credentials',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const summaries = await listProviderCredentialSummaries();
+    res.json(createApiSuccessResponse(summaries));
+  }),
+);
+
+/**
+ * POST /api/providers/:provider/auth/api-key
+ * Body: { apiKey: string, baseUrl?: string }. Stores the credentials in
+ * ~/.pixcode/provider-credentials.json and applies them to process.env
+ * so the next CLI spawn/SDK call picks them up. Empty apiKey clears.
+ */
+router.post(
+  '/:provider/auth/api-key',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    if (!(provider in PROVIDER_ENV_VARS)) {
+      throw new AppError(`Provider "${provider}" does not accept API-key auth.`, {
+        code: 'PROVIDER_NO_API_KEY',
+        statusCode: 400,
+      });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const apiKey = typeof body.apiKey === 'string' ? body.apiKey : '';
+    const baseUrl = typeof body.baseUrl === 'string' ? body.baseUrl : '';
+
+    await setProviderCredentials(provider, { apiKey, baseUrl });
+    await applyProviderCredentialsToEnv(provider);
+
+    res.json(createApiSuccessResponse({ provider, stored: Boolean(apiKey.trim()) }));
+  }),
+);
+
+/**
+ * POST /api/providers/:provider/oauth-paste
+ * Body: { callbackUrl: string }.
+ *
+ * When the CLI starts an OAuth flow it spins up a local HTTP server on
+ * 127.0.0.1:<PORT> and expects the OAuth provider to redirect the user's
+ * browser to `http://127.0.0.1:<PORT>/callback?code=...`. On remote VPS
+ * setups that redirect hits the user's laptop localhost (which has nothing
+ * listening), not the server running the CLI. This endpoint is the escape
+ * hatch: the user copies the dead callback URL from their browser and
+ * posts it here; we parse out the port + code and forward the original
+ * GET to the VPS-side 127.0.0.1:PORT so the CLI's local handler completes
+ * the token exchange.
+ */
+router.post(
+  '/:provider/oauth-paste',
+  asyncHandler(async (req: Request, res: Response) => {
+    parseProvider(req.params.provider); // validate id but we don't use it further
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const raw = typeof body.callbackUrl === 'string' ? body.callbackUrl.trim() : '';
+    if (!raw) {
+      throw new AppError('callbackUrl is required.', {
+        code: 'OAUTH_PASTE_URL_REQUIRED',
+        statusCode: 400,
+      });
+    }
+
+    let parsed: URL;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      throw new AppError('callbackUrl must be a valid URL.', {
+        code: 'OAUTH_PASTE_URL_INVALID',
+        statusCode: 400,
+      });
+    }
+
+    // Accept localhost / 127.0.0.1 callbacks — reject anything else so we
+    // never proxy arbitrary outbound requests on behalf of a user.
+    const host = parsed.hostname;
+    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
+      throw new AppError('Only local CLI callback URLs are accepted.', {
+        code: 'OAUTH_PASTE_URL_NOT_LOCAL',
+        statusCode: 400,
+      });
+    }
+
+    const port = Number(parsed.port);
+    if (!port || port < 1 || port > 65535) {
+      throw new AppError('Callback URL must include the CLI callback port.', {
+        code: 'OAUTH_PASTE_PORT_INVALID',
+        statusCode: 400,
+      });
+    }
+
+    const pathAndQuery = parsed.pathname + parsed.search;
+    await new Promise<void>((resolve, reject) => {
+      const forwardReq = http.request(
+        {
+          host: '127.0.0.1',
+          port,
+          method: 'GET',
+          path: pathAndQuery,
+          timeout: 10000,
+        },
+        (forwardRes) => {
+          forwardRes.resume(); // drain
+          forwardRes.on('end', () => resolve());
+        },
+      );
+      forwardReq.on('timeout', () => {
+        forwardReq.destroy(new Error('CLI callback server did not respond within 10s'));
+      });
+      forwardReq.on('error', (err) => reject(err));
+      forwardReq.end();
+    });
+
+    res.json(createApiSuccessResponse({ forwarded: true, port }));
   }),
 );
 
