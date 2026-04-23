@@ -96,12 +96,16 @@ linux:
     Runs locally; your sessions never leave your machine.
   artifactName: "Pixcode-${version}-${arch}.${ext}"
   desktop:
-    Name: Pixcode
-    Comment: Web UI for coding agents
-    StartupNotify: "false"
-    Terminal: "false"
-    Type: Application
-    Categories: Development;IDE;
+    # electron-builder 26+ nests freedesktop keys under `entry`. Older
+    # versions accepted them at the top level — keep this block in sync
+    # with the generated .desktop file specification if we ever upgrade.
+    entry:
+      Name: Pixcode
+      Comment: Web UI for coding agents
+      StartupNotify: "false"
+      Terminal: "false"
+      Type: Application
+      Categories: Development;IDE;
 
 deb:
   priority: optional
