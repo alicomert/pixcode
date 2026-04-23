@@ -350,13 +350,21 @@ export default function ProviderLoginModal({
 }: ProviderLoginModalProps) {
   const { t: _t } = useTranslation('common');
   const apiKeyAvailable = provider !== 'cursor';
-  const [tab, setTab] = useState<LoginTab>('browser');
+  // Default to the API-key tab when available. Three reasons:
+  //   1. Users asked for "our design" to show first, not a raw terminal.
+  //   2. The embedded shell only mounts when the Browser tab is active
+  //      (conditional render below), so keeping it unmounted avoids the
+  //      repeated-banner loop some full-screen TUIs (Qwen Code, Gemini)
+  //      trigger when xterm reports a smaller column count than they
+  //      expect and they re-render their splash.
+  //   3. Cursor is OAuth-only — it still falls back to Browser.
+  const [tab, setTab] = useState<LoginTab>(apiKeyAvailable ? 'apiKey' : 'browser');
 
-  // Reset to the Browser tab whenever the modal is reopened for a different
+  // Reset to the default tab whenever the modal is reopened for a different
   // provider, otherwise the previous tab selection survives across opens.
   useEffect(() => {
-    if (isOpen) setTab('browser');
-  }, [isOpen, provider]);
+    if (isOpen) setTab(apiKeyAvailable ? 'apiKey' : 'browser');
+  }, [isOpen, provider, apiKeyAvailable]);
 
   const title = useMemo(() => {
     const name = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
