@@ -9,6 +9,7 @@ import {
   CURSOR_MODELS,
   CODEX_MODELS,
   GEMINI_MODELS,
+  QWEN_MODELS,
 } from "../../../../../shared/modelConstants";
 import type { ProjectSession, LLMProvider } from "../../../../types/app";
 import { NextTaskBanner } from "../../../task-master";
@@ -40,6 +41,8 @@ type ProviderSelectionEmptyStateProps = {
   setCodexModel: (model: string) => void;
   geminiModel: string;
   setGeminiModel: (model: string) => void;
+  qwenModel: string;
+  setQwenModel: (model: string) => void;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -57,12 +60,14 @@ const PROVIDER_GROUPS: ProviderGroup[] = [
   { id: "cursor", name: "Cursor", models: CURSOR_MODELS.OPTIONS },
   { id: "codex", name: "OpenAI", models: CODEX_MODELS.OPTIONS },
   { id: "gemini", name: "Google", models: GEMINI_MODELS.OPTIONS },
+  { id: "qwen", name: "Alibaba / Qwen", models: QWEN_MODELS.OPTIONS },
 ];
 
 function getModelConfig(p: LLMProvider) {
   if (p === "claude") return CLAUDE_MODELS;
   if (p === "codex") return CODEX_MODELS;
   if (p === "gemini") return GEMINI_MODELS;
+  if (p === "qwen") return QWEN_MODELS;
   return CURSOR_MODELS;
 }
 
@@ -72,10 +77,12 @@ function getCurrentModel(
   cu: string,
   co: string,
   g: string,
+  q: string,
 ) {
   if (p === "claude") return c;
   if (p === "codex") return co;
   if (p === "gemini") return g;
+  if (p === "qwen") return q;
   return cu;
 }
 
@@ -83,6 +90,7 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "claude") return "Claude";
   if (p === "cursor") return "Cursor";
   if (p === "codex") return "Codex";
+  if (p === "qwen") return "Qwen Code";
   return "Gemini";
 }
 
@@ -100,6 +108,8 @@ export default function ProviderSelectionEmptyState({
   setCodexModel,
   geminiModel,
   setGeminiModel,
+  qwenModel,
+  setQwenModel,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -131,6 +141,7 @@ export default function ProviderSelectionEmptyState({
     cursorModel,
     codexModel,
     geminiModel,
+    qwenModel,
   );
 
   const currentModelLabel = useMemo(() => {
@@ -152,12 +163,15 @@ export default function ProviderSelectionEmptyState({
       } else if (providerId === "gemini") {
         setGeminiModel(modelValue);
         localStorage.setItem("gemini-model", modelValue);
+      } else if (providerId === "qwen") {
+        setQwenModel(modelValue);
+        localStorage.setItem("qwen-model", modelValue);
       } else {
         setCursorModel(modelValue);
         localStorage.setItem("cursor-model", modelValue);
       }
     },
-    [setClaudeModel, setCursorModel, setCodexModel, setGeminiModel],
+    [setClaudeModel, setCursorModel, setCodexModel, setGeminiModel, setQwenModel],
   );
 
   const handleModelSelect = useCallback(
@@ -277,6 +291,10 @@ export default function ProviderSelectionEmptyState({
                 }),
                 gemini: t("providerSelection.readyPrompt.gemini", {
                   model: geminiModel,
+                }),
+                qwen: t("providerSelection.readyPrompt.qwen", {
+                  model: qwenModel,
+                  defaultValue: "Ready to use Qwen Code with {{model}}. Start typing your message below.",
                 }),
               }[provider]
             }

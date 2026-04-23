@@ -13,6 +13,24 @@ import {
 import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import http from 'node:http';
+import { spawn } from 'node:child_process';
+
+/**
+ * npm-global install command per provider. Used by POST
+ * /api/providers/:p/install to run the install directly from Pixcode so
+ * users don't have to drop into a shell just to get a CLI on the host.
+ * Cursor uses its own install script, not npm.
+ */
+const PROVIDER_INSTALL_COMMANDS: Record<LLMProvider, string | null> = {
+  claude: 'npm install -g @anthropic-ai/claude-code',
+  codex: 'npm install -g @openai/codex',
+  gemini: 'npm install -g @google/gemini-cli',
+  qwen: 'npm install -g @qwen-code/qwen-code',
+  // Cursor's installer is a bash script hosted at cursor.com; safer to
+  // ask users to run it themselves rather than pipe-to-bash from our
+  // server process.
+  cursor: null,
+};
 
 const router = express.Router();
 
@@ -329,6 +347,111 @@ router.post(
 
     res.json(createApiSuccessResponse({ forwarded: true, port }));
   }),
+);
+
+/**
+ * POST /api/providers/:provider/install
+ * SSE stream. Runs the provider's npm-global install command server-side so
+ * users can kick off the install from the UI instead of pasting a command
+ * into a terminal. Each stdout/stderr chunk streams as a `log` event; a
+ * final `done` event carries the exit code and whether a retry is worth it.
+ *
+ * Fires once; if already installed, the backend still re-runs the command —
+ * npm will reinstall / bump to latest, which is what users usually want when
+ * they hit "Install" on a "not installed" card that has since stale-updated.
+ */
+router.post(
+  '/:provider/install',
+  (req: Request, res: Response) => {
+    (async () => {
+      let parsed: LLMProvider;
+      try {
+        parsed = parseProvider(req.params.provider);
+      } catch (err) {
+        res.status(400).json({ success: false, error: (err as Error).message });
+        return;
+      }
+
+      const installCmd = PROVIDER_INSTALL_COMMANDS[parsed];
+      if (!installCmd) {
+        res.status(400).json({
+          success: false,
+          error: `${parsed} cannot be installed automatically — please follow the documented install steps.`,
+        });
+        return;
+      }
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+      let ended = false;
+      const send = (event: string, payload: unknown) => {
+        if (ended) return;
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+      };
+      const endStream = () => {
+        if (ended) return;
+        ended = true;
+        clearInterval(heartbeat);
+        res.end();
+      };
+
+      // Heartbeat every 15s — proxies love to close an idle long install.
+      const heartbeat = setInterval(() => {
+        if (ended) return;
+        res.write(': ping\n\n');
+      }, 15000);
+
+      send('log', { stream: 'meta', chunk: `Running: ${installCmd}\n` });
+
+      // Cross-platform shell so Windows (cmd.exe) and POSIX (/bin/sh) both work.
+      const child = spawn(installCmd, {
+        shell: true,
+        env: process.env,
+      });
+
+      req.on('close', () => {
+        if (res.writableEnded) return;
+        try { child.kill(); } catch { /* noop */ }
+        endStream();
+      });
+
+      child.stdout?.on('data', (data: Buffer) => send('log', { stream: 'stdout', chunk: data.toString() }));
+      child.stderr?.on('data', (data: Buffer) => send('log', { stream: 'stderr', chunk: data.toString() }));
+
+      child.on('error', (err: Error) => {
+        if (ended) return;
+        send('done', { success: false, error: err.message });
+        endStream();
+      });
+
+      child.on('close', (code: number | null) => {
+        if (ended) return;
+        if (code === 0) {
+          send('done', {
+            success: true,
+            exitCode: 0,
+            message: `${parsed} installed. Refreshing auth status…`,
+          });
+        } else {
+          send('done', {
+            success: false,
+            exitCode: code,
+            error: `Install command exited with code ${code}`,
+          });
+        }
+        endStream();
+      });
+    })().catch((err) => {
+      try {
+        res.status(500).json({ success: false, error: err?.message || String(err) });
+      } catch { /* response already started */ }
+    });
+  },
 );
 
 router.post(

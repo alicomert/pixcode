@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Check, Copy, LogIn, Download, ExternalLink } from '@/lib/icons';
+import { useRef, useState } from 'react';
+import { Check, Copy, LogIn, Download, ExternalLink, Loader2, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
@@ -8,7 +8,14 @@ import {
   PROVIDER_INSTALL_COMMANDS,
 } from '../../../../../../provider-auth/types';
 import { copyTextToClipboard } from '../../../../../../../utils/clipboard';
+import { authenticatedFetch } from '../../../../../../../utils/api';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
+
+// Providers whose CLI can be installed by Pixcode itself (npm global). Cursor
+// ships via a bash script we don't want to pipe through our server; its
+// "Install now" button is hidden. The list mirrors the backend's
+// PROVIDER_INSTALL_COMMANDS map in provider.routes.ts.
+const AUTO_INSTALLABLE: readonly AgentProvider[] = ['claude', 'codex', 'gemini', 'qwen'];
 
 type AccountContentProps = {
   agent: AgentProvider;
@@ -71,9 +78,103 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   },
 };
 
+// ---------- Install-runner dialog ----------
+type InstallState = 'idle' | 'running' | 'done' | 'error';
+
+function useInstaller(agent: AgentProvider) {
+  const [state, setState] = useState<InstallState>('idle');
+  const [log, setLog] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const run = async () => {
+    setState('running');
+    setLog('');
+    setError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const response = await authenticatedFetch(`/api/providers/${agent}/install`, {
+        method: 'POST',
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error || `HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let doneEvent: { success: boolean; error?: string; message?: string } | null = null;
+
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        for (;;) {
+          const sep = buffer.indexOf('\n\n');
+          if (sep === -1) break;
+          const raw = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          let event = 'message';
+          const dataLines: string[] = [];
+          for (const line of raw.split('\n')) {
+            if (line.startsWith(':')) continue;
+            if (line.startsWith('event: ')) event = line.slice(7).trim();
+            else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
+          }
+          if (dataLines.length === 0) continue;
+          try {
+            const parsed = JSON.parse(dataLines.join('\n'));
+            if (event === 'log' && typeof parsed.chunk === 'string') {
+              setLog((prev) => prev + parsed.chunk);
+            } else if (event === 'done') {
+              doneEvent = parsed;
+            }
+          } catch {
+            // bad frame — ignore
+          }
+        }
+      }
+
+      if (!doneEvent) throw new Error('Install stream ended unexpectedly');
+      if (doneEvent.success) {
+        setState('done');
+      } else {
+        setError(doneEvent.error || 'Install failed');
+        setState('error');
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        setState('idle');
+      } else {
+        setError(err?.message || 'Install failed');
+        setState('error');
+      }
+    } finally {
+      abortRef.current = null;
+    }
+  };
+
+  const cancel = () => {
+    abortRef.current?.abort();
+  };
+
+  const reset = () => {
+    setState('idle');
+    setLog('');
+    setError(null);
+  };
+
+  return { state, log, error, run, cancel, reset };
+}
+
 export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const [copied, setCopied] = useState(false);
+  const installer = useInstaller(agent);
 
   // Fall back to a neutral config for unknown providers so we never crash the
   // render path (a defensive net on top of the registered provider list).
@@ -130,18 +231,34 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                 </p>
               </div>
 
-              <div className="flex items-stretch overflow-hidden rounded-md border border-amber-300/60 bg-white dark:border-amber-800/60 dark:bg-gray-900">
-                <code className="flex-1 truncate px-3 py-2 font-mono text-xs text-foreground">
-                  {installCommand}
-                </code>
-                <button
-                  onClick={() => void copyCommand()}
-                  className="flex items-center gap-1.5 border-l border-amber-300/60 bg-amber-100/70 px-3 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-                  aria-label="Copy install command"
-                >
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? 'Copied' : 'Copy'}
-                </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {AUTO_INSTALLABLE.includes(agent) && (
+                  <button
+                    onClick={() => void installer.run()}
+                    disabled={installer.state === 'running'}
+                    className="inline-flex items-center gap-2 rounded-md bg-amber-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-700 dark:hover:bg-amber-600"
+                  >
+                    {installer.state === 'running' ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
+                    {installer.state === 'running' ? 'Installing…' : 'Install now'}
+                  </button>
+                )}
+                <div className="flex flex-1 items-stretch overflow-hidden rounded-md border border-amber-300/60 bg-white dark:border-amber-800/60 dark:bg-gray-900">
+                  <code className="flex-1 truncate px-3 py-2 font-mono text-xs text-foreground">
+                    {installCommand}
+                  </code>
+                  <button
+                    onClick={() => void copyCommand()}
+                    className="flex items-center gap-1.5 border-l border-amber-300/60 bg-amber-100/70 px-3 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                    aria-label="Copy install command"
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
               </div>
 
               {agent === 'qwen' && (
@@ -154,6 +271,59 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                   View the Qwen Code docs
                   <ExternalLink className="h-3 w-3" />
                 </a>
+              )}
+
+              {/* Install stream output */}
+              {(installer.state !== 'idle' || installer.log) && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/80 dark:text-amber-200/80">
+                      {installer.state === 'running'
+                        ? 'Installing…'
+                        : installer.state === 'done'
+                          ? 'Install complete'
+                          : installer.state === 'error'
+                            ? 'Install failed'
+                            : 'Output'}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {installer.state === 'running' && (
+                        <button
+                          onClick={installer.cancel}
+                          className="text-xs text-amber-800 hover:underline dark:text-amber-200"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {(installer.state === 'done' || installer.state === 'error') && (
+                        <button
+                          onClick={installer.reset}
+                          className="text-amber-800 dark:text-amber-200"
+                          aria-label="Dismiss"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <pre className="max-h-40 overflow-y-auto rounded-md border border-amber-200 bg-white/80 p-3 font-mono text-[11px] leading-relaxed text-gray-800 dark:border-amber-900/50 dark:bg-gray-900/80 dark:text-gray-100">{installer.log || ' '}</pre>
+                  {installer.state === 'done' && (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-emerald-700 dark:text-emerald-300">
+                        Refresh this tab or try Login to check the new install.
+                      </div>
+                      <button
+                        onClick={() => { installer.reset(); onLogin(); }}
+                        className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                      >
+                        Continue to Login
+                      </button>
+                    </div>
+                  )}
+                  {installer.state === 'error' && installer.error && (
+                    <div className="text-xs text-red-600 dark:text-red-400">{installer.error}</div>
+                  )}
+                </div>
               )}
             </div>
           </div>
