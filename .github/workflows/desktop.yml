@@ -87,6 +87,13 @@ jobs:
           fi
 
           # Narrow the diff to files that actually change the binary.
+          # Narrow the diff to files that actually change the binary.
+          # Intentionally excluded:
+          #   - desktop/package.json → bumped on EVERY release (version +
+          #     pixcode dep pin), would make every patch a rebuild.
+          #     When pixcode ADDS a new prod dep, the bundled
+          #     node_modules needs a rebuild — use workflow_dispatch's
+          #     `force_rebuild: true` for that one-off case.
           if git diff --quiet "$PREV_TAG" "$CURRENT_TAG" -- \
               desktop/electron/ \
               desktop/electron-builder.yml \
