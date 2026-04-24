@@ -100,6 +100,51 @@ export default function AgentCategoryContentSection({
         />
       )}
 
+      {/*
+        OpenCode's permissions are JSON-expression based (per-tool × per-pattern,
+        with `ask|allow|deny` per rule plus `external_directory` allow-lists).
+        A 2/3-mode toggle would be a lossy abstraction, so we direct users to
+        the Configuration tab to hand-edit `opencode.json` — the source of
+        truth for OpenCode's approval flow.
+      */}
+      {selectedCategory === 'permissions' && selectedAgent === 'opencode' && (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 dark:border-teal-800 dark:bg-teal-900/20">
+            <h3 className="mb-1 text-base font-semibold text-teal-900 dark:text-teal-100">
+              OpenCode uses fine-grained permissions
+            </h3>
+            <p className="text-sm text-teal-800 dark:text-teal-200">
+              OpenCode lets you control approvals per tool (edit / bash /
+              webfetch) and per command pattern (e.g. allow <code className="rounded bg-teal-100 px-1 dark:bg-teal-800">git *</code> but
+              deny <code className="rounded bg-teal-100 px-1 dark:bg-teal-800">git push *</code>). Those rules live inside <code className="rounded bg-teal-100 px-1 dark:bg-teal-800">opencode.json</code>.
+            </p>
+            <p className="mt-3 text-sm text-teal-800 dark:text-teal-200">
+              Switch to the <strong>Configuration</strong> tab above to edit
+              <code className="mx-1 rounded bg-teal-100 px-1 dark:bg-teal-800">opencode.json</code>
+              directly. Pixcode's editor has JSON syntax highlighting and
+              saves changes to your home directory.
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-4">
+            <h4 className="mb-2 text-sm font-semibold text-foreground">Quick reference</h4>
+            <pre className="overflow-x-auto text-xs text-foreground/80">{`{
+  "permission": {
+    "edit": "ask",
+    "bash": {
+      "*": "ask",
+      "git *": "allow",
+      "git push *": "deny"
+    },
+    "external_directory": {
+      "~/projects/personal/": "allow"
+    }
+  }
+}`}</pre>
+          </div>
+        </div>
+      )}
+
       {selectedCategory === 'mcp' && (
         <McpServers
           selectedProvider={selectedAgent}

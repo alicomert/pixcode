@@ -1,14 +1,13 @@
 import { EventEmitter } from 'node:events';
-import { createRequire } from 'node:module';
 
 import { telegramConfigDb, telegramLinksDb } from '../../database/db.js';
 
 import { t } from './translations.js';
-
-// node-telegram-bot-api is a CommonJS module. Using createRequire keeps the
-// default-export interop clean across ESM/CJS boundaries.
-const requireCjs = createRequire(import.meta.url);
-const TelegramBot = requireCjs('node-telegram-bot-api');
+// Swapped in v1.32: previously `node-telegram-bot-api` which carried the
+// deprecated `request`/`har-validator`/`uuid@3` chain. TelegramHttpBot is
+// a ~100-line fetch-based replacement with the same public surface
+// (getMe / sendMessage / on / stopPolling). See telegram-http-client.js.
+import { TelegramHttpBot } from './telegram-http-client.js';
 
 // Pairing code TTL. Ten minutes gives a user enough time to switch apps and
 // type the code without leaving a long-lived code sitting around if they
@@ -188,7 +187,7 @@ export const startBot = async ({ token, persist = true } = {}) => {
   // 409 conflicts on every long-poll.
   if (bot) await stopBot();
 
-  const instance = new TelegramBot(token, { polling: true });
+  const instance = new TelegramHttpBot(token, { polling: true });
   // Validate the token first — if getMe fails we never want to persist a
   // broken token or leave the poller running.
   let me;

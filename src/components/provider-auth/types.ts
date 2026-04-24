@@ -22,6 +22,7 @@ export const PROVIDER_INSTALL_COMMANDS: Record<LLMProvider, string> = {
   codex: 'npm install -g @openai/codex',
   gemini: 'npm install -g @google/gemini-cli',
   qwen: 'npm install -g @qwen-code/qwen-code',
+  opencode: 'npm install -g opencode-ai',
 };
 
 /**
@@ -33,11 +34,12 @@ export const PROVIDER_DISPLAY_NAMES: Record<LLMProvider, string> = {
   codex: 'OpenAI Codex',
   gemini: 'Gemini CLI',
   qwen: 'Qwen Code',
+  opencode: 'OpenCode',
 };
 
 export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
 
-export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'qwen'];
+export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'];
 
 export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   claude: '/api/providers/claude/auth/status',
@@ -45,6 +47,7 @@ export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   codex: '/api/providers/codex/auth/status',
   gemini: '/api/providers/gemini/auth/status',
   qwen: '/api/providers/qwen/auth/status',
+  opencode: '/api/providers/opencode/auth/status',
 };
 
 export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusMap => ({
@@ -53,4 +56,5 @@ export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuth
   codex: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
   gemini: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
   qwen: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
+  opencode: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
 });

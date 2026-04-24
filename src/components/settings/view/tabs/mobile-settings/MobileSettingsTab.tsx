@@ -19,14 +19,6 @@ type EndpointsResponse = {
   endpoints: NetworkEndpoint[];
 };
 
-type UpnpState = {
-  mapped: boolean;
-  port: number | null;
-  externalIp: string | null;
-  externalUrl: string | null;
-  error: string | null;
-};
-
 type TunnelState = {
   running: boolean;
   binary: string | null;
@@ -34,7 +26,11 @@ type TunnelState = {
   error: string | null;
 };
 
-type ExternalState = { upnp: UpnpState; tunnel: TunnelState };
+// UPnP auto-port-forward was removed in v1.32 — the cloudflared / ngrok
+// tunnel flow covers the same "publish my laptop" case with a cleaner
+// security posture. We still read the `upnp` key off the payload in case
+// an older server is responding, but it's always a no-op now.
+type ExternalState = { tunnel: TunnelState };
 
 type EndpointQr = {
   key: string;
@@ -63,7 +59,6 @@ export default function MobileSettingsTab() {
 
   const [external, setExternal] = useState<ExternalState | null>(null);
   const [externalQrs, setExternalQrs] = useState<EndpointQr[]>([]);
-  const [upnpBusy, setUpnpBusy] = useState(false);
   const [tunnelBusy, setTunnelBusy] = useState(false);
   const [externalError, setExternalError] = useState<string | null>(null);
 
@@ -101,10 +96,7 @@ export default function MobileSettingsTab() {
       setExternal(json);
 
       const urls: { key: string; label: string; url: string }[] = [];
-      if (json.upnp.mapped && json.upnp.externalUrl) {
-        urls.push({ key: `upnp:${json.upnp.externalUrl}`, label: 'UPnP', url: json.upnp.externalUrl });
-      }
-      if (json.tunnel.running && json.tunnel.url) {
+      if (json.tunnel?.running && json.tunnel.url) {
         urls.push({ key: `tunnel:${json.tunnel.url}`, label: json.tunnel.binary || 'tunnel', url: json.tunnel.url });
       }
       const generated = await Promise.all(
@@ -128,25 +120,6 @@ export default function MobileSettingsTab() {
       window.setTimeout(() => setCopiedUrl((prev) => (prev === url ? null : prev)), 1500);
     } catch (err) {
       console.error('Clipboard copy failed', err);
-    }
-  };
-
-  const toggleUpnp = async () => {
-    setUpnpBusy(true);
-    setExternalError(null);
-    try {
-      const isMapped = external?.upnp.mapped;
-      const response = await authenticatedFetch('/api/network/upnp', {
-        method: isMapped ? 'DELETE' : 'POST',
-      });
-      const body = (await response.json()) as { error?: string; upnp?: UpnpState };
-      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-      await loadExternalState();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setExternalError(msg);
-    } finally {
-      setUpnpBusy(false);
     }
   };
 
@@ -287,32 +260,9 @@ export default function MobileSettingsTab() {
           </div>
         )}
 
-        {/* UPnP row */}
-        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background p-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-foreground">{t('mobile.external.upnpTitle')}</span>
-              {external?.upnp.mapped && (
-                <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
-                  {t('mobile.external.upnpEnabled')}
-                </span>
-              )}
-            </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t('mobile.external.upnpDescription')}</p>
-            {external?.upnp.error && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{external.upnp.error}</p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => void toggleUpnp()}
-            disabled={upnpBusy}
-            className="ml-3 inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
-          >
-            {upnpBusy && <RefreshCw className="h-3 w-3 animate-spin" />}
-            {external?.upnp.mapped ? t('mobile.external.upnpDisable') : t('mobile.external.upnpEnable')}
-          </button>
-        </div>
+        {/* UPnP row removed in v1.32 — nat-upnp pulled in deprecated
+         *  request/har-validator/uuid@3 and the tunnel path below covers
+         *  the same use case with a cleaner security posture. */}
 
         {/* Tunnel row */}
         <div className="flex items-center justify-between rounded-lg border border-border/60 bg-background p-3">

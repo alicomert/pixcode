@@ -587,7 +587,11 @@ type GeminiPermissionsProps = {
 
 // Gemini Permissions
 function GeminiPermissions({ permissionMode, onPermissionModeChange }: Omit<GeminiPermissionsProps, 'agent'>) {
-  const { t } = useTranslation(['settings', 'chat']);
+  // These sections all live under the `gemini.*` key in chat.json — using
+  // the array form (['settings', 'chat']) does NOT fall back automatically
+  // because i18next has no global `fallbackNS` configured, so the raw keys
+  // leak into the UI. Binding directly to the chat namespace resolves.
+  const { t } = useTranslation('chat');
   return (
     <div className="space-y-6">
       <div className="space-y-4">
@@ -689,22 +693,24 @@ type QwenPermissionsProps = {
   onPermissionModeChange: (value: QwenPermissionMode) => void;
 };
 
-// Qwen Code re-uses Gemini's approval-mode vocabulary (same upstream fork).
-// Reusing the Gemini settings i18n block keeps the copy consistent across
-// the two sibling providers without duplicating translation keys.
+// Qwen Code uses the same permission-mode semantics as Gemini (same fork
+// lineage) but gets its own i18n block so users on Qwen's tab see "Qwen
+// Permission Mode" / "Qwen Code will prompt for approval…" instead of
+// Gemini-labeled copy — matches the Account/Config tabs which also
+// address the provider by name.
 function QwenPermissions({ permissionMode, onPermissionModeChange }: Omit<QwenPermissionsProps, 'agent'>) {
-  const { t } = useTranslation(['settings', 'chat']);
+  const { t } = useTranslation('chat');
   return (
     <div className="space-y-6">
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <Shield className="h-5 w-5 text-green-500" />
           <h3 className="text-lg font-medium text-foreground">
-            {t('gemini.permissionMode')}
+            {t('qwen.permissionMode')}
           </h3>
         </div>
         <p className="text-sm text-muted-foreground">
-          {t('gemini.description')}
+          {t('qwen.description')}
         </p>
 
         <div
@@ -723,9 +729,9 @@ function QwenPermissions({ permissionMode, onPermissionModeChange }: Omit<QwenPe
               className="mt-1 h-4 w-4 text-green-600"
             />
             <div>
-              <div className="font-medium text-foreground">{t('gemini.modes.default.title')}</div>
+              <div className="font-medium text-foreground">{t('qwen.modes.default.title')}</div>
               <div className="text-sm text-muted-foreground">
-                {t('gemini.modes.default.description')}
+                {t('qwen.modes.default.description')}
               </div>
             </div>
           </label>
@@ -747,9 +753,9 @@ function QwenPermissions({ permissionMode, onPermissionModeChange }: Omit<QwenPe
               className="mt-1 h-4 w-4 text-green-600"
             />
             <div>
-              <div className="font-medium text-green-900 dark:text-green-100">{t('gemini.modes.autoEdit.title')}</div>
+              <div className="font-medium text-green-900 dark:text-green-100">{t('qwen.modes.autoEdit.title')}</div>
               <div className="text-sm text-green-700 dark:text-green-300">
-                {t('gemini.modes.autoEdit.description')}
+                {t('qwen.modes.autoEdit.description')}
               </div>
             </div>
           </label>
@@ -772,11 +778,11 @@ function QwenPermissions({ permissionMode, onPermissionModeChange }: Omit<QwenPe
             />
             <div>
               <div className="flex items-center gap-2 font-medium text-orange-900 dark:text-orange-100">
-                {t('gemini.modes.yolo.title')}
+                {t('qwen.modes.yolo.title')}
                 <AlertTriangle className="h-4 w-4" />
               </div>
               <div className="text-sm text-orange-700 dark:text-orange-300">
-                {t('gemini.modes.yolo.description')}
+                {t('qwen.modes.yolo.description')}
               </div>
             </div>
           </label>

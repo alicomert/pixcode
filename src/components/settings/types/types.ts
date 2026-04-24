@@ -13,6 +13,11 @@ export type GeminiPermissionMode = 'default' | 'auto_edit' | 'yolo';
 // — keeping the types separate keeps the persisted settings independent
 // and lets the two providers diverge later without a breaking migration.
 export type QwenPermissionMode = 'default' | 'auto_edit' | 'yolo';
+// OpenCode's permission system is JSON-expression-based per-tool, per-pattern
+// — far more granular than the 2/3-mode toggle other CLIs expose. We surface
+// two presets here for the common case (ask everything / allow everything);
+// power users can hand-edit opencode.json via the Configuration tab.
+export type OpencodePermissionMode = 'ask' | 'allow';
 
 export type SettingsProject = {
   name: string;

@@ -32,7 +32,7 @@ export default function AgentsSettingsTab({
   // the card back so they can manage its permissions and auth status.
   // The auth-status probe handles the "not installed" case gracefully.
   const visibleAgents = useMemo<AgentProvider[]>(
-    () => ['claude', 'cursor', 'codex', 'gemini', 'qwen'],
+    () => ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'],
     [],
   );
 
@@ -57,6 +57,10 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.qwen,
       onLogin: () => onProviderLogin('qwen'),
     },
+    opencode: {
+      authStatus: providerAuthStatus.opencode,
+      onLogin: () => onProviderLogin('opencode'),
+    },
   }), [
     onProviderLogin,
     providerAuthStatus.claude,
@@ -64,6 +68,7 @@ export default function AgentsSettingsTab({
     providerAuthStatus.cursor,
     providerAuthStatus.gemini,
     providerAuthStatus.qwen,
+    providerAuthStatus.opencode,
   ]);
 
   return (

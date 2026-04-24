@@ -2,8 +2,6 @@ import express from 'express';
 import os from 'os';
 
 import {
-  disableUpnp,
-  enableUpnp,
   getTunnelState,
   getUpnpState,
   startTunnel,
@@ -78,26 +76,20 @@ router.get('/external', (req, res) => {
   }
 });
 
-router.post('/upnp', async (req, res) => {
-  const port = resolveServerPort();
-  try {
-    const state = await enableUpnp({ port });
-    res.json({ success: true, upnp: state });
-  } catch (error) {
-    console.error('UPnP enable failed:', error);
-    res.status(502).json({ error: error?.message || 'UPnP enable failed', upnp: getUpnpState() });
-  }
+// UPnP endpoints removed in v1.32 (see external-access.js for rationale).
+// Clients hitting /upnp get a 410 so the UI can show a clear "moved to
+// tunnel" hint without mistaking the absence for a transient 404.
+router.post('/upnp', (_req, res) => {
+  res.status(410).json({
+    error: 'UPnP removed in v1.32 — use cloudflared or ngrok tunnels instead',
+    upnp: getUpnpState(),
+  });
 });
-
-router.delete('/upnp', async (req, res) => {
-  const port = resolveServerPort();
-  try {
-    const state = await disableUpnp({ port });
-    res.json({ success: true, upnp: state });
-  } catch (error) {
-    console.error('UPnP disable failed:', error);
-    res.status(502).json({ error: error?.message || 'UPnP disable failed', upnp: getUpnpState() });
-  }
+router.delete('/upnp', (_req, res) => {
+  res.status(410).json({
+    error: 'UPnP removed in v1.32 — use cloudflared or ngrok tunnels instead',
+    upnp: getUpnpState(),
+  });
 });
 
 router.post('/tunnel', async (req, res) => {

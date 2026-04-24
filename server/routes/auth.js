@@ -1,5 +1,9 @@
 import express from 'express';
-import bcrypt from 'bcrypt';
+// bcryptjs is a pure-JS drop-in (same hash/compare API, same output format)
+// — switching from native `bcrypt` here eliminated one C++ compile from
+// the install path. Existing $2a$/$2b$ hashes in the DB remain valid;
+// bcryptjs recognizes both prefixes so logins work across the swap.
+import bcrypt from 'bcryptjs';
 import { userDb, db } from '../database/db.js';
 import { generateToken, authenticateToken } from '../middleware/auth.js';
 

@@ -120,6 +120,24 @@
       }
     }
   },
+  "qwen": {
+    "permissionMode": "Qwen İzin Modu",
+    "description": "Qwen Code'un işlem onaylarını nasıl yönettiğini kontrol et.",
+    "modes": {
+      "default": {
+        "title": "Standart (Onay İste)",
+        "description": "Qwen Code, komut çalıştırmadan, dosya yazmadan ve web kaynağı getirmeden önce onay ister."
+      },
+      "autoEdit": {
+        "title": "Otomatik Düzenleme (Dosya Onaylarını Atla)",
+        "description": "Qwen Code dosya düzenlemelerini ve web getirmelerini otomatik onaylar, ama shell komutları için yine de onay ister."
+      },
+      "yolo": {
+        "title": "YOLO (Tüm İzinleri Atla)",
+        "description": "Qwen Code tüm işlemleri onay almadan çalıştırır. Dikkatli kullan."
+      }
+    }
+  },
   "input": {
     "placeholder": "Komutlar için /, dosyalar için @ yaz ya da {{provider}}'a her şeyi sor...",
     "placeholderDefault": "Mesajını yaz...",

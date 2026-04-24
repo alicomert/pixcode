@@ -1,98 +1,29 @@
 import { spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
 
-const requireCjs = createRequire(import.meta.url);
+/**
+ * External-access service.
+ *
+ * Previously exposed a UPnP auto-port-forward path via `nat-upnp`, but that
+ * package pulled in the deprecated `request` / `har-validator` / `uuid@3`
+ * chain (noise at every install). Cloudflared and ngrok cover the same
+ * "publish my laptop to the internet" use case with a better security
+ * posture (no permanent port in the router firewall), so we kept the
+ * tunnel flow and dropped UPnP entirely. If UPnP becomes a user-demanded
+ * feature again we can bring it back via a maintained package like
+ * `@achingbrain/nat-port-mapper`.
+ */
 
-// nat-upnp is CommonJS and callback-based. We wrap it in promises and keep
-// one shared client per process. The client is lazily created so importing
-// this module does not try to bind SSDP sockets at boot.
-let upnpClient = null;
-const getUpnpClient = () => {
-  if (!upnpClient) {
-    const nat = requireCjs('nat-upnp');
-    upnpClient = nat.createClient();
-  }
-  return upnpClient;
-};
-
-let upnpState = {
+// Keep the UPnP getter + no-op togglers so callers still compile, but they
+// always report "unavailable". This is transitional — the routes layer no
+// longer surfaces them either, so nothing in the live codebase hits these.
+const UPNP_UNAVAILABLE = Object.freeze({
   mapped: false,
   port: null,
   externalIp: null,
   externalUrl: null,
-  error: null,
-};
-
-// A UPnP mapping request can hang forever if the router never answers SSDP.
-// Cap every call so the HTTP endpoint doesn't dangle — we surface a clean
-// failure and the user can try tunnel mode instead.
-const withTimeout = (promise, ms, label) =>
-  Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
-  ]);
-
-const promisifyUpnp = (method, arg) =>
-  new Promise((resolve, reject) => {
-    const client = getUpnpClient();
-    const cb = (err, result) => (err ? reject(err) : resolve(result));
-    if (arg === undefined) {
-      client[method](cb);
-    } else {
-      client[method](arg, cb);
-    }
-  });
-
-export const enableUpnp = async ({ port }) => {
-  upnpState = { ...upnpState, error: null };
-  try {
-    await withTimeout(
-      promisifyUpnp('portMapping', {
-        public: port,
-        private: port,
-        // ttl:0 is documented as "never expire" — routers honor it differently,
-        // but it's the least surprising default. We leave renewal to the user
-        // clicking "enable" again if the router drops the lease.
-        ttl: 0,
-        description: 'Pixcode',
-        protocol: 'tcp',
-      }),
-      8000,
-      'UPnP portMapping',
-    );
-    const externalIp = await withTimeout(promisifyUpnp('externalIp'), 5000, 'UPnP externalIp');
-    upnpState = {
-      mapped: true,
-      port,
-      externalIp,
-      externalUrl: externalIp ? `http://${externalIp}:${port}` : null,
-      error: null,
-    };
-    return upnpState;
-  } catch (err) {
-    upnpState = {
-      mapped: false,
-      port,
-      externalIp: null,
-      externalUrl: null,
-      error: err?.message || String(err),
-    };
-    throw err;
-  }
-};
-
-export const disableUpnp = async ({ port }) => {
-  try {
-    await withTimeout(promisifyUpnp('portUnmapping', { public: port, protocol: 'tcp' }), 5000, 'UPnP portUnmapping');
-  } catch (err) {
-    upnpState = { ...upnpState, error: err?.message || String(err) };
-    throw err;
-  }
-  upnpState = { mapped: false, port: null, externalIp: null, externalUrl: null, error: null };
-  return upnpState;
-};
-
-export const getUpnpState = () => upnpState;
+  error: 'UPnP auto-port-forward was removed in v1.32. Use cloudflared or ngrok tunnels instead.',
+});
+export const getUpnpState = () => UPNP_UNAVAILABLE;
 
 // ============================================================================
 // Tunnel: detect cloudflared / ngrok and spawn; extract the public URL from

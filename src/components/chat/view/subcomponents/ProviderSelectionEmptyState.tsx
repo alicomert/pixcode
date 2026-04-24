@@ -13,6 +13,7 @@ import {
   CODEX_MODELS,
   GEMINI_MODELS,
   QWEN_MODELS,
+  OPENCODE_MODELS,
 } from "../../../../../shared/modelConstants";
 import type { ProjectSession, LLMProvider } from "../../../../types/app";
 import { NextTaskBanner } from "../../../task-master";
@@ -66,6 +67,7 @@ const PROVIDER_CARDS: ProviderCard[] = [
   { id: "cursor", name: "Cursor", accentBorder: "border-purple-500/60", accentBg: "bg-purple-500/5 dark:bg-purple-400/10" },
   { id: "gemini", name: "Gemini", accentBorder: "border-indigo-500/60", accentBg: "bg-indigo-500/5 dark:bg-indigo-400/10" },
   { id: "qwen", name: "Qwen Code", accentBorder: "border-orange-500/60", accentBg: "bg-orange-500/5 dark:bg-orange-400/10" },
+  { id: "opencode", name: "OpenCode", accentBorder: "border-teal-500/60", accentBg: "bg-teal-500/5 dark:bg-teal-400/10" },
 ];
 
 function getStaticConfig(p: LLMProvider) {
@@ -73,6 +75,7 @@ function getStaticConfig(p: LLMProvider) {
   if (p === "codex") return CODEX_MODELS;
   if (p === "gemini") return GEMINI_MODELS;
   if (p === "qwen") return QWEN_MODELS;
+  if (p === "opencode") return OPENCODE_MODELS;
   return CURSOR_MODELS;
 }
 
@@ -144,6 +147,17 @@ export default function ProviderSelectionEmptyState({
     }
   }, [provider, providerAuthStatus, setProvider]);
 
+  // OpenCode model state is handled locally here (not plumbed through the
+  // parent composer) — users typically control OpenCode's model via
+  // opencode.json, and adding another top-level `opencodeModel` prop
+  // would ripple through every component that forwards the state bag.
+  // Can be promoted to a prop if the picker starts surfacing it.
+  const [opencodeModel, setOpencodeModelLocal] = useState<string>(() => {
+    try {
+      return localStorage.getItem("opencode-model") || OPENCODE_MODELS.DEFAULT;
+    } catch { return OPENCODE_MODELS.DEFAULT; }
+  });
+
   // Currently-selected model per provider — plumbed through state props
   // rather than localStorage reads so the cards react to live switches.
   const currentModelByProvider = useMemo<Record<LLMProvider, string>>(
@@ -153,8 +167,9 @@ export default function ProviderSelectionEmptyState({
       codex: codexModel,
       gemini: geminiModel,
       qwen: qwenModel,
+      opencode: opencodeModel,
     }),
-    [claudeModel, cursorModel, codexModel, geminiModel, qwenModel],
+    [claudeModel, cursorModel, codexModel, geminiModel, qwenModel, opencodeModel],
   );
 
   const setterByProvider = useCallback(
@@ -163,6 +178,7 @@ export default function ProviderSelectionEmptyState({
       else if (p === "codex") { setCodexModel(value); localStorage.setItem("codex-model", value); }
       else if (p === "gemini") { setGeminiModel(value); localStorage.setItem("gemini-model", value); }
       else if (p === "qwen") { setQwenModel(value); localStorage.setItem("qwen-model", value); }
+      else if (p === "opencode") { setOpencodeModelLocal(value); localStorage.setItem("opencode-model", value); }
       else { setCursorModel(value); localStorage.setItem("cursor-model", value); }
     },
     [setClaudeModel, setCodexModel, setCursorModel, setGeminiModel, setQwenModel],

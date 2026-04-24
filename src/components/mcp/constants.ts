@@ -6,6 +6,7 @@ export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   codex: 'Codex',
   gemini: 'Gemini',
   qwen: 'Qwen Code',
+  opencode: 'OpenCode',
 };
 
 export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
@@ -16,6 +17,10 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   // Qwen Code mirrors Gemini's MCP layout (`~/.qwen/settings.json`
   // user-scope + `<project>/.qwen/settings.json` project-scope).
   qwen: ['user', 'project'],
+  // OpenCode stores MCP under the top-level `mcp` key of opencode.json
+  // — global at `~/.config/opencode/opencode.json`, project at
+  // `<workspace>/opencode.json`.
+  opencode: ['user', 'project'],
 };
 
 export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
@@ -24,6 +29,7 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   codex: ['stdio', 'http'],
   gemini: ['stdio', 'http', 'sse'],
   qwen: ['stdio', 'http', 'sse'],
+  opencode: ['stdio', 'http', 'sse'],
 };
 
 export const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project'];
@@ -36,6 +42,7 @@ export const MCP_PROVIDER_BUTTON_CLASSES: Record<McpProvider, string> = {
   codex: 'bg-gray-800 text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600',
   gemini: 'bg-blue-600 text-white hover:bg-blue-700',
   qwen: 'bg-orange-600 text-white hover:bg-orange-700',
+  opencode: 'bg-teal-600 text-white hover:bg-teal-700',
 };
 
 export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
@@ -44,6 +51,7 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   codex: true,
   gemini: true,
   qwen: true,
+  opencode: true,
 };
 
 export const DEFAULT_MCP_FORM: McpFormState = {

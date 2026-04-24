@@ -90,7 +90,7 @@ import { IS_PLATFORM } from './constants/config.js';
 import { getConnectableHost } from '../shared/networkHosts.js';
 import { buildDaemonCliCommand, handleDaemonCommand } from './daemon-manager.js';
 
-const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen'];
+const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
 
 // File system watchers for provider project/session folders
 const PROVIDER_WATCH_PATHS = [
@@ -2067,6 +2067,19 @@ function handleShellConnection(ws) {
 
                         if (hasSession && resumeId) {
                             shellCommand = `${command} --resume "${resumeId}"`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else if (provider === 'opencode') {
+                        // OpenCode uses `--session <id>` for resumption per the
+                        // 2026 CLI docs. The session IDs the TUI creates match
+                        // our `safeSessionIdPattern` regex (ulid/nanoid), so
+                        // we pass them straight through without a cliSessionId
+                        // mapping layer — OpenCode doesn't renumber IDs the way
+                        // Gemini does.
+                        const command = initialCommand || 'opencode';
+                        if (hasSession && sessionId && safeSessionIdPattern.test(sessionId)) {
+                            shellCommand = `${command} --session "${sessionId}"`;
                         } else {
                             shellCommand = command;
                         }

@@ -417,6 +417,9 @@
       },
       "qwen": {
         "description": "Alibaba Qwen Code CLI (Gemini CLI fork)"
+      },
+      "opencode": {
+        "description": "Multi-provider terminal coding agent — Claude, OpenAI, Gemini, or local models"
       }
     },
     "connectionStatus": "Connection Status",

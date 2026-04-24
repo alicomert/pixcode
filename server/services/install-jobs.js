@@ -62,6 +62,7 @@ const PACKAGE_BINARIES = {
     '@openai/codex': 'codex',
     '@google/gemini-cli': 'gemini',
     '@qwen-code/qwen-code': 'qwen',
+    'opencode-ai': 'opencode',
 };
 
 /**
@@ -129,6 +130,7 @@ export function resolveProviderExecutables(env = process.env) {
         { name: 'codex', envKey: 'CODEX_CLI_PATH' },
         { name: 'gemini', envKey: 'GEMINI_CLI_PATH' },
         { name: 'qwen', envKey: 'QWEN_CLI_PATH' },
+        { name: 'opencode', envKey: 'OPENCODE_CLI_PATH' },
         { name: 'cursor-agent', envKey: 'CURSOR_CLI_PATH' },
     ];
     for (const { name, envKey } of providers) {

@@ -24,10 +24,14 @@ const CONFIG_FILE = path.join(os.homedir(), '.pixcode', 'provider-credentials.js
  * inject into the spawn env. Cursor is OAuth-only; it has no api-key entry.
  */
 export const PROVIDER_ENV_VARS = Object.freeze({
-    claude: { apiKeyEnv: 'ANTHROPIC_API_KEY', baseUrlEnv: 'ANTHROPIC_BASE_URL' },
-    codex:  { apiKeyEnv: 'OPENAI_API_KEY',    baseUrlEnv: 'OPENAI_BASE_URL' },
-    gemini: { apiKeyEnv: 'GEMINI_API_KEY',    baseUrlEnv: null },
-    qwen:   { apiKeyEnv: 'OPENAI_API_KEY',    baseUrlEnv: 'OPENAI_BASE_URL' },
+    claude:   { apiKeyEnv: 'ANTHROPIC_API_KEY', baseUrlEnv: 'ANTHROPIC_BASE_URL' },
+    codex:    { apiKeyEnv: 'OPENAI_API_KEY',    baseUrlEnv: 'OPENAI_BASE_URL' },
+    gemini:   { apiKeyEnv: 'GEMINI_API_KEY',    baseUrlEnv: null },
+    qwen:     { apiKeyEnv: 'OPENAI_API_KEY',    baseUrlEnv: 'OPENAI_BASE_URL' },
+    // OpenCode is multi-provider. Set ANTHROPIC_API_KEY by default since
+    // Claude is OpenCode Zen's recommended backend; users wanting OpenAI
+    // or OpenRouter can override via the opencode.json `provider` block.
+    opencode: { apiKeyEnv: 'ANTHROPIC_API_KEY', baseUrlEnv: 'ANTHROPIC_BASE_URL' },
 });
 
 async function readStore() {

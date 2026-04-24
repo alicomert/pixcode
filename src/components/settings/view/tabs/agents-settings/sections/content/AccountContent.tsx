@@ -15,7 +15,7 @@ import type { AgentProvider, AuthStatus } from '../../../../../types/types';
 // ships via a bash script we don't want to pipe through our server; its
 // "Install now" button is hidden. The list mirrors the backend's
 // PROVIDER_INSTALL_COMMANDS map in provider.routes.ts.
-const AUTO_INSTALLABLE: readonly AgentProvider[] = ['claude', 'codex', 'gemini', 'qwen'];
+const AUTO_INSTALLABLE: readonly AgentProvider[] = ['claude', 'codex', 'gemini', 'qwen', 'opencode'];
 
 type AccountContentProps = {
   agent: AgentProvider;
@@ -79,6 +79,15 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     textClass: 'text-orange-900 dark:text-orange-100',
     subtextClass: 'text-orange-700 dark:text-orange-300',
     buttonClass: 'bg-orange-600 hover:bg-orange-700 active:bg-orange-800',
+  },
+  opencode: {
+    name: 'OpenCode',
+    description: 'Multi-provider terminal coding agent (Claude, OpenAI, Gemini, local)',
+    bgClass: 'bg-teal-50 dark:bg-teal-900/20',
+    borderClass: 'border-teal-200 dark:border-teal-800',
+    textClass: 'text-teal-900 dark:text-teal-100',
+    subtextClass: 'text-teal-700 dark:text-teal-300',
+    buttonClass: 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800',
   },
 };
 

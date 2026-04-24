@@ -417,6 +417,9 @@
       },
       "qwen": {
         "description": "Alibaba Qwen Code CLI (Gemini CLI çatallaması)"
+      },
+      "opencode": {
+        "description": "Çok sağlayıcılı terminal kod ajanı — Claude, OpenAI, Gemini veya yerel modeller"
       }
     },
     "connectionStatus": "Bağlantı Durumu",

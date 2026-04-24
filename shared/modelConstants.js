@@ -95,6 +95,28 @@ export const QWEN_MODELS = {
 };
 
 /**
+ * OpenCode Models
+ *
+ * OpenCode is multi-provider, so the picker is really "which upstream
+ * model does opencode talk to?". The defaults here point at OpenCode Zen
+ * (their curated routing tier) plus a few direct picks the docs call
+ * out as well-supported. Advanced users override via opencode.json's
+ * `provider` / `model` block, which bypasses this list.
+ */
+export const OPENCODE_MODELS = {
+  OPTIONS: [
+    { value: "opencode/zen-best", label: "OpenCode Zen (Best)" },
+    { value: "opencode/zen-fast", label: "OpenCode Zen (Fast)" },
+    { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Anthropic)" },
+    { value: "anthropic/claude-opus-4-6", label: "Claude Opus 4.6 (Anthropic)" },
+    { value: "openai/gpt-5.4", label: "GPT-5.4 (OpenAI)" },
+    { value: "google/gemini-3-pro-preview", label: "Gemini 3 Pro (Google)" },
+  ],
+
+  DEFAULT: "opencode/zen-best",
+};
+
+/**
  * Gemini Models
  */
 export const GEMINI_MODELS = {

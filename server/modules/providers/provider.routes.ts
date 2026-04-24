@@ -29,6 +29,7 @@ import {
   GEMINI_MODELS,
   QWEN_MODELS,
   CURSOR_MODELS,
+  OPENCODE_MODELS,
 } from '../../../shared/modelConstants.js';
 
 const STATIC_MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ value: string; label: string }>> = {
@@ -37,6 +38,7 @@ const STATIC_MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ value: string; labe
   cursor: CURSOR_MODELS.OPTIONS,
   gemini: GEMINI_MODELS.OPTIONS,
   qwen: QWEN_MODELS.OPTIONS,
+  opencode: OPENCODE_MODELS.OPTIONS,
 };
 import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
@@ -68,6 +70,7 @@ const PROVIDER_INSTALL_PACKAGES: Record<LLMProvider, string | null> = {
   codex: '@openai/codex',
   gemini: '@google/gemini-cli',
   qwen: '@qwen-code/qwen-code',
+  opencode: 'opencode-ai',
   // Cursor ships via a bash script hosted at cursor.com; safer to ask
   // users to run it themselves than to pipe-to-bash from our server.
   cursor: null,
@@ -78,6 +81,7 @@ const PROVIDER_INSTALL_COMMANDS: Record<LLMProvider, string | null> = {
   codex: 'npm install -g @openai/codex',
   gemini: 'npm install -g @google/gemini-cli',
   qwen: 'npm install -g @qwen-code/qwen-code',
+  opencode: 'npm install -g opencode-ai',
   cursor: null,
 };
 

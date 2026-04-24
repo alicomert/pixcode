@@ -35,6 +35,10 @@ const getProviderCommand = (provider: LLMProvider, customCommand?: string) => {
   // Users then type `qwen auth qwen-oauth` or `qwen auth coding-plan`
   // themselves, which opens the auth flow only on demand.
   if (provider === 'qwen') return 'qwen auth';
+  // OpenCode's `auth login` is a proper subcommand (not a TUI flag like
+  // Gemini's `/auth`), so no TUI-in-TUI fight. Picks up the browser /
+  // device-code flow for the upstream provider the user chose.
+  if (provider === 'opencode') return 'opencode auth login';
   return 'gemini'; // Gemini opens its own /auth panel
 };
 
@@ -91,6 +95,15 @@ const PROVIDER_KEY_META: Record<
     keyConsoleUrl: 'https://github.com/QwenLM/qwen-code',
     keyConsoleLabel: 'Qwen Code Docs',
     notes: 'Accepts any OpenAI-compatible endpoint — Alibaba Cloud, ModelScope, OpenRouter, self-hosted, etc.',
+  },
+  opencode: {
+    keyLabel: 'Anthropic API Key (default backend)',
+    keyExample: 'sk-ant-...',
+    supportsBaseUrl: true,
+    baseUrlExample: 'https://api.anthropic.com',
+    keyConsoleUrl: 'https://console.anthropic.com/settings/keys',
+    keyConsoleLabel: 'Anthropic Console',
+    notes: 'OpenCode is multi-provider — this sets the Anthropic credentials. Switch providers via `opencode auth login` or opencode.json.',
   },
 };
 

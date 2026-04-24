@@ -108,6 +108,30 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       description: 'Environment variables (DASHSCOPE_API_KEY, OPENAI_API_KEY for OpenAI-compatible routes, …).',
     },
   ],
+  opencode: [
+    {
+      id: 'config',
+      label: 'opencode.json',
+      relativePath: '.config/opencode/opencode.json',
+      format: 'json',
+      description: 'Main OpenCode config — provider, model, MCP servers, permission rules, agents.',
+    },
+    {
+      id: 'tui',
+      label: 'tui.json',
+      relativePath: '.config/opencode/tui.json',
+      format: 'json',
+      description: 'Terminal UI preferences (theme, keybinds). Separate from the main config since 2026-02.',
+    },
+    {
+      id: 'auth',
+      label: 'auth.json',
+      relativePath: '.local/share/opencode/auth.json',
+      format: 'json',
+      readonly: true,
+      description: 'Provider credentials managed by `opencode auth login`. Read-only here; editing would corrupt stored OAuth tokens.',
+    },
+  ],
 };
 
 export const SUPPORTED_CONFIG_PROVIDERS = Object.keys(PROVIDER_CONFIG_FILES);
