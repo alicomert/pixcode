@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { useServerPlatform } from '../../../../../hooks/useServerPlatform';
 import type { AgentCategory, AgentProvider } from '../../../types/types';
 
 import type { AgentContext, AgentsSettingsTabProps } from './types';
@@ -20,26 +19,22 @@ export default function AgentsSettingsTab({
   onCodexPermissionModeChange,
   geminiPermissionMode,
   onGeminiPermissionModeChange,
+  qwenPermissionMode,
+  onQwenPermissionModeChange,
   projects,
 }: AgentsSettingsTabProps) {
   const [selectedAgent, setSelectedAgent] = useState<AgentProvider>('claude');
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
-  const { isWindowsServer } = useServerPlatform();
 
-  const visibleAgents = useMemo<AgentProvider[]>(() => {
-    const all: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'qwen'];
-    if (isWindowsServer) {
-      return all.filter((id) => id !== 'cursor');
-    }
-
-    return all;
-  }, [isWindowsServer]);
-
-  useEffect(() => {
-    if (isWindowsServer && selectedAgent === 'cursor') {
-      setSelectedAgent('claude');
-    }
-  }, [isWindowsServer, selectedAgent]);
+  // Previously we filtered Cursor out on Windows because the upstream
+  // install command is `curl | bash`. Cursor now ships a cross-platform
+  // cursor-agent binary (Git Bash / WSL / native), and users asked for
+  // the card back so they can manage its permissions and auth status.
+  // The auth-status probe handles the "not installed" case gracefully.
+  const visibleAgents = useMemo<AgentProvider[]>(
+    () => ['claude', 'cursor', 'codex', 'gemini', 'qwen'],
+    [],
+  );
 
   const agentContextById = useMemo<Record<AgentProvider, AgentContext>>(() => ({
     claude: {
@@ -99,6 +94,8 @@ export default function AgentsSettingsTab({
           onCodexPermissionModeChange={onCodexPermissionModeChange}
           geminiPermissionMode={geminiPermissionMode}
           onGeminiPermissionModeChange={onGeminiPermissionModeChange}
+          qwenPermissionMode={qwenPermissionMode}
+          onQwenPermissionModeChange={onQwenPermissionModeChange}
           projects={projects}
         />
       </div>

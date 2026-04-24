@@ -176,17 +176,19 @@ export function useSidebarController({
       }
     };
 
-    window.addEventListener('storage', handleStorageChange);
+    // Same-tab changes (user edits settings inside this window) don't
+    // trigger the native `storage` event — useSettingsController now
+    // broadcasts 'pixcode:settings-changed' on save. Subscribing to it
+    // replaces the previous 1s polling loop that was causing noticeable
+    // UI stutter on weaker hardware.
+    const handleSettingsChanged = () => loadSortOrder();
 
-    const interval = setInterval(() => {
-      if (document.hasFocus()) {
-        loadSortOrder();
-      }
-    }, 1000);
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('pixcode:settings-changed', handleSettingsChanged);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
+      window.removeEventListener('pixcode:settings-changed', handleSettingsChanged);
     };
   }, []);
 

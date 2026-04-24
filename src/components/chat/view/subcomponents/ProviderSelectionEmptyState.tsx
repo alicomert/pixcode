@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Download, Loader2, Lock, RefreshCw, X } from "@/lib/icons";
 import { useTranslation } from "react-i18next";
 
-import { useServerPlatform } from "../../../../hooks/useServerPlatform";
 import { useProviderModels } from "../../../../hooks/useProviderModels";
 import { useProviderAuthStatus } from "../../../provider-auth/hooks/useProviderAuthStatus";
 import { PROVIDER_INSTALL_COMMANDS } from "../../../provider-auth/types";
@@ -99,7 +98,6 @@ export default function ProviderSelectionEmptyState({
   setInput,
 }: ProviderSelectionEmptyStateProps) {
   const { t } = useTranslation("chat");
-  const { isWindowsServer } = useServerPlatform();
   const { providerAuthStatus, refreshProviderAuthStatuses } = useProviderAuthStatus();
 
   // Install-dialog state per provider. Clicking a locked card opens the
@@ -107,19 +105,12 @@ export default function ProviderSelectionEmptyState({
   // user already said which CLI they want by tapping the card.
   const [installerFor, setInstallerFor] = useState<LLMProvider | null>(null);
 
-  // Cursor has no cross-platform CLI on Windows servers — hide the card
-  // there so users don't try to select something they can't run.
-  const visibleCards = useMemo(
-    () => (isWindowsServer ? PROVIDER_CARDS.filter((p) => p.id !== "cursor") : PROVIDER_CARDS),
-    [isWindowsServer],
-  );
-
-  useEffect(() => {
-    if (isWindowsServer && provider === "cursor") {
-      setProvider("claude");
-      localStorage.setItem("selected-provider", "claude");
-    }
-  }, [isWindowsServer, provider, setProvider]);
+  // All providers are surfaced on every platform. Cursor used to be
+  // hidden on Windows because its installer is `curl | bash`, but the
+  // cursor-agent binary itself runs on Windows once installed (via Git
+  // Bash / WSL / manual download), and users want to see its status /
+  // permissions regardless of whether the auto-installer can reach it.
+  const visibleCards = PROVIDER_CARDS;
 
   // Pull install status for every provider ONLY when we're actually
   // about to render the picker (no session selected). Gating on the

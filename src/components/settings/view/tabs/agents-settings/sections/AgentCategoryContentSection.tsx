@@ -16,6 +16,10 @@ export default function AgentCategoryContentSection({
   onCursorPermissionsChange,
   codexPermissionMode,
   onCodexPermissionModeChange,
+  geminiPermissionMode,
+  onGeminiPermissionModeChange,
+  qwenPermissionMode,
+  onQwenPermissionModeChange,
   projects,
 }: AgentCategoryContentSectionProps) {
   return (
@@ -74,38 +78,26 @@ export default function AgentCategoryContentSection({
       )}
 
       {/*
-        Gemini + Qwen Code route permission decisions through their CLI
-        (the in-TUI /permissions screen and the --approval-mode flag) — we
-        don't own that state, so rather than show a blank tab we link users
-        out to the CLI command.
+        Gemini and Qwen Code share the `default / auto_edit / yolo`
+        approval-mode vocabulary. Pixcode persists the chosen mode in
+        localStorage and passes it to every chat message via the composer
+        footer's `permissionMode` field, so the CLI's /permissions screen
+        is no longer the only way to configure this.
       */}
-      {selectedCategory === 'permissions' && (selectedAgent === 'gemini' || selectedAgent === 'qwen') && (
-        <div className="mx-auto max-w-lg space-y-3 py-6 text-sm text-muted-foreground">
-          <div className="text-base font-medium text-foreground">
-            {selectedAgent === 'qwen' ? 'Qwen Code' : 'Gemini'} permissions are managed by the CLI
-          </div>
-          <p>
-            Approval mode and tool allow-lists for {selectedAgent === 'qwen' ? 'Qwen Code' : 'Gemini'} live inside the CLI itself.
-          </p>
-          <div className="rounded-md border border-border/60 bg-muted/40 p-3">
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Inside the CLI
-            </div>
-            <code className="block font-mono text-sm text-foreground">/permissions</code>
-          </div>
-          <div className="rounded-md border border-border/60 bg-muted/40 p-3">
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Via flags (per-session)
-            </div>
-            <code className="block font-mono text-sm text-foreground">
-              {selectedAgent === 'qwen' ? 'qwen' : 'gemini'} --approval-mode auto-edit|plan|yolo
-            </code>
-          </div>
-          <p className="text-xs">
-            Pixcode passes <code className="rounded bg-muted px-1 font-mono">permissionMode</code> from the composer footer
-            to every chat message, so you can toggle per-session without opening the CLI.
-          </p>
-        </div>
+      {selectedCategory === 'permissions' && selectedAgent === 'gemini' && (
+        <PermissionsContent
+          agent="gemini"
+          permissionMode={geminiPermissionMode}
+          onPermissionModeChange={onGeminiPermissionModeChange}
+        />
+      )}
+
+      {selectedCategory === 'permissions' && selectedAgent === 'qwen' && (
+        <PermissionsContent
+          agent="qwen"
+          permissionMode={qwenPermissionMode}
+          onPermissionModeChange={onQwenPermissionModeChange}
+        />
       )}
 
       {selectedCategory === 'mcp' && (

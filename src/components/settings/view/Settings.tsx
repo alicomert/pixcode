@@ -39,6 +39,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     checkProviderAuthStatus,
     geminiPermissionMode,
     setGeminiPermissionMode,
+    qwenPermissionMode,
+    setQwenPermissionMode,
     openLoginForProvider,
     showLoginModal,
     setShowLoginModal,
@@ -137,6 +139,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   onCodexPermissionModeChange={setCodexPermissionMode}
                   geminiPermissionMode={geminiPermissionMode}
                   onGeminiPermissionModeChange={setGeminiPermissionMode}
+                  qwenPermissionMode={qwenPermissionMode}
+                  onQwenPermissionModeChange={setQwenPermissionMode}
                   projects={projects}
                 />
               )}

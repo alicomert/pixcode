@@ -20,6 +20,7 @@ export default function FolderBrowserModal({
 }: FolderBrowserModalProps) {
   const [currentPath, setCurrentPath] = useState('~');
   const [rootPath, setRootPath] = useState<string>('~');
+  const [pathInput, setPathInput] = useState('~');
   const [folders, setFolders] = useState<FolderSuggestion[]>([]);
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [showHiddenFolders, setShowHiddenFolders] = useState(false);
@@ -35,6 +36,7 @@ export default function FolderBrowserModal({
     try {
       const result = await browseFilesystemFolders(pathToLoad);
       setCurrentPath(result.path);
+      setPathInput(result.path);
       setRootPath(result.rootPath);
       setFolders(result.suggestions);
     } catch (loadError) {
@@ -231,9 +233,25 @@ export default function FolderBrowserModal({
         <div className="border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 bg-gray-50 px-4 py-3 dark:bg-gray-900/50">
             <span className="text-sm text-gray-600 dark:text-gray-400">Path:</span>
-            <code className="flex-1 truncate font-mono text-sm text-gray-900 dark:text-white">
-              {currentPath}
-            </code>
+            <Input
+              type="text"
+              value={pathInput}
+              onChange={(event) => setPathInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  const trimmed = pathInput.trim();
+                  if (trimmed) {
+                    loadFolders(trimmed);
+                  }
+                }
+                if (event.key === 'Escape') {
+                  setPathInput(currentPath);
+                }
+              }}
+              placeholder="Type a path (e.g. D:\\Projects) and press Enter"
+              className="flex-1 font-mono text-sm"
+            />
           </div>
           <div className="flex items-center justify-end gap-2 p-4">
             <Button variant="outline" onClick={handleClose}>

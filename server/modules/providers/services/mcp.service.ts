@@ -1,17 +1,6 @@
-import os from 'node:os';
-
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type { LLMProvider, McpScope, ProviderMcpServer, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
-
-/** Cursor MCP is not supported on Windows hosts (no Cursor CLI integration). */
-function includeProviderInGlobalMcp(providerId: LLMProvider): boolean {
-  if (providerId === 'cursor' && os.platform() === 'win32') {
-    return false;
-  }
-
-  return true;
-}
 
 
 export const providerMcpService = {
@@ -75,7 +64,10 @@ export const providerMcpService = {
 
     const scope = input.scope ?? 'project';
     const results: Array<{ provider: LLMProvider; created: boolean; error?: string }> = [];
-    const providers = providerRegistry.listProviders().filter((p) => includeProviderInGlobalMcp(p.id));
+    // Cursor's Windows filter used to live here too; it's been removed so
+    // global-MCP writes hit every registered provider uniformly. The UI
+    // shows cursor on Windows now — the backend has to match.
+    const providers = providerRegistry.listProviders();
     for (const provider of providers) {
       try {
         await provider.mcp.upsertServer({ ...input, scope });

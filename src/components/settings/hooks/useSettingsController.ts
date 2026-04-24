@@ -15,6 +15,7 @@ import type {
   GeminiPermissionMode,
   NotificationPreferencesState,
   ProjectSortOrder,
+  QwenPermissionMode,
   SettingsMainTab,
 } from '../types/types';
 
@@ -137,6 +138,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   ));
   const [codexPermissionMode, setCodexPermissionMode] = useState<CodexPermissionMode>('default');
   const [geminiPermissionMode, setGeminiPermissionMode] = useState<GeminiPermissionMode>('default');
+  const [qwenPermissionMode, setQwenPermissionMode] = useState<QwenPermissionMode>('default');
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
@@ -180,6 +182,12 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         {},
       );
       setGeminiPermissionMode(savedGeminiSettings.permissionMode || 'default');
+
+      const savedQwenSettings = parseJson<{ permissionMode?: QwenPermissionMode }>(
+        localStorage.getItem('qwen-settings'),
+        {},
+      );
+      setQwenPermissionMode(savedQwenSettings.permissionMode || 'default');
 
       try {
         const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences');
@@ -251,6 +259,17 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         lastUpdated: now,
       }));
 
+      localStorage.setItem('qwen-settings', JSON.stringify({
+        permissionMode: qwenPermissionMode,
+        lastUpdated: now,
+      }));
+
+      // Notify same-tab listeners — the browser's `storage` event only
+      // fires in OTHER tabs, so the sidebar previously polled every
+      // second to catch sort-order changes. A broadcast here lets the
+      // sidebar subscribe instead (see useSidebarController).
+      window.dispatchEvent(new CustomEvent('pixcode:settings-changed'));
+
       const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences', {
         method: 'PUT',
         body: JSON.stringify(notificationPreferences),
@@ -274,6 +293,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     cursorPermissions.skipPermissions,
     notificationPreferences,
     geminiPermissionMode,
+    qwenPermissionMode,
     projectSortOrder,
   ]);
 
@@ -380,6 +400,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     checkProviderAuthStatus,
     geminiPermissionMode,
     setGeminiPermissionMode,
+    qwenPermissionMode,
+    setQwenPermissionMode,
     openLoginForProvider,
     showLoginModal,
     setShowLoginModal,

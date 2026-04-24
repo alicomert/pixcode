@@ -191,33 +191,25 @@ export async function validateWorkspacePath(requestedPath) {
       }
     }
 
-    // Resolve the workspace root to its real path
-    const resolvedWorkspaceRoot = await realpathOrResolved(WORKSPACES_ROOT);
-
-    // Ensure the resolved path is contained within the allowed workspace root
-    if (!isPathWithin(resolvedWorkspaceRoot, realPath)) {
-      return {
-        valid: false,
-        error: `Workspace path must be within the allowed workspace root: ${WORKSPACES_ROOT}. For new projects, use ${WORKSPACES_BASE}`
-      };
-    }
-
-    // Additional symlink check for existing paths
+    // Symlink safety: if the chosen path is a symlink, make sure its
+    // target doesn't dive into a forbidden system directory. The plain
+    // FORBIDDEN_PATHS check above only sees the link path itself.
     try {
       await fs.access(absolutePath);
       const stats = await fs.lstat(absolutePath);
 
       if (stats.isSymbolicLink()) {
-        // Verify symlink target is also within allowed root
         const linkTarget = await fs.readlink(absolutePath);
         const resolvedTarget = path.resolve(path.dirname(absolutePath), linkTarget);
-        const realTarget = await fs.realpath(resolvedTarget);
+        const realTarget = path.normalize(await fs.realpath(resolvedTarget));
 
-        if (!isPathWithin(resolvedWorkspaceRoot, realTarget)) {
-          return {
-            valid: false,
-            error: 'Symlink target is outside the allowed workspace root'
-          };
+        for (const forbidden of FORBIDDEN_PATHS) {
+          if (realTarget === forbidden || realTarget.startsWith(forbidden + path.sep)) {
+            return {
+              valid: false,
+              error: `Symlink target resolves into a system directory: ${forbidden}`
+            };
+          }
         }
       }
     } catch (error) {

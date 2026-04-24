@@ -108,8 +108,18 @@ export const useVersionCheck = (owner: string, repo: string) => {
     };
 
     checkVersion();
-    const interval = setInterval(checkVersion, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    // Re-check every 30 minutes rather than 5 — the GitHub API is rate
+    // limited and a new release is a once-per-release event, not
+    // something worth polling aggressively. We also re-check on window
+    // focus so returning to the tab after a long absence picks up a
+    // shipped update immediately.
+    const interval = setInterval(checkVersion, 30 * 60 * 1000);
+    const onFocus = () => { checkVersion(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [owner, repo, currentVersion]);
 
   return { updateAvailable, latestVersion, currentVersion, releaseInfo, installMode };

@@ -45,8 +45,12 @@ export default function ClaudeStatus({
 }: ClaudeStatusProps) {
   const { t } = useTranslation('chat');
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [dots, setDots] = useState('');
 
+  // Elapsed time ticks once a second while processing. The previous
+  // implementation also fired a 500ms interval just to animate "..."
+  // dots — that cost two extra re-renders/sec per active chat. The dots
+  // are now a pure CSS animation (see the `animate-chat-dots` span
+  // below), so we only need one timer here.
   useEffect(() => {
     if (!isLoading) {
       setElapsedTime(0);
@@ -56,14 +60,8 @@ export default function ClaudeStatus({
     const timer = setInterval(() => {
       setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
-    const dotTimer = setInterval(() => {
-      setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
-    }, 500);
 
-    return () => {
-      clearInterval(timer);
-      clearInterval(dotTimer);
-    };
+    return () => clearInterval(timer);
   }, [isLoading]);
 
   if (!isLoading && !status) return null;
@@ -93,7 +91,13 @@ export default function ClaudeStatus({
             <div className="flex items-center gap-1.5">
               <span className={cn("h-1.5 w-1.5 rounded-full", isLoading ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
               <p className="truncate text-xs font-medium text-foreground">
-                {statusText}<span className="inline-block w-4 text-primary">{isLoading ? dots : ''}</span>
+                {statusText}
+                {isLoading && (
+                  <span
+                    aria-hidden="true"
+                    className="ml-0.5 inline-block w-4 text-primary tabular-nums before:inline-block before:content-['...'] before:animate-chat-dots before:overflow-hidden before:align-bottom"
+                  />
+                )}
               </p>
             </div>
           </div>

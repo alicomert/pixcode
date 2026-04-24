@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertCircle, Check, Clipboard, Lock, RefreshCw } from '@/lib/icons';
 import SessionProviderLogo from '@/components/llm-logo-provider/SessionProviderLogo';
 import { PROVIDER_DISPLAY_NAMES } from '@/components/provider-auth/types';
+import { useTheme } from '@/contexts/ThemeContext';
 import { authenticatedFetch } from '@/utils/api';
 import { copyTextToClipboard } from '@/utils/clipboard';
 
@@ -41,7 +42,6 @@ type ConfigFileDetailResponse = {
 
 type ConfigContentProps = {
   agent: AgentProvider;
-  isDarkMode?: boolean;
 };
 
 /**
@@ -52,8 +52,13 @@ type ConfigContentProps = {
  * CodeMirror editor for the currently-selected file. Files that don't
  * exist yet still open as an empty editor — saving creates them.
  */
-export default function ConfigContent({ agent, isDarkMode = false }: ConfigContentProps) {
+export default function ConfigContent({ agent }: ConfigContentProps) {
   const { t } = useTranslation('settings');
+  // Pulling the theme here (instead of receiving it as a prop) means
+  // the CodeMirror editor actually follows dark mode — previously the
+  // parent never forwarded the flag, so the editor stayed light on a
+  // dark background and looked broken.
+  const { isDarkMode } = useTheme();
 
   const [files, setFiles] = useState<ConfigFileSummary[]>([]);
   const [listError, setListError] = useState<string | null>(null);

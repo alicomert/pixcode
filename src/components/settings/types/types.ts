@@ -9,6 +9,10 @@ export type ProjectSortOrder = 'name' | 'date';
 export type SaveStatus = 'success' | 'error' | null;
 export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
 export type GeminiPermissionMode = 'default' | 'auto_edit' | 'yolo';
+// Qwen Code shares Gemini's approval-mode vocabulary (same fork lineage)
+// — keeping the types separate keeps the persisted settings independent
+// and lets the two providers diverge later without a breaking migration.
+export type QwenPermissionMode = 'default' | 'auto_edit' | 'yolo';
 
 export type SettingsProject = {
   name: string;

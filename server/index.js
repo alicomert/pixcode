@@ -114,7 +114,14 @@ const WATCHER_IGNORED_PATTERNS = [
     '**/*.swp',
     '**/.DS_Store'
 ];
-const WATCHER_DEBOUNCE_MS = 300;
+// Debounce chokidar events before rescanning all provider project trees.
+// During an active chat, each model writes its transcript to
+// ~/.<provider>/projects/<encoded>/*.jsonl in small chunks — with a 300ms
+// window every few chunks triggered a full getProjects() + broadcast to
+// every open tab, which shows up as mouse/UI stutter. 1500ms collapses
+// a full chat reply into ~1 scan while still feeling responsive when
+// the user flips to the projects list.
+const WATCHER_DEBOUNCE_MS = 1500;
 let projectsWatchers = [];
 let projectsWatcherDebounceTimer = null;
 const connectedClients = new Set();
@@ -211,8 +218,14 @@ async function setupProjectsWatcher() {
                 followSymlinks: false,
                 depth: 10, // Reasonable depth limit
                 awaitWriteFinish: {
-                    stabilityThreshold: 100, // Wait 100ms for file to stabilize
-                    pollInterval: 50
+                    // Raised from (100, 50) to (500, 250). The old settings
+                    // had chokidar polling every 50ms per in-flight file; an
+                    // active chat writes its .jsonl transcript continuously,
+                    // so 50ms polls meant ~20 wakeups/sec per file. The new
+                    // cadence still stabilizes reliably and cuts the wakeup
+                    // count by 5x.
+                    stabilityThreshold: 500,
+                    pollInterval: 250
                 }
             });
 
@@ -797,6 +810,21 @@ const expandWorkspacePath = (inputPath) => {
     return normalizeWorkspacePath(inputPath);
 };
 
+// Filesystem browser uses a home-centric expansion rather than the
+// WORKSPACES_BASE-centric one above. The workspace-base treatment of `~`
+// is right for NEW project creation (users say "my-app" and get it under
+// ~/pixcode/projects/my-app) but wrong for browsing — users want to pick
+// any folder on their disk, not be trapped inside the default base.
+const expandBrowsePath = (inputPath) => {
+    if (!inputPath) return os.homedir();
+    const trimmed = String(inputPath).trim();
+    if (!trimmed || trimmed === '~') return os.homedir();
+    if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
+        return path.join(os.homedir(), trimmed.slice(2));
+    }
+    return path.resolve(trimmed);
+};
+
 // Browse filesystem endpoint for project suggestions - uses existing getFileTree
 app.get('/api/browse-filesystem', authenticateToken, async (req, res) => {
     try {
@@ -805,9 +833,11 @@ app.get('/api/browse-filesystem', authenticateToken, async (req, res) => {
         console.log('[API] Browse filesystem request for path:', dirPath);
         console.log('[API] WORKSPACES_ROOT is:', WORKSPACES_ROOT);
         console.log('[API] WORKSPACES_BASE is:', WORKSPACES_BASE);
-        // Default to home directory if no path provided
-        const defaultRoot = WORKSPACES_BASE;
-        let targetPath = dirPath ? expandWorkspacePath(dirPath) : defaultRoot;
+        // Default to the user's home directory so the picker feels natural
+        // — users can reach arbitrary drives/folders from there. The
+        // ~/pixcode/projects shortcut stays available as a suggestion.
+        const defaultRoot = os.homedir();
+        let targetPath = dirPath ? expandBrowsePath(dirPath) : defaultRoot;
 
         // Security check - ensure path is within allowed workspace root
         let validation = await validateWorkspacePath(targetPath);
@@ -1645,36 +1675,31 @@ function handleChatConnection(ws, request) {
         try {
             const data = JSON.parse(message);
 
-            if (data.type === 'claude-command') {
-                console.log('[DEBUG] User message:', data.command || '[Continue/Resume]');
-                console.log('📁 Project:', data.options?.projectPath || 'Unknown');
-                console.log('🔄 Session:', data.options?.sessionId ? 'Resume' : 'New');
+            // Per-submission logs removed from hot paths — gate behind
+            // CHAT_DEBUG so production stdout stays clean. Each keypress
+            // that triggers a submit was costing 4 synchronous writes.
+            const chatDebug = process.env.CHAT_DEBUG
+                ? (provider, d) => console.log(`[${provider}]`,
+                    d.command?.slice(0, 60) || '[resume]',
+                    d.options?.projectPath || d.options?.cwd || '',
+                    d.options?.sessionId ? 'resume' : 'new')
+                : () => {};
 
+            if (data.type === 'claude-command') {
+                chatDebug('claude', data);
                 // Use Claude Agents SDK
                 await queryClaudeSDK(data.command, data.options, writer);
             } else if (data.type === 'cursor-command') {
-                console.log('[DEBUG] Cursor message:', data.command || '[Continue/Resume]');
-                console.log('📁 Project:', data.options?.cwd || 'Unknown');
-                console.log('🔄 Session:', data.options?.sessionId ? 'Resume' : 'New');
-                console.log('🤖 Model:', data.options?.model || 'default');
+                chatDebug('cursor', data);
                 await spawnCursor(data.command, data.options, writer);
             } else if (data.type === 'codex-command') {
-                console.log('[DEBUG] Codex message:', data.command || '[Continue/Resume]');
-                console.log('📁 Project:', data.options?.projectPath || data.options?.cwd || 'Unknown');
-                console.log('🔄 Session:', data.options?.sessionId ? 'Resume' : 'New');
-                console.log('🤖 Model:', data.options?.model || 'default');
+                chatDebug('codex', data);
                 await queryCodex(data.command, data.options, writer);
             } else if (data.type === 'gemini-command') {
-                console.log('[DEBUG] Gemini message:', data.command || '[Continue/Resume]');
-                console.log('📁 Project:', data.options?.projectPath || data.options?.cwd || 'Unknown');
-                console.log('🔄 Session:', data.options?.sessionId ? 'Resume' : 'New');
-                console.log('🤖 Model:', data.options?.model || 'default');
+                chatDebug('gemini', data);
                 await spawnGemini(data.command, data.options, writer);
             } else if (data.type === 'qwen-command') {
-                console.log('[DEBUG] Qwen Code message:', data.command || '[Continue/Resume]');
-                console.log('📁 Project:', data.options?.projectPath || data.options?.cwd || 'Unknown');
-                console.log('🔄 Session:', data.options?.sessionId ? 'Resume' : 'New');
-                console.log('🤖 Model:', data.options?.model || 'default');
+                chatDebug('qwen', data);
                 await spawnQwen(data.command, data.options, writer);
             } else if (data.type === 'cursor-resume') {
                 // Backward compatibility: treat as cursor-command with resume and no prompt
@@ -1801,10 +1826,23 @@ function handleShellConnection(ws) {
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
-            console.log('📨 Shell message received:', data.type);
+            // Per-message log would fire once per keystroke — gate behind
+            // SHELL_DEBUG so stdout isn't flooded during normal typing.
+            if (process.env.SHELL_DEBUG) {
+                console.log('[shell]', data.type);
+            }
 
             if (data.type === 'init') {
-                const projectPath = data.projectPath || process.cwd();
+                // Fallback to the user's home directory (not process.cwd()).
+                // In the Electron wrapper, process.cwd() is the runtime dir
+                // under %APPDATA%\pixcode-desktop\pixcode-runtime — spawning a
+                // login terminal there shows the user a confusing path and
+                // sometimes trips up CLIs that expect a "normal" location
+                // (e.g. codex login exited 1 because the runtime dir is
+                // read-only-feeling / non-writable for cache paths). home
+                // is writable, has a git-friendly cwd, and matches where
+                // every provider already stores its config (~/.codex etc.).
+                const projectPath = data.projectPath || os.homedir();
                 const sessionId = data.sessionId;
                 const hasSession = data.hasSession;
                 const provider = data.provider || 'claude';
@@ -1813,10 +1851,17 @@ function handleShellConnection(ws) {
                 urlDetectionBuffer = '';
                 announcedAuthUrls.clear();
 
-                // Login commands (Claude/Cursor auth) should never reuse cached sessions
+                // Login commands should never reuse cached sessions — each login
+                // is a fresh OAuth handshake with a new callback URL. Missing
+                // entries here used to cause "Process exited with code 1" on
+                // the second login attempt because the cached PTY from the
+                // first attempt was still alive and the CLI refused to
+                // re-bind its localhost callback port.
                 const isLoginCommand = initialCommand && (
                     initialCommand.includes('setup-token') ||
                     initialCommand.includes('cursor-agent login') ||
+                    initialCommand.includes('codex login') ||
+                    initialCommand.includes('qwen auth') ||
                     initialCommand.includes('auth login')
                 );
 
