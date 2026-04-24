@@ -58,8 +58,10 @@ nsis:
   shortcutName: Pixcode
   runAfterFinish: true
   deleteAppDataOnUninstall: false
-  installerIcon: build-resources/icon.png
-  uninstallerIcon: build-resources/icon.png
+  # installerIcon / uninstallerIcon need a real `.ico` file (multi-size
+  # Windows icon resource). Omitting lets electron-builder derive a
+  # decent default from `win.icon` — we can reintroduce these lines
+  # once we ship a dedicated icon.ico in build-resources/.
 
 # ---------------------------------------------------------------------------
 # macOS — universal DMG (arm64 + x64).
