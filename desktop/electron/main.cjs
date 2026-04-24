@@ -214,6 +214,27 @@ function startServer(runtimeDir) {
     return;
   }
 
+  // npm hoists the pixcode package's deps (ws, express, better-sqlite3, …)
+  // up to the desktop wrapper's own node_modules/. When we seed the writable
+  // runtime dir from ASAR we only copy the pixcode *package* files, not its
+  // deps — so the forked server needs NODE_PATH to point back at the bundled
+  // node_modules or every `import 'ws'` fails with ERR_MODULE_NOT_FOUND.
+  //
+  // Safe because the bundled tree is ASAR-unpacked (real files on disk) and
+  // read-only — deps never drift between updates of the pixcode product
+  // files in userData. If a future pixcode release adds a new dep, the
+  // wrapper installer has to be re-downloaded anyway (electron-updater
+  // handles that case separately).
+  const bundledRoot = resolveBundledPixcodeRoot();
+  const bundledNodeModules = bundledRoot
+    ? path.resolve(bundledRoot, '..', '..')
+    : null;
+  const pathSep = process.platform === 'win32' ? ';' : ':';
+  const existingNodePath = process.env.NODE_PATH || '';
+  const nodePath = bundledNodeModules
+    ? (existingNodePath ? `${bundledNodeModules}${pathSep}${existingNodePath}` : bundledNodeModules)
+    : existingNodePath;
+
   serverProcess = fork(entry, ['start', '--no-daemon'], {
     cwd: runtimeDir,
     env: {
@@ -223,6 +244,7 @@ function startServer(runtimeDir) {
       SERVER_PORT: String(SERVER_PORT),
       HOST: '0.0.0.0',
       NODE_ENV: 'production',
+      NODE_PATH: nodePath,
     },
     silent: true,
   });
@@ -292,7 +314,35 @@ function stopServer() {
 // Embedded splash / error screens (served as data: URIs so we never ship
 // standalone html files inside the installer).
 // ---------------------------------------------------------------------------
-const SPLASH_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Pixcode</title>
+// Load the Pixcode logo from the real brand mark at runtime. build-resources
+// ships with both icon.png (installer icon) and logo.svg (the SVG the rest
+// of the product uses) — we read whichever is present and emit a data: URI
+// so the splash HTML can reference it without file:// quirks on Windows.
+function loadLogoDataUri() {
+  const candidates = [
+    { ext: 'svg', mime: 'image/svg+xml', files: ['logo.svg'] },
+    { ext: 'png', mime: 'image/png', files: ['icon.png'] },
+  ];
+  for (const { mime, files } of candidates) {
+    for (const f of files) {
+      const full = path.join(__dirname, '..', 'build-resources', f);
+      if (fs.existsSync(full)) {
+        try {
+          const buf = fs.readFileSync(full);
+          return `data:${mime};base64,${buf.toString('base64')}`;
+        } catch (_) { /* try next */ }
+      }
+    }
+  }
+  return null;
+}
+
+function splashHtml() {
+  const logoUri = loadLogoDataUri();
+  const logoMarkup = logoUri
+    ? `<img src="${logoUri}" alt="Pixcode" />`
+    : '<span class="fallback">P</span>';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Pixcode</title>
 <style>
   :root { color-scheme: dark light; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -307,12 +357,17 @@ const SPLASH_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Pix
   }
   .wrap { text-align: center; }
   .logo {
-    width: 72px; height: 72px; margin: 0 auto 24px;
+    width: 88px; height: 88px; margin: 0 auto 24px;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 12px 40px rgba(79, 123, 255, 0.25));
+  }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
+  .logo .fallback {
+    width: 100%; height: 100%;
     display: flex; align-items: center; justify-content: center;
     background: linear-gradient(135deg, #4f7bff 0%, #8b5cf6 100%);
-    border-radius: 18px;
-    box-shadow: 0 12px 40px rgba(79, 123, 255, 0.35);
-    font-weight: 800; font-size: 38px; color: #fff;
+    border-radius: 20px;
+    font-weight: 800; font-size: 46px; color: #fff;
     letter-spacing: -0.04em;
   }
   h1 { font-size: 17px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
@@ -329,16 +384,21 @@ const SPLASH_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Pix
 </style>
 </head><body>
 <div class="wrap">
-  <div class="logo">P</div>
+  <div class="logo">${logoMarkup}</div>
   <h1>Starting Pixcode…</h1>
   <p>Setting up the local server on port ${SERVER_PORT}</p>
   <div class="spinner"></div>
 </div>
 </body></html>`;
+}
 
 function errorHtml(message, canRetry) {
   const escaped = String(message || 'Unknown error')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const logoUri = loadLogoDataUri();
+  const brandMarkup = logoUri
+    ? `<img src="${logoUri}" alt="Pixcode" class="brand" />`
+    : '<div class="brand brand-fallback">P</div>';
   return `<!doctype html><html><head><meta charset="utf-8"><title>Pixcode — Error</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -356,6 +416,17 @@ function errorHtml(message, canRetry) {
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 14px;
     padding: 32px;
+  }
+  .brand {
+    width: 36px; height: 36px; object-fit: contain;
+    margin-bottom: 22px;
+    filter: drop-shadow(0 6px 18px rgba(79, 123, 255, 0.25));
+  }
+  .brand-fallback {
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #4f7bff 0%, #8b5cf6 100%);
+    border-radius: 9px;
+    font-weight: 800; color: #fff; font-size: 20px;
   }
   .icon {
     width: 44px; height: 44px; border-radius: 10px;
@@ -388,6 +459,7 @@ function errorHtml(message, canRetry) {
 </style>
 </head><body>
 <div class="card">
+  ${brandMarkup}
   <div class="icon">!</div>
   <h1>Couldn't start Pixcode</h1>
   <p class="lede">The local server did not come up. Details below. Please copy these if you open a support ticket.</p>
@@ -401,7 +473,7 @@ function errorHtml(message, canRetry) {
 }
 
 function loadSplash(win) {
-  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(SPLASH_HTML)).catch(() => {});
+  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(splashHtml())).catch(() => {});
 }
 function loadErrorScreen(win, message) {
   win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(errorHtml(message, true))).catch(() => {});

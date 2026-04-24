@@ -23,19 +23,17 @@ files:
   - "!**/node_modules/**/{.editorconfig,.eslintrc*,.prettierrc*,.gitignore,.gitattributes}"
   - "!dist-installer/**"
 
-# ASAR packaging for the app code, but native modules need to live as real
-# files so their .node binaries are dlopen-able at runtime.
-asar: true
-asarUnpack:
-  # Native modules must live as real files so their .node binaries are
-  # dlopen-able at runtime — ASAR is a virtual FS that can't back dlopen.
-  - "node_modules/better-sqlite3/**/*"
-  - "node_modules/bcrypt/**/*"
-  - "node_modules/node-pty/**/*"
-  # The pixcode package ships as the seed for our userData runtime dir.
-  # Unpacking keeps the copy-on-first-launch step a plain fs walk rather
-  # than an asar-fs read (~10x faster and works on all platforms).
-  - "node_modules/@pixelbyte-software/pixcode/**/*"
+# We disable ASAR packaging wholesale. Reason: Pixcode's server is a
+# forked Node child (not an Electron process), and forked Node has no
+# ASAR awareness — `import 'ws'` or any hoisted dep inside app.asar is
+# simply invisible to it, which manifests as "Cannot find package 'ws'".
+#
+# asarUnpack can whitelist paths individually, but enumerating every
+# transitive dep is a maintenance trap — adding a new pixcode dep would
+# silently break the installer. Turning ASAR off is a one-line decision
+# that buys us guaranteed module resolution at the cost of a slightly
+# slower installer extract (still <30s on consumer hardware).
+asar: false
 
 # ---------------------------------------------------------------------------
 # Windows — NSIS installer, per-user so no UAC prompt.
