@@ -2485,9 +2485,21 @@ app.get(/.*/, (req, res) => {
         res.setHeader('Expires', '0');
         res.sendFile(indexPath);
     } else {
-        // In development, redirect to Vite dev server only if dist doesn't exist
-        const redirectHost = getConnectableHost(req.hostname);
-        res.redirect(`${req.protocol}://${redirectHost}:${VITE_PORT}`);
+        // No dist — typically a mid-update swap window (the runtime-dir
+        // update endpoint moves dist/ under .previous/ and back). Instead
+        // of bouncing the browser to :5173 (the Vite dev port, which
+        // production users never have running), show a graceful "updating
+        // — will reload automatically" page with a short retry. Fixes the
+        // "page suddenly redirected to 5173" bug users hit mid-update.
+        res.status(503);
+        res.setHeader('Retry-After', '2');
+        res.setHeader('Cache-Control', 'no-store');
+        res.type('html').send(
+            '<!doctype html><html><head><meta charset="utf-8"><title>Pixcode</title>'
+            + '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0d1a;color:#e8ecf7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:center;padding:40px}h2{margin:0 0 8px;font-weight:600;letter-spacing:-.01em}p{color:#9aa3bf;font-size:14px;margin:0}.s{width:24px;height:24px;border:2px solid rgba(255,255,255,.14);border-top-color:#4f7bff;border-radius:50%;animation:r .9s linear infinite;margin:20px auto 0}@keyframes r{to{transform:rotate(360deg)}}</style>'
+            + '<meta http-equiv="refresh" content="2">'
+            + '</head><body><div><h2>Pixcode is finishing an update…</h2><p>This page will reload automatically.</p><div class="s"></div></div></body></html>'
+        );
     }
 });
 

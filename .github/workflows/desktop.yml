@@ -225,6 +225,15 @@ jobs:
           fi
         shell: bash
 
+      # Make sure the DMG-embedded Gatekeeper helper is actually
+      # executable when it lands inside the .dmg. Git on Windows doesn't
+      # preserve the +x bit reliably, so we set it explicitly on the
+      # macOS runner before electron-builder copies the file into the
+      # DMG. No-op on Windows/Linux matrix branches.
+      - name: chmod +x macOS Gatekeeper helper
+        if: matrix.os == 'macos-latest'
+        run: chmod +x "build-resources/Fix Gatekeeper.command"
+
       - name: Build installer
         # `--publish never` stops electron-builder from attempting the
         # upload step itself — we attach via action-gh-release below.

@@ -78,6 +78,26 @@ mac:
 dmg:
   sign: false
   writeUpdateInfo: false
+  # Ship a Fix-Gatekeeper helper inside the DMG so users stuck on
+  # "Pixcode hasar görmüş" / "Pixcode is damaged" don't need to open
+  # Terminal manually. Double-clicking the .command in the DMG runs
+  # xattr + opens the app. Remove this block once we sign with an
+  # Apple Developer ID (notarization eliminates the Gatekeeper prompt
+  # entirely, making the helper unnecessary).
+  contents:
+    # Keep the DMG layout layout the user expects: app on the left,
+    # Applications symlink on the right, helper below them.
+    - x: 130
+      y: 200
+      type: file
+    - x: 410
+      y: 200
+      type: link
+      path: /Applications
+    - x: 270
+      y: 380
+      type: file
+      path: build-resources/Fix Gatekeeper.command
 
 # ---------------------------------------------------------------------------
 # Linux — AppImage (universal) + .deb (Debian/Ubuntu).
