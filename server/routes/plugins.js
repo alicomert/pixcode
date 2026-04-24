@@ -53,13 +53,21 @@ router.get('/:name/manifest', (req, res) => {
   }
 });
 
-// GET /:name/assets/* — Serve plugin static files
-router.get('/:name/assets/*', (req, res) => {
-  const pluginName = req.params.name;
+// GET /:name/assets/* — Serve plugin static files.
+//
+// The pattern is written as a literal RegExp rather than an Express route
+// string because path-to-regexp v8 (pulled in as a transitive dep by any
+// Express 5 beta / Router v2) rejects the `*` unnamed wildcard with
+// "Missing parameter name at index 15" and the app refuses to boot. A
+// regex sidesteps path-to-regexp entirely and works on every version of
+// Express / path-to-regexp we've tested. Capture groups land in
+// req.params[0] / [1] — same wire as the old `:name` + `*` would give us.
+router.get(/^\/([a-zA-Z0-9_-]+)\/assets\/(.+)$/, (req, res) => {
+  const pluginName = req.params[0];
   if (!/^[a-zA-Z0-9_-]+$/.test(pluginName)) {
     return res.status(400).json({ error: 'Invalid plugin name' });
   }
-  const assetPath = req.params[0];
+  const assetPath = req.params[1];
 
   if (!assetPath) {
     return res.status(400).json({ error: 'No asset path specified' });
@@ -203,10 +211,13 @@ router.post('/:name/update', async (req, res) => {
   }
 });
 
-// ALL /:name/rpc/* — Proxy requests to plugin's server subprocess
-router.all('/:name/rpc/*', async (req, res) => {
-  const pluginName = req.params.name;
-  const rpcPath = req.params[0] || '';
+// ALL /:name/rpc/* — Proxy requests to plugin's server subprocess.
+// Same path-to-regexp v8 avoidance trick as /:name/assets/* above — we
+// use a RegExp directly so the router can't invoke path-to-regexp on
+// the unnamed wildcard.
+router.all(/^\/([a-zA-Z0-9_-]+)\/rpc\/(.*)$/, async (req, res) => {
+  const pluginName = req.params[0];
+  const rpcPath = req.params[1] || '';
 
   if (!/^[a-zA-Z0-9_-]+$/.test(pluginName)) {
     return res.status(400).json({ error: 'Invalid plugin name' });

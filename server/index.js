@@ -2444,8 +2444,12 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
     }
 });
 
-// Serve React app for all other routes (excluding static files)
-app.get('*', (req, res) => {
+// Serve React app for all other routes (excluding static files).
+// Regex instead of the string '*' because path-to-regexp v8 rejects the
+// bare wildcard with "Missing parameter name at index 0". /.*/ works on
+// every version and does exactly what the old `'*'` used to do: match
+// everything that didn't hit a more specific route above.
+app.get(/.*/, (req, res) => {
     // Skip requests for static assets (files with extensions)
     if (path.extname(req.path)) {
         return res.status(404).send('Not found');
