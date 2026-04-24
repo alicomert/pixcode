@@ -74,11 +74,13 @@ jobs:
         shell: bash
 
       - name: Build installer
-        env:
-          # electron-builder treats GH_TOKEN as auto-upload intent — keep it
-          # unset so we can attach artifacts ourselves with clear naming.
-          GH_TOKEN: ""
-        run: npm run dist
+        # `--publish never` stops electron-builder from attempting the
+        # GitHub upload step itself. The `publish: github` config in
+        # electron-builder.yml is only there so electron-updater (inside
+        # the installed app) knows where to poll for future wrapper
+        # updates; we attach artifacts to the release ourselves via
+        # softprops/action-gh-release below.
+        run: npx electron-builder --publish never
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
