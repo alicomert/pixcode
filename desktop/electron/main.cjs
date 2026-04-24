@@ -69,8 +69,21 @@ app.on('second-instance', () => {
 function resolveBundledPixcodeRoot() {
   // require.resolve gives us the package.json path; its dirname is the
   // package root, which is what we need to copy recursively.
+  //
+  // Electron's ASAR shim transparently redirects READS of unpacked paths
+  // but `fs.readdirSync` inside app.asar/... returns an empty listing for
+  // anything we asarUnpack'd — so the bootstrap copy loop later would
+  // find zero entries and the runtime dir would look "seeded" but empty.
+  // When the resolved path lives under app.asar, we explicitly pivot to
+  // the .unpacked sibling so every fs call operates on the real files.
   try {
-    return path.dirname(require.resolve(`${PIXCODE_PKG}/package.json`));
+    const resolved = path.dirname(require.resolve(`${PIXCODE_PKG}/package.json`));
+    const asarFragment = `app.asar${path.sep}`;
+    if (resolved.includes(asarFragment)) {
+      const unpacked = resolved.replace(asarFragment, `app.asar.unpacked${path.sep}`);
+      if (fs.existsSync(unpacked)) return unpacked;
+    }
+    return resolved;
   } catch (err) {
     console.error('Could not resolve bundled pixcode package:', err);
     return null;
