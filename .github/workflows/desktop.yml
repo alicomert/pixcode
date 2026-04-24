@@ -230,16 +230,31 @@ jobs:
         # upload step itself — we attach via action-gh-release below.
         run: npx electron-builder --publish never
 
+      # Clean out electron-builder's diagnostic dumps before upload so
+      # they don't show up as clutter in the release "Assets" section.
+      # `builder-debug.yml` / `builder-effective-config.yaml` are written
+      # by electron-builder when certain warnings fire — useful for
+      # local debugging, noise for end-users.
+      - name: Strip debug artifacts
+        shell: bash
+        run: |
+          rm -f desktop/dist-installer/builder-debug.yml \
+                desktop/dist-installer/builder-effective-config.yaml
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: pixcode-${{ matrix.os }}
+          # latest*.yml stays — electron-updater's auto-update mechanism
+          # reads them to decide whether the installed wrapper is out
+          # of date. Without them, users wouldn't get wrapper-update
+          # prompts at all. builder-debug is not needed by anyone.
           path: |
             desktop/dist-installer/*.exe
             desktop/dist-installer/*.dmg
             desktop/dist-installer/*.AppImage
             desktop/dist-installer/*.deb
-            desktop/dist-installer/*.yml
+            desktop/dist-installer/latest*.yml
           if-no-files-found: error
 
       - name: Attach to GitHub Release
@@ -250,7 +265,7 @@ jobs:
             desktop/dist-installer/*.dmg
             desktop/dist-installer/*.AppImage
             desktop/dist-installer/*.deb
-            desktop/dist-installer/*.yml
+            desktop/dist-installer/latest*.yml
           tag_name: ${{ inputs.tag || github.ref_name }}
           fail_on_unmatched_files: false
         env:
