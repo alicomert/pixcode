@@ -146,6 +146,56 @@ function copyRecursive(src, dst) {
   }
 }
 
+/**
+ * Make sure `runtimeDir/node_modules` resolves to the bundled dependency
+ * tree so the forked server can `import 'ws'` / `'express'` / etc. We try
+ * strategies in priority order:
+ *   1. Junction (Windows) / symlink (Unix) — instant, zero disk cost.
+ *   2. Full recursive copy — ~150 MB but guaranteed to work on every
+ *      filesystem. Used when the junction attempt is rejected (NTFS junctions
+ *      on network paths, FUSE mounts without link support, restrictive
+ *      group policy, etc.).
+ *
+ * NODE_PATH was the original plan but Node's ESM loader ignores it on
+ * Windows in Electron-bundled installs — the server would still throw
+ * `Cannot find package 'ws'` after a clean install. Pointing `node_modules`
+ * directly at the bundled tree (via link or copy) keeps module resolution
+ * on the fast path the runtime already understands.
+ */
+function ensureBundledNodeModulesReachable(runtimeDir, bundledRoot) {
+  const bundledNodeModules = path.resolve(bundledRoot, '..', '..');
+  const runtimeNodeModules = path.join(runtimeDir, 'node_modules');
+
+  if (!fs.existsSync(bundledNodeModules)) {
+    throw new Error(`Bundled node_modules not found at ${bundledNodeModules}`);
+  }
+
+  // If we already have a usable node_modules (junction, real dir, or
+  // symlink) and it resolves to ws, we're done.
+  try {
+    if (fs.existsSync(path.join(runtimeNodeModules, 'ws', 'package.json'))) {
+      return;
+    }
+  } catch (_) { /* fall through to re-link */ }
+
+  // Blow away whatever's there (stale junction, half-copied dir) so we
+  // start clean. Use rmSync force:true which handles broken symlinks too.
+  try { fs.rmSync(runtimeNodeModules, { recursive: true, force: true }); }
+  catch (_) { /* ignore */ }
+
+  // Strategy 1: junction / symlink.
+  try {
+    const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+    fs.symlinkSync(bundledNodeModules, runtimeNodeModules, linkType);
+    return;
+  } catch (err) {
+    console.warn('[bootstrap] node_modules symlink failed, falling back to copy:', err?.message || err);
+  }
+
+  // Strategy 2: full copy. Slow but bulletproof.
+  copyRecursive(bundledNodeModules, runtimeNodeModules);
+}
+
 function ensureRuntimeDir() {
   const runtimeDir = path.join(app.getPath('userData'), 'pixcode-runtime');
   const bundledRoot = resolveBundledPixcodeRoot();
@@ -166,12 +216,21 @@ function ensureRuntimeDir() {
     fs.mkdirSync(runtimeDir, { recursive: true });
     for (const entry of fs.readdirSync(bundledRoot)) {
       if (entry.startsWith('.')) continue;
+      // `node_modules` is handled separately below — we link / copy the
+      // FULL bundled node_modules (including hoisted deps), not the
+      // pixcode package's nested one (which is mostly empty after npm
+      // deduped everything to the top level).
+      if (entry === 'node_modules') continue;
       const src = path.join(bundledRoot, entry);
       const dst = path.join(runtimeDir, entry);
       if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
       copyRecursive(src, dst);
     }
   }
+
+  // Always re-assert the node_modules link: the runtime version gate above
+  // doesn't cover the case where an older install had a broken setup.
+  ensureBundledNodeModulesReachable(runtimeDir, bundledRoot);
   return runtimeDir;
 }
 
