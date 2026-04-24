@@ -1,23 +1,28 @@
 /**
  * Pixcode desktop wrapper.
  *
- * Thin Electron shell that boots the Pixcode server as a background child
- * process, pins a tray icon, and opens the user's default browser at
- * http://localhost:3001. No BrowserWindow is created — the UI lives in
- * the real browser so we don't ship a second rendering engine users
- * don't need.
+ * Renders the full Pixcode UI inside an Electron `BrowserWindow` rather
+ * than shelling out to the user's default browser. The window shows an
+ * embedded loading screen while the local server boots, then swaps to
+ * `http://localhost:3001` as soon as the port is live. On boot failure
+ * we render an inline error page with a Retry button instead of a dead
+ * "Offline" screen.
  *
- * Update strategy is two-tier:
- *   1. Product updates (95%+): a writable "runtime dir" under userData
- *      holds the live pixcode package. `POST /api/system/update` (in the
- *      server, not here) downloads the latest npm tarball and atomically
- *      swaps it into that dir, then exits with code 42. We respawn from
- *      the fresh files — ~4 MB, no full installer re-download.
- *   2. Wrapper updates (rare): electron-updater polls the GitHub feed
- *      and offers a normal full-installer update when the tray/Electron
- *      version itself needs changing.
+ * Lifecycle:
+ *   - Spawns the Pixcode server as a fork() child against the copy in
+ *     userData/pixcode-runtime/ (seeded from the ASAR-unpacked bundled
+ *     package on first launch / version bump).
+ *   - Tray icon stays resident; closing the window hides-to-tray so the
+ *     server keeps running in the background (Windows "close minimizes
+ *     to tray" convention).
+ *   - "Start at Login" is opt-in from the tray menu and persists to
+ *     userData/settings.json so the choice survives restarts.
+ *
+ * Two-tier update story is unchanged: the server's /api/system/update
+ * endpoint writes into userData/pixcode-runtime/ and exits with code 42,
+ * which we catch and respawn silently.
  */
-const { app, Tray, Menu, nativeImage, shell, dialog, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog, Notification, ipcMain } = require('electron');
 const { fork } = require('node:child_process');
 const fs = require('node:fs');
 const net = require('node:net');
@@ -28,54 +33,71 @@ const SERVER_PORT = Number(process.env.SERVER_PORT) || 3001;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 const APP_ID = 'com.pixelbytesoftware.pixcode';
 const PIXCODE_PKG = '@pixelbyte-software/pixcode';
-
-// Exit code the pixcode server uses to signal "updated, please respawn".
-// Kept in sync with the convention inside server/index.js → /api/system/update.
 const RESTART_FOR_UPDATE_EXIT_CODE = 42;
+const SERVER_START_TIMEOUT_MS = 45_000;
 
+let mainWindow = null;
 let tray = null;
 let serverProcess = null;
 let serverReady = false;
 let intentionalQuit = false;
+let userRequestedClose = false;
 
-// Single-instance lock so double-clicks don't spawn rival servers.
+// ---------------------------------------------------------------------------
+// Single-instance lock — the second double-click just refocuses the window.
+// ---------------------------------------------------------------------------
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
 }
 app.setAppUserModelId(APP_ID);
 app.on('second-instance', () => {
-  shell.openExternal(SERVER_URL).catch(() => {});
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
 });
 
 // ---------------------------------------------------------------------------
-// Runtime directory — the writable copy of the pixcode npm package.
+// Settings persistence (userData/settings.json)
 // ---------------------------------------------------------------------------
-//   userData/pixcode-runtime/                   ← our writable copy
-//     package.json                              ← version source of truth
-//     dist-server/, dist/, server/, shared/, …  ← pixcode files
-//     .staging/                                 ← server extracts updates here
-//     .previous/                                ← rollback copy after swap
-//
-// On first launch we seed this dir from the bundled pixcode package that
-// electron-builder ships inside the installer (asarUnpack keeps it writable
-// on disk so the seed is a straightforward directory copy, not an asar-fs
-// read). On every launch after that we compare versions: if the bundled
-// seed is newer than the runtime (e.g. user upgraded the wrapper itself)
-// we re-seed; otherwise the runtime wins because it already has any npm
-// updates applied on top.
-// ---------------------------------------------------------------------------
+const defaultSettings = () => ({
+  startAtLogin: true,
+  minimizeToTray: true,
+  notificationsEnabled: true,
+});
 
+function settingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+function loadSettings() {
+  try {
+    const raw = fs.readFileSync(settingsPath(), 'utf8');
+    const parsed = JSON.parse(raw);
+    return { ...defaultSettings(), ...parsed };
+  } catch (_) {
+    return defaultSettings();
+  }
+}
+function saveSettings(s) {
+  try {
+    fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+    fs.writeFileSync(settingsPath(), JSON.stringify(s, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('[settings] write failed:', err?.message || err);
+  }
+}
+let settings = loadSettings();
+
+// ---------------------------------------------------------------------------
+// Runtime directory (writable copy of the pixcode npm package).
+// ---------------------------------------------------------------------------
 function resolveBundledPixcodeRoot() {
-  // require.resolve gives us the package.json path; its dirname is the
-  // package root, which is what we need to copy recursively.
-  //
-  // Electron's ASAR shim transparently redirects READS of unpacked paths
-  // but `fs.readdirSync` inside app.asar/... returns an empty listing for
-  // anything we asarUnpack'd — so the bootstrap copy loop later would
-  // find zero entries and the runtime dir would look "seeded" but empty.
-  // When the resolved path lives under app.asar, we explicitly pivot to
-  // the .unpacked sibling so every fs call operates on the real files.
+  // Electron's asar shim transparently redirects READS of unpacked paths
+  // but `fs.readdirSync(app.asar/...)` returns an empty listing for
+  // anything we asarUnpack'd. Pivot to the .unpacked sibling explicitly
+  // so every fs call operates on real files.
   try {
     const resolved = path.dirname(require.resolve(`${PIXCODE_PKG}/package.json`));
     const asarFragment = `app.asar${path.sep}`;
@@ -95,16 +117,11 @@ function readVersion(dirOrPkg) {
     const pkgPath = dirOrPkg.endsWith('package.json')
       ? dirOrPkg
       : path.join(dirOrPkg, 'package.json');
-    const raw = fs.readFileSync(pkgPath, 'utf8');
-    return JSON.parse(raw)?.version || null;
-  } catch (_) {
-    return null;
-  }
+    return JSON.parse(fs.readFileSync(pkgPath, 'utf8'))?.version || null;
+  } catch (_) { return null; }
 }
 
 function semverGt(a, b) {
-  // Light-weight semver comparison — enough for "is bundled newer than
-  // runtime". Rejects prerelease tags rather than trying to order them.
   if (!a || !b) return false;
   const parse = (v) => v.replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
   const [a1, a2, a3] = parse(a);
@@ -115,21 +132,17 @@ function semverGt(a, b) {
 }
 
 function copyRecursive(src, dst) {
-  // Node 16+ has fs.cpSync; fall back to a manual walk for older runtimes.
   if (typeof fs.cpSync === 'function') {
     fs.cpSync(src, dst, { recursive: true, errorOnExist: false, force: true });
     return;
   }
   fs.mkdirSync(dst, { recursive: true });
   for (const entry of fs.readdirSync(src)) {
-    const srcPath = path.join(src, entry);
-    const dstPath = path.join(dst, entry);
-    const stat = fs.statSync(srcPath);
-    if (stat.isDirectory()) {
-      copyRecursive(srcPath, dstPath);
-    } else {
-      fs.copyFileSync(srcPath, dstPath);
-    }
+    const s = path.join(src, entry);
+    const d = path.join(dst, entry);
+    const stat = fs.statSync(s);
+    if (stat.isDirectory()) copyRecursive(s, d);
+    else fs.copyFileSync(s, d);
   }
 }
 
@@ -139,10 +152,8 @@ function ensureRuntimeDir() {
   if (!bundledRoot) {
     throw new Error(`Bundled ${PIXCODE_PKG} not found. Reinstall Pixcode.`);
   }
-
   const bundledVersion = readVersion(bundledRoot);
   const runtimeVersion = readVersion(runtimeDir);
-
   const runtimeMissing = !runtimeVersion;
   const bundledIsNewer = !runtimeMissing && semverGt(bundledVersion, runtimeVersion);
 
@@ -152,31 +163,15 @@ function ensureRuntimeDir() {
         ? `[bootstrap] Seeding runtime dir with bundled ${bundledVersion}`
         : `[bootstrap] Bundled ${bundledVersion} > runtime ${runtimeVersion}; re-seeding`,
     );
-    // We don't blow away .staging/.previous if they exist — the server's
-    // update path owns those and might be mid-swap. But we DO replace the
-    // product files (dist-server, dist, server, shared, package.json) so
-    // fresh installer -> fresh version.
     fs.mkdirSync(runtimeDir, { recursive: true });
     for (const entry of fs.readdirSync(bundledRoot)) {
-      // Skip the wrapper's own metadata and anything that starts with a
-      // dot — npm never publishes those so the bundled package won't
-      // contain them, but be defensive.
       if (entry.startsWith('.')) continue;
       const src = path.join(bundledRoot, entry);
       const dst = path.join(runtimeDir, entry);
       if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
       copyRecursive(src, dst);
     }
-    // Mirror the bundled package.json so readVersion() returns a fresh
-    // value on the very next launch.
-    fs.copyFileSync(
-      path.join(bundledRoot, 'package.json'),
-      path.join(runtimeDir, 'package.json'),
-    );
-  } else {
-    console.log(`[bootstrap] Runtime ${runtimeVersion} ≥ bundled ${bundledVersion}; keeping runtime`);
   }
-
   return runtimeDir;
 }
 
@@ -187,12 +182,7 @@ function probePort(port, timeoutMs = 500) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     let settled = false;
-    const done = (result) => {
-      if (settled) return;
-      settled = true;
-      try { socket.destroy(); } catch (_) { /* noop */ }
-      resolve(result);
-    };
+    const done = (ok) => { if (settled) return; settled = true; try { socket.destroy(); } catch (_) {} resolve(ok); };
     socket.setTimeout(timeoutMs);
     socket.once('connect', () => done(true));
     socket.once('timeout', () => done(false));
@@ -201,26 +191,26 @@ function probePort(port, timeoutMs = 500) {
   });
 }
 
-async function waitForServer(port, attempts = 40, interval = 250) {
-  for (let i = 0; i < attempts; i += 1) {
+async function waitForServer(port, deadlineMs) {
+  const start = Date.now();
+  while (Date.now() - start < deadlineMs) {
     // eslint-disable-next-line no-await-in-loop
     if (await probePort(port)) return true;
     // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) => setTimeout(r, interval));
+    await new Promise((r) => setTimeout(r, 250));
   }
   return false;
 }
 
+let lastServerError = null;
+
 function startServer(runtimeDir) {
   if (serverProcess) return;
+  lastServerError = null;
 
   const entry = path.join(runtimeDir, 'dist-server', 'server', 'cli.js');
   if (!fs.existsSync(entry)) {
-    dialog.showErrorBox(
-      'Pixcode',
-      `Could not find the Pixcode server at\n${entry}\n\nPlease reinstall Pixcode.`,
-    );
-    app.quit();
+    lastServerError = `Server entry not found at ${entry}`;
     return;
   }
 
@@ -229,9 +219,6 @@ function startServer(runtimeDir) {
     env: {
       ...process.env,
       PIXCODE_NO_DAEMON: '1',
-      // Advertises the writable copy to the server's /api/system/update
-      // endpoint so it extracts npm tarballs here instead of trying to
-      // shell out to `npm install -g`.
       PIXCODE_RUNTIME_DIR: runtimeDir,
       SERVER_PORT: String(SERVER_PORT),
       HOST: '0.0.0.0',
@@ -240,11 +227,15 @@ function startServer(runtimeDir) {
     silent: true,
   });
 
+  let stderrBuffer = '';
   serverProcess.stdout?.on('data', (buf) => {
     process.stdout.write(`[pixcode] ${buf.toString()}`);
   });
   serverProcess.stderr?.on('data', (buf) => {
-    process.stderr.write(`[pixcode:err] ${buf.toString()}`);
+    const text = buf.toString();
+    stderrBuffer += text;
+    if (stderrBuffer.length > 4000) stderrBuffer = stderrBuffer.slice(-4000);
+    process.stderr.write(`[pixcode:err] ${text}`);
   });
 
   serverProcess.on('exit', (code, signal) => {
@@ -254,65 +245,213 @@ function startServer(runtimeDir) {
     rebuildTrayMenu();
 
     if (wasUpdate) {
-      // Update flow: re-seed if the freshly-extracted runtime happens to
-      // be older than what we ship (shouldn't be, but belt-and-braces),
-      // then immediately respawn. User never sees a tray "stopped" state.
       try {
         const runtime = ensureRuntimeDir();
         startServer(runtime);
-        waitForServer(SERVER_PORT).then((ok) => {
+        waitForServer(SERVER_PORT, 30_000).then((ok) => {
           serverReady = ok;
           rebuildTrayMenu();
-          new Notification({
+          if (ok && mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.loadURL(SERVER_URL).catch(() => {});
+          }
+          maybeNotify({
             title: 'Pixcode updated',
-            body: `Now running ${readVersion(runtime) || 'new version'}. Reload your browser tab to see the changes.`,
-          }).show();
+            body: `Now running ${readVersion(runtime) || 'new version'}.`,
+          });
         });
       } catch (err) {
-        console.error('[update] Failed to respawn after update:', err);
-        new Notification({
+        maybeNotify({
           title: 'Pixcode update failed',
           body: `Could not restart after update: ${err?.message || err}`,
-        }).show();
+        });
       }
       return;
     }
 
     if (intentionalQuit) return;
 
-    new Notification({
-      title: 'Pixcode stopped unexpectedly',
-      body: `The Pixcode server exited (${signal ? `signal ${signal}` : `exit code ${code}`}). Click the tray icon to restart.`,
-    }).show();
+    lastServerError = stderrBuffer.trim() || `Server exited (${signal ? `signal ${signal}` : `exit code ${code}`})`;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      loadErrorScreen(mainWindow, lastServerError);
+    }
+    maybeNotify({
+      title: 'Pixcode server stopped',
+      body: 'Click the tray icon or window to restart.',
+    });
   });
 }
 
 function stopServer() {
   if (!serverProcess) return;
   intentionalQuit = true;
-  try { serverProcess.kill(); } catch (_) { /* noop */ }
+  try { serverProcess.kill(); } catch (_) {}
   serverProcess = null;
 }
 
 // ---------------------------------------------------------------------------
-// Autostart — cross-platform. Electron's API covers Win/Mac; Linux wants
-// a .desktop file under ~/.config/autostart, which we roll by hand.
+// Embedded splash / error screens (served as data: URIs so we never ship
+// standalone html files inside the installer).
 // ---------------------------------------------------------------------------
-const LINUX_AUTOSTART_FILE = path.join(
-  os.homedir(),
-  '.config',
-  'autostart',
-  'pixcode.desktop',
-);
+const SPLASH_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Pixcode</title>
+<style>
+  :root { color-scheme: dark light; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: radial-gradient(1200px 800px at 50% 20%, #1a2140 0%, #0b0d1a 60%, #05060f 100%);
+    color: #e8ecf7;
+  }
+  .wrap { text-align: center; }
+  .logo {
+    width: 72px; height: 72px; margin: 0 auto 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #4f7bff 0%, #8b5cf6 100%);
+    border-radius: 18px;
+    box-shadow: 0 12px 40px rgba(79, 123, 255, 0.35);
+    font-weight: 800; font-size: 38px; color: #fff;
+    letter-spacing: -0.04em;
+  }
+  h1 { font-size: 17px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
+  p { color: #9aa3bf; font-size: 13px; }
+  .spinner {
+    margin: 26px auto 0;
+    width: 24px; height: 24px;
+    border: 2px solid rgba(255,255,255,0.14);
+    border-top-color: #4f7bff;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="logo">P</div>
+  <h1>Starting Pixcode…</h1>
+  <p>Setting up the local server on port ${SERVER_PORT}</p>
+  <div class="spinner"></div>
+</div>
+</body></html>`;
 
-function linuxAutostartDesktopEntry() {
-  const execPath = process.execPath;
+function errorHtml(message, canRetry) {
+  const escaped = String(message || 'Unknown error')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Pixcode — Error</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0b0d1a;
+    color: #e8ecf7;
+    padding: 48px 32px;
+  }
+  .card {
+    max-width: 560px; width: 100%;
+    background: #14172a;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 32px;
+  }
+  .icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; margin-bottom: 18px;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.01em; }
+  p.lede { color: #9aa3bf; font-size: 14px; line-height: 1.55; margin-bottom: 20px; }
+  pre {
+    background: #0a0c18; padding: 14px; border-radius: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; line-height: 1.5;
+    color: #cbd2e6;
+    overflow-x: auto;
+    white-space: pre-wrap; word-break: break-word;
+    border: 1px solid rgba(255,255,255,0.06);
+    max-height: 260px;
+  }
+  .row { display: flex; gap: 10px; margin-top: 18px; }
+  button {
+    background: #4f7bff; color: #fff; border: 0;
+    padding: 10px 18px; border-radius: 8px;
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: opacity .15s;
+  }
+  button:hover { opacity: 0.9; }
+  button.secondary { background: #1e2338; color: #9aa3bf; }
+</style>
+</head><body>
+<div class="card">
+  <div class="icon">!</div>
+  <h1>Couldn't start Pixcode</h1>
+  <p class="lede">The local server did not come up. Details below. Please copy these if you open a support ticket.</p>
+  <pre>${escaped}</pre>
+  <div class="row">
+    ${canRetry ? '<button onclick="location.href=\'pixcode://retry\'">Retry</button>' : ''}
+    <button class="secondary" onclick="location.href='pixcode://quit'">Quit</button>
+  </div>
+</div>
+</body></html>`;
+}
+
+function loadSplash(win) {
+  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(SPLASH_HTML)).catch(() => {});
+}
+function loadErrorScreen(win, message) {
+  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(errorHtml(message, true))).catch(() => {});
+}
+
+// Intercept our own `pixcode://` action links fired from the error HTML.
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('will-navigate', (event, url) => {
+    if (url === 'pixcode://retry') {
+      event.preventDefault();
+      retryBoot();
+    } else if (url === 'pixcode://quit') {
+      event.preventDefault();
+      stopServer();
+      app.quit();
+    }
+  });
+});
+
+async function retryBoot() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  loadSplash(mainWindow);
+  try {
+    const runtime = ensureRuntimeDir();
+    intentionalQuit = false;
+    startServer(runtime);
+    serverReady = await waitForServer(SERVER_PORT, SERVER_START_TIMEOUT_MS);
+    rebuildTrayMenu();
+    if (serverReady) {
+      mainWindow.loadURL(SERVER_URL).catch(() => {});
+    } else {
+      loadErrorScreen(mainWindow, lastServerError || `Server did not come up within ${SERVER_START_TIMEOUT_MS / 1000}s.`);
+    }
+  } catch (err) {
+    loadErrorScreen(mainWindow, err?.message || String(err));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Autostart
+// ---------------------------------------------------------------------------
+const LINUX_AUTOSTART_FILE = path.join(os.homedir(), '.config', 'autostart', 'pixcode.desktop');
+
+function linuxAutostartEntry() {
   return [
     '[Desktop Entry]',
     'Type=Application',
     'Name=Pixcode',
     'Comment=Pixcode — unified UI for coding agents',
-    `Exec="${execPath}" --hidden`,
+    `Exec="${process.execPath}" --hidden`,
     'Terminal=false',
     'Icon=pixcode',
     'X-GNOME-Autostart-enabled=true',
@@ -320,102 +459,40 @@ function linuxAutostartDesktopEntry() {
   ].join('\n');
 }
 
-function isLinuxAutostartEnabled() {
-  try { return fs.existsSync(LINUX_AUTOSTART_FILE); } catch (_) { return false; }
-}
-
-function setLinuxAutostart(enabled) {
-  try {
-    if (enabled) {
-      fs.mkdirSync(path.dirname(LINUX_AUTOSTART_FILE), { recursive: true });
-      fs.writeFileSync(LINUX_AUTOSTART_FILE, linuxAutostartDesktopEntry(), 'utf8');
-    } else if (fs.existsSync(LINUX_AUTOSTART_FILE)) {
-      fs.unlinkSync(LINUX_AUTOSTART_FILE);
-    }
-  } catch (err) {
-    console.error('Failed to update Linux autostart:', err);
-  }
-}
-
-function isAutostartEnabled() {
-  if (process.platform === 'linux') return isLinuxAutostartEnabled();
-  try { return app.getLoginItemSettings().openAtLogin === true; } catch (_) { return false; }
-}
-
-function setAutostart(enabled) {
-  if (process.platform === 'linux') { setLinuxAutostart(enabled); return; }
-  try {
-    app.setLoginItemSettings({ openAtLogin: enabled, openAsHidden: true });
-  } catch (err) {
-    console.error('Failed to update autostart:', err);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Wrapper-level updates (Layer 2). electron-updater checks GitHub Releases
-// for a NEWER installer (pixcode-desktop release) and prompts the user.
-// This is independent of the in-app /api/system/update which only updates
-// the pixcode npm package inside the runtime dir.
-// ---------------------------------------------------------------------------
-function setupAutoUpdater() {
-  try {
-    // Required lazily so development runs (unpacked) don't need the dep.
-    // electron-updater reads publish config from package.json → build.publish,
-    // which electron-builder mirrors from electron-builder.yml.
-    // eslint-disable-next-line global-require
-    const { autoUpdater } = require('electron-updater');
-
-    autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = true;
-
-    autoUpdater.on('update-available', (info) => {
-      const choice = dialog.showMessageBoxSync({
-        type: 'question',
-        buttons: ['Download now', 'Later'],
-        defaultId: 0,
-        title: 'Pixcode update available',
-        message: `A new Pixcode installer is available (${info.version}).`,
-        detail:
-          'This update refreshes the app shell (tray, auto-start, installer). '
-          + 'Your Pixcode workspace auto-updates separately and is not affected. '
-          + 'Download now?',
-      });
-      if (choice === 0) {
-        autoUpdater.downloadUpdate().catch((err) => {
-          console.error('[auto-updater] download failed:', err);
-        });
+function applyAutostart(enabled) {
+  if (process.platform === 'linux') {
+    try {
+      if (enabled) {
+        fs.mkdirSync(path.dirname(LINUX_AUTOSTART_FILE), { recursive: true });
+        fs.writeFileSync(LINUX_AUTOSTART_FILE, linuxAutostartEntry(), 'utf8');
+      } else if (fs.existsSync(LINUX_AUTOSTART_FILE)) {
+        fs.unlinkSync(LINUX_AUTOSTART_FILE);
       }
-    });
-
-    autoUpdater.on('update-downloaded', () => {
-      new Notification({
-        title: 'Pixcode wrapper update ready',
-        body: 'The new installer will be applied the next time you quit Pixcode.',
-      }).show();
-    });
-
-    autoUpdater.on('error', (err) => {
-      console.warn('[auto-updater]', err?.message || err);
-    });
-
-    // Quiet first check so we don't wake users up with dialogs the moment
-    // they launch — check after 30 seconds, then every 6 hours.
-    setTimeout(() => {
-      autoUpdater.checkForUpdates().catch(() => {});
-      setInterval(() => {
-        autoUpdater.checkForUpdates().catch(() => {});
-      }, 6 * 60 * 60 * 1000);
-    }, 30 * 1000);
-  } catch (err) {
-    // electron-updater only exists in packaged builds — swallow in dev.
-    if (app.isPackaged) {
-      console.warn('[auto-updater] disabled:', err?.message || err);
-    }
+    } catch (err) { console.warn('[autostart] linux update failed:', err?.message || err); }
+    return;
   }
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      // openAsHidden keeps the window closed on boot; user clicks tray when
+      // they want it. Toggle this off if we ever ship "open window on login".
+      openAsHidden: true,
+      args: enabled ? ['--hidden'] : [],
+    });
+  } catch (err) { console.warn('[autostart] update failed:', err?.message || err); }
 }
 
 // ---------------------------------------------------------------------------
-// Tray — the only persistent UI this wrapper owns.
+// Notifications (respects settings.notificationsEnabled)
+// ---------------------------------------------------------------------------
+function maybeNotify({ title, body }) {
+  if (!settings.notificationsEnabled) return;
+  try { new Notification({ title, body }).show(); }
+  catch (err) { console.warn('[notify]', err?.message || err); }
+}
+
+// ---------------------------------------------------------------------------
+// Tray
 // ---------------------------------------------------------------------------
 function resolveTrayIcon() {
   const candidates = [
@@ -429,45 +506,68 @@ function resolveTrayIcon() {
 }
 
 function currentRuntimeVersion() {
-  const runtimeDir = path.join(app.getPath('userData'), 'pixcode-runtime');
-  return readVersion(runtimeDir) || 'unknown';
+  return readVersion(path.join(app.getPath('userData'), 'pixcode-runtime')) || 'unknown';
 }
 
 function rebuildTrayMenu() {
   if (!tray) return;
   const menu = Menu.buildFromTemplate([
     {
-      label: serverReady ? 'Open Pixcode' : 'Starting server…',
-      enabled: serverReady,
-      click: () => { shell.openExternal(SERVER_URL).catch(() => {}); },
+      label: mainWindow && mainWindow.isVisible() ? 'Hide Pixcode' : 'Show Pixcode',
+      click: () => {
+        if (!mainWindow) return;
+        if (mainWindow.isVisible()) mainWindow.hide();
+        else { mainWindow.show(); mainWindow.focus(); }
+      },
     },
     { type: 'separator' },
     {
       label: 'Start at Login',
       type: 'checkbox',
-      checked: isAutostartEnabled(),
-      click: (item) => { setAutostart(item.checked); rebuildTrayMenu(); },
+      checked: settings.startAtLogin,
+      click: (item) => {
+        settings.startAtLogin = item.checked;
+        saveSettings(settings);
+        applyAutostart(item.checked);
+        rebuildTrayMenu();
+      },
     },
     {
-      label: 'Restart server',
-      click: async () => {
-        stopServer();
-        intentionalQuit = false;
-        const runtimeDir = path.join(app.getPath('userData'), 'pixcode-runtime');
-        startServer(runtimeDir);
+      label: 'Minimize to Tray on Close',
+      type: 'checkbox',
+      checked: settings.minimizeToTray,
+      click: (item) => {
+        settings.minimizeToTray = item.checked;
+        saveSettings(settings);
         rebuildTrayMenu();
-        serverReady = await waitForServer(SERVER_PORT);
+      },
+    },
+    {
+      label: 'Show Notifications',
+      type: 'checkbox',
+      checked: settings.notificationsEnabled,
+      click: (item) => {
+        settings.notificationsEnabled = item.checked;
+        saveSettings(settings);
         rebuildTrayMenu();
       },
     },
     { type: 'separator' },
+    {
+      label: serverReady ? `Running on :${SERVER_PORT}` : 'Starting server…',
+      enabled: false,
+    },
+    {
+      label: 'Restart server',
+      click: () => { retryBoot(); },
+    },
+    { type: 'separator' },
     { label: `Pixcode ${currentRuntimeVersion()}`, enabled: false },
     { label: `Wrapper ${app.getVersion()}`, enabled: false },
-    { label: `Port ${SERVER_PORT}`, enabled: false },
     { type: 'separator' },
     {
       label: 'Quit Pixcode',
-      click: () => { stopServer(); app.quit(); },
+      click: () => { userRequestedClose = true; stopServer(); app.quit(); },
     },
   ]);
   tray.setContextMenu(menu);
@@ -476,51 +576,131 @@ function rebuildTrayMenu() {
 
 function createTray() {
   tray = new Tray(resolveTrayIcon());
-  tray.on('click', () => { shell.openExternal(SERVER_URL).catch(() => {}); });
+  tray.on('click', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) mainWindow.hide();
+    else { mainWindow.show(); mainWindow.focus(); }
+  });
   rebuildTrayMenu();
+}
+
+// ---------------------------------------------------------------------------
+// Main window
+// ---------------------------------------------------------------------------
+function createMainWindow() {
+  const iconPath = path.join(__dirname, '..', 'build-resources', 'icon.png');
+  mainWindow = new BrowserWindow({
+    width: 1320,
+    height: 860,
+    minWidth: 960,
+    minHeight: 600,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    backgroundColor: '#0b0d1a',
+    // Hidden until first paint so the "grey flash" during BrowserWindow
+    // bootstrap doesn't show before the splash HTML renders.
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      // Allow loading http://localhost for our own server — without this
+      // Electron blocks the navigation on newer versions by default.
+      webSecurity: true,
+    },
+  });
+
+  loadSplash(mainWindow);
+
+  mainWindow.once('ready-to-show', () => {
+    if (!process.argv.includes('--hidden')) mainWindow.show();
+  });
+
+  mainWindow.on('close', (event) => {
+    if (userRequestedClose || !settings.minimizeToTray) return;
+    event.preventDefault();
+    mainWindow.hide();
+    rebuildTrayMenu();
+  });
+
+  mainWindow.on('show', () => rebuildTrayMenu());
+  mainWindow.on('hide', () => rebuildTrayMenu());
+
+  // External links (e.g. <a href="https://…" target="_blank">) go to the
+  // user's real browser, not a new Electron window. Matches Chrome-shell
+  // apps' expected behaviour.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url).catch(() => {});
+    return { action: 'deny' };
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
-const shouldStartHidden = process.argv.includes('--hidden');
-
 app.whenReady().then(async () => {
-  // macOS: hide from dock, we're tray-only.
-  if (process.platform === 'darwin' && typeof app.dock?.hide === 'function') {
-    app.dock.hide();
-  }
+  // Apply persisted autostart preference every boot so external tools
+  // (group policy, user edits) don't drift from what we last saved.
+  applyAutostart(settings.startAtLogin);
+
+  createTray();
+  createMainWindow();
 
   let runtimeDir;
   try {
     runtimeDir = ensureRuntimeDir();
   } catch (err) {
-    dialog.showErrorBox('Pixcode', `Failed to set up runtime directory.\n\n${err?.message || err}`);
-    app.quit();
+    loadErrorScreen(mainWindow, err?.message || String(err));
     return;
   }
 
   startServer(runtimeDir);
-  createTray();
-  setupAutoUpdater();
-
-  serverReady = await waitForServer(SERVER_PORT);
+  serverReady = await waitForServer(SERVER_PORT, SERVER_START_TIMEOUT_MS);
   rebuildTrayMenu();
 
-  if (serverReady && !shouldStartHidden) {
-    shell.openExternal(SERVER_URL).catch(() => {});
+  if (serverReady) {
+    mainWindow.loadURL(SERVER_URL).catch((err) => {
+      loadErrorScreen(mainWindow, `Failed to load ${SERVER_URL}: ${err?.message || err}`);
+    });
+  } else {
+    loadErrorScreen(mainWindow, lastServerError || `Server did not come up within ${SERVER_START_TIMEOUT_MS / 1000}s.`);
   }
 });
 
-app.on('window-all-closed', (event) => { event.preventDefault(); });
-app.on('before-quit', () => { stopServer(); });
+app.on('window-all-closed', () => {
+  // On macOS it's standard to keep the app running when all windows close;
+  // on Windows/Linux we follow the "minimize to tray" contract only if the
+  // user hasn't asked to quit. Default-behaviour apps would `app.quit()`
+  // here, but our server is the whole point of staying alive.
+  if (process.platform !== 'darwin' && userRequestedClose) {
+    app.quit();
+  }
+});
+
+app.on('activate', () => {
+  if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+});
+
+app.on('before-quit', () => {
+  userRequestedClose = true;
+  stopServer();
+});
 
 process.on('exit', () => {
-  if (serverProcess) {
-    try { serverProcess.kill(); } catch (_) { /* noop */ }
-  }
+  if (serverProcess) { try { serverProcess.kill(); } catch (_) {} }
 });
 
 ['SIGINT', 'SIGTERM'].forEach((sig) => {
-  process.on(sig, () => { stopServer(); app.quit(); });
+  process.on(sig, () => { userRequestedClose = true; stopServer(); app.quit(); });
+});
+
+// ---------------------------------------------------------------------------
+// IPC (reserved for future in-window settings UI)
+// ---------------------------------------------------------------------------
+ipcMain.handle('pixcode:settings:get', () => ({ ...settings }));
+ipcMain.handle('pixcode:settings:set', (_evt, next) => {
+  settings = { ...settings, ...next };
+  saveSettings(settings);
+  if ('startAtLogin' in next) applyAutostart(settings.startAtLogin);
+  rebuildTrayMenu();
+  return { ...settings };
 });
