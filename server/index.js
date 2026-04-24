@@ -566,6 +566,75 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
             }
             fs.rmSync(stagingDir, { recursive: true, force: true });
 
+            // 3a. Reconcile node_modules with the NEW package.json.
+            //     npm tarballs intentionally ship WITHOUT node_modules, so
+            //     if this release changed `dependencies` (e.g. bcrypt →
+            //     bcryptjs in 1.32.0) the runtime dir now has new code
+            //     importing packages that aren't installed. We fix that
+            //     by running `npm install --production` in-place.
+            //     Skipped when the NEW package.json's dependency set is
+            //     identical to the .previous/ one — no need to pay the
+            //     10-30 sec cost for pure-code updates.
+            const depsChanged = (() => {
+                try {
+                    const prevPkg = JSON.parse(fs.readFileSync(path.join(backupDir, 'package.json'), 'utf8'));
+                    const nextPkg = JSON.parse(fs.readFileSync(path.join(runtimeDir, 'package.json'), 'utf8'));
+                    const prevDeps = JSON.stringify(prevPkg.dependencies || {});
+                    const nextDeps = JSON.stringify(nextPkg.dependencies || {});
+                    return prevDeps !== nextDeps;
+                } catch {
+                    // Can't read either side — reconcile to be safe.
+                    return true;
+                }
+            })();
+
+            if (depsChanged) {
+                send('log', { stream: 'meta', chunk: 'Reconciling node_modules with new package.json…\n' });
+                const npmOk = await new Promise((resolveInstall) => {
+                    const npmChild = spawn('npm', ['install', '--production', '--no-audit', '--no-fund', '--no-save'], {
+                        cwd: runtimeDir,
+                        env: process.env,
+                        shell: true,
+                    });
+                    // Stream output so the user sees progress (and so
+                    // a mid-install hang is obvious rather than silent).
+                    npmChild.stdout?.on('data', (chunk) => {
+                        send('log', { stream: 'stdout', chunk: chunk.toString() });
+                    });
+                    npmChild.stderr?.on('data', (chunk) => {
+                        // npm writes warnings to stderr even on success, so
+                        // we surface them but don't treat them as failure.
+                        send('log', { stream: 'stderr', chunk: chunk.toString() });
+                    });
+                    npmChild.on('error', (err) => {
+                        send('log', { stream: 'meta', chunk: `npm install spawn failed: ${err.message}\n` });
+                        resolveInstall(false);
+                    });
+                    npmChild.on('close', (code) => {
+                        if (code === 0) {
+                            send('log', { stream: 'meta', chunk: 'node_modules reconciled.\n' });
+                            resolveInstall(true);
+                        } else {
+                            send('log', { stream: 'meta', chunk: `npm install exited with code ${code}\n` });
+                            resolveInstall(false);
+                        }
+                    });
+                });
+                if (!npmOk) {
+                    // The swap already happened — rolling back is expensive
+                    // and leaves node_modules in an uncertain state either
+                    // way. Report failure with a clear remediation hint so
+                    // the user knows what to do next (quit + run npm install
+                    // manually, or reinstall from the .exe/.dmg/.deb).
+                    send('done', {
+                        success: false,
+                        error: `Update downloaded to ${latestVersion} but \`npm install\` failed — node_modules may be missing packages. Quit Pixcode and run "npm install --production" in ${runtimeDir}, or reinstall from the latest installer.`,
+                    });
+                    endStream();
+                    return;
+                }
+            }
+
             send('done', {
                 success: true,
                 version: latestVersion,
