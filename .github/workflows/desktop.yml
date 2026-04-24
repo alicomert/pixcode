@@ -1,12 +1,25 @@
-# Build Pixcode desktop installers for Windows, macOS, and Linux and
-# attach them to the GitHub Release of the matching tag. Triggered on
-# any `v*` tag push (which release-it does after publishing to npm), or
-# manually from the Actions tab when a build needs a rerun.
+# Ship desktop installers for every v* tag, but only pay the ~30 min
+# matrix-build tax when the Electron wrapper itself actually changed.
+# If a tag only bumps the pixcode product version (the common case),
+# we fetch the previous release's installers, rename them to the new
+# version, and re-upload — zero build, zero wasted CI minutes.
 #
-# The Electron wrapper lives in `desktop/` as an isolated sub-package —
-# that way `npm install` in the repo root never pulls Electron devDeps
-# for web/server developers. Only this workflow installs the wrapper
-# deps, and only on its matrix runners.
+# Detection heuristic: compare files that CAN affect the built binary
+# between the previous v* tag and the current one. If any of them
+# moved, we trigger a full matrix build; otherwise we reuse:
+#   - desktop/electron/**              (tray / window / bootstrap code)
+#   - desktop/electron-builder.yml     (packaging config)
+#   - desktop/build-resources/**       (icons, native assets)
+#
+# Explicitly NOT tracked: desktop/package.json (version bump + pixcode
+# dep bump don't need a new binary — the runtime dir bootstrap picks
+# up the new pixcode via the in-app update path) and README.md.
+#
+# electron-updater implication: when we reuse, we also skip the
+# `latest.yml` / `latest-mac.yml` / `latest-linux.yml` metadata files
+# the first build emitted. Users' installed wrappers therefore won't
+# be prompted to "re-download the same binary" — they only see a
+# wrapper update dialog when we really shipped new wrapper code.
 name: Desktop Installers
 
 on:
@@ -16,16 +29,157 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Git tag to attach artifacts to (e.g. v1.31.1)'
+        description: 'Git tag to attach artifacts to (e.g. v1.31.8)'
         required: true
         type: string
+      force_rebuild:
+        description: 'Force a full rebuild even if the wrapper is unchanged'
+        required: false
+        type: boolean
+        default: false
 
-# action-gh-release needs write access to the release to upload assets.
 permissions:
   contents: write
 
 jobs:
+  # ─────────────────────────────────────────────────────────────
+  # 1. Decide: full build or reuse previous installers?
+  # ─────────────────────────────────────────────────────────────
+  decide:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.check.outputs.mode }}
+      source_tag: ${{ steps.check.outputs.source_tag }}
+      current_tag: ${{ steps.check.outputs.current_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # Full history needed so we can `git diff` against the prior tag.
+          fetch-depth: 0
+
+      - name: Decide build vs. reuse
+        id: check
+        shell: bash
+        run: |
+          CURRENT_TAG="${{ inputs.tag || github.ref_name }}"
+          echo "current_tag=$CURRENT_TAG" >> "$GITHUB_OUTPUT"
+          echo "Current tag: $CURRENT_TAG"
+
+          if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+            echo "Force rebuild requested."
+            echo "mode=build" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Find the most recent v* tag ordered by semver that isn't us.
+          # -vFx: fixed-string (treat dots/hyphens literally, not as regex)
+          # matched against the full line — otherwise "v1.31.7" would also
+          # exclude a hypothetical "v1X31Y7".
+          PREV_TAG=$(git tag --sort=-v:refname | grep '^v' | grep -vFx "$CURRENT_TAG" | head -n1 || true)
+          echo "Previous tag: ${PREV_TAG:-<none>}"
+          echo "source_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag — full build required."
+            echo "mode=build" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Narrow the diff to files that actually change the binary.
+          if git diff --quiet "$PREV_TAG" "$CURRENT_TAG" -- \
+              desktop/electron/ \
+              desktop/electron-builder.yml \
+              desktop/build-resources/; then
+            echo "Wrapper unchanged since $PREV_TAG — reusing its installers."
+            echo "mode=reuse" >> "$GITHUB_OUTPUT"
+          else
+            echo "Wrapper changed since $PREV_TAG — full matrix build."
+            echo "mode=build" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fail loudly if `mode` somehow didn't get set — otherwise the
+      # downstream `if:` conditions both evaluate false and the workflow
+      # exits green with ZERO installer work done, which looks like a
+      # success to the release page. Belt-and-braces.
+      - name: Verify mode was decided
+        shell: bash
+        run: |
+          MODE="${{ steps.check.outputs.mode }}"
+          if [ "$MODE" != "build" ] && [ "$MODE" != "reuse" ]; then
+            echo "BUG: decide.mode is '$MODE' (expected 'build' or 'reuse')"
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────
+  # 2a. REUSE path — fetch + rename + reupload previous installers.
+  # ─────────────────────────────────────────────────────────────
+  reuse:
+    needs: decide
+    if: needs.decide.outputs.mode == 'reuse'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download previous installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SRC="${{ needs.decide.outputs.source_tag }}"
+          mkdir -p dist-installer
+
+          # Skip latest*.yml so electron-updater doesn't offer a useless
+          # wrapper update for a renamed-but-identical binary.
+          gh release download "$SRC" \
+            --repo "${{ github.repository }}" \
+            --dir dist-installer \
+            --pattern 'Pixcode*.exe' \
+            --pattern 'Pixcode*.dmg' \
+            --pattern 'Pixcode*.AppImage' \
+            --pattern 'Pixcode*.deb'
+
+          ls -la dist-installer
+
+      - name: Rename installers to the new version
+        run: |
+          set -euo pipefail
+          CUR="${{ needs.decide.outputs.current_tag }}"
+          SRC="${{ needs.decide.outputs.source_tag }}"
+          NEW_VER="${CUR#v}"
+          OLD_VER="${SRC#v}"
+
+          for file in dist-installer/*; do
+            base=$(basename "$file")
+            # Replace all occurrences of the old version in the filename
+            # with the new one (belt-and-braces: exe uses Setup-X.Y.Z,
+            # dmg / AppImage / deb bake the version elsewhere in the name).
+            renamed="${base//$OLD_VER/$NEW_VER}"
+            if [ "$base" != "$renamed" ]; then
+              mv "dist-installer/$base" "dist-installer/$renamed"
+              echo "  $base  →  $renamed"
+            fi
+          done
+          echo '---'
+          ls -la dist-installer
+
+      - name: Attach renamed installers to the new release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.decide.outputs.current_tag }}
+          files: |
+            dist-installer/*.exe
+            dist-installer/*.dmg
+            dist-installer/*.AppImage
+            dist-installer/*.deb
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────
+  # 2b. BUILD path — full matrix build on Win/Mac/Linux.
+  # ─────────────────────────────────────────────────────────────
   build:
+    needs: decide
+    if: needs.decide.outputs.mode == 'build'
     strategy:
       fail-fast: false
       matrix:
@@ -41,16 +195,10 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
-      # No `cache: npm` here — the desktop/ sub-package doesn't commit a
-      # lockfile yet (regenerated on every CI run with `npm install`),
-      # which would make the cache action fail with a missing path. Once
-      # we commit a desktop/package-lock.json we can re-enable caching
-      # with `cache-dependency-path: desktop/package-lock.json`.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # Linux runners need extras for node-gyp + AppImage/deb packaging.
       - name: Install Linux build deps
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -61,9 +209,6 @@ jobs:
             fuse libfuse2
         working-directory: .
 
-      # `npm install` (not `npm ci`) since desktop/ may not have a
-      # checked-in lockfile yet — harmless on first run, regenerated
-      # locally by `cd desktop && npm install` before we commit one.
       - name: Install Electron wrapper deps
         run: |
           if [ -f package-lock.json ]; then
@@ -75,11 +220,7 @@ jobs:
 
       - name: Build installer
         # `--publish never` stops electron-builder from attempting the
-        # GitHub upload step itself. The `publish: github` config in
-        # electron-builder.yml is only there so electron-updater (inside
-        # the installed app) knows where to poll for future wrapper
-        # updates; we attach artifacts to the release ourselves via
-        # softprops/action-gh-release below.
+        # upload step itself — we attach via action-gh-release below.
         run: npx electron-builder --publish never
 
       - name: Upload workflow artifacts
@@ -91,6 +232,7 @@ jobs:
             desktop/dist-installer/*.dmg
             desktop/dist-installer/*.AppImage
             desktop/dist-installer/*.deb
+            desktop/dist-installer/*.yml
           if-no-files-found: error
 
       - name: Attach to GitHub Release
@@ -101,6 +243,7 @@ jobs:
             desktop/dist-installer/*.dmg
             desktop/dist-installer/*.AppImage
             desktop/dist-installer/*.deb
+            desktop/dist-installer/*.yml
           tag_name: ${{ inputs.tag || github.ref_name }}
           fail_on_unmatched_files: false
         env:

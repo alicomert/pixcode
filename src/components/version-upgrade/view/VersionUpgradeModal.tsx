@@ -26,6 +26,11 @@ type DoneEvent = {
     error?: string;
     version?: string;
     message?: string;
+    /** Server exited on its own after the swap (desktop-wrapper runtime-dir
+     *  path). UI must NOT POST /api/system/restart — just wait for health
+     *  to come back and reload. */
+    selfRestarting?: boolean;
+    alreadyLatest?: boolean;
 };
 
 type RestartPhase = 'idle' | 'restarting' | 'waiting' | 'ready' | 'timeout' | 'error';
@@ -176,36 +181,81 @@ export function VersionUpgradeModal({
         }
 
         if (!doneEvent) {
-            throw new Error('Update stream ended without completion event');
+            // A clean stream close without a done event is NEVER a success
+            // signal — it means either the route handler threw an unhandled
+            // exception and Express closed the response early, or the server
+            // crashed. Surface the uncertainty so the user retries instead
+            // of getting dropped into a hopeful polling loop. The server
+            // runtime-dir branch is careful to call `endStream()` only
+            // AFTER emitting a done event, and the 500 ms exit delay +
+            // socket.setNoDelay guarantee the done frame reaches us.
+            throw new Error('Update stream ended without completion event — the server may have crashed. Please retry.');
         }
         return doneEvent;
     }, [appendOutput]);
 
+    const waitForServerBackOnline = useCallback(async () => {
+        // Skip the POST /api/system/restart step — the server already
+        // exited on its own. Poll /health and reload when it's back.
+        setRestartPhase('waiting');
+        appendOutput('\nWaiting for the server to restart…\n');
+        const isBack = await pollHealthUntilReady();
+        if (isBack) {
+            appendOutput('\n✅ Server is back online. Reloading page…\n');
+            setRestartPhase('ready');
+            window.setTimeout(() => window.location.reload(), 600);
+        } else {
+            appendOutput(`\n⚠️ Server didn't come back within ${HEALTH_POLL_TIMEOUT_MS / 1000}s.\n`);
+            appendOutput('Refresh the page manually — the update is already on disk.\n');
+            setRestartPhase('timeout');
+        }
+    }, [appendOutput, pollHealthUntilReady]);
+
     const handleUpdateNow = useCallback(async () => {
         setIsUpdating(true);
-        setUpdateOutput('Starting update...\n');
+        setUpdateOutput('Starting update…\n');
         setReloadCountdown(IS_PLATFORM ? RELOAD_COUNTDOWN_START : null);
         setUpdateError('');
         setRestartPhase('idle');
 
         try {
             const result = await streamUpdate();
-            if (result.success) {
-                appendOutput('\n✅ Update completed successfully!\n');
-                setIsUpdating(false);
-                await triggerRestart();
-            } else {
+            if (!result.success) {
                 const msg = result.error || 'Update failed';
                 setUpdateError(msg);
                 appendOutput(`\n❌ Update failed: ${msg}\n`);
                 setIsUpdating(false);
+                return;
+            }
+
+            if (result.alreadyLatest) {
+                appendOutput('\n✅ Already on the latest version — nothing to do.\n');
+                setIsUpdating(false);
+                return;
+            }
+
+            if (result.version) {
+                appendOutput(`\n✅ Updated to ${result.version}!\n`);
+            } else {
+                appendOutput('\n✅ Update completed successfully!\n');
+            }
+            setIsUpdating(false);
+
+            if (result.selfRestarting) {
+                // Desktop wrapper (runtime-dir) scenario: server exited
+                // after the swap and the wrapper is respawning it right
+                // now. Poll /health instead of POSTing /restart — which
+                // would only fail with a connection refused anyway.
+                await waitForServerBackOnline();
+            } else {
+                await triggerRestart();
             }
         } catch (error: any) {
             setUpdateError(error.message);
             appendOutput(`\n❌ Update failed: ${error.message}\n`);
             setIsUpdating(false);
         }
-    }, [appendOutput, streamUpdate, triggerRestart]);
+    }, [appendOutput, streamUpdate, triggerRestart, waitForServerBackOnline]);
 
     if (!isOpen) return null;
 

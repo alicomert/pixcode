@@ -204,10 +204,14 @@ export default function SidebarHeader({
         {/* Search bar */}
         {projectsCount > 0 && !isLoading && (
           <div className="mt-2.5 space-y-2">
-            {/* History view switch (only meaningful when browsing projects, not when searching conversations). */}
-            {searchMode === 'projects' && (
-              <HistoryViewToggle value={historyView} onChange={onHistoryViewChange} t={t} />
-            )}
+            {/* History view switch — kept visible in both Projects and
+                Conversations modes. The toggle drives the Recent / By
+                project listing below, which SidebarContent still renders
+                whenever the user isn't actively typing a conversation
+                search query. Hiding it in Conversations mode (as the
+                previous build did) made the sidebar feel like it lost
+                state when the user clicked the Conversations tab. */}
+            <HistoryViewToggle value={historyView} onChange={onHistoryViewChange} t={t} />
             {/* Search mode toggle */}
             <div className="flex rounded-lg bg-muted/50 p-0.5">
               <button

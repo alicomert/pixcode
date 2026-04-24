@@ -428,6 +428,15 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
     if (typeof res.flushHeaders === 'function') {
         res.flushHeaders();
     }
+    // Disable Nagle's buffering on the underlying socket so the done
+    // event arrives at the client with no TCP coalescing delay. Without
+    // this the runtime-dir self-exit path can race the OS flush (esp. on
+    // Windows loopback), the client sees a clean close without a done
+    // frame, and our strict post-review logic throws "stream ended
+    // without completion event" even though the swap actually succeeded.
+    if (res.socket && typeof res.socket.setNoDelay === 'function') {
+        try { res.socket.setNoDelay(true); } catch { /* non-fatal */ }
+    }
 
     // Single-source end guard. When spawn() fails with ENOENT both the
     // 'error' and 'close' handlers can fire on the child, and before this
@@ -547,19 +556,28 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
             send('done', {
                 success: true,
                 version: latestVersion,
-                message: `Updated to ${latestVersion}. Restarting…`,
+                // `selfRestarting` tells the UI "don't POST /restart —
+                // we're about to exit on our own, just poll /health until
+                // the wrapper brings us back". Without this flag the
+                // client sees the server disappear, gets a connection
+                // refused on /restart, and shows the user a spurious
+                // "Restart request failed" error — even though the
+                // update actually succeeded.
+                selfRestarting: true,
+                message: `Updated to ${latestVersion}. Restarting automatically…`,
             });
             endStream();
 
             // 4. Self-exit so the Electron wrapper respawns the server
-            //    against the freshly-extracted files. 250 ms gives the
-            //    SSE stream time to flush the done event before we die.
+            //    against the freshly-extracted files. 500 ms gives the
+            //    SSE stream time to flush the done event + arrive at
+            //    the client across slow loopback / virtual adapters.
             setTimeout(() => {
                 // Exit code 42 is a convention the wrapper watches for —
                 // it means "clean update restart, please respawn".
                 console.log('[update] Restarting for runtime-dir update');
                 process.exit(42);
-            }, 250);
+            }, 500);
             return;
         } catch (error) {
             console.error('Runtime-dir update failed:', error);

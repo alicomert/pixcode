@@ -62,7 +62,7 @@ router.get('/:name/manifest', (req, res) => {
 // regex sidesteps path-to-regexp entirely and works on every version of
 // Express / path-to-regexp we've tested. Capture groups land in
 // req.params[0] / [1] — same wire as the old `:name` + `*` would give us.
-router.get(/^\/([a-zA-Z0-9_-]+)\/assets\/(.+)$/, (req, res) => {
+router.get(/^\/([a-zA-Z0-9_-]+)\/assets\/(.*)$/, (req, res) => {
   const pluginName = req.params[0];
   if (!/^[a-zA-Z0-9_-]+$/.test(pluginName)) {
     return res.status(400).json({ error: 'Invalid plugin name' });
