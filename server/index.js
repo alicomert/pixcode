@@ -600,16 +600,56 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         }
     }
 
+    // Short-circuit for "already on latest" in the npm-global path so
+    // users don't accidentally crash their own daemon by clicking Update
+    // while already up to date. The runtime-dir branch above already has
+    // this guard (line ~504); replicate it for npm mode. Git mode skips
+    // this since `git pull` is harmless when already up to date.
+    if (!IS_PLATFORM && installMode === 'npm') {
+        try {
+            send('log', { stream: 'meta', chunk: 'Querying registry for latest version…\n' });
+            const registryRes = await fetch('https://registry.npmjs.org/@pixelbyte-software/pixcode');
+            if (registryRes.ok) {
+                const metadata = await registryRes.json();
+                const latestVersion = metadata['dist-tags']?.latest;
+                if (latestVersion && latestVersion === SERVER_VERSION) {
+                    send('log', { stream: 'meta', chunk: `Already on ${SERVER_VERSION} — nothing to do.\n` });
+                    send('done', {
+                        success: true,
+                        version: SERVER_VERSION,
+                        alreadyLatest: true,
+                        message: 'Already on the latest version.',
+                    });
+                    endStream();
+                    return;
+                }
+            }
+        } catch (err) {
+            // Registry unreachable — fall through to the install attempt
+            // rather than block the user. Log and continue.
+            console.warn('[update] Registry precheck failed:', (err && err.message) || err);
+        }
+    }
+
     send('log', { stream: 'meta', chunk: `Running: ${updateCommand}\n` });
 
-    // Cross-platform shell invocation. Using { shell: true } delegates to
-    // cmd.exe on Windows and /bin/sh on POSIX, so the endpoint no longer
-    // fails with `spawn sh ENOENT` on Windows installs.
+    // Cross-platform shell invocation. `detached: true` + `unref()` below
+    // means the install child survives if this server process gets killed
+    // mid-install (which is common on Linux when `npm install -g`
+    // overwrites the running package's own files — the running process
+    // can segfault or the supervisor kills it). Without detachment, a
+    // killed parent tears down the npm child too and users end up with
+    // a half-installed package and no server at all.
     const child = spawn(updateCommand, {
         cwd: updateCwd,
         env: process.env,
         shell: true,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
     });
+    // Don't hold a reference that keeps the event loop alive or ties the
+    // child's lifetime to ours — we want it to outlive a daemon restart.
+    try { child.unref(); } catch { /* noop */ }
 
     let clientAborted = false;
     req.on('close', () => {

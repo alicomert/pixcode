@@ -136,8 +136,61 @@ export function VersionUpgradeModal({
         }
     }, [appendOutput, pollHealthUntilReady]);
 
+    // Shared recovery path for "stream ended without done event" — used
+     // both by clean stream close and by mid-stream network errors (the
+     // `reader.read()` TypeError: Failed to fetch case when a daemon
+     // supervisor restarts the server after `npm install -g` swaps
+     // package files). Probes /health; if the server comes back on a
+     // different version than we started with, treat the interruption
+     // as a successful self-restart.
+    const recoverFromInterruptedStream = useCallback(async (
+        reason: 'clean-close' | 'network-error',
+        originalError?: unknown,
+    ): Promise<DoneEvent> => {
+        const hint = reason === 'network-error'
+            ? 'Stream dropped mid-update — this usually means the daemon restarted. Verifying via /health…'
+            : 'Stream closed early — verifying via /health…';
+        appendOutput(`\n${hint}\n`);
+        const isBack = await pollHealthUntilReady();
+        if (isBack) {
+            try {
+                const response = await fetch('/health', { cache: 'no-store' });
+                const data = response.ok ? await response.json() : null;
+                const reportedVersion = typeof data?.version === 'string' ? data.version : null;
+                if (reportedVersion && reportedVersion !== currentVersion) {
+                    appendOutput(`\n✅ Server came back on ${reportedVersion}. Treating as self-restart.\n`);
+                    return {
+                        success: true,
+                        version: reportedVersion,
+                        selfRestarting: true,
+                        message: 'Update completed. Server restarted automatically.',
+                    };
+                }
+            } catch {
+                // fall through to the error below
+            }
+        }
+        const base = reason === 'network-error'
+            ? 'Update stream dropped and the server did not come back on a newer version'
+            : 'Update stream ended without completion event — the server may have crashed';
+        const detail = originalError instanceof Error ? ` (${originalError.message})` : '';
+        throw new Error(`${base}${detail}. Please retry.`);
+    }, [appendOutput, currentVersion, pollHealthUntilReady]);
+
     const streamUpdate = useCallback(async (): Promise<DoneEvent> => {
-        const response = await authenticatedFetch('/api/system/update', { method: 'POST' });
+        let response: Response;
+        try {
+            response = await authenticatedFetch('/api/system/update', { method: 'POST' });
+        } catch (err) {
+            // The initial POST never made it to the server. This is almost
+            // never "network offline" (the click target is on the same
+            // origin that just rendered this modal) — it's the daemon
+            // having died between page load and click, or a reverse proxy
+            // dropping long-lived POSTs. Probe /health just in case the
+            // update actually got kicked off via some other path, but most
+            // of the time this returns a clean retry-able error.
+            return recoverFromInterruptedStream('network-error', err);
+        }
         if (!response.ok || !response.body) {
             throw new Error(`Update request failed (HTTP ${response.status})`);
         }
@@ -146,79 +199,57 @@ export function VersionUpgradeModal({
         const decoder = new TextDecoder();
         let buffer = '';
         let doneEvent: DoneEvent | null = null;
+        let readLoopError: unknown = null;
 
-        for (;;) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-
+        try {
             for (;;) {
-                const sepIdx = buffer.indexOf('\n\n');
-                if (sepIdx === -1) break;
-                const raw = buffer.slice(0, sepIdx);
-                buffer = buffer.slice(sepIdx + 2);
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
 
-                let eventName = 'message';
-                const dataLines: string[] = [];
-                for (const line of raw.split('\n')) {
-                    if (line.startsWith(':')) continue; // comment/heartbeat
-                    if (line.startsWith('event: ')) eventName = line.slice(7).trim();
-                    else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
-                }
-                if (dataLines.length === 0) continue;
+                for (;;) {
+                    const sepIdx = buffer.indexOf('\n\n');
+                    if (sepIdx === -1) break;
+                    const raw = buffer.slice(0, sepIdx);
+                    buffer = buffer.slice(sepIdx + 2);
 
-                try {
-                    const parsed = JSON.parse(dataLines.join('\n'));
-                    if (eventName === 'log' && typeof parsed.chunk === 'string') {
-                        appendOutput(parsed.chunk);
-                    } else if (eventName === 'done') {
-                        doneEvent = parsed as DoneEvent;
+                    let eventName = 'message';
+                    const dataLines: string[] = [];
+                    for (const line of raw.split('\n')) {
+                        if (line.startsWith(':')) continue; // comment/heartbeat
+                        if (line.startsWith('event: ')) eventName = line.slice(7).trim();
+                        else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
                     }
-                } catch {
-                    // Ignore malformed frames.
+                    if (dataLines.length === 0) continue;
+
+                    try {
+                        const parsed = JSON.parse(dataLines.join('\n'));
+                        if (eventName === 'log' && typeof parsed.chunk === 'string') {
+                            appendOutput(parsed.chunk);
+                        } else if (eventName === 'done') {
+                            doneEvent = parsed as DoneEvent;
+                        }
+                    } catch {
+                        // Ignore malformed frames.
+                    }
                 }
             }
+        } catch (err) {
+            // Mid-stream drop. Most common on Linux with npm-global
+            // installs: the update swaps package files, systemd/pm2
+            // notices and kills the running daemon, and the browser's
+            // fetch reader throws "TypeError: Failed to fetch". The
+            // update is probably already on disk — treat this identically
+            // to the "no done event" case and let /health arbitrate.
+            readLoopError = err;
         }
 
-        if (!doneEvent) {
-            // A clean stream close without a done event is usually a race,
-            // not a real failure. The two cases we see in the wild:
-            //   - Linux `npm install -g` replaces the live pixcode package
-            //     files; a daemon supervisor (systemd / pm2) notices and
-            //     restarts the server before the `done` event hits the wire.
-            //   - Desktop runtime-dir swap exits cleanly on its own before
-            //     the TCP flush completes.
-            // In both cases the update is already on disk. Probe /health:
-            // if the server comes back on a newer version than we started
-            // with, treat the stream-close as success (same as a
-            // `selfRestarting: true` done event). Only surface the error
-            // if /health either never comes back or returns the old
-            // version, which is the real "server crashed and no update
-            // happened" case.
-            appendOutput('\nStream closed early — verifying via /health…\n');
-            const isBack = await pollHealthUntilReady();
-            if (isBack) {
-                try {
-                    const response = await fetch('/health', { cache: 'no-store' });
-                    const data = response.ok ? await response.json() : null;
-                    const reportedVersion = typeof data?.version === 'string' ? data.version : null;
-                    if (reportedVersion && reportedVersion !== currentVersion) {
-                        appendOutput(`\n✅ Server came back on ${reportedVersion}. Treating as self-restart.\n`);
-                        return {
-                            success: true,
-                            version: reportedVersion,
-                            selfRestarting: true,
-                            message: 'Update completed. Server restarted automatically.',
-                        };
-                    }
-                } catch {
-                    // fall through to the error below
-                }
-            }
-            throw new Error('Update stream ended without completion event — the server may have crashed. Please retry.');
-        }
-        return doneEvent;
-    }, [appendOutput, currentVersion, pollHealthUntilReady]);
+        if (doneEvent) return doneEvent;
+        return recoverFromInterruptedStream(
+            readLoopError ? 'network-error' : 'clean-close',
+            readLoopError,
+        );
+    }, [appendOutput, recoverFromInterruptedStream]);
 
     const waitForServerBackOnline = useCallback(async () => {
         // Skip the POST /api/system/restart step — the server already
