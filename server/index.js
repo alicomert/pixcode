@@ -2518,6 +2518,25 @@ app.get(/.*/, (req, res) => {
         return res.status(404).send('Not found');
     }
 
+    // Never serve index.html for unmatched API / WS routes — returning HTML
+    // there gives the frontend a bogus 200 + `<!doctype ...` body, which
+    // then explodes `res.json()` as "Unexpected token '<'". Sending a real
+    // JSON 404 here means missing endpoints surface as a clear HTTP error
+    // instead of a misleading parse failure. Fixes the Settings → Agents →
+    // Configuration tab on hosts still running an older backend that
+    // predates `/api/providers/:p/config-files`.
+    if (req.path.startsWith('/api/') || req.path === '/api' ||
+        req.path.startsWith('/ws') || req.path.startsWith('/shell') ||
+        req.path === '/health') {
+        return res.status(404).json({
+            success: false,
+            error: {
+                code: 'ROUTE_NOT_FOUND',
+                message: `No handler for ${req.method} ${req.path}. The backend may be an older build — restart the server after an update.`,
+            },
+        });
+    }
+
     // Only serve index.html for HTML routes, not for static assets
     // Static assets should already be handled by express.static middleware above
     const indexPath = path.join(APP_ROOT, 'dist', 'index.html');
