@@ -190,7 +190,7 @@ export function useChatRealtimeHandlers({
         streamTimerRef.current = window.setTimeout(() => {
           streamTimerRef.current = null;
           if (sid) {
-            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, (msg.provider as LLMProvider) || provider);
           }
         }, 100);
       }
@@ -208,7 +208,7 @@ export function useChatRealtimeHandlers({
       }
       if (sid) {
         if (accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, (msg.provider as LLMProvider) || provider);
         }
         sessionStore.finalizeStreaming(sid);
       }
@@ -250,7 +250,7 @@ export function useChatRealtimeHandlers({
           streamTimerRef.current = null;
         }
         if (sid && accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, (msg.provider as LLMProvider) || provider);
           sessionStore.finalizeStreaming(sid);
         }
         accumulatedStreamRef.current = '';
