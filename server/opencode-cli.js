@@ -360,10 +360,13 @@ async function spawnOpencode(command, options = {}, ws) {
             const installed = await providerAuthService.isProviderInstalled('opencode');
             const errorContent = !installed
                 ? 'OpenCode CLI is not installed. Install it from the Settings → Agents → OpenCode tab, or run: npm install -g opencode-ai'
-                : error.message;
+                : (error?.message || String(error));
 
             const errorSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : finalSessionId;
             ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: errorSessionId, provider: 'opencode' }));
+            // Always emit `complete` so the UI's "Processing..." state clears
+            // even when spawn fails (ENOENT, EACCES) and `close` never fires.
+            ws.send(createNormalizedMessage({ kind: 'complete', exitCode: 1, isNewSession: !sessionId && !!command, sessionId: errorSessionId, provider: 'opencode' }));
             notifyTerminalState({ error });
 
             reject(error);

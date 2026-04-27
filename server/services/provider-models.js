@@ -113,7 +113,18 @@ async function discoverOpenAiCompat(apiKey, baseUrl, fallbackBase) {
     const response = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${apiKey}` },
     });
-    if (!response.ok) throw new Error(`${endpoint} returned ${response.status}`);
+    if (!response.ok) {
+        // 401 specifically means our key is bad — but for codex/qwen/etc.
+        // users often log in via OAuth (`codex login`, `qwen auth`) which
+        // doesn't expose an OpenAI-compatible API key. Surface a clean
+        // "no live discovery available" rather than a scary 401 trace.
+        if (response.status === 401) {
+            const err = new Error('OpenAI-compatible /v1/models requires an API key. The static catalog is shown instead — that\'s expected when you signed in via OAuth (e.g. `codex login`).');
+            err.code = 'OAUTH_NO_API_KEY';
+            throw err;
+        }
+        throw new Error(`${endpoint} returned ${response.status}`);
+    }
     const data = await response.json();
     const rows = Array.isArray(data?.data) ? data.data : [];
     return rows
@@ -123,6 +134,28 @@ async function discoverOpenAiCompat(apiKey, baseUrl, fallbackBase) {
             label: m.id,
             source: 'api',
         }));
+}
+
+/**
+ * Detect whether the user is authenticated via the provider's OAuth flow
+ * (codex login / qwen auth) so we can skip live model discovery silently
+ * — those flows don't surface a usable OpenAI-compatible API key, and the
+ * SDK calls the upstream APIs through its own internal auth path.
+ */
+async function hasProviderOauthAuth(provider) {
+    if (provider === 'codex') {
+        try {
+            await fs.access(path.join(os.homedir(), '.codex', 'auth.json'));
+            return true;
+        } catch { return false; }
+    }
+    if (provider === 'qwen') {
+        try {
+            await fs.access(path.join(os.homedir(), '.qwen', 'oauth_creds.json'));
+            return true;
+        } catch { return false; }
+    }
+    return false;
 }
 
 /**
@@ -299,9 +332,16 @@ export async function getProviderModels(provider, opts = {}) {
     const baseUrl = creds?.baseUrl || envBase || undefined;
 
     if (!apiKey) {
-        // Be explicit so the UI can surface a useful hint rather than just
-        // showing the static baseline with no reason given.
-        error = `No ${provider} API key configured. Save one in Settings > Agents > API Key to enable live discovery.`;
+        // Codex and Qwen support OAuth (`codex login`, `qwen auth`) which
+        // DOESN'T expose a usable API key — the SDK auths against the
+        // upstream API directly. Skip the discovery step silently in that
+        // case; the static catalog is the right answer.
+        const oauthOnly = await hasProviderOauthAuth(provider);
+        if (!oauthOnly) {
+            // Be explicit so the UI can surface a useful hint rather than just
+            // showing the static baseline with no reason given.
+            error = `No ${provider} API key configured. Save one in Settings > Agents > API Key, or sign in via the CLI (e.g. \`codex login\`).`;
+        }
     } else {
         try {
             if (provider === 'claude') {
@@ -318,7 +358,12 @@ export async function getProviderModels(provider, opts = {}) {
                 liveModels = await discoverGoogle(apiKey);
             }
         } catch (err) {
-            error = err?.message || String(err);
+            // OAuth users get a clean message instead of a raw 401 stack.
+            if (err?.code === 'OAUTH_NO_API_KEY') {
+                error = err.message;
+            } else {
+                error = err?.message || String(err);
+            }
         }
     }
 

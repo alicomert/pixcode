@@ -35,7 +35,14 @@ function getSessionTitle(session: ProjectSession): string {
     return (session.name as string) || 'Untitled Session';
   }
 
-  return (session.summary as string) || 'New Session';
+  // Codex/Gemini/Qwen/OpenCode all carry the prompt summary in `summary`,
+  // with a `name` fallback for renamed sessions. Anything else lands on
+  // 'New Session' so a freshly-spawned session that hasn't synced its
+  // metadata yet doesn't render an empty title.
+  return (session.summary as string)
+    || (session.name as string)
+    || (session.title as string)
+    || 'New Session';
 }
 
 export default function MainContentTitle({

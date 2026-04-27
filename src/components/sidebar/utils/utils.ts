@@ -114,6 +114,10 @@ export const getSessionName = (session: SessionWithProvider, t: TFunction): stri
     return session.summary || session.name || t('projects.newSession');
   }
 
+  if (session.__provider === 'opencode') {
+    return session.summary || session.name || t('projects.newSession');
+  }
+
   return session.summary || t('projects.newSession');
 };
 
@@ -142,6 +146,7 @@ export const createSessionViewModel = (
     isCodexSession: session.__provider === 'codex',
     isGeminiSession: session.__provider === 'gemini',
     isQwenSession: session.__provider === 'qwen',
+    isOpencodeSession: session.__provider === 'opencode',
     isActive: diffInMinutes < 10,
     sessionName: getSessionName(session, t),
     sessionTime: getSessionTime(session),
@@ -176,14 +181,23 @@ export const getAllSessions = (
   const isQwenIdentified = (session: { id?: string; provider?: string }) =>
     (typeof session.id === 'string' && session.id.startsWith('qwen_'))
     || session.provider === 'qwen';
+  // Same hazard for opencode: its IDs start with `opencode_` (server/
+  // opencode-cli.js generates them) and may end up in another pool when
+  // the backend's session enumerator hasn't classified them yet.
+  const isOpencodeIdentified = (session: { id?: string; provider?: string }) =>
+    (typeof session.id === 'string' && session.id.startsWith('opencode_'))
+    || session.provider === 'opencode';
 
   const rawGemini = project.geminiSessions || [];
   const geminiSessions = rawGemini
-    .filter((s) => !isQwenIdentified(s))
+    .filter((s) => !isQwenIdentified(s) && !isOpencodeIdentified(s))
     .map((session) => ({ ...session, __provider: 'gemini' as const }));
   const qwenFromGeminiPool = rawGemini
     .filter((s) => isQwenIdentified(s))
     .map((session) => ({ ...session, __provider: 'qwen' as const }));
+  const opencodeFromGeminiPool = rawGemini
+    .filter((s) => isOpencodeIdentified(s))
+    .map((session) => ({ ...session, __provider: 'opencode' as const }));
 
   const qwenSessions = [
     ...(project.qwenSessions || []).map((session) => ({
@@ -193,7 +207,15 @@ export const getAllSessions = (
     ...qwenFromGeminiPool,
   ];
 
-  // Dedupe by id in case a single qwen session leaks into both pools on the
+  const opencodeSessions = [
+    ...(project.opencodeSessions || []).map((session) => ({
+      ...session,
+      __provider: 'opencode' as const,
+    })),
+    ...opencodeFromGeminiPool,
+  ];
+
+  // Dedupe by id in case a single session leaks into multiple pools on the
   // backend — the second copy just gets dropped silently.
   const byId = new Map<string, SessionWithProvider>();
   for (const s of [
@@ -202,6 +224,7 @@ export const getAllSessions = (
     ...codexSessions,
     ...geminiSessions,
     ...qwenSessions,
+    ...opencodeSessions,
   ] as SessionWithProvider[]) {
     if (!byId.has(s.id)) byId.set(s.id, s);
   }

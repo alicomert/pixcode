@@ -356,18 +356,79 @@ export function useProjectsState({
 
       const geminiSession = project.geminiSessions?.find((session) => session.id === sessionId);
       if (geminiSession) {
+        // Qwen Code is a Gemini-CLI fork; its sessions sometimes land in
+        // `~/.gemini/tmp/` and end up in geminiSessions, but their IDs
+        // start with `qwen_` (set in server/qwen-code-cli.js) or carry
+        // an explicit `provider: 'qwen'` field. Re-tag here so the
+        // header logo / session title resolve to Qwen Code instead of
+        // Gemini.
+        const isQwen = (typeof geminiSession.id === 'string' && geminiSession.id.startsWith('qwen_'))
+          || (geminiSession as { provider?: string }).provider === 'qwen';
+        const provider = isQwen ? 'qwen' : 'gemini';
         const shouldUpdateProject = selectedProject?.name !== project.name;
         const shouldUpdateSession =
-          selectedSession?.id !== sessionId || selectedSession.__provider !== 'gemini';
+          selectedSession?.id !== sessionId || selectedSession.__provider !== provider;
 
         if (shouldUpdateProject) {
           setSelectedProject(project);
         }
         if (shouldUpdateSession) {
-          setSelectedSession({ ...geminiSession, __provider: 'gemini' });
+          setSelectedSession({ ...geminiSession, __provider: provider });
         }
         return;
       }
+
+      const qwenSession = project.qwenSessions?.find((session) => session.id === sessionId);
+      if (qwenSession) {
+        const shouldUpdateProject = selectedProject?.name !== project.name;
+        const shouldUpdateSession =
+          selectedSession?.id !== sessionId || selectedSession.__provider !== 'qwen';
+
+        if (shouldUpdateProject) {
+          setSelectedProject(project);
+        }
+        if (shouldUpdateSession) {
+          setSelectedSession({ ...qwenSession, __provider: 'qwen' });
+        }
+        return;
+      }
+
+      const opencodeSession = project.opencodeSessions?.find((session) => session.id === sessionId);
+      if (opencodeSession) {
+        const shouldUpdateProject = selectedProject?.name !== project.name;
+        const shouldUpdateSession =
+          selectedSession?.id !== sessionId || selectedSession.__provider !== 'opencode';
+
+        if (shouldUpdateProject) {
+          setSelectedProject(project);
+        }
+        if (shouldUpdateSession) {
+          setSelectedSession({ ...opencodeSession, __provider: 'opencode' });
+        }
+        return;
+      }
+    }
+
+    // Fallback: navigated to a session id that isn't in any project pool yet
+    // (e.g. brand-new qwen/opencode session created in the current chat —
+    // backend hasn't returned an updated project payload yet). Synthesize a
+    // minimal session record with the provider inferred from the id prefix
+    // or the active provider, so MainContentTitle/ChatInterface don't render
+    // a stale gemini-tagged entry while the project list catches up.
+    if (sessionId && (selectedSession?.id !== sessionId)) {
+      const idPrefixProvider = sessionId.startsWith('opencode_')
+        ? 'opencode'
+        : sessionId.startsWith('qwen_')
+          ? 'qwen'
+          : null;
+      const activeProvider = (typeof window !== 'undefined'
+        ? (localStorage.getItem('selected-provider') as 'claude' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode' | null)
+        : null) || 'claude';
+      const provider = idPrefixProvider || activeProvider;
+      setSelectedSession({
+        id: sessionId,
+        __provider: provider,
+      } as ProjectSession);
     }
   }, [sessionId, projects, selectedProject?.name, selectedSession?.id, selectedSession?.__provider]);
 

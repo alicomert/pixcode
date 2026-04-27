@@ -335,10 +335,13 @@ async function spawnQwen(command, options = {}, ws) {
             const installed = await providerAuthService.isProviderInstalled('qwen');
             const errorContent = !installed
                 ? 'Qwen Code CLI is not installed. Install it first: npm install -g @qwen-code/qwen-code'
-                : error.message;
+                : (error?.message || String(error));
 
             const errorSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : finalSessionId;
             ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: errorSessionId, provider: 'qwen' }));
+            // Always emit `complete` so the UI's "Processing..." state clears
+            // even when spawn fails (ENOENT, EACCES) and `close` never fires.
+            ws.send(createNormalizedMessage({ kind: 'complete', exitCode: 1, isNewSession: !sessionId && !!command, sessionId: errorSessionId, provider: 'qwen' }));
             notifyTerminalState({ error });
 
             reject(error);

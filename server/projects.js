@@ -699,6 +699,7 @@ async function getProjects(progressCallback = null) {
       sessions: [],
       geminiSessions: [],
       qwenSessions: [],
+      opencodeSessions: [],
       sessionMeta: {
         hasMore: false,
         total: 0
@@ -769,6 +770,14 @@ async function getProjects(progressCallback = null) {
     applyCustomSessionNames(project.qwenSessions, 'qwen');
 
     try {
+      project.opencodeSessions = await getOpencodeCliSessions(actualProjectDir);
+    } catch (e) {
+      console.warn(`Could not load OpenCode sessions for project ${entry.name}:`, e.message);
+      project.opencodeSessions = [];
+    }
+    applyCustomSessionNames(project.opencodeSessions, 'opencode');
+
+    try {
       const taskMasterResult = await detectTaskMasterFolder(actualProjectDir);
       project.taskmaster = {
         hasTaskmaster: taskMasterResult.hasTaskmaster,
@@ -831,6 +840,7 @@ async function getProjects(progressCallback = null) {
         sessions: [],
         geminiSessions: [],
         qwenSessions: [],
+        opencodeSessions: [],
         sessionMeta: {
           hasMore: false,
           total: 0
@@ -875,6 +885,13 @@ async function getProjects(progressCallback = null) {
         console.warn(`Could not load Gemini sessions for tracked project ${projectName}:`, e.message);
       }
       applyCustomSessionNames(project.geminiSessions, 'gemini');
+
+      try {
+        project.opencodeSessions = await getOpencodeCliSessions(actualProjectDir);
+      } catch (e) {
+        console.warn(`Could not load OpenCode sessions for tracked project ${projectName}:`, e.message);
+      }
+      applyCustomSessionNames(project.opencodeSessions, 'opencode');
 
       try {
         const taskMasterResult = await detectTaskMasterFolder(actualProjectDir);
@@ -2798,6 +2815,100 @@ async function getQwenCliSessions(projectPath, options = {}) {
   );
 }
 
+/**
+ * OpenCode session enumerator. Walks `~/.local/share/opencode/project/*` (the
+ * XDG data dir OpenCode uses on every platform — yes, including Windows under
+ * the user profile) and surfaces every session whose `directory` field matches
+ * the project root we're listing. `<projectID>` segments are git-root commit
+ * hashes for git repos and the literal "global" for non-git dirs, so we
+ * don't try to be clever about the slug — we just walk every project bucket
+ * and filter by the stored `directory`.
+ *
+ * This is best-effort: when OpenCode hasn't written anything yet (brand-new
+ * project, no chats sent) the data dir is missing and we return [] without
+ * surfacing an error to the caller.
+ */
+async function getOpencodeCliSessions(projectPath) {
+  const normalizedProjectPath = normalizeComparablePath(projectPath);
+  if (!normalizedProjectPath) return [];
+
+  const sessions = [];
+  const opencodeDataDir = path.join(os.homedir(), '.local', 'share', 'opencode', 'project');
+
+  let projectBuckets;
+  try {
+    projectBuckets = await fs.readdir(opencodeDataDir);
+  } catch {
+    return [];
+  }
+
+  for (const bucket of projectBuckets) {
+    const sessionRoot = path.join(opencodeDataDir, bucket, 'storage', 'session');
+    let projectIdDirs;
+    try {
+      projectIdDirs = await fs.readdir(sessionRoot);
+    } catch {
+      continue;
+    }
+
+    for (const pidDir of projectIdDirs) {
+      const dir = path.join(sessionRoot, pidDir);
+      let sessionFiles;
+      try {
+        sessionFiles = await fs.readdir(dir);
+      } catch {
+        continue;
+      }
+
+      for (const file of sessionFiles) {
+        if (!file.startsWith('ses_') || !file.endsWith('.json')) continue;
+        try {
+          const data = await fs.readFile(path.join(dir, file), 'utf8');
+          const sess = JSON.parse(data);
+          const sessDir = typeof sess?.directory === 'string'
+            ? normalizeComparablePath(sess.directory)
+            : null;
+          if (!sessDir || sessDir !== normalizedProjectPath) continue;
+
+          const id = typeof sess?.id === 'string' ? sess.id : file.replace(/\.json$/, '');
+          sessions.push({
+            id,
+            summary: sess?.title || 'OpenCode Session',
+            messageCount: typeof sess?.messageCount === 'number' ? sess.messageCount : 0,
+            lastActivity: sess?.time?.updated || sess?.time?.created || null,
+            provider: 'opencode',
+          });
+        } catch {
+          // Skip unreadable session files silently — one corrupt file
+          // shouldn't blank the whole list.
+          continue;
+        }
+      }
+    }
+  }
+
+  // Merge in live sessions held by the in-memory sessionManager so a fresh
+  // chat that hasn't been flushed to disk yet still shows in the sidebar.
+  try {
+    const liveSessions = sessionManager.getProjectSessions(projectPath) || [];
+    for (const s of liveSessions) {
+      if (!s.id || !s.id.startsWith('opencode_')) continue;
+      if (sessions.some((existing) => existing.id === s.id)) continue;
+      sessions.push({
+        id: s.id,
+        summary: s.summary || s.title || 'OpenCode Session',
+        messageCount: s.messageCount || 0,
+        lastActivity: s.lastActivity || s.createdAt || null,
+        provider: 'opencode',
+      });
+    }
+  } catch { /* sessionManager not initialised yet — ignore */ }
+
+  return sessions.sort((a, b) =>
+    new Date(b.lastActivity || 0) - new Date(a.lastActivity || 0)
+  );
+}
+
 async function getQwenCliSessionMessages(sessionId) {
   const qwenTmpDir = path.join(os.homedir(), '.qwen', 'tmp');
   let projectDirs;
@@ -2989,5 +3100,6 @@ export {
   getGeminiCliSessionMessages,
   getQwenCliSessions,
   getQwenCliSessionMessages,
+  getOpencodeCliSessions,
   searchConversations
 };
