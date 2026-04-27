@@ -87,15 +87,44 @@ export class OpencodeSessionsProvider implements IProviderSessions {
     }
 
     if (raw.type === 'error') {
+      // OpenCode `--format json` emits errors as
+      //   { type:"error", error:{ name, data:{ message, statusCode?, isRetryable? } } }
+      // — `error` is always an object wrapper, never a plain string. Older
+      // builds put the message at `error.message`; current builds nest it
+      // under `error.data.message`. Map known error class names to friendly
+      // copy so the user gets actionable text instead of a class identifier.
       const rawErr = raw.error ?? raw.message;
-      const content = typeof rawErr === 'string'
-        ? rawErr
-        : rawErr && typeof rawErr === 'object'
-          ? (() => {
-              try { return JSON.stringify(rawErr); }
-              catch { return 'Unknown OpenCode streaming error'; }
-            })()
-          : 'Unknown OpenCode streaming error';
+      const errObj = rawErr && typeof rawErr === 'object' ? rawErr as Record<string, unknown> : null;
+      const data = errObj && typeof errObj.data === 'object' && errObj.data
+        ? errObj.data as Record<string, unknown>
+        : null;
+      const dataMessage = data && typeof data.message === 'string' ? data.message : null;
+      const errMessage = errObj && typeof errObj.message === 'string' ? errObj.message : null;
+      const errName = errObj && typeof errObj.name === 'string' ? errObj.name : null;
+      const statusCode = data && typeof data.statusCode === 'number' ? data.statusCode : null;
+
+      let content: string;
+      if (typeof rawErr === 'string') {
+        content = rawErr;
+      } else if (dataMessage) {
+        content = dataMessage;
+      } else if (errMessage) {
+        content = errMessage;
+      } else if (errName) {
+        const friendly: Record<string, string> = {
+          ProviderModelNotFoundError: 'Model not found. Open Settings → Agents → OpenCode and pick a model from the live catalog (or run `opencode models --refresh`).',
+          ProviderInitError: 'OpenCode provider config is invalid. Try `opencode auth login` or remove `~/.local/share/opencode/auth.json` and re-authenticate.',
+          MessageOutputLengthError: 'OpenCode response was truncated by the model output cap. Try shortening the prompt or pick a model with a larger output limit.',
+          AI_APICallError: 'OpenCode upstream API call failed. Clearing `~/.cache/opencode` and retrying usually fixes this.',
+          APIError: statusCode === 429
+            ? 'OpenCode hit a rate limit (429). Wait a few seconds and try again, or switch to a different model.'
+            : 'OpenCode upstream API error.',
+        };
+        content = friendly[errName] ?? errName;
+      } else {
+        try { content = JSON.stringify(rawErr); }
+        catch { content = 'Unknown OpenCode streaming error'; }
+      }
       return [createNormalizedMessage({
         id: baseId,
         sessionId,

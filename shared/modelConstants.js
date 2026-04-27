@@ -95,25 +95,48 @@ export const QWEN_MODELS = {
 };
 
 /**
- * OpenCode Models
+ * OpenCode Models — STATIC FALLBACK ONLY.
  *
- * OpenCode is multi-provider, so the picker is really "which upstream
- * model does opencode talk to?". The defaults here point at OpenCode Zen
- * (their curated routing tier) plus a few direct picks the docs call
- * out as well-supported. Advanced users override via opencode.json's
- * `provider` / `model` block, which bypasses this list.
+ * OpenCode is multi-provider and the live model catalog rotates often
+ * (Zen free models come and go; new Anthropic/OpenAI/Google models ship
+ * every few weeks). The runtime fetches the live catalog from
+ * `https://models.dev/api.json` via server/services/provider-models.js
+ * and merges it on top of this list — these entries only show when the
+ * fetch fails (offline install, firewalled host).
+ *
+ * Curated current free Zen tier + canonical paid picks. Update when the
+ * fallback feels stale, but the live fetch is the source of truth.
  */
 export const OPENCODE_MODELS = {
   OPTIONS: [
-    { value: "opencode/zen-best", label: "OpenCode Zen (Best)" },
-    { value: "opencode/zen-fast", label: "OpenCode Zen (Fast)" },
+    // OpenCode Zen — free tier (no charge, may rate-limit). The "limited
+    // time" Zen freebies rotate, so this is the safest small set.
+    { value: "opencode/big-pickle", label: "OpenCode Zen · Big Pickle (Free)", free: true },
+    { value: "opencode/minimax-m2.5-free", label: "OpenCode Zen · MiniMax M2.5 (Free)", free: true },
+    { value: "opencode/hy3-preview-free", label: "OpenCode Zen · Hy3 Preview (Free)", free: true },
+    { value: "opencode/ling-2.6-flash-free", label: "OpenCode Zen · Ling 2.6 Flash (Free)", free: true },
+    { value: "opencode/nemotron-3-super-free", label: "OpenCode Zen · Nemotron 3 Super (Free)", free: true },
+    { value: "opencode/gpt-5-nano", label: "OpenCode Zen · GPT-5 Nano (Free)", free: true },
+
+    // Anthropic — current flagship + cheap.
+    { value: "anthropic/claude-opus-4-7", label: "Claude Opus 4.7 (Anthropic)" },
     { value: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6 (Anthropic)" },
-    { value: "anthropic/claude-opus-4-6", label: "Claude Opus 4.6 (Anthropic)" },
+    { value: "anthropic/claude-haiku-4-5", label: "Claude Haiku 4.5 (Anthropic)" },
+
+    // OpenAI — current GPT-5 family.
     { value: "openai/gpt-5.4", label: "GPT-5.4 (OpenAI)" },
-    { value: "google/gemini-3-pro-preview", label: "Gemini 3 Pro (Google)" },
+    { value: "openai/gpt-5.1-codex", label: "GPT-5.1 Codex (OpenAI)" },
+
+    // Google — current Gemini 3 family.
+    { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Google)" },
+    { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Google)" },
+
+    // xAI — fast & cheap coding model.
+    { value: "xai/grok-code-fast-1", label: "Grok Code Fast 1 (xAI)" },
   ],
 
-  DEFAULT: "opencode/zen-best",
+  // Free Zen freebie that historically works for unauthed installs.
+  DEFAULT: "opencode/big-pickle",
 };
 
 /**

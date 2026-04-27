@@ -45,25 +45,33 @@ class OpencodeResponseHandler {
       return;
     }
 
-    // OpenCode emits both `message` events and `part` events that compose
-    // a single assistant turn. We handle whichever shape lands.
-    if (event.type === 'message' && event.role === 'assistant') {
+    // OpenCode emits assistant text as either a top-level `text` event
+    // (current `--format json` shape: `{ type: "text", part: { text } }`)
+    // or as `message`/`part` legacy shapes from earlier builds. Cover all
+    // three so we don't drop tokens on a CLI version we haven't matched.
+    if (event.type === 'text' && event.part && typeof event.part.text === 'string') {
+      if (this.onContentFragment && event.part.text) this.onContentFragment(event.part.text);
+    } else if (event.type === 'message' && event.role === 'assistant') {
       const content = event.content || event.text || '';
       if (this.onContentFragment && content) this.onContentFragment(content);
     } else if (event.type === 'part' && event.part_type === 'text') {
       const content = event.text || event.content || '';
       if (this.onContentFragment && content) this.onContentFragment(content);
     } else if (event.type === 'tool_use' || event.type === 'tool-use' || event.type === 'tool.start') {
+      // Tool-use shape on `--format json`: `{ type:"tool_use", part:{ callID, tool, state:{ input } } }`
+      const part = event.part || event;
       if (this.onToolUse) this.onToolUse({
-        tool_id: event.tool_id || event.id,
-        tool_name: event.tool_name || event.name,
-        parameters: event.parameters || event.input || {},
+        tool_id: part.callID || part.id || event.tool_id,
+        tool_name: part.tool || part.name || event.tool_name,
+        parameters: part.state?.input || part.input || event.parameters || {},
       });
     } else if (event.type === 'tool_result' || event.type === 'tool-result' || event.type === 'tool.end') {
+      const part = event.part || event;
+      const state = part.state || {};
       if (this.onToolResult) this.onToolResult({
-        tool_id: event.tool_id || event.id,
-        output: event.output ?? event.result ?? '',
-        status: event.status || (event.isError ? 'error' : 'ok'),
+        tool_id: part.callID || part.id || event.tool_id,
+        output: state.output ?? part.output ?? event.output ?? event.result ?? '',
+        status: state.status || event.status || (event.isError ? 'error' : 'ok'),
       });
     }
 

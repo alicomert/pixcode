@@ -467,6 +467,11 @@ function ModelPickerDialog({
                     onSelect={() => onSelect(model.value)}
                   >
                     <span className="flex-1 truncate">{model.label}</span>
+                    {model.free && (
+                      <span className="mr-2 rounded-full bg-teal-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-teal-700 dark:text-teal-300">
+                        free
+                      </span>
+                    )}
                     {model.source === "api" && (
                       <span className="mr-2 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-emerald-700 dark:text-emerald-300">
                         live

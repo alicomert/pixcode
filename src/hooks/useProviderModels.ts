@@ -17,6 +17,9 @@ export type ModelEntry = {
   value: string;
   label: string;
   source?: 'static' | 'api';
+  /** Surfaced for OpenCode (where the catalog mixes free Zen models with
+   *  paid providers); other providers don't set this. */
+  free?: boolean;
 };
 
 type ModelCatalogResponse = {

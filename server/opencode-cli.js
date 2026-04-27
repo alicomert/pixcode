@@ -275,17 +275,31 @@ async function spawnOpencode(command, options = {}, ws) {
         });
 
         opencodeProcess.stderr.on('data', (data) => {
-            const errorMsg = data.toString();
+            const rawMsg = data.toString();
             // Suppress known cosmetic noise.
-            if (errorMsg.includes('[DEP0040]') ||
-                errorMsg.includes('DeprecationWarning') ||
-                errorMsg.includes('--trace-deprecation') ||
-                errorMsg.includes('punycode')) {
+            if (rawMsg.includes('[DEP0040]') ||
+                rawMsg.includes('DeprecationWarning') ||
+                rawMsg.includes('--trace-deprecation') ||
+                rawMsg.includes('punycode')) {
                 return;
             }
 
+            // Pre-stream validation errors land on stderr as plain text BEFORE
+            // the JSON event stream opens (e.g. "Model must be in the format
+            // provider/model"). Map the common ones to actionable copy.
+            let friendly = rawMsg.trim();
+            if (/Model must be in the format/i.test(friendly)) {
+                friendly = 'Model id must use the `provider/model` format (e.g. `opencode/big-pickle` or `anthropic/claude-sonnet-4-5`). Pick one from Settings → Agents → OpenCode → Model.';
+            } else if (/ProviderModelNotFoundError/.test(friendly)) {
+                friendly = 'OpenCode does not recognize the selected model. Run `opencode models --refresh` or pick a different model from the picker.';
+            } else if (/ProviderInitError/.test(friendly)) {
+                friendly = 'OpenCode provider config is invalid. Try `opencode auth login`, or clear `~/.local/share/opencode/auth.json` and re-authenticate.';
+            } else if (/AI_APICallError/.test(friendly)) {
+                friendly = 'OpenCode upstream call failed. Clearing `~/.cache/opencode` and retrying usually resolves this.';
+            }
+
             const socketSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : (capturedSessionId || sessionId);
-            ws.send(createNormalizedMessage({ kind: 'error', content: errorMsg, sessionId: socketSessionId, provider: 'opencode' }));
+            ws.send(createNormalizedMessage({ kind: 'error', content: friendly, sessionId: socketSessionId, provider: 'opencode' }));
         });
 
         opencodeProcess.on('close', async (code) => {

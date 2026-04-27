@@ -71,7 +71,9 @@ function normalizeList(list) {
         seen.add(value);
         const label = typeof item.label === 'string' && item.label.trim() ? item.label.trim() : value;
         const source = item.source === 'api' ? 'api' : 'static';
-        out.push({ value, label, source });
+        const entry = { value, label, source };
+        if (typeof item.free === 'boolean') entry.free = item.free;
+        out.push(entry);
     }
     return out;
 }
@@ -123,6 +125,101 @@ async function discoverOpenAiCompat(apiKey, baseUrl, fallbackBase) {
         }));
 }
 
+/**
+ * OpenCode is multi-provider — its "model" picker isn't a single API list,
+ * it's the union of every provider it can route to (Anthropic, OpenAI,
+ * Google, xAI, OpenRouter, OpenCode Zen, Ollama, etc.). The canonical
+ * catalog lives at https://models.dev/api.json (no auth, ~1.8 MB JSON, 115
+ * providers as of 2026-04). We pull that, filter to providers the user
+ * has authenticated with (read `~/.local/share/opencode/auth.json`) plus
+ * always include the OpenCode Zen tier (works without explicit auth on
+ * the free models), drop deprecated entries, and tag free models.
+ */
+async function discoverOpencode() {
+    const url = process.env.OPENCODE_MODELS_URL || 'https://models.dev/api.json';
+    const response = await fetch(url, {
+        // OpenCode itself caches this for hours; we cache for 6h via the
+        // outer wrapper so a single 7s fetch on cold start is acceptable.
+        signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error(`models.dev/api.json returned ${response.status}`);
+    const data = await response.json();
+    if (!data || typeof data !== 'object') throw new Error('models.dev returned a non-object payload');
+
+    // Read OpenCode's auth.json to know which providers the user can
+    // actually call. Missing file → only show always-free Zen.
+    const authedProviders = new Set(['opencode']);
+    try {
+        const authPath = path.join(os.homedir(), '.local', 'share', 'opencode', 'auth.json');
+        const raw = await fs.readFile(authPath, 'utf8');
+        const auth = JSON.parse(raw);
+        if (auth && typeof auth === 'object') {
+            for (const k of Object.keys(auth)) authedProviders.add(k);
+        }
+    } catch { /* no auth.json → only Zen free models surface */ }
+
+    // Common env-var providers OpenCode picks up automatically. If the user
+    // exported one in their shell, surface those models too even without
+    // auth.json. Mirrors the env list in opencode-auth.provider.ts.
+    const envProviderHints = {
+        anthropic: ['ANTHROPIC_API_KEY'],
+        openai: ['OPENAI_API_KEY'],
+        google: ['GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
+        'google-vertex': ['GOOGLE_APPLICATION_CREDENTIALS'],
+        xai: ['XAI_API_KEY'],
+        groq: ['GROQ_API_KEY'],
+        cerebras: ['CEREBRAS_API_KEY'],
+        openrouter: ['OPENROUTER_API_KEY'],
+    };
+    for (const [providerId, envVars] of Object.entries(envProviderHints)) {
+        if (envVars.some((v) => process.env[v]?.trim())) authedProviders.add(providerId);
+    }
+
+    const out = [];
+    for (const [providerId, providerCfg] of Object.entries(data)) {
+        if (!authedProviders.has(providerId)) continue;
+        if (!providerCfg || typeof providerCfg !== 'object') continue;
+        const models = providerCfg.models;
+        if (!models || typeof models !== 'object') continue;
+
+        const providerName = typeof providerCfg.name === 'string' && providerCfg.name.trim()
+            ? providerCfg.name
+            : providerId;
+
+        for (const [modelId, modelCfg] of Object.entries(models)) {
+            if (!modelCfg || typeof modelCfg !== 'object') continue;
+            // Skip deprecated entries from the default list — users can
+            // still hand-type them if they really need to.
+            if (modelCfg.status === 'deprecated') continue;
+            const cost = modelCfg.cost && typeof modelCfg.cost === 'object' ? modelCfg.cost : null;
+            const free = !cost || (Number(cost.input) === 0 && Number(cost.output) === 0);
+            const ctx = modelCfg.limit?.context;
+            const ctxLabel = typeof ctx === 'number' && ctx > 0
+                ? ` · ${ctx >= 1_000_000 ? `${(ctx / 1_000_000).toFixed(1)}M` : `${Math.round(ctx / 1000)}K`}`
+                : '';
+            const freeLabel = free ? ' · Free' : '';
+            const modelName = typeof modelCfg.name === 'string' && modelCfg.name.trim()
+                ? modelCfg.name
+                : modelId;
+
+            out.push({
+                value: `${providerId}/${modelId}`,
+                label: `${providerName} · ${modelName}${ctxLabel}${freeLabel}`,
+                source: 'api',
+                free,
+            });
+        }
+    }
+
+    // Sort: free first (handy when the user is unauthed), then by label.
+    out.sort((a, b) => {
+        if (a.free !== b.free) return a.free ? -1 : 1;
+        return a.label.localeCompare(b.label);
+    });
+
+    return out;
+}
+
 async function discoverGoogle(apiKey) {
     // Google Generative Language API — public models list, API key as query.
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
@@ -165,6 +262,22 @@ export async function getProviderModels(provider, opts = {}) {
         };
     }
 
+    // OpenCode is the odd one out: its catalog is models.dev, not a per-key
+    // API endpoint. Skip the credential plumbing and dispatch straight.
+    let liveModels = [];
+    let error;
+    if (provider === 'opencode') {
+        try {
+            liveModels = await discoverOpencode();
+        } catch (err) {
+            error = err?.message || String(err);
+        }
+        const merged = mergeCatalogs(normalizeList(liveModels), staticCatalog);
+        const entry = { models: merged, error };
+        await saveCacheEntry(provider, entry).catch(() => { /* non-fatal */ });
+        return { models: merged, fetchedAt: new Date().toISOString(), error, fromCache: false };
+    }
+
     // Pick up credentials from Pixcode's UI store first, then fall back to
     // the native env vars so a user who already exported ANTHROPIC_API_KEY
     // (or authenticated Claude Code via OAuth — the SDK writes the key into
@@ -185,8 +298,6 @@ export async function getProviderModels(provider, opts = {}) {
     const apiKey = creds?.apiKey || envKey;
     const baseUrl = creds?.baseUrl || envBase || undefined;
 
-    let liveModels = [];
-    let error;
     if (!apiKey) {
         // Be explicit so the UI can surface a useful hint rather than just
         // showing the static baseline with no reason given.
