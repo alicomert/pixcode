@@ -1978,7 +1978,13 @@ function handleShellConnection(ws) {
                 const commandSuffix = isPlainShell && initialCommand
                     ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
                     : '';
-                ptySessionKey = `${projectPath}_${sessionId || 'default'}${commandSuffix}`;
+                // Include provider in the key so a fresh "new session" in OpenCode
+                // doesn't reattach to a cached Claude PTY for the same project (or
+                // vice versa). Before this, the key was just `${path}_default`,
+                // which collided across providers and made every disconnect →
+                // switch-provider flow reopen the previously-running CLI.
+                const providerSuffix = isPlainShell ? '' : `_${provider}`;
+                ptySessionKey = `${projectPath}_${sessionId || 'default'}${providerSuffix}${commandSuffix}`;
 
                 // Kill any existing login session before starting fresh
                 if (isLoginCommand) {
@@ -2034,6 +2040,7 @@ function handleShellConnection(ws) {
                         : provider === 'codex' ? 'Codex'
                         : provider === 'gemini' ? 'Gemini'
                         : provider === 'qwen' ? 'Qwen Code'
+                        : provider === 'opencode' ? 'OpenCode'
                         : 'Claude';
                     welcomeMsg = hasSession ?
                         `\x1b[36mResuming ${providerName} session ${sessionId} in: ${projectPath}\x1b[0m\r\n` :
