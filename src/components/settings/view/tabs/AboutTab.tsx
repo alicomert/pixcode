@@ -1,4 +1,5 @@
-import { ExternalLink, MessageSquare, Star } from '@/lib/icons';
+import { useState } from 'react';
+import { CheckCircle, ExternalLink, Loader2, MessageSquare, RefreshCw, Star } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
 import { useVersionCheck } from '../../../../hooks/useVersionCheck';
@@ -26,10 +27,41 @@ function DiscordIcon({ className }: { className?: string }) {
   );
 }
 
+// Format an ISO/ms timestamp as a friendly "just now / Nm ago / Nh ago"
+// string. Used by the About tab to surface when the last update check ran.
+function formatRelativeTime(ts: number | null): string {
+  if (!ts) return '';
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 5) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return new Date(ts).toLocaleString();
+}
+
 export default function AboutTab() {
   const { t } = useTranslation('settings');
-  const { updateAvailable, latestVersion, currentVersion, releaseInfo } = useVersionCheck('alicomert', 'pixcode');
+  const {
+    updateAvailable,
+    latestVersion,
+    currentVersion,
+    releaseInfo,
+    checkStatus,
+    lastCheckedAt,
+    manualCheck,
+  } = useVersionCheck('alicomert', 'pixcode');
   const releasesUrl = releaseInfo?.htmlUrl || `${GITHUB_REPO_URL}/releases`;
+  // Briefly show a "checked!" confirmation after a manual click — the
+  // hook's `checkStatus` flips back to 'success' too quickly for the
+  // user to register the response, especially on a fast connection.
+  const [justChecked, setJustChecked] = useState(false);
+  const onCheckClick = async () => {
+    await manualCheck();
+    setJustChecked(true);
+    window.setTimeout(() => setJustChecked(false), 2500);
+  };
 
   return (
     <div className="space-y-6">
@@ -67,17 +99,57 @@ export default function AboutTab() {
         </div>
       </div>
 
-      {/* Star on GitHub button */}
-      <a
-        href={GITHUB_REPO_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-      >
-        <GitHubIcon className="h-4 w-4" />
-        <Star className="h-3.5 w-3.5" />
-        <span>Star on GitHub</span>
-      </a>
+      {/* Manual update check + Star on GitHub */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onCheckClick}
+          disabled={checkStatus === 'checking'}
+          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-60 disabled:cursor-wait"
+        >
+          {checkStatus === 'checking' ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : justChecked && !updateAvailable ? (
+            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          <span>
+            {checkStatus === 'checking'
+              ? t('about.checkingForUpdate', { defaultValue: 'Checking…' })
+              : justChecked
+                ? (updateAvailable
+                    ? t('about.updateFound', { defaultValue: 'Update found' })
+                    : t('about.upToDate', { defaultValue: 'Up to date' }))
+                : t('about.checkForUpdate', { defaultValue: 'Check for updates' })}
+          </span>
+        </button>
+
+        <a
+          href={GITHUB_REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        >
+          <GitHubIcon className="h-4 w-4" />
+          <Star className="h-3.5 w-3.5" />
+          <span>Star on GitHub</span>
+        </a>
+      </div>
+
+      {lastCheckedAt && (
+        <p className="-mt-3 text-[11px] text-muted-foreground/70">
+          {t('about.lastChecked', {
+            defaultValue: 'Last checked {{when}}',
+            when: formatRelativeTime(lastCheckedAt),
+          })}
+          {checkStatus === 'error' && (
+            <span className="ml-2 text-red-500">
+              · {t('about.checkFailed', { defaultValue: 'check failed — try again' })}
+            </span>
+          )}
+        </p>
+      )}
 
       {/* Links */}
       <div className="flex flex-wrap gap-4 text-sm">
