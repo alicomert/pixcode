@@ -87,13 +87,22 @@ export class OpencodeSessionsProvider implements IProviderSessions {
     }
 
     if (raw.type === 'error') {
+      const rawErr = raw.error ?? raw.message;
+      const content = typeof rawErr === 'string'
+        ? rawErr
+        : rawErr && typeof rawErr === 'object'
+          ? (() => {
+              try { return JSON.stringify(rawErr); }
+              catch { return 'Unknown OpenCode streaming error'; }
+            })()
+          : 'Unknown OpenCode streaming error';
       return [createNormalizedMessage({
         id: baseId,
         sessionId,
         timestamp: ts,
         provider: PROVIDER,
         kind: 'error',
-        content: raw.error || raw.message || 'Unknown OpenCode streaming error',
+        content,
       })];
     }
 

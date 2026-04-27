@@ -121,13 +121,25 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         }
         break;
 
-      case 'error':
+      case 'error': {
+        // Defensive coercion — provider streams sometimes deliver structured
+        // error payloads (`{ message, code, ... }`) under `content`, which
+        // would otherwise render as the literal string "[object Object]".
+        const rawContent = msg.content as unknown;
+        const errorText = typeof rawContent === 'string'
+          ? rawContent
+          : rawContent && typeof rawContent === 'object'
+            ? ((rawContent as { message?: string; error?: string }).message
+                ?? (rawContent as { message?: string; error?: string }).error
+                ?? JSON.stringify(rawContent))
+            : '';
         converted.push({
           type: 'error',
-          content: msg.content || 'Unknown error',
+          content: errorText || 'Unknown error',
           timestamp: msg.timestamp,
         });
         break;
+      }
 
       case 'interactive_prompt':
         converted.push({
