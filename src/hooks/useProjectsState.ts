@@ -356,15 +356,16 @@ export function useProjectsState({
 
       const geminiSession = project.geminiSessions?.find((session) => session.id === sessionId);
       if (geminiSession) {
-        // Qwen Code is a Gemini-CLI fork; its sessions sometimes land in
-        // `~/.gemini/tmp/` and end up in geminiSessions, but their IDs
-        // start with `qwen_` (set in server/qwen-code-cli.js) or carry
-        // an explicit `provider: 'qwen'` field. Re-tag here so the
-        // header logo / session title resolve to Qwen Code instead of
-        // Gemini.
+        // Qwen Code and OpenCode are Gemini-CLI forks; their sessions
+        // sometimes land in `~/.gemini/tmp/` and end up in geminiSessions.
+        // Detect them by ID prefix or explicit provider field and re-tag
+        // so the header logo / session title / message routing resolve to
+        // the correct provider instead of Gemini.
         const isQwen = (typeof geminiSession.id === 'string' && geminiSession.id.startsWith('qwen_'))
           || (geminiSession as { provider?: string }).provider === 'qwen';
-        const provider = isQwen ? 'qwen' : 'gemini';
+        const isOpencode = (typeof geminiSession.id === 'string' && geminiSession.id.startsWith('opencode_'))
+          || (geminiSession as { provider?: string }).provider === 'opencode';
+        const provider = isOpencode ? 'opencode' : isQwen ? 'qwen' : 'gemini';
         const shouldUpdateProject = selectedProject?.name !== project.name;
         const shouldUpdateSession =
           selectedSession?.id !== sessionId || selectedSession.__provider !== provider;

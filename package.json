@@ -1,6 +1,6 @@
 {
   "name": "@pixelbyte-software/pixcode",
-  "version": "1.33.8",
+  "version": "1.33.9",
   "description": "Pixcode — a desktop and mobile web UI for Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode.",
   "type": "module",
   "main": "dist-server/server/index.js",
