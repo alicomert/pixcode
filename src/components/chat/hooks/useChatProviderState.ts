@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../../../utils/api';
-import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS, QWEN_MODELS } from '../../../../shared/modelConstants';
+import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS, OPENCODE_MODELS, QWEN_MODELS } from '../../../../shared/modelConstants';
 import type { PendingPermissionRequest, PermissionMode } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 
@@ -28,6 +28,9 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
   });
   const [qwenModel, setQwenModel] = useState<string>(() => {
     return localStorage.getItem('qwen-model') || QWEN_MODELS.DEFAULT;
+  });
+  const [opencodeModel, setOpencodeModel] = useState<string>(() => {
+    return localStorage.getItem('opencode-model') || OPENCODE_MODELS.DEFAULT;
   });
 
   const lastProviderRef = useRef(provider);
@@ -115,6 +118,8 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
     setGeminiModel,
     qwenModel,
     setQwenModel,
+    opencodeModel,
+    setOpencodeModel,
     permissionMode,
     setPermissionMode,
     pendingPermissionRequests,

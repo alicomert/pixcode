@@ -48,6 +48,7 @@ import { spawnCursor, abortCursorSession, isCursorSessionActive, getActiveCursor
 import { queryCodex, abortCodexSession, isCodexSessionActive, getActiveCodexSessions } from './openai-codex.js';
 import { spawnGemini, abortGeminiSession, isGeminiSessionActive, getActiveGeminiSessions } from './gemini-cli.js';
 import { spawnQwen, abortQwenSession, isQwenSessionActive, getActiveQwenSessions } from './qwen-code-cli.js';
+import { spawnOpencode, abortOpencodeSession, isOpencodeSessionActive, getActiveOpencodeSessions } from './opencode-cli.js';
 import sessionManager from './sessionManager.js';
 import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
@@ -1810,6 +1811,9 @@ function handleChatConnection(ws, request) {
             } else if (data.type === 'qwen-command') {
                 chatDebug('qwen', data);
                 await spawnQwen(data.command, data.options, writer);
+            } else if (data.type === 'opencode-command') {
+                chatDebug('opencode', data);
+                await spawnOpencode(data.command, data.options, writer);
             } else if (data.type === 'cursor-resume') {
                 // Backward compatibility: treat as cursor-command with resume and no prompt
                 console.log('[DEBUG] Cursor resume session (compat):', data.sessionId);
@@ -1831,6 +1835,8 @@ function handleChatConnection(ws, request) {
                     success = abortGeminiSession(data.sessionId);
                 } else if (provider === 'qwen') {
                     success = abortQwenSession(data.sessionId);
+                } else if (provider === 'opencode') {
+                    success = abortOpencodeSession(data.sessionId);
                 } else {
                     // Use Claude Agents SDK
                     success = await abortClaudeSDKSession(data.sessionId);
@@ -1867,6 +1873,8 @@ function handleChatConnection(ws, request) {
                     isActive = isGeminiSessionActive(sessionId);
                 } else if (provider === 'qwen') {
                     isActive = isQwenSessionActive(sessionId);
+                } else if (provider === 'opencode') {
+                    isActive = isOpencodeSessionActive(sessionId);
                 } else {
                     // Use Claude Agents SDK
                     isActive = isClaudeSDKSessionActive(sessionId);
@@ -1901,7 +1909,8 @@ function handleChatConnection(ws, request) {
                     cursor: getActiveCursorSessions(),
                     codex: getActiveCodexSessions(),
                     gemini: getActiveGeminiSessions(),
-                    qwen: getActiveQwenSessions()
+                    qwen: getActiveQwenSessions(),
+                    opencode: getActiveOpencodeSessions()
                 };
                 writer.send({
                     type: 'active-sessions',

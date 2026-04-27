@@ -112,7 +112,10 @@ function ChatInterface({
     setGeminiModel,
     qwenModel,
     setQwenModel,
+    opencodeModel,
+    setOpencodeModel,
     permissionMode,
+    setPermissionMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
     cyclePermissionMode,
@@ -222,6 +225,7 @@ function ChatInterface({
     codexModel,
     geminiModel,
     qwenModel,
+    opencodeModel,
     isLoading,
     canAbortSession,
     tokenBudget,
@@ -374,6 +378,8 @@ function ChatInterface({
           setGeminiModel={setGeminiModel}
           qwenModel={qwenModel}
           setQwenModel={setQwenModel}
+          opencodeModel={opencodeModel}
+          setOpencodeModel={setOpencodeModel}
           tasksEnabled={tasksEnabled}
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}
@@ -415,6 +421,7 @@ function ChatInterface({
           provider={provider}
           permissionMode={permissionMode}
           onModeSwitch={cyclePermissionMode}
+          setPermissionMode={setPermissionMode}
           thinkingMode={thinkingMode}
           setThinkingMode={setThinkingMode}
           tokenBudget={tokenBudget}

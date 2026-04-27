@@ -1,6 +1,6 @@
 {
   "name": "pixcode-desktop",
-  "version": "1.33.2",
+  "version": "1.33.3",
   "description": "Electron installer shell for Pixcode. Tray + autostart + native installers for Windows, macOS, and Linux. Built and published alongside the main @pixelbyte-software/pixcode release.",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -24,7 +24,7 @@
     "dist:linux": "electron-builder --linux"
   },
   "dependencies": {
-    "@pixelbyte-software/pixcode": "1.33.2",
+    "@pixelbyte-software/pixcode": "1.33.3",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {

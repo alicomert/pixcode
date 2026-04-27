@@ -41,6 +41,7 @@ interface UseChatComposerStateArgs {
   codexModel: string;
   geminiModel: string;
   qwenModel: string;
+  opencodeModel: string;
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
@@ -114,6 +115,7 @@ export function useChatComposerState({
   codexModel,
   geminiModel,
   qwenModel,
+  opencodeModel,
   isLoading,
   canAbortSession,
   tokenBudget,
@@ -283,7 +285,7 @@ export function useChatComposerState({
           projectName: selectedProject.name,
           sessionId: currentSessionId,
           provider,
-          model: provider === 'cursor' ? cursorModel : provider === 'codex' ? codexModel : provider === 'gemini' ? geminiModel : provider === 'qwen' ? qwenModel : claudeModel,
+          model: provider === 'cursor' ? cursorModel : provider === 'codex' ? codexModel : provider === 'gemini' ? geminiModel : provider === 'qwen' ? qwenModel : provider === 'opencode' ? opencodeModel : claudeModel,
           tokenUsage: tokenBudget,
         };
 
@@ -336,6 +338,7 @@ export function useChatComposerState({
       cursorModel,
       geminiModel,
       qwenModel,
+      opencodeModel,
       handleBuiltInCommand,
       handleCustomCommand,
       input,
@@ -576,7 +579,9 @@ export function useChatComposerState({
                   ? 'gemini-settings'
                   : provider === 'qwen'
                     ? 'qwen-settings'
-                    : 'claude-settings';
+                    : provider === 'opencode'
+                      ? 'opencode-settings'
+                      : 'claude-settings';
           const savedSettings = safeLocalStorage.getItem(settingsKey);
           if (savedSettings) {
             return JSON.parse(savedSettings);
@@ -662,6 +667,27 @@ export function useChatComposerState({
             toolsSettings,
           },
         });
+      } else if (provider === 'opencode') {
+        // OpenCode runs `opencode run --format json --agent <build|plan> ...`.
+        // permissionMode is mapped server-side: 'plan' → --agent plan,
+        // 'bypassPermissions'/'acceptEdits' → --dangerously-skip-permissions,
+        // 'default' → --agent build (normal, prompts on edits/bash).
+        sendMessage({
+          type: 'opencode-command',
+          command: messageContent,
+          sessionId: effectiveSessionId,
+          options: {
+            cwd: resolvedProjectPath,
+            projectPath: resolvedProjectPath,
+            sessionId: effectiveSessionId,
+            resume: Boolean(effectiveSessionId),
+            model: opencodeModel,
+            sessionSummary,
+            permissionMode,
+            toolsSettings,
+            images: uploadedImages,
+          },
+        });
       } else {
         sendMessage({
           type: 'claude-command',
@@ -701,6 +727,7 @@ export function useChatComposerState({
       claudeModel,
       codexModel,
       qwenModel,
+      opencodeModel,
       currentSessionId,
       cursorModel,
       executeCommand,

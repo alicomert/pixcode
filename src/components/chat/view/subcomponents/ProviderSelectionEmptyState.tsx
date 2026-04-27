@@ -46,6 +46,8 @@ type ProviderSelectionEmptyStateProps = {
   setGeminiModel: (model: string) => void;
   qwenModel: string;
   setQwenModel: (model: string) => void;
+  opencodeModel: string;
+  setOpencodeModel: (model: string) => void;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -95,6 +97,8 @@ export default function ProviderSelectionEmptyState({
   setGeminiModel,
   qwenModel,
   setQwenModel,
+  opencodeModel,
+  setOpencodeModel,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -147,17 +151,6 @@ export default function ProviderSelectionEmptyState({
     }
   }, [provider, providerAuthStatus, setProvider]);
 
-  // OpenCode model state is handled locally here (not plumbed through the
-  // parent composer) — users typically control OpenCode's model via
-  // opencode.json, and adding another top-level `opencodeModel` prop
-  // would ripple through every component that forwards the state bag.
-  // Can be promoted to a prop if the picker starts surfacing it.
-  const [opencodeModel, setOpencodeModelLocal] = useState<string>(() => {
-    try {
-      return localStorage.getItem("opencode-model") || OPENCODE_MODELS.DEFAULT;
-    } catch { return OPENCODE_MODELS.DEFAULT; }
-  });
-
   // Currently-selected model per provider — plumbed through state props
   // rather than localStorage reads so the cards react to live switches.
   const currentModelByProvider = useMemo<Record<LLMProvider, string>>(
@@ -178,10 +171,10 @@ export default function ProviderSelectionEmptyState({
       else if (p === "codex") { setCodexModel(value); localStorage.setItem("codex-model", value); }
       else if (p === "gemini") { setGeminiModel(value); localStorage.setItem("gemini-model", value); }
       else if (p === "qwen") { setQwenModel(value); localStorage.setItem("qwen-model", value); }
-      else if (p === "opencode") { setOpencodeModelLocal(value); localStorage.setItem("opencode-model", value); }
+      else if (p === "opencode") { setOpencodeModel(value); localStorage.setItem("opencode-model", value); }
       else { setCursorModel(value); localStorage.setItem("cursor-model", value); }
     },
-    [setClaudeModel, setCodexModel, setCursorModel, setGeminiModel, setQwenModel],
+    [setClaudeModel, setCodexModel, setCursorModel, setGeminiModel, setQwenModel, setOpencodeModel],
   );
 
   // Model picker modal state — only renders for the card the user

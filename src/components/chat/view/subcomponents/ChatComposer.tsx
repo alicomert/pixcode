@@ -11,7 +11,7 @@ import type {
   SetStateAction,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from '@/lib/icons';
+import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, ListChecks } from '@/lib/icons';
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
 import CommandMenu from './CommandMenu';
 import ClaudeStatus from './ClaudeStatus';
@@ -58,6 +58,7 @@ interface ChatComposerProps {
   provider: Provider | string;
   permissionMode: PermissionMode | string;
   onModeSwitch: () => void;
+  setPermissionMode: (mode: PermissionMode) => void;
   thinkingMode: string;
   setThinkingMode: Dispatch<SetStateAction<string>>;
   tokenBudget: { used?: number; total?: number } | null;
@@ -113,6 +114,7 @@ export default function ChatComposer({
   provider,
   permissionMode,
   onModeSwitch,
+  setPermissionMode,
   thinkingMode,
   setThinkingMode,
   tokenBudget,
@@ -351,6 +353,23 @@ export default function ChatComposer({
                 </span>
               </div>
             </button>
+
+            {provider !== 'codex' && (
+              <button
+                type="button"
+                onClick={() => setPermissionMode(permissionMode === 'plan' ? 'default' : 'plan')}
+                className={`flex items-center gap-1 rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
+                  permissionMode === 'plan'
+                    ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15'
+                    : 'border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+                title={t('codex.modes.plan')}
+                aria-pressed={permissionMode === 'plan'}
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+                <span className="hidden whitespace-nowrap sm:inline">{t('codex.modes.plan')}</span>
+              </button>
+            )}
 
             {provider === 'claude' && (
               <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />

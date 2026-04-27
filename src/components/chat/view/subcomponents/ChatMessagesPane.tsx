@@ -28,6 +28,8 @@ interface ChatMessagesPaneProps {
   setGeminiModel: (model: string) => void;
   qwenModel: string;
   setQwenModel: (model: string) => void;
+  opencodeModel: string;
+  setOpencodeModel: (model: string) => void;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -75,6 +77,8 @@ export default function ChatMessagesPane({
   setGeminiModel,
   qwenModel,
   setQwenModel,
+  opencodeModel,
+  setOpencodeModel,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -160,6 +164,8 @@ export default function ChatMessagesPane({
           setGeminiModel={setGeminiModel}
           qwenModel={qwenModel}
           setQwenModel={setQwenModel}
+          opencodeModel={opencodeModel}
+          setOpencodeModel={setOpencodeModel}
           tasksEnabled={tasksEnabled}
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}
