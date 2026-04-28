@@ -3,26 +3,29 @@
 // claude-sdk.js was designed to stream SDK messages over a WebSocket
 // connection, so we feed it a "fake WS" that captures send() calls and
 // emits A2A bus events instead.
+//
+// IMPORTANT: claude-sdk.js calls ws.send(<NormalizedMessage object>) — it
+// does NOT JSON.stringify before send. Our shim therefore receives objects
+// (not strings) and dispatches on `frame.kind` (not `frame.type`). See
+// server/shared/types.ts for the MessageKind enum.
 
 import crypto from 'node:crypto';
 
-// @ts-ignore — plain-JS module
-// eslint-disable-next-line boundaries/no-unknown
-import { queryClaudeSDK, abortClaudeSDKSession } from '@/claude-sdk.js';
+// eslint-disable-next-line boundaries/no-unknown -- claude-sdk.js is a top-level CLI runtime not yet classified by eslint.config.js; cleanup deferred (cascades into a server/services classification gap).
+import { abortClaudeSDKSession, queryClaudeSDK } from '@/claude-sdk.js';
 import { AbstractA2AAdapter } from '@/modules/orchestration/a2a/adapters/abstract-a2a.adapter.js';
 import type {
   AdapterContext,
   TaskHandle,
 } from '@/modules/orchestration/a2a/adapters/abstract-a2a.adapter.js';
-import type { AgentCard, Message, Part, Task } from '@/modules/orchestration/a2a/types.js';
+import type { AgentCard, Part, Task } from '@/modules/orchestration/a2a/types.js';
 
 interface FakeWS {
-  send(data: string): void;
+  send(data: unknown): void;
   readyState: number;
-  on(event: string, handler: (...args: unknown[]) => void): void;
-  removeListener(event: string, handler: (...args: unknown[]) => void): void;
 }
 
+// WebSocket.OPEN per the ws library — claude-sdk.js gates send() on readyState === 1.
 const WS_OPEN = 1;
 
 function joinPartsToPrompt(parts: Part[]): string {
@@ -73,6 +76,9 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
   private readonly active = new Map<string, { sessionId: string | null }>();
 
   async submitTask(task: Task, ctx: AdapterContext): Promise<TaskHandle> {
+    // Foundation: only the last user message is fed in. Multi-turn resumption
+    // (input-required tasks, workflow chaining) needs to pass options.sessionId
+    // and append history; deferred to a follow-on plan.
     const promptText = joinPartsToPrompt(
       task.history[task.history.length - 1]?.parts ?? [],
     );
@@ -83,9 +89,7 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
 
     const fakeWS: FakeWS = {
       readyState: WS_OPEN,
-      send: (data: string) => this.handleSdkFrame(task.id, data, session),
-      on: () => {},
-      removeListener: () => {},
+      send: (data) => this.handleSdkFrame(task.id, data, session),
     };
 
     const finished = (async () => {
@@ -98,14 +102,18 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
           },
           fakeWS,
         );
+        // If cancelTask removed us from `active` first, suppress the spurious
+        // 'completed' that would otherwise race the 'canceled' state.
         if (this.active.has(task.id)) {
           this.emitState(task.id, 'completed');
         }
       } catch (err) {
-        this.emitState(task.id, 'failed', {
-          code: 'ADAPTER_RUNTIME_ERROR',
-          message: err instanceof Error ? err.message : String(err),
-        });
+        if (this.active.has(task.id)) {
+          this.emitState(task.id, 'failed', {
+            code: 'ADAPTER_RUNTIME_ERROR',
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
       } finally {
         this.active.delete(task.id);
       }
@@ -119,54 +127,73 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
 
   async cancelTask(taskId: string): Promise<void> {
     const session = this.active.get(taskId);
-    if (!session?.sessionId) {
+    if (!session) {
       this.emitState(taskId, 'canceled');
-      this.active.delete(taskId);
       return;
     }
-    try {
-      await abortClaudeSDKSession(session.sessionId);
-    } finally {
-      this.emitState(taskId, 'canceled');
-      this.active.delete(taskId);
+    // Delete BEFORE awaiting so submitTask's IIFE guard (this.active.has)
+    // suppresses the spurious 'completed' state when queryClaudeSDK's
+    // for-await loop unwinds from the abort.
+    this.active.delete(taskId);
+    if (session.sessionId) {
+      try {
+        await abortClaudeSDKSession(session.sessionId);
+      } catch {
+        // swallow — adapter has already cleaned its own state
+      }
     }
+    this.emitState(taskId, 'canceled');
   }
 
   /**
-   * claude-sdk.js sends JSON frames over the WS. We parse each frame
-   * and translate it into A2A bus events.
+   * claude-sdk.js calls `ws.send(<NormalizedMessage>)` with a JS OBJECT
+   * (not a JSON string). We translate each frame into A2A bus events.
+   * See server/shared/types.ts for the MessageKind union.
    */
-  private handleSdkFrame(taskId: string, raw: string, session: { sessionId: string | null }): void {
-    let frame: unknown;
-    try {
-      frame = JSON.parse(raw);
-    } catch {
-      // Non-JSON frame; treat as plain text agent message.
-      const message: Message = {
-        messageId: newId('msg'),
-        role: 'agent',
-        parts: [{ kind: 'text', text: raw }],
-        taskId,
-      };
-      this.emitMessage(taskId, message);
-      return;
+  private handleSdkFrame(
+    taskId: string,
+    frame: unknown,
+    session: { sessionId: string | null },
+  ): void {
+    if (!frame || typeof frame !== 'object') return;
+    const f = frame as {
+      kind?: string;
+      sessionId?: unknown;
+      newSessionId?: unknown;
+      text?: unknown;
+      content?: unknown;
+      toolName?: unknown;
+      toolInput?: unknown;
+      toolResult?: unknown;
+    };
+
+    // session_created carries the new session id in `newSessionId`. Capture
+    // it here so cancelTask can call abortClaudeSDKSession with the right id.
+    if (
+      f.kind === 'session_created' &&
+      typeof f.newSessionId === 'string' &&
+      !session.sessionId
+    ) {
+      session.sessionId = f.newSessionId;
     }
 
-    const f = frame as { type?: string; data?: Record<string, unknown> };
-    const data = f.data ?? {};
+    switch (f.kind) {
+      case 'session_created':
+      case 'status':
+      case 'stream_delta':
+      case 'stream_end':
+        // not user-facing — skip emitting
+        return;
 
-    // Capture sessionId on the first frame that exposes it so cancel works.
-    const maybeSessionId = (data as { session_id?: unknown }).session_id;
-    if (typeof maybeSessionId === 'string' && !session.sessionId) {
-      session.sessionId = maybeSessionId;
-    }
-
-    switch (f.type) {
-      case 'claude-text':
       case 'text':
-      case 'message': {
-        const text = (data as { text?: unknown }).text;
-        if (typeof text === 'string') {
+      case 'thinking': {
+        const text =
+          typeof f.text === 'string'
+            ? f.text
+            : typeof f.content === 'string'
+              ? f.content
+              : null;
+        if (text) {
           this.emitMessage(taskId, {
             messageId: newId('msg'),
             role: 'agent',
@@ -176,34 +203,54 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
         }
         return;
       }
-      case 'tool_use':
-      case 'tool-use': {
+
+      case 'tool_use': {
         this.emitArtifact(taskId, {
           artifactId: newId('art'),
           type: 'command-output',
-          parts: [{ kind: 'data', data }],
+          parts: [
+            {
+              kind: 'data',
+              data: { toolName: f.toolName, toolInput: f.toolInput },
+            },
+          ],
           metadata: { source: 'claude-tool-use' },
         });
         return;
       }
-      case 'file_edit':
-      case 'file-edit': {
+
+      case 'tool_result': {
         this.emitArtifact(taskId, {
           artifactId: newId('art'),
-          type: 'file-diff',
-          parts: [{ kind: 'data', data }],
-          metadata: { source: 'claude-file-edit' },
+          type: 'command-output',
+          parts: [{ kind: 'data', data: { toolResult: f.toolResult } }],
+          metadata: { source: 'claude-tool-result' },
         });
         return;
       }
-      default: {
-        // Unknown frame type — surface as data artifact for visibility.
+
+      case 'permission_request':
+      case 'permission_cancelled':
+      case 'interactive_prompt':
+      case 'task_notification':
+      case 'error':
+      case 'complete':
+        // surface as data artifact (user can reason about flow)
         this.emitArtifact(taskId, {
           artifactId: newId('art'),
           type: 'data',
-          parts: [{ kind: 'data', data: { frameType: f.type, ...data } }],
+          parts: [{ kind: 'data', data: f as Record<string, unknown> }],
+          metadata: { source: `claude-${f.kind}` },
         });
-      }
+        return;
+
+      default:
+        // Unknown kind — surface for visibility
+        this.emitArtifact(taskId, {
+          artifactId: newId('art'),
+          type: 'data',
+          parts: [{ kind: 'data', data: f as Record<string, unknown> }],
+        });
     }
   }
 }
