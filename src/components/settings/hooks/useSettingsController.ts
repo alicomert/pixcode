@@ -14,6 +14,7 @@ import type {
   CursorPermissionsState,
   GeminiPermissionMode,
   NotificationPreferencesState,
+  OpencodePermissionsState,
   ProjectSortOrder,
   QwenPermissionMode,
   SettingsMainTab,
@@ -44,6 +45,12 @@ type CursorSettingsStorage = {
 
 type CodexSettingsStorage = {
   permissionMode?: CodexPermissionMode;
+};
+
+type OpencodeSettingsStorage = {
+  allowPatterns?: string[];
+  denyPatterns?: string[];
+  skipPermissions?: boolean;
 };
 
 type NotificationPreferencesResponse = {
@@ -104,6 +111,12 @@ const createEmptyCursorPermissions = (): CursorPermissionsState => ({
   ...DEFAULT_CURSOR_PERMISSIONS,
 });
 
+const createEmptyOpencodePermissions = (): OpencodePermissionsState => ({
+  allowPatterns: [],
+  denyPatterns: [],
+  skipPermissions: false,
+});
+
 const createDefaultNotificationPreferences = (): NotificationPreferencesState => ({
   channels: {
     inApp: true,
@@ -139,6 +152,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   const [codexPermissionMode, setCodexPermissionMode] = useState<CodexPermissionMode>('default');
   const [geminiPermissionMode, setGeminiPermissionMode] = useState<GeminiPermissionMode>('default');
   const [qwenPermissionMode, setQwenPermissionMode] = useState<QwenPermissionMode>('default');
+  const [opencodePermissions, setOpencodePermissions] = useState<OpencodePermissionsState>(() => (
+    createEmptyOpencodePermissions()
+  ));
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginProvider, setLoginProvider] = useState<ActiveLoginProvider>('');
@@ -189,6 +205,16 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       );
       setQwenPermissionMode(savedQwenSettings.permissionMode || 'default');
 
+      const savedOpencodeSettings = parseJson<OpencodeSettingsStorage>(
+        localStorage.getItem('opencode-settings'),
+        {},
+      );
+      setOpencodePermissions({
+        allowPatterns: savedOpencodeSettings.allowPatterns || [],
+        denyPatterns: savedOpencodeSettings.denyPatterns || [],
+        skipPermissions: Boolean(savedOpencodeSettings.skipPermissions),
+      });
+
       try {
         const notificationResponse = await authenticatedFetch('/api/settings/notification-preferences');
         if (notificationResponse.ok) {
@@ -209,6 +235,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       console.error('Error loading settings:', error);
       setClaudePermissions(createEmptyClaudePermissions());
       setCursorPermissions(createEmptyCursorPermissions());
+      setOpencodePermissions(createEmptyOpencodePermissions());
       setNotificationPreferences(createDefaultNotificationPreferences());
       setCodexPermissionMode('default');
       setProjectSortOrder('name');
@@ -264,6 +291,13 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         lastUpdated: now,
       }));
 
+      localStorage.setItem('opencode-settings', JSON.stringify({
+        allowPatterns: opencodePermissions.allowPatterns,
+        denyPatterns: opencodePermissions.denyPatterns,
+        skipPermissions: opencodePermissions.skipPermissions,
+        lastUpdated: now,
+      }));
+
       // Notify same-tab listeners — the browser's `storage` event only
       // fires in OTHER tabs, so the sidebar previously polled every
       // second to catch sort-order changes. A broadcast here lets the
@@ -294,6 +328,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     notificationPreferences,
     geminiPermissionMode,
     qwenPermissionMode,
+    opencodePermissions.allowPatterns,
+    opencodePermissions.denyPatterns,
+    opencodePermissions.skipPermissions,
     projectSortOrder,
   ]);
 
@@ -402,6 +439,8 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     setGeminiPermissionMode,
     qwenPermissionMode,
     setQwenPermissionMode,
+    opencodePermissions,
+    setOpencodePermissions,
     openLoginForProvider,
     showLoginModal,
     setShowLoginModal,

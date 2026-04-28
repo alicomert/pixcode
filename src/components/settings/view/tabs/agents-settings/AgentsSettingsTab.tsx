@@ -21,6 +21,8 @@ export default function AgentsSettingsTab({
   onGeminiPermissionModeChange,
   qwenPermissionMode,
   onQwenPermissionModeChange,
+  opencodePermissions,
+  onOpencodePermissionsChange,
   projects,
 }: AgentsSettingsTabProps) {
   const [selectedAgent, setSelectedAgent] = useState<AgentProvider>('claude');
@@ -101,6 +103,8 @@ export default function AgentsSettingsTab({
           onGeminiPermissionModeChange={onGeminiPermissionModeChange}
           qwenPermissionMode={qwenPermissionMode}
           onQwenPermissionModeChange={onQwenPermissionModeChange}
+          opencodePermissions={opencodePermissions}
+          onOpencodePermissionsChange={onOpencodePermissionsChange}
           projects={projects}
         />
       </div>

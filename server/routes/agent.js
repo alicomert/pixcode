@@ -10,6 +10,8 @@ import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
 import { queryCodex } from '../openai-codex.js';
 import { spawnGemini } from '../gemini-cli.js';
+import { spawnQwen } from '../qwen-code-cli.js';
+import { spawnOpencode } from '../opencode-cli.js';
 import { Octokit } from '@octokit/rest';
 import { CLAUDE_MODELS, CURSOR_MODELS, CODEX_MODELS } from '../../shared/modelConstants.js';
 import { IS_PLATFORM } from '../constants/config.js';
@@ -44,11 +46,19 @@ const validateExternalApiKey = (req, res, next) => {
     }
   }
 
-  // Self-hosted mode: Validate API key from header or query parameter
-  const apiKey = req.headers['x-api-key'] || req.query.apiKey;
+  // Self-hosted mode: validate API key from any of the supported transports.
+  //   - Authorization: Bearer ck_... (added so /api/agent accepts the same
+  //     auth shape as the rest of the API, per the auth-unify in this turn)
+  //   - X-API-Key: ck_... (legacy, kept working)
+  //   - ?apiKey=ck_... (EventSource workaround)
+  const authHeader = req.headers['authorization'];
+  const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  const apiKey = (bearer && bearer.startsWith('ck_') ? bearer : null)
+    || req.headers['x-api-key']
+    || (typeof req.query.apiKey === 'string' ? req.query.apiKey : null);
 
   if (!apiKey) {
-    return res.status(401).json({ error: 'API key required' });
+    return res.status(401).json({ error: 'API key required (Authorization: Bearer ck_..., X-API-Key, or ?apiKey=)' });
   }
 
   const user = apiKeysDb.validateApiKey(apiKey);
@@ -529,74 +539,129 @@ class ResponseCollector {
   }
 
   /**
-   * Get filtered assistant messages only
+   * Get filtered assistant messages.
+   *
+   * Two message shapes are observed in the wild:
+   *   1. Legacy Claude-only:  { type:'claude-response', data:{ type:'assistant', message:{...} } }
+   *   2. Unified normalized:  { kind:'stream_delta'|'tool_use'|... , provider, content, ... }
+   *      (every provider after the v1.30+ unified-message migration emits this)
+   *
+   * Pre-fix this method only matched (1), so qwen / gemini / opencode / codex
+   * runs all returned an empty array even when the provider streamed real
+   * text. Now it builds:
+   *   - one synthetic assistant entry per chat turn from concatenated
+   *     `stream_delta` content (boundary = `stream_end` or `complete`)
+   *   - tool_use / tool_result entries pass through verbatim
    */
   getAssistantMessages() {
-    const assistantMessages = [];
+    const out = [];
+    let textBuffer = '';
 
-    for (const msg of this.messages) {
-      // Skip initial status message
-      if (msg && msg.type === 'status') {
+    const flushText = () => {
+      if (!textBuffer) return;
+      out.push({
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: textBuffer }],
+        },
+      });
+      textBuffer = '';
+    };
+
+    for (const raw of this.messages) {
+      const data = typeof raw === 'string'
+        ? (() => { try { return JSON.parse(raw); } catch { return null; } })()
+        : raw;
+      if (!data) continue;
+      if (data.type === 'status') continue;
+
+      // Unified shape (every modern provider).
+      // - `stream_delta`: incremental text chunk (most providers)
+      // - `text`: full text part for one assistant turn (Claude SDK + history reads)
+      // - `thinking`: reasoning blocks; we coalesce as plain text so the API caller sees something
+      if ((data.kind === 'stream_delta' || data.kind === 'text' || data.kind === 'thinking')
+          && (typeof data.content === 'string' || Array.isArray(data.content))) {
+        const text = typeof data.content === 'string'
+          ? data.content
+          : data.content.map((part) => (typeof part === 'string' ? part : (part?.text || ''))).join('');
+        textBuffer += text;
+        continue;
+      }
+      if (data.kind === 'stream_end' || data.kind === 'complete') {
+        flushText();
+        continue;
+      }
+      if (data.kind === 'tool_use') {
+        flushText();
+        out.push({ type: 'tool_use', id: data.toolId, name: data.toolName, input: data.toolInput });
+        continue;
+      }
+      if (data.kind === 'tool_result') {
+        out.push({ type: 'tool_result', tool_use_id: data.toolId, content: data.content, is_error: data.isError });
+        continue;
+      }
+      if (data.kind === 'error' && typeof data.content === 'string') {
+        flushText();
+        out.push({ type: 'error', content: data.content });
         continue;
       }
 
-      // Handle JSON strings
-      if (typeof msg === 'string') {
-        try {
-          const parsed = JSON.parse(msg);
-          // Only include claude-response messages with assistant type
-          if (parsed.type === 'claude-response' && parsed.data && parsed.data.type === 'assistant') {
-            assistantMessages.push(parsed.data);
-          }
-        } catch (e) {
-          // Not JSON, skip
-        }
+      // Legacy Claude shape — kept so old SDK builds still report cleanly.
+      if (data.type === 'claude-response' && data.data && data.data.type === 'assistant') {
+        flushText();
+        out.push(data.data);
       }
     }
-
-    return assistantMessages;
+    flushText();
+    return out;
   }
 
   /**
-   * Calculate total tokens from all messages
+   * Calculate total tokens from all messages.
+   *
+   * Two usage shapes observed:
+   *   1. Legacy Claude:        { type:'claude-response', data:{ message:{ usage:{ input_tokens, output_tokens, cache_*_input_tokens } } } }
+   *   2. Unified `complete`/   { kind:'complete'|'stream_end', usage:{ input, output, cacheRead?, cacheCreation? }, cost? }
+   *      `stream_end` events
    */
   getTotalTokens() {
-    let totalInput = 0;
-    let totalOutput = 0;
-    let totalCacheRead = 0;
-    let totalCacheCreation = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheCreationTokens = 0;
 
-    for (const msg of this.messages) {
-      let data = msg;
+    for (const raw of this.messages) {
+      const data = typeof raw === 'string'
+        ? (() => { try { return JSON.parse(raw); } catch { return null; } })()
+        : raw;
+      if (!data) continue;
 
-      // Parse if string
-      if (typeof msg === 'string') {
-        try {
-          data = JSON.parse(msg);
-        } catch (e) {
-          continue;
-        }
+      // Unified shape
+      if (data.usage && typeof data.usage === 'object') {
+        inputTokens += data.usage.input || data.usage.inputTokens || data.usage.input_tokens || 0;
+        outputTokens += data.usage.output || data.usage.outputTokens || data.usage.output_tokens || 0;
+        cacheReadTokens += data.usage.cacheRead || data.usage.cache_read_input_tokens || 0;
+        cacheCreationTokens += data.usage.cacheCreation || data.usage.cache_creation_input_tokens || 0;
+        continue;
       }
 
-      // Extract usage from claude-response messages
-      if (data && data.type === 'claude-response' && data.data) {
-        const msgData = data.data;
-        if (msgData.message && msgData.message.usage) {
-          const usage = msgData.message.usage;
-          totalInput += usage.input_tokens || 0;
-          totalOutput += usage.output_tokens || 0;
-          totalCacheRead += usage.cache_read_input_tokens || 0;
-          totalCacheCreation += usage.cache_creation_input_tokens || 0;
-        }
+      // Legacy Claude
+      if (data.type === 'claude-response' && data.data && data.data.message && data.data.message.usage) {
+        const u = data.data.message.usage;
+        inputTokens += u.input_tokens || 0;
+        outputTokens += u.output_tokens || 0;
+        cacheReadTokens += u.cache_read_input_tokens || 0;
+        cacheCreationTokens += u.cache_creation_input_tokens || 0;
       }
     }
 
     return {
-      inputTokens: totalInput,
-      outputTokens: totalOutput,
-      cacheReadTokens: totalCacheRead,
-      cacheCreationTokens: totalCacheCreation,
-      totalTokens: totalInput + totalOutput + totalCacheRead + totalCacheCreation
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheCreationTokens,
+      totalTokens: inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens,
     };
   }
 }
@@ -859,8 +924,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
     return res.status(400).json({ error: 'message is required' });
   }
 
-  if (!['claude', 'cursor', 'codex', 'gemini'].includes(provider)) {
-    return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", or "gemini"' });
+  if (!['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(provider)) {
+    return res.status(400).json({ error: 'provider must be one of: claude, cursor, codex, gemini, qwen, opencode' });
   }
 
   // Validate GitHub branch/PR creation requirements
@@ -984,6 +1049,27 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         sessionId: sessionId || null,
         model: model,
         skipPermissions: true // CLI mode bypasses permissions
+      }, writer);
+    } else if (provider === 'qwen') {
+      console.log('🐉 Starting Qwen Code CLI session');
+
+      await spawnQwen(message.trim(), {
+        projectPath: finalProjectPath,
+        cwd: finalProjectPath,
+        sessionId: sessionId || null,
+        model: model,
+        skipPermissions: true,
+      }, writer);
+    } else if (provider === 'opencode') {
+      console.log('🅾️  Starting OpenCode CLI session');
+
+      await spawnOpencode(message.trim(), {
+        projectPath: finalProjectPath,
+        cwd: finalProjectPath,
+        sessionId: sessionId || null,
+        model: model,
+        permissionMode: 'bypassPermissions',
+        toolsSettings: { allowPatterns: [], denyPatterns: [], skipPermissions: true },
       }, writer);
     }
 
@@ -1177,13 +1263,30 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       const assistantMessages = writer.getAssistantMessages();
       const tokenSummary = writer.getTotalTokens();
 
+      // Promote provider-side errors (`writer.send({ kind:'error', ... })`)
+      // to the response envelope. Without this, providers like Codex —
+      // whose SDK swallows throws and only emits an error message — left
+      // callers with `{ success:true, messages:[] }`, indistinguishable
+      // from a quiet success. Now: any error event => success:false and
+      // the human-readable text on `error`.
+      const errorEntry = assistantMessages.find((m) => m.type === 'error');
+      const hasAssistantText = assistantMessages.some(
+        (m) => m.type === 'assistant' && m.message?.content?.some?.((p) => p.type === 'text' && p.text)
+      );
+      const succeeded = !errorEntry && (hasAssistantText || assistantMessages.some((m) => m.type === 'tool_use' || m.type === 'tool_result'));
+
       const response = {
-        success: true,
+        success: succeeded,
         sessionId: writer.getSessionId(),
         messages: assistantMessages,
         tokens: tokenSummary,
         projectPath: finalProjectPath
       };
+      if (errorEntry) {
+        response.error = errorEntry.content;
+      } else if (!succeeded) {
+        response.error = 'Provider returned no assistant text. Check backend log for details.';
+      }
 
       // Add branch/PR info if created
       if (branchInfo) {
@@ -1193,7 +1296,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         response.pullRequest = prInfo;
       }
 
-      res.json(response);
+      res.status(succeeded ? 200 : 502).json(response);
     }
 
     // Clean up if requested
@@ -1234,9 +1337,26 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         writer.end();
       }
     } else if (!res.headersSent) {
-      res.status(500).json({
+      // Surface any provider-side stderr/error events the writer collected
+      // BEFORE the throw — without this, callers only see the bland
+      // "Gemini CLI exited with code 403" wrapper and lose the actual
+      // "PERMISSION_DENIED, model not enabled for this account" detail
+      // that the CLI printed to stderr.
+      let collectedError = null;
+      let collectedMessages = [];
+      if (writer && typeof writer.getAssistantMessages === 'function') {
+        try {
+          collectedMessages = writer.getAssistantMessages();
+          const errEntry = collectedMessages.find((m) => m.type === 'error');
+          if (errEntry) collectedError = errEntry.content;
+        } catch { /* ignore — fall back to error.message */ }
+      }
+      res.status(502).json({
         success: false,
-        error: error.message
+        sessionId: writer && typeof writer.getSessionId === 'function' ? writer.getSessionId() : null,
+        error: collectedError || error.message,
+        wrapperError: collectedError ? error.message : undefined,
+        messages: collectedMessages,
       });
     }
   }

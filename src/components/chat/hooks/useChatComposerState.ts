@@ -150,6 +150,13 @@ export function useChatComposerState({
   const [thinkingMode, setThinkingMode] = useState('none');
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Pending abort: stop button hit BEFORE the provider emitted its first
+  // session_created event. Without this, abort gets dropped on the floor
+  // because targetSessionId is null. We arm a flag here, then the
+  // composer's effect that watches `currentSessionId` fires the actual
+  // abort the moment a real session id materialises. Cleared on successful
+  // abort dispatch, on session completion, or on a new prompt.
+  const pendingAbortRef = useRef<{ provider: string; armedAt: number } | null>(null);
   const inputHighlightRef = useRef<HTMLDivElement>(null);
   const handleSubmitRef = useRef<
     ((event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>) => Promise<void>) | null
@@ -919,16 +926,43 @@ export function useChatComposerState({
       candidateSessionIds.find((sessionId) => Boolean(sessionId) && !isTemporarySessionId(sessionId)) || null;
 
     if (!targetSessionId) {
-      console.warn('Abort requested but no concrete session ID is available yet.');
+      // No concrete session ID yet — Claude SDK takes ~9s and OpenCode
+      // ~5s to emit session_created. Arm a pending-abort flag; the
+      // session_created watcher (effect below) fires the real abort the
+      // instant a real id arrives. This eliminates the "I pressed stop
+      // but nothing happened" UX during early-startup chats.
+      pendingAbortRef.current = { provider, armedAt: Date.now() };
       return;
     }
 
+    pendingAbortRef.current = null;
     sendMessage({
       type: 'abort-session',
       sessionId: targetSessionId,
       provider,
     });
   }, [canAbortSession, currentSessionId, pendingViewSessionRef, provider, selectedSession?.id, sendMessage]);
+
+  // Watch for a real session id arriving AFTER the user pressed stop.
+  // Fires the queued abort exactly once and clears the flag. The 30s TTL
+  // guards against a stale flag if the user changes mind / clicks send
+  // again — a fresh prompt will overwrite/clear this via the dispatch
+  // path above.
+  useEffect(() => {
+    if (!currentSessionId || isTemporarySessionId(currentSessionId)) return;
+    const armed = pendingAbortRef.current;
+    if (!armed) return;
+    if (Date.now() - armed.armedAt > 30000) {
+      pendingAbortRef.current = null;
+      return;
+    }
+    pendingAbortRef.current = null;
+    sendMessage({
+      type: 'abort-session',
+      sessionId: currentSessionId,
+      provider: armed.provider,
+    });
+  }, [currentSessionId, sendMessage]);
 
   const handleGrantToolPermission = useCallback(
     (suggestion: { entry: string; toolName: string }) => {

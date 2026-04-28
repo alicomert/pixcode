@@ -435,16 +435,21 @@ export default function ProviderLoginModal({
                   minimal={true}
                 />
               </div>
-              {/* Paste-callback fallback — visible for providers that use
-                  localhost OAuth callbacks. Codex is excluded because its
-                  --device-auth flow never opens a callback server; Gemini
-                  is API-key-only (no callback). Qwen's `qwen auth` path
-                  does use localhost callback when the user picks qwen-oauth. */}
-              {(provider === 'claude' || provider === 'cursor' || provider === 'qwen') && (
-                <div className="border-t border-border/40 bg-background/50 px-4 py-3">
-                  <CallbackPasteSection provider={provider} />
-                </div>
-              )}
+              {/* Paste-callback fallback — shown for EVERY provider. From a
+                  remote Pixcode (VPS / cloud) the CLI's OAuth callback hits
+                  the SERVER's loopback (127.0.0.1 on the VPS), not the
+                  user's laptop, so the dead-on-arrival URL needs a paste
+                  field even for providers we previously assumed were
+                  "API-key only" — Gemini's `gemini auth` and Codex's full
+                  OAuth flow both open a localhost callback when the user
+                  doesn't pick the device-code path.
+                  Earlier conditional ("Gemini hariç") locked VPS users out
+                  of two CLIs without warning; better to show the field and
+                  have the user ignore it on the device-code path than to
+                  hide it and break remote login entirely. */}
+              <div className="border-t border-border/40 bg-background/50 px-4 py-3">
+                <CallbackPasteSection provider={provider} />
+              </div>
             </div>
           ) : (
             <ApiKeyTab provider={provider} onSaved={() => handleComplete(0)} />

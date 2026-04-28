@@ -18,7 +18,18 @@ export const WORKSPACES_BASE = path.resolve(
   process.env.WORKSPACES_BASE || path.join(WORKSPACES_ROOT, 'pixcode', 'projects')
 );
 
-// System-critical paths that should never be used as workspace directories
+// System-critical paths that should never be used as workspace directories.
+// `/root` is conditional — included only when the server is NOT running as
+// root. On a typical VPS deployment (`sudo` install, root-owned daemon)
+// `/root` IS the user's home directory, blocking projects under it locks
+// users out of their own filesystem. The carve-out below was meant to
+// handle this but only allowed paths under WORKSPACES_BASE — users with
+// `/root/foo` from before Pixcode existed couldn't open them.
+const RUNNING_AS_ROOT =
+  process.platform !== 'win32' &&
+  typeof process.getuid === 'function' &&
+  process.getuid() === 0;
+
 export const FORBIDDEN_PATHS = [
   // Unix
   '/',
@@ -31,7 +42,7 @@ export const FORBIDDEN_PATHS = [
   '/sys',
   '/var',
   '/boot',
-  '/root',
+  ...(RUNNING_AS_ROOT ? [] : ['/root']),
   '/lib',
   '/lib64',
   '/opt',
@@ -413,15 +424,18 @@ router.post('/quick-start', async (req, res) => {
  */
 router.post('/create-workspace', async (req, res) => {
   try {
-    const { workspaceType, path: workspacePath, githubUrl, githubTokenId, newGithubToken } = req.body;
+    const { workspaceType, path: workspacePath, githubUrl, githubTokenId, newGithubToken, subfolderName } = req.body;
 
     // Validate required fields
     if (!workspaceType || !workspacePath) {
       return res.status(400).json({ error: 'workspaceType and path are required' });
     }
 
-    if (!['existing', 'new'].includes(workspaceType)) {
-      return res.status(400).json({ error: 'workspaceType must be "existing" or "new"' });
+    // 'existing' = open the picked folder as-is
+    // 'new'      = clone a github repo into the picked folder (legacy name kept for client compat)
+    // 'subfolder'= create a fresh subfolder INSIDE the picked folder and open that
+    if (!['existing', 'new', 'subfolder'].includes(workspaceType)) {
+      return res.status(400).json({ error: 'workspaceType must be "existing", "new", or "subfolder"' });
     }
 
     // Validate path safety before any operations
@@ -452,13 +466,127 @@ router.post('/create-workspace', async (req, res) => {
         throw error;
       }
 
-      // Add the existing workspace to the project list
-      const project = await addProjectManually(absolutePath);
+      // Add the existing workspace to the project list. If the user picks
+      // a folder Pixcode has already registered (very common when bouncing
+      // between sessions or re-opening the wizard on the same project),
+      // `addProjectManually` throws "Project already configured…" — that
+      // used to surface as a hard error in the UI even though the right
+      // outcome is "great, let's just open it." Treat that one specific
+      // throw as a soft re-open and return a 200 with `alreadyExisted: true`
+      // so the wizard can show "Opened existing workspace" instead of the
+      // raw error message.
+      let project;
+      let alreadyExisted = false;
+      try {
+        project = await addProjectManually(absolutePath);
+      } catch (error) {
+        const msg = error?.message || '';
+        if (!/already configured/i.test(msg)) throw error;
+        alreadyExisted = true;
+        project = {
+          name: absolutePath.replace(/[\\/:]/g, '-').replace(/\./g, '-'),
+          path: absolutePath,
+          fullPath: absolutePath,
+          displayName: path.basename(absolutePath),
+          isManuallyAdded: true,
+          sessions: [],
+          cursorSessions: [],
+        };
+      }
 
       return res.json({
         success: true,
         project,
-        message: 'Existing workspace added successfully'
+        alreadyExisted,
+        message: alreadyExisted
+          ? 'Workspace was already registered — opening it'
+          : 'Existing workspace added successfully'
+      });
+    }
+
+    // Handle subfolder creation: user picked a parent dir, we mkdir
+    // <parent>/<subfolderName> and open that.
+    if (workspaceType === 'subfolder') {
+      const trimmedName = typeof subfolderName === 'string' ? subfolderName.trim() : '';
+      if (!trimmedName) {
+        return res.status(400).json({ error: 'subfolderName is required when workspaceType is "subfolder"' });
+      }
+      // Reject path-traversal / nested separators / reserved names. The
+      // wizard's UI will only ever send a flat folder name; anything else
+      // is either a bug or someone fishing.
+      if (/[\\/]/.test(trimmedName) || trimmedName === '.' || trimmedName === '..') {
+        return res.status(400).json({ error: 'subfolderName must be a single folder name (no path separators)' });
+      }
+
+      // Verify parent dir exists (we don't auto-create the picked parent —
+      // user already pointed at a real folder).
+      try {
+        const stats = await fs.stat(absolutePath);
+        if (!stats.isDirectory()) {
+          return res.status(400).json({ error: 'Parent path is not a directory' });
+        }
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          return res.status(404).json({ error: 'Parent directory does not exist' });
+        }
+        throw error;
+      }
+
+      const childPath = path.join(absolutePath, trimmedName);
+
+      // Validate the resulting path too — don't let "subfolder=foo/../../etc"
+      // bypass the parent-only check above. validateWorkspacePath already
+      // rejects symlink escapes and FORBIDDEN_PATHS.
+      const childValidation = await validateWorkspacePath(childPath);
+      if (!childValidation.valid) {
+        return res.status(400).json({
+          error: 'Invalid subfolder path',
+          details: childValidation.error,
+        });
+      }
+      const childAbsolute = childValidation.resolvedPath;
+
+      // Refuse to clobber an existing folder with content — user can pick
+      // "existing" instead. Empty/missing → mkdir.
+      try {
+        const childEntries = await fs.readdir(childAbsolute);
+        if (childEntries.length > 0) {
+          return res.status(409).json({
+            error: 'Subfolder already exists and is not empty',
+            details: `Pick a different name or open "${childAbsolute}" as an existing workspace.`,
+          });
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+      await fs.mkdir(childAbsolute, { recursive: true });
+
+      let subProject;
+      let subAlreadyExisted = false;
+      try {
+        subProject = await addProjectManually(childAbsolute);
+      } catch (error) {
+        const msg = error?.message || '';
+        if (!/already configured/i.test(msg)) throw error;
+        subAlreadyExisted = true;
+        subProject = {
+          name: childAbsolute.replace(/[\\/:]/g, '-').replace(/\./g, '-'),
+          path: childAbsolute,
+          fullPath: childAbsolute,
+          displayName: trimmedName,
+          isManuallyAdded: true,
+          sessions: [],
+          cursorSessions: [],
+        };
+      }
+
+      return res.json({
+        success: true,
+        project: subProject,
+        alreadyExisted: subAlreadyExisted,
+        message: subAlreadyExisted
+          ? 'Subfolder was already registered — opening it'
+          : 'Subfolder created successfully',
       });
     }
 

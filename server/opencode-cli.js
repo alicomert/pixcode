@@ -50,13 +50,34 @@ function mapPermissionModeToArgs(permissionMode, skipPermissions) {
     return { agent: 'build', dangerously: false };
 }
 
+// Pixcode stores OpenCode permissions as two flat lists (`allowPatterns`,
+// `denyPatterns`) in `opencode-settings` localStorage; the backend collapses
+// them into the JSON shape OpenCode reads from `opencode.json`. We pass the
+// merged config inline via `OPENCODE_CONFIG_CONTENT` (a documented OpenCode
+// env var) instead of writing to disk — that way Pixcode's intent doesn't
+// pollute the user's project tree, and project-local opencode.json overrides
+// still take precedence per OpenCode's own precedence rules.
+function buildOpencodePermissionConfig(settings) {
+    const allow = Array.isArray(settings?.allowPatterns) ? settings.allowPatterns.filter(Boolean) : [];
+    const deny = Array.isArray(settings?.denyPatterns) ? settings.denyPatterns.filter(Boolean) : [];
+    if (!allow.length && !deny.length) return null;
+
+    const bash = {};
+    // Deny rules win when patterns collide — apply allow first so deny
+    // overwrites duplicates.
+    for (const pattern of allow) bash[pattern] = 'allow';
+    for (const pattern of deny) bash[pattern] = 'deny';
+
+    return { permission: { bash } };
+}
+
 async function spawnOpencode(command, options = {}, ws) {
     const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary, agent: agentOverride } = options;
     let capturedSessionId = sessionId;
     let sessionCreatedSent = false;
     let assistantBlocks = [];
 
-    const settings = toolsSettings || { allowedTools: [], disallowedTools: [], skipPermissions: false };
+    const settings = toolsSettings || { allowPatterns: [], denyPatterns: [], skipPermissions: false };
 
     const safeSessionIdPattern = /^[a-zA-Z0-9_.\-:]+$/;
     const args = ['run', '--format', 'json'];
@@ -134,6 +155,21 @@ async function spawnOpencode(command, options = {}, ws) {
     }
 
     const spawnEnv = await buildSpawnEnv('opencode');
+
+    // Inject Pixcode's permission allow/deny patterns as inline OpenCode config.
+    // Skipped when `--dangerously-skip-permissions` is on (the flag overrides
+    // the config anyway) and when both lists are empty (avoid clobbering a
+    // project-local opencode.json the user has hand-tuned).
+    if (!dangerously) {
+        const permConfig = buildOpencodePermissionConfig(settings);
+        if (permConfig) {
+            try {
+                spawnEnv.OPENCODE_CONFIG_CONTENT = JSON.stringify(permConfig);
+            } catch (error) {
+                console.warn('[opencode] Failed to serialize permission config:', error?.message || error);
+            }
+        }
+    }
 
     return new Promise((resolve, reject) => {
         const opencodeProcess = spawnFunction(spawnCmd, spawnArgs, {

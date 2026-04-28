@@ -147,11 +147,23 @@
       "new": {
         "title": "New Workspace",
         "description": "Create a new workspace, optionally clone from a GitHub repository"
+      },
+      "githubClone": {
+        "title": "Clone from GitHub",
+        "description": "Pick a target folder and clone a repository into it"
+      },
+      "subfolder": {
+        "title": "Create Subfolder",
+        "description": "Pick a parent folder and create a fresh subfolder inside it"
       }
     },
     "step2": {
       "existingPath": "Workspace Path",
       "newPath": "Workspace Path",
+      "subfolderParentPath": "Parent Folder",
+      "subfolderParentHelp": "Path to the folder where the new subfolder will be created",
+      "subfolderName": "Subfolder Name",
+      "subfolderNameHelp": "A new folder with this name will be created inside the parent above",
       "existingPlaceholder": "/path/to/existing/workspace",
       "newPlaceholder": "/path/to/new/workspace",
       "existingHelp": "Full path to your existing workspace directory",
@@ -179,7 +191,10 @@
       "workspaceType": "Workspace Type:",
       "existingWorkspace": "Existing Workspace",
       "newWorkspace": "New Workspace",
+      "subfolderWorkspace": "New Subfolder",
       "path": "Path:",
+      "parentPath": "Parent Path:",
+      "subfolderName": "Subfolder Name:",
       "cloneFrom": "Clone From:",
       "authentication": "Authentication:",
       "usingStoredToken": "Using stored token:",
@@ -189,6 +204,7 @@
       "existingInfo": "The workspace will be added to your project list and will be available for Claude/Cursor sessions.",
       "newWithClone": "The repository will be cloned from this folder.",
       "newEmpty": "The workspace will be added to your project list and will be available for Claude/Cursor sessions.",
+      "subfolderInfo": "A new subfolder will be created inside the parent folder and added to your project list.",
       "cloningRepository": "Cloning repository..."
     },
     "buttons": {
@@ -202,6 +218,8 @@
     "errors": {
       "selectType": "Please select whether you have an existing workspace or want to create a new one",
       "providePath": "Please provide a workspace path",
+      "provideSubfolderName": "Please provide a name for the subfolder",
+      "subfolderNameInvalid": "Subfolder name cannot contain path separators or be . / ..",
       "failedToCreate": "Failed to create workspace",
       "failedToCreateFolder": "Failed to create folder"
     }

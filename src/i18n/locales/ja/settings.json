@@ -345,7 +345,8 @@
     "skipPermissions": {
       "label": "権限プロンプトをスキップ（注意して使用）",
       "claudeDescription": "--dangerously-skip-permissions フラグに相当",
-      "cursorDescription": "Cursor CLIの -f フラグに相当"
+      "cursorDescription": "Cursor CLIの -f フラグに相当",
+      "opencodeDescription": "OpenCode の --dangerously-skip-permissions フラグに相当"
     },
     "allowedTools": {
       "title": "許可されたツール",
@@ -386,6 +387,26 @@
       "gitStatus": "- git statusを許可",
       "npmInstall": "- npm installを許可",
       "rmRf": "- 再帰的削除をブロック"
+    },
+    "opencodeAllowed": {
+      "title": "許可された Bash パターン",
+      "description": "OpenCode が確認せず自動承認する Bash コマンドパターン",
+      "placeholder": "例: \"git *\" または \"npm test\"",
+      "quickAdd": "よく使うパターンを追加:",
+      "empty": "許可パターンはありません"
+    },
+    "opencodeBlocked": {
+      "title": "ブロックされた Bash パターン",
+      "description": "OpenCode が常に拒否する Bash コマンドパターン",
+      "placeholder": "例: \"rm -rf *\" または \"sudo *\"",
+      "empty": "ブロックパターンはありません"
+    },
+    "opencodeExamples": {
+      "title": "パターン例:",
+      "gitAll": "- すべての git コマンドを許可",
+      "gitPush": "- git push のみをブロック",
+      "rmRf": "- 再帰削除をブロック",
+      "npm": "- すべての npm コマンドを許可"
     },
     "codex": {
       "permissionMode": "権限モード",

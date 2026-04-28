@@ -325,7 +325,8 @@
     "skipPermissions": {
       "label": "Пропускать запросы разрешений (используйте с осторожностью)",
       "claudeDescription": "Эквивалентно флагу --dangerously-skip-permissions",
-      "cursorDescription": "Эквивалентно флагу -f в Cursor CLI"
+      "cursorDescription": "Эквивалентно флагу -f в Cursor CLI",
+      "opencodeDescription": "Эквивалентно флагу --dangerously-skip-permissions в OpenCode"
     },
     "allowedTools": {
       "title": "Разрешенные инструменты",
@@ -366,6 +367,26 @@
       "gitStatus": "- Разрешить git status",
       "npmInstall": "- Разрешить npm install",
       "rmRf": "- Заблокировать рекурсивное удаление"
+    },
+    "opencodeAllowed": {
+      "title": "Разрешённые шаблоны Bash",
+      "description": "Шаблоны bash-команд, которые OpenCode одобряет автоматически без запроса",
+      "placeholder": "например, \"git *\" или \"npm test\"",
+      "quickAdd": "Быстро добавить популярные шаблоны:",
+      "empty": "Разрешённые шаблоны не настроены"
+    },
+    "opencodeBlocked": {
+      "title": "Заблокированные шаблоны Bash",
+      "description": "Шаблоны bash-команд, которые OpenCode всегда отклоняет",
+      "placeholder": "например, \"rm -rf *\" или \"sudo *\"",
+      "empty": "Заблокированные шаблоны не настроены"
+    },
+    "opencodeExamples": {
+      "title": "Примеры шаблонов:",
+      "gitAll": "- Разрешить все команды git",
+      "gitPush": "- Блокировать только git push",
+      "rmRf": "- Блокировать рекурсивное удаление",
+      "npm": "- Разрешить все команды npm"
     },
     "codex": {
       "permissionMode": "Режим разрешений",

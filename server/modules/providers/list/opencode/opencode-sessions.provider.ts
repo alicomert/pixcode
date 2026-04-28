@@ -16,8 +16,15 @@ const PROVIDER = 'opencode';
  * captured streams); restoring historical sessions from disk will land
  * in a follow-up once the exact schema is pinned.
  *
- * Stream events follow the headless `opencode serve` API contract —
- * messages carry `{ role, parts: [{ type: text|tool-use|tool-result, ... }] }`.
+ * Stream shape from `opencode run --format json` (verified against
+ * opencode-ai 0.x at the wire):
+ *   { type:"step_start",  timestamp, sessionID, part:{ type:"step-start",  ... } }
+ *   { type:"text",        timestamp, sessionID, part:{ type:"text", text:"…", time:{…}, metadata:{…} } }
+ *   { type:"tool_use",    timestamp, sessionID, part:{ type:"tool-use",  callID, tool, state:{ input } } }
+ *   { type:"tool_result", timestamp, sessionID, part:{ type:"tool-result", callID, state:{ output, status } } }
+ *   { type:"step_finish", timestamp, sessionID, part:{ type:"step-finish", reason, tokens, cost } }
+ *   { type:"error",       timestamp, sessionID, error:{ name, data:{ message, statusCode? } } }
+ * Field names are camelCase (`sessionID`, `callID`) — NOT snake_case.
  */
 export class OpencodeSessionsProvider implements IProviderSessions {
   normalizeMessage(rawMessage: unknown, sessionId: string | null): NormalizedMessage[] {
@@ -26,20 +33,39 @@ export class OpencodeSessionsProvider implements IProviderSessions {
 
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || raw.id || generateMessageId('opencode');
+    const part = readObjectRecord(raw.part) || {};
 
+    // Modern shape: { type:"text", part:{ type:"text", text:"…" } }.
+    // The full text arrives in a single event (not token-by-token), but it
+    // can also legitimately be empty during a step_start preamble — we only
+    // emit when there's actual text. `stream_end` is emitted on step_finish
+    // (which is guaranteed at the end of every assistant turn), so we don't
+    // close the stream here.
+    if (raw.type === 'text') {
+      const text = typeof part.text === 'string' ? part.text : '';
+      if (!text) return [];
+      return [createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'stream_delta',
+        content: text,
+      })];
+    }
+
+    // Legacy fallback for older builds that still emit `{ type:"message", role:"assistant", content }`.
     if (raw.type === 'message' && raw.role === 'assistant') {
-      const content = raw.content || '';
-      const messages: NormalizedMessage[] = [];
-      if (content) {
-        messages.push(createNormalizedMessage({
-          id: baseId,
-          sessionId,
-          timestamp: ts,
-          provider: PROVIDER,
-          kind: 'stream_delta',
-          content,
-        }));
-      }
+      const content = typeof raw.content === 'string' ? raw.content : '';
+      if (!content) return [];
+      const messages: NormalizedMessage[] = [createNormalizedMessage({
+        id: baseId,
+        sessionId,
+        timestamp: ts,
+        provider: PROVIDER,
+        kind: 'stream_delta',
+        content,
+      })];
       if (raw.delta !== true) {
         messages.push(createNormalizedMessage({
           sessionId,
@@ -52,38 +78,51 @@ export class OpencodeSessionsProvider implements IProviderSessions {
     }
 
     if (raw.type === 'tool_use' || raw.type === 'tool-use') {
+      const state = readObjectRecord(part.state) || {};
       return [createNormalizedMessage({
         id: baseId,
         sessionId,
         timestamp: ts,
         provider: PROVIDER,
         kind: 'tool_use',
-        toolName: raw.tool_name || raw.name,
-        toolInput: raw.parameters || raw.input || {},
-        toolId: raw.tool_id || raw.id || baseId,
+        toolName: String(part.tool || raw.tool_name || raw.name || ''),
+        toolInput: state.input || part.input || raw.parameters || raw.input || {},
+        toolId: String(part.callID || part.id || raw.tool_id || raw.id || baseId),
       })];
     }
 
     if (raw.type === 'tool_result' || raw.type === 'tool-result') {
+      const state = readObjectRecord(part.state) || {};
+      const status = (state.status || raw.status) as string | undefined;
+      const output = state.output ?? part.output ?? raw.output;
       return [createNormalizedMessage({
         id: baseId,
         sessionId,
         timestamp: ts,
         provider: PROVIDER,
         kind: 'tool_result',
-        toolId: raw.tool_id || raw.toolCallId || '',
-        content: raw.output === undefined ? '' : String(raw.output),
-        isError: raw.status === 'error' || Boolean(raw.isError),
+        toolId: String(part.callID || part.id || raw.tool_id || raw.toolCallId || ''),
+        content: output === undefined || output === null ? '' : String(output),
+        isError: status === 'error' || Boolean(raw.isError),
       })];
     }
 
-    if (raw.type === 'result') {
+    // OpenCode signals end-of-turn with `step_finish` (run mode never emits
+    // a top-level `result`). Emit stream_end so the UI clears its
+    // "Processing…" state.
+    if (raw.type === 'step_finish' || raw.type === 'result') {
       return [createNormalizedMessage({
         sessionId,
         timestamp: ts,
         provider: PROVIDER,
         kind: 'stream_end',
       })];
+    }
+
+    // step_start carries the session ID but no user-visible content — we
+    // capture the session ID elsewhere (response handler) and drop the event.
+    if (raw.type === 'step_start') {
+      return [];
     }
 
     if (raw.type === 'error') {

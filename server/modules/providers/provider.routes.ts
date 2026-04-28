@@ -85,6 +85,31 @@ const PROVIDER_INSTALL_COMMANDS: Record<LLMProvider, string | null> = {
   cursor: null,
 };
 
+/**
+ * Per-provider manual install hints, surfaced when `/install` is called
+ * for a provider Pixcode can't sandbox-install (anything not on npm).
+ * Each entry includes platform-specific commands so the UI can show the
+ * right one for the user's host. Cursor is the only provider in this
+ * bucket today — it ships via curl|bash on POSIX and a downloadable
+ * installer on Windows. We deliberately don't pipe-to-bash from Pixcode,
+ * so the user runs it themselves.
+ */
+const PROVIDER_MANUAL_INSTALL: Partial<Record<LLMProvider, {
+  docsUrl: string;
+  steps: { platform: 'macos' | 'linux' | 'windows'; command: string }[];
+  note: string;
+}>> = {
+  cursor: {
+    docsUrl: 'https://docs.cursor.com/en/cli/installation',
+    steps: [
+      { platform: 'macos',   command: 'curl https://cursor.com/install -fsS | bash' },
+      { platform: 'linux',   command: 'curl https://cursor.com/install -fsS | bash' },
+      { platform: 'windows', command: 'iwr https://cursor.com/install.ps1 -useb | iex' },
+    ],
+    note: 'Cursor ships outside npm — run the command for your platform in a separate terminal, then click "Refresh" on this page once the binary is on PATH.',
+  },
+};
+
 const router = express.Router();
 
 const readPathParam = (value: unknown, name: string): string => {
@@ -450,10 +475,18 @@ router.post(
     const packageName = PROVIDER_INSTALL_PACKAGES[parsed];
     const installCmd = PROVIDER_INSTALL_COMMANDS[parsed];
     if (!packageName || !installCmd) {
-      throw new AppError(
-        `${parsed} cannot be installed automatically — please follow the documented install steps.`,
-        { code: 'PROVIDER_NOT_AUTO_INSTALLABLE', statusCode: 400 },
-      );
+      const manual = PROVIDER_MANUAL_INSTALL[parsed];
+      // Don't 4xx on this — the call ISN'T malformed, the provider is
+      // simply not npm-installable. Return 200 with a `manual` payload
+      // the UI can present as instructions instead of "install failed".
+      res.json(createApiSuccessResponse({
+        provider: parsed,
+        manual: manual || null,
+        message: manual
+          ? `${parsed} ships outside npm. Run the platform-specific command, then refresh.`
+          : `${parsed} cannot be installed automatically — see the provider's documentation.`,
+      }));
+      return;
     }
 
     const job = createInstallJob({ provider: parsed, installCmd, packageName });

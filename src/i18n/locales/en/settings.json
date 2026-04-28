@@ -438,7 +438,8 @@
     "skipPermissions": {
       "label": "Skip permission prompts (use with caution)",
       "claudeDescription": "Equivalent to --dangerously-skip-permissions flag",
-      "cursorDescription": "Equivalent to -f flag in Cursor CLI"
+      "cursorDescription": "Equivalent to -f flag in Cursor CLI",
+      "opencodeDescription": "Equivalent to --dangerously-skip-permissions flag in OpenCode"
     },
     "allowedTools": {
       "title": "Allowed Tools",
@@ -479,6 +480,26 @@
       "gitStatus": "- Allow git status",
       "npmInstall": "- Allow npm install",
       "rmRf": "- Block recursive delete"
+    },
+    "opencodeAllowed": {
+      "title": "Allowed Bash Patterns",
+      "description": "Bash command patterns OpenCode auto-approves without prompting",
+      "placeholder": "e.g., \"git *\" or \"npm test\"",
+      "quickAdd": "Quick add common patterns:",
+      "empty": "No allowed patterns configured"
+    },
+    "opencodeBlocked": {
+      "title": "Blocked Bash Patterns",
+      "description": "Bash command patterns OpenCode always denies",
+      "placeholder": "e.g., \"rm -rf *\" or \"sudo *\"",
+      "empty": "No blocked patterns configured"
+    },
+    "opencodeExamples": {
+      "title": "Pattern Examples:",
+      "gitAll": "- Allow all git commands",
+      "gitPush": "- Block git push specifically",
+      "rmRf": "- Block recursive delete",
+      "npm": "- Allow all npm commands"
     },
     "codex": {
       "permissionMode": "Permission Mode",

@@ -147,11 +147,23 @@
       "new": {
         "title": "Nuova area di lavoro",
         "description": "Crea una nuova area di lavoro, opzionalmente clonando da un repository GitHub"
+      },
+      "githubClone": {
+        "title": "Clona da GitHub",
+        "description": "Scegli una cartella di destinazione e clona un repository al suo interno"
+      },
+      "subfolder": {
+        "title": "Crea sottocartella",
+        "description": "Scegli una cartella padre e crea al suo interno una nuova sottocartella"
       }
     },
     "step2": {
       "existingPath": "Percorso area di lavoro",
       "newPath": "Percorso area di lavoro",
+      "subfolderParentPath": "Cartella padre",
+      "subfolderParentHelp": "Percorso della cartella in cui verrà creata la nuova sottocartella",
+      "subfolderName": "Nome sottocartella",
+      "subfolderNameHelp": "Una cartella con questo nome verrà creata nella cartella padre",
       "existingPlaceholder": "/percorso/area-di-lavoro/esistente",
       "newPlaceholder": "/percorso/nuova/area-di-lavoro",
       "existingHelp": "Percorso completo della directory dell'area di lavoro esistente",
@@ -179,7 +191,10 @@
       "workspaceType": "Tipo area di lavoro:",
       "existingWorkspace": "Area di lavoro esistente",
       "newWorkspace": "Nuova area di lavoro",
+      "subfolderWorkspace": "Nuova sottocartella",
       "path": "Percorso:",
+      "parentPath": "Percorso padre:",
+      "subfolderName": "Nome sottocartella:",
       "cloneFrom": "Clona da:",
       "authentication": "Autenticazione:",
       "usingStoredToken": "Usando token salvato:",
@@ -189,6 +204,7 @@
       "existingInfo": "L'area di lavoro verrà aggiunta alla lista dei progetti e sarà disponibile per le sessioni Claude/Cursor.",
       "newWithClone": "Il repository verrà clonato da questa cartella.",
       "newEmpty": "L'area di lavoro verrà aggiunta alla lista dei progetti e sarà disponibile per le sessioni Claude/Cursor.",
+      "subfolderInfo": "Una nuova sottocartella verrà creata nella cartella padre e aggiunta al tuo elenco progetti.",
       "cloningRepository": "Clonazione repository..."
     },
     "buttons": {
@@ -202,6 +218,8 @@
     "errors": {
       "selectType": "Seleziona se hai un'area di lavoro esistente o vuoi crearne una nuova",
       "providePath": "Fornisci un percorso per l'area di lavoro",
+      "provideSubfolderName": "Fornisci un nome per la sottocartella",
+      "subfolderNameInvalid": "Il nome della sottocartella non può contenere separatori di percorso o essere . / ..",
       "failedToCreate": "Impossibile creare l'area di lavoro",
       "failedToCreateFolder": "Impossibile creare la cartella"
     }

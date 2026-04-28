@@ -147,11 +147,23 @@
       "new": {
         "title": "新建工作区",
         "description": "创建一个新工作区，可选择从 GitHub 仓库克隆"
+      },
+      "githubClone": {
+        "title": "从 GitHub 克隆",
+        "description": "选择目标文件夹并将仓库克隆到其中"
+      },
+      "subfolder": {
+        "title": "创建子文件夹",
+        "description": "选择父文件夹并在其中创建新的子文件夹"
       }
     },
     "step2": {
       "existingPath": "工作区路径",
       "newPath": "工作区路径",
+      "subfolderParentPath": "父文件夹",
+      "subfolderParentHelp": "将创建新子文件夹的父文件夹路径",
+      "subfolderName": "子文件夹名称",
+      "subfolderNameHelp": "将以此名称在父文件夹内创建新文件夹",
       "existingPlaceholder": "/path/to/existing/workspace",
       "newPlaceholder": "/path/to/new/workspace",
       "existingHelp": "您现有工作区目录的完整路径",
@@ -179,7 +191,10 @@
       "workspaceType": "工作区类型：",
       "existingWorkspace": "现有工作区",
       "newWorkspace": "新建工作区",
+      "subfolderWorkspace": "新子文件夹",
       "path": "路径：",
+      "parentPath": "父路径：",
+      "subfolderName": "子文件夹名称：",
       "cloneFrom": "克隆自：",
       "authentication": "身份验证：",
       "usingStoredToken": "使用已保存的令牌：",
@@ -189,6 +204,7 @@
       "existingInfo": "工作区将被添加到您的项目列表中，并可用于 Claude/Cursor 会话。",
       "newWithClone": "仓库将从此文件夹克隆。",
       "newEmpty": "工作区将被添加到您的项目列表中，并可用于 Claude/Cursor 会话。",
+      "subfolderInfo": "将在父文件夹内创建新子文件夹并添加到您的项目列表。",
       "cloningRepository": "正在克隆仓库..."
     },
     "buttons": {
@@ -202,6 +218,8 @@
     "errors": {
       "selectType": "请选择您已有现有工作区还是想创建新工作区",
       "providePath": "请提供工作区路径",
+      "provideSubfolderName": "请为子文件夹提供一个名称",
+      "subfolderNameInvalid": "子文件夹名称不能包含路径分隔符或为 . / ..",
       "failedToCreate": "创建工作区失败",
       "failedToCreateFolder": "创建文件夹失败"
     }

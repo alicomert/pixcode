@@ -41,6 +41,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     setGeminiPermissionMode,
     qwenPermissionMode,
     setQwenPermissionMode,
+    opencodePermissions,
+    setOpencodePermissions,
     openLoginForProvider,
     showLoginModal,
     setShowLoginModal,
@@ -141,6 +143,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   onGeminiPermissionModeChange={setGeminiPermissionMode}
                   qwenPermissionMode={qwenPermissionMode}
                   onQwenPermissionModeChange={setQwenPermissionMode}
+                  opencodePermissions={opencodePermissions}
+                  onOpencodePermissionsChange={setOpencodePermissions}
                   projects={projects}
                 />
               )}

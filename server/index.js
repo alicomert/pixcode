@@ -866,7 +866,12 @@ app.delete('/api/projects/:projectName', authenticateToken, async (req, res) => 
         await deleteProject(projectName, force, deleteData);
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        // "Cannot delete project with existing sessions" is a precondition
+        // failure, not a server fault — surface it as 409 so clients can
+        // catch it and prompt the user to pass `?force=true` (or clean
+        // sessions first) instead of treating it like a crash.
+        const conflict = typeof error?.message === 'string' && error.message.includes('existing sessions');
+        res.status(conflict ? 409 : 500).json({ error: error.message });
     }
 });
 

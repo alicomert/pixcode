@@ -147,11 +147,23 @@
       "new": {
         "title": "새 워크스페이스",
         "description": "새 워크스페이스를 생성하고, 선택적으로 GitHub 저장소에서 clone합니다"
+      },
+      "githubClone": {
+        "title": "GitHub에서 클론",
+        "description": "대상 폴더를 선택하고 저장소를 그 안에 클론"
+      },
+      "subfolder": {
+        "title": "하위 폴더 만들기",
+        "description": "상위 폴더를 선택하고 그 안에 새 하위 폴더 생성"
       }
     },
     "step2": {
       "existingPath": "워크스페이스 경로",
       "newPath": "워크스페이스 경로",
+      "subfolderParentPath": "상위 폴더",
+      "subfolderParentHelp": "새 하위 폴더가 생성될 폴더 경로",
+      "subfolderName": "하위 폴더 이름",
+      "subfolderNameHelp": "이 이름으로 상위 폴더 안에 새 폴더가 생성됩니다",
       "existingPlaceholder": "/path/to/existing/workspace",
       "newPlaceholder": "/path/to/new/workspace",
       "existingHelp": "기존 워크스페이스 디렉토리의 전체 경로",
@@ -179,7 +191,10 @@
       "workspaceType": "워크스페이스 유형:",
       "existingWorkspace": "기존 워크스페이스",
       "newWorkspace": "새 워크스페이스",
+      "subfolderWorkspace": "새 하위 폴더",
       "path": "경로:",
+      "parentPath": "상위 경로:",
+      "subfolderName": "하위 폴더 이름:",
       "cloneFrom": "Clone 소스:",
       "authentication": "인증:",
       "usingStoredToken": "저장된 토큰 사용:",
@@ -189,6 +204,7 @@
       "existingInfo": "워크스페이스가 프로젝트 목록에 추가되며 Claude/Cursor 세션에서 사용할 수 있습니다.",
       "newWithClone": "이 폴더에 저장소가 clone됩니다.",
       "newEmpty": "워크스페이스가 프로젝트 목록에 추가되며 Claude/Cursor 세션에서 사용할 수 있습니다.",
+      "subfolderInfo": "상위 폴더 안에 새 하위 폴더가 생성되어 프로젝트 목록에 추가됩니다.",
       "cloningRepository": "저장소 clone 중..."
     },
     "buttons": {
@@ -202,6 +218,8 @@
     "errors": {
       "selectType": "기존 워크스페이스를 사용할지 새로 생성할지 선택해주세요",
       "providePath": "워크스페이스 경로를 입력해주세요",
+      "provideSubfolderName": "하위 폴더 이름을 입력해주세요",
+      "subfolderNameInvalid": "하위 폴더 이름에 경로 구분자를 포함할 수 없으며 . / .. 도 허용되지 않습니다",
       "failedToCreate": "워크스페이스 생성 실패",
       "failedToCreateFolder": "폴더 생성 실패"
     }

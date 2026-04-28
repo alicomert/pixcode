@@ -147,9 +147,21 @@
       "new": {
         "title": "Neuer Arbeitsbereich",
         "description": "Einen neuen Arbeitsbereich erstellen, optional aus einem GitHub-Repository klonen"
+      },
+      "githubClone": {
+        "title": "Aus GitHub klonen",
+        "description": "Wähle einen Zielordner und klone ein Repository hinein"
+      },
+      "subfolder": {
+        "title": "Unterordner erstellen",
+        "description": "Wähle einen übergeordneten Ordner und erstelle darin einen neuen Unterordner"
       }
     },
     "step2": {
+      "subfolderParentPath": "Übergeordneter Ordner",
+      "subfolderParentHelp": "Pfad zum Ordner, in dem der neue Unterordner erstellt wird",
+      "subfolderName": "Unterordner-Name",
+      "subfolderNameHelp": "Ein Ordner mit diesem Namen wird im übergeordneten Ordner erstellt",
       "existingPath": "Arbeitsbereichspfad",
       "newPath": "Arbeitsbereichspfad",
       "existingPlaceholder": "/Pfad/zum/vorhandenen/Arbeitsbereich",
@@ -179,7 +191,10 @@
       "workspaceType": "Arbeitsbereichstyp:",
       "existingWorkspace": "Vorhandener Arbeitsbereich",
       "newWorkspace": "Neuer Arbeitsbereich",
+      "subfolderWorkspace": "Neuer Unterordner",
       "path": "Pfad:",
+      "parentPath": "Übergeordneter Pfad:",
+      "subfolderName": "Unterordner-Name:",
       "cloneFrom": "Klonen von:",
       "authentication": "Authentifizierung:",
       "usingStoredToken": "Gespeicherter Token wird verwendet:",
@@ -189,6 +204,7 @@
       "existingInfo": "Der Arbeitsbereich wird zur Projektliste hinzugefügt und steht für Claude/Cursor-Sitzungen zur Verfügung.",
       "newWithClone": "Das Repository wird aus diesem Ordner geklont.",
       "newEmpty": "Der Arbeitsbereich wird zur Projektliste hinzugefügt und steht für Claude/Cursor-Sitzungen zur Verfügung.",
+      "subfolderInfo": "Ein neuer Unterordner wird im übergeordneten Ordner erstellt und zur Projektliste hinzugefügt.",
       "cloningRepository": "Repository wird geklont..."
     },
     "buttons": {
@@ -202,6 +218,8 @@
     "errors": {
       "selectType": "Bitte wähl aus, ob du einen vorhandenen Arbeitsbereich hast oder einen neuen erstellen möchtest",
       "providePath": "Bitte gib einen Arbeitsbereichspfad an",
+      "provideSubfolderName": "Bitte gib einen Namen für den Unterordner ein",
+      "subfolderNameInvalid": "Unterordner-Name darf keine Pfadtrennzeichen enthalten oder . / .. sein",
       "failedToCreate": "Arbeitsbereich konnte nicht erstellt werden",
       "failedToCreateFolder": "Ordner konnte nicht erstellt werden"
     }

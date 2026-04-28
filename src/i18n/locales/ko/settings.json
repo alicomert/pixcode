@@ -345,7 +345,8 @@
     "skipPermissions": {
       "label": "권한 확인 건너뛰기 (주의해서 사용)",
       "claudeDescription": "--dangerously-skip-permissions 플래그와 동일",
-      "cursorDescription": "Cursor CLI의 -f 플래그와 동일"
+      "cursorDescription": "Cursor CLI의 -f 플래그와 동일",
+      "opencodeDescription": "OpenCode의 --dangerously-skip-permissions 플래그와 동일"
     },
     "allowedTools": {
       "title": "허용된 도구",
@@ -386,6 +387,26 @@
       "gitStatus": "- git status 허용",
       "npmInstall": "- npm install 허용",
       "rmRf": "- 재귀 삭제 차단"
+    },
+    "opencodeAllowed": {
+      "title": "허용된 Bash 패턴",
+      "description": "OpenCode가 확인 없이 자동 승인하는 Bash 명령 패턴",
+      "placeholder": "예: \"git *\" 또는 \"npm test\"",
+      "quickAdd": "자주 쓰는 패턴 빠른 추가:",
+      "empty": "허용 패턴이 없습니다"
+    },
+    "opencodeBlocked": {
+      "title": "차단된 Bash 패턴",
+      "description": "OpenCode가 항상 거부하는 Bash 명령 패턴",
+      "placeholder": "예: \"rm -rf *\" 또는 \"sudo *\"",
+      "empty": "차단 패턴이 없습니다"
+    },
+    "opencodeExamples": {
+      "title": "패턴 예시:",
+      "gitAll": "- 모든 git 명령 허용",
+      "gitPush": "- git push만 차단",
+      "rmRf": "- 재귀 삭제 차단",
+      "npm": "- 모든 npm 명령 허용"
     },
     "codex": {
       "permissionMode": "권한 모드",

@@ -1,6 +1,10 @@
 export type WizardStep = 1 | 2 | 3;
 
-export type WorkspaceType = 'existing' | 'new';
+// 'existing'  — open the picked folder as-is
+// 'new'       — clone a github repo into the picked folder (legacy name kept
+//               for client compat — backend still routes by this string)
+// 'subfolder' — create a fresh subfolder INSIDE the picked folder and open it
+export type WorkspaceType = 'existing' | 'new' | 'subfolder';
 
 export type TokenMode = 'stored' | 'new' | 'none';
 
@@ -38,13 +42,16 @@ export type CreateFolderResponse = {
 export type CreateWorkspacePayload = {
   workspaceType: WorkspaceType;
   path: string;
+  subfolderName?: string;
 };
 
 export type CreateWorkspaceResponse = {
   success?: boolean;
   project?: Record<string, unknown>;
+  alreadyExisted?: boolean;
   error?: string;
   details?: string;
+  message?: string;
 };
 
 export type CloneProgressEvent = {
@@ -57,6 +64,9 @@ export type WizardFormState = {
   workspaceType: WorkspaceType;
   workspacePath: string;
   githubUrl: string;
+  // Only used when workspaceType === 'subfolder' — the leaf name of the
+  // child folder to create under workspacePath.
+  subfolderName: string;
   tokenMode: TokenMode;
   selectedGithubToken: string;
   newGithubToken: string;

@@ -21,6 +21,7 @@ const initialFormState: WizardFormState = {
   workspaceType: 'existing',
   workspacePath: '',
   githubUrl: '',
+  subfolderName: '',
   tokenMode: 'stored',
   selectedGithubToken: '',
   newGithubToken: '',
@@ -87,9 +88,20 @@ export default function ProjectCreationWizard({
         setError(t('projectWizard.errors.providePath'));
         return;
       }
+      if (formState.workspaceType === 'subfolder') {
+        const trimmed = formState.subfolderName.trim();
+        if (!trimmed) {
+          setError(t('projectWizard.errors.provideSubfolderName'));
+          return;
+        }
+        if (/[\\/]/.test(trimmed) || trimmed === '.' || trimmed === '..') {
+          setError(t('projectWizard.errors.subfolderNameInvalid'));
+          return;
+        }
+      }
       setStep(3);
     }
-  }, [formState.workspacePath, formState.workspaceType, step, t]);
+  }, [formState.subfolderName, formState.workspacePath, formState.workspaceType, step, t]);
 
   const handleBack = useCallback(() => {
     setError(null);
@@ -126,6 +138,9 @@ export default function ProjectCreationWizard({
       const project = await createWorkspaceRequest({
         workspaceType: formState.workspaceType,
         path: formState.workspacePath.trim(),
+        ...(formState.workspaceType === 'subfolder'
+          ? { subfolderName: formState.subfolderName.trim() }
+          : {}),
       });
 
       onProjectCreated?.(project);
@@ -184,6 +199,7 @@ export default function ProjectCreationWizard({
               workspaceType={formState.workspaceType}
               workspacePath={formState.workspacePath}
               githubUrl={formState.githubUrl}
+              subfolderName={formState.subfolderName}
               tokenMode={formState.tokenMode}
               selectedGithubToken={formState.selectedGithubToken}
               newGithubToken={formState.newGithubToken}
@@ -193,6 +209,7 @@ export default function ProjectCreationWizard({
               isCreating={isCreating}
               onWorkspacePathChange={(workspacePath) => updateField('workspacePath', workspacePath)}
               onGithubUrlChange={(githubUrl) => updateField('githubUrl', githubUrl)}
+              onSubfolderNameChange={(subfolderName) => updateField('subfolderName', subfolderName)}
               onTokenModeChange={updateTokenMode}
               onSelectedGithubTokenChange={(selectedGithubToken) =>
                 updateField('selectedGithubToken', selectedGithubToken)

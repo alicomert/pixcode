@@ -13,11 +13,19 @@ export type GeminiPermissionMode = 'default' | 'auto_edit' | 'yolo';
 // — keeping the types separate keeps the persisted settings independent
 // and lets the two providers diverge later without a breaking migration.
 export type QwenPermissionMode = 'default' | 'auto_edit' | 'yolo';
-// OpenCode's permission system is JSON-expression-based per-tool, per-pattern
-// — far more granular than the 2/3-mode toggle other CLIs expose. We surface
-// two presets here for the common case (ask everything / allow everything);
-// power users can hand-edit opencode.json via the Configuration tab.
+// OpenCode's permission system is JSON-expression-based per-tool, per-pattern.
+// We model it as a Cursor-style allow/deny list (each entry is a bash pattern
+// like "git *" or "git push *") plus a master `skipPermissions` toggle that
+// flips on `--dangerously-skip-permissions`. The backend writes these patterns
+// into opencode.json (`permission.bash`) on each spawn, so power users editing
+// opencode.json by hand still see Pixcode's intent reflected.
 export type OpencodePermissionMode = 'ask' | 'allow';
+
+export type OpencodePermissionsState = {
+  allowPatterns: string[];
+  denyPatterns: string[];
+  skipPermissions: boolean;
+};
 
 export type SettingsProject = {
   name: string;

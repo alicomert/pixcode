@@ -345,7 +345,8 @@
     "skipPermissions": {
       "label": "跳过权限提示（请谨慎使用）",
       "claudeDescription": "等同于 --dangerously-skip-permissions 标志",
-      "cursorDescription": "等同于 Cursor CLI 中的 -f 标志"
+      "cursorDescription": "等同于 Cursor CLI 中的 -f 标志",
+      "opencodeDescription": "等同于 OpenCode 的 --dangerously-skip-permissions 标志"
     },
     "allowedTools": {
       "title": "允许的工具",
@@ -386,6 +387,26 @@
       "gitStatus": "- 允许 git status",
       "npmInstall": "- 允许 npm install",
       "rmRf": "- 阻止递归删除"
+    },
+    "opencodeAllowed": {
+      "title": "允许的 Bash 模式",
+      "description": "OpenCode 自动批准、无需提示的 Bash 命令模式",
+      "placeholder": "如：\"git *\" 或 \"npm test\"",
+      "quickAdd": "快速添加常用模式：",
+      "empty": "尚未配置允许的模式"
+    },
+    "opencodeBlocked": {
+      "title": "屏蔽的 Bash 模式",
+      "description": "OpenCode 始终拒绝的 Bash 命令模式",
+      "placeholder": "如：\"rm -rf *\" 或 \"sudo *\"",
+      "empty": "尚未配置屏蔽的模式"
+    },
+    "opencodeExamples": {
+      "title": "模式示例：",
+      "gitAll": "- 允许所有 git 命令",
+      "gitPush": "- 单独屏蔽 git push",
+      "rmRf": "- 屏蔽递归删除",
+      "npm": "- 允许所有 npm 命令"
     },
     "codex": {
       "permissionMode": "权限模式",

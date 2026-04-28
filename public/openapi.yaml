@@ -1,0 +1,1311 @@
+openapi: 3.1.0
+info:
+  title: Pixcode REST API
+  version: 1.33.10
+  description: |
+    REST API for Pixcode — the multi-CLI web UI for Claude Code, Cursor CLI,
+    Codex, Gemini CLI, Qwen Code, and OpenCode.
+
+    ## Authentication
+
+    Most endpoints require authentication. Two schemes are accepted:
+
+    - **JWT cookie** (`token` HTTP-only cookie) — set automatically when the
+      browser logs in via `POST /api/auth/login`.
+    - **API key** (`Authorization: Bearer ck_...`) — generated under
+      Settings → API. API keys never expire and survive server restarts.
+
+    Endpoints flagged `apiKey` accept both.
+
+    ## Streaming endpoints
+
+    Three classes of endpoint stream beyond plain JSON:
+
+    - **WebSocket** (`/ws`, `/shell`) — chat session bidirectional traffic. Not
+      documented here; see `docs/websocket-protocol.md` if it exists, or read
+      `server/index.js` `handleChatConnection`.
+    - **SSE** (Server-Sent Events) — long-running jobs. Each `data:` frame
+      contains a JSON event; the stream ends with `event: done` or `event: error`.
+    - **NDJSON** — provider chat output (one JSON event per line) when the
+      backend forwards from a CLI's `--format json` mode.
+
+    ## Errors
+
+    Errors share a consistent envelope:
+
+    ```json
+    { "success": false, "error": { "code": "ROUTE_NOT_FOUND", "message": "..." } }
+    ```
+
+  contact:
+    name: Pixcode on GitHub
+    url: https://github.com/alicomert/pixcode
+  license:
+    name: AGPL-3.0-or-later
+    url: https://www.gnu.org/licenses/agpl-3.0.txt
+
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+  - url: '{protocol}://{host}'
+    description: Self-hosted Pixcode instance
+    variables:
+      protocol:
+        enum: [http, https]
+        default: http
+      host:
+        default: localhost:3001
+
+tags:
+  - name: System
+    description: Health, version, and self-update.
+  - name: Authentication
+    description: Login, register, JWT lifecycle, API keys.
+  - name: Projects
+    description: Project CRUD and session enumeration.
+  - name: Files
+    description: Project filesystem read/write and directory traversal.
+  - name: Sessions
+    description: Conversation sessions across providers.
+  - name: Git
+    description: Git status, diffs, branches, commits, push/pull.
+  - name: Providers
+    description: Multi-CLI provider auth, install, sessions, configuration.
+  - name: Network
+    description: LAN discovery, UPnP, public tunnel.
+  - name: Settings
+    description: User-scoped preferences and notification channels.
+  - name: Search
+    description: Full-text search across conversations.
+  - name: MCP
+    description: Model Context Protocol servers and tooling.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        `Authorization: Bearer <token>` — token may be a JWT (issued by
+        `/api/auth/login`) or an API key (prefix `ck_`, generated under
+        Settings → API). The middleware sniffs the prefix to decide.
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        Alternative for tools that can't set `Authorization`. Accepts the same
+        `ck_...` keys as `bearerAuth`. Either header works on every secured
+        endpoint — pick whichever your client supports.
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+      description: HTTP-only `token` cookie set by `/api/auth/login`.
+
+  schemas:
+    Error:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean, enum: [false] }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: ROUTE_NOT_FOUND }
+            message: { type: string }
+
+    Health:
+      type: object
+      required: [status, timestamp]
+      properties:
+        status: { type: string, enum: [ok] }
+        timestamp: { type: string, format: date-time }
+        version:
+          type: string
+          description: Server version (matches semver `MAJOR.MINOR.PATCH`).
+          example: 1.33.9
+        installMode:
+          type: string
+          enum: [git, npm-global, runtime-dir, docker]
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string, format: email, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    AuthStatus:
+      type: object
+      properties:
+        success: { type: boolean }
+        isAuthenticated: { type: boolean }
+        needsSetup: { type: boolean, description: 'true if no users exist yet — UI shows registration screen.' }
+        user: { $ref: '#/components/schemas/User' }
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+
+    LoginResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        token: { type: string, description: JWT (also set as `token` cookie). }
+        user: { $ref: '#/components/schemas/User' }
+
+    ApiKey:
+      type: object
+      properties:
+        id: { type: integer }
+        key_name: { type: string }
+        api_key: { type: string, description: 'Format: `ck_<32-hex>`. Returned in full on creation only.' }
+        created_at: { type: string, format: date-time }
+        last_used: { type: string, format: date-time, nullable: true }
+        is_active: { type: boolean }
+
+    Project:
+      type: object
+      properties:
+        name: { type: string }
+        displayName: { type: string }
+        path: { type: string }
+        fullPath: { type: string }
+        sessions:
+          type: array
+          items: { $ref: '#/components/schemas/SessionMeta' }
+
+    SessionMeta:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string, nullable: true }
+        provider:
+          type: string
+          enum: [claude, cursor, codex, gemini, qwen, opencode]
+        lastActivity: { type: string, format: date-time }
+
+    GitStatus:
+      type: object
+      properties:
+        branch: { type: string }
+        ahead: { type: integer }
+        behind: { type: integer }
+        modified: { type: array, items: { type: string } }
+        added: { type: array, items: { type: string } }
+        deleted: { type: array, items: { type: string } }
+        untracked: { type: array, items: { type: string } }
+
+    ProviderInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [claude, cursor, codex, gemini, qwen, opencode]
+        installed: { type: boolean }
+        authenticated: { type: boolean }
+        version: { type: string, nullable: true }
+        binaryPath: { type: string, nullable: true }
+
+    InstallJob:
+      type: object
+      properties:
+        jobId: { type: string }
+        provider: { type: string }
+        status: { type: string, enum: [pending, running, succeeded, failed, cancelled] }
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+  - cookieAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Liveness + version probe
+      description: |
+        Public, unauthenticated. Returns server version and install mode so the
+        UI can detect updates and stale daemons. Used by:
+
+        - The version-upgrade modal — polls during/after `/api/system/update`
+          to detect when the new version is up.
+        - `useVersionCheck` — falls back to the bundle's baked
+          `__PIXCODE_UI_VERSION__` if `version` is missing or non-semver.
+      security: []
+      responses:
+        '200':
+          description: Server is up.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+
+  /api/system/update:
+    post:
+      tags: [System]
+      summary: Self-update (SSE)
+      description: |
+        Streams the update process via SSE. Behavior depends on
+        `installMode`:
+
+        - **runtime-dir** (desktop wrapper): downloads the latest npm tarball,
+          atomically swaps files, emits `done { selfRestarting: true }`, then
+          `process.exit(42)` so the wrapper respawns. **Don't `POST /restart`
+          when `selfRestarting` is true.**
+        - **git/npm-global**: runs `git pull && npm install` or
+          `npm install -g`. The supervising daemon may restart the server
+          mid-stream — clients should treat a bare close + `/health` version
+          bump as success.
+      responses:
+        '200':
+          description: 'SSE stream of `event: log`, `event: progress`, `event: done`, `event: error`.'
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /api/system/restart:
+    post:
+      tags: [System]
+      summary: Restart the server process
+      description: |
+        Triggers a graceful exit; the supervising daemon (systemd/pm2/electron
+        wrapper) is expected to respawn. Don't call after a `selfRestarting`
+        update event — the wrapper has already been signalled.
+      responses:
+        '200':
+          description: Restart scheduled.
+
+  /api/auth/status:
+    get:
+      tags: [Authentication]
+      summary: Probe authentication state
+      description: Returns whether the current request carries a valid token, and whether the system has any users at all (`needsSetup`).
+      security: []
+      responses:
+        '200':
+          description: Auth status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthStatus' }
+
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register the first user
+      description: Only allowed while `needsSetup` is true. Subsequent calls return 403.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Registered + auto-logged-in.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '403':
+          description: Setup already complete.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Login OK; sets `token` cookie + returns JWT in body.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401':
+          description: Invalid credentials.
+
+  /api/auth/user:
+    get:
+      tags: [Authentication]
+      summary: Current user
+      responses:
+        '200':
+          description: Authenticated user details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out
+      description: Clears the `token` cookie. JWT remains valid until expiry — server-side blacklist isn't implemented.
+      responses:
+        '200': { description: OK }
+
+  /api/settings/api-keys:
+    get:
+      tags: [Authentication]
+      summary: List user API keys
+      responses:
+        '200':
+          description: List of keys (the `api_key` field is masked except on creation).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ApiKey' }
+    post:
+      tags: [Authentication]
+      summary: Create an API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, description: 'Human-readable label.' }
+      responses:
+        '201':
+          description: Key created. The full `api_key` value is returned **once** — store it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiKey' }
+
+  /api/settings/api-keys/{keyId}:
+    delete:
+      tags: [Authentication]
+      summary: Delete an API key
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted. }
+
+  /api/settings/api-keys/{keyId}/toggle:
+    patch:
+      tags: [Authentication]
+      summary: Activate / deactivate an API key
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active: { type: boolean }
+      responses:
+        '200': { description: Updated. }
+
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List all projects
+      description: Walks `~/.claude/projects/*` plus any registered workspaces and returns a unified list. Sessions are flattened by provider.
+      responses:
+        '200':
+          description: Project list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Project' }
+
+  /api/projects/quick-start:
+    post:
+      tags: [Projects]
+      summary: Open or create a project from an absolute path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: { type: string, description: 'Absolute filesystem path.' }
+      responses:
+        '200':
+          description: Project record (created if it didn't exist).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Project' }
+
+  /api/projects/{projectName}/rename:
+    put:
+      tags: [Projects]
+      summary: Rename project display
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string }
+      responses:
+        '200': { description: Renamed. }
+
+  /api/projects/{projectName}:
+    delete:
+      tags: [Projects]
+      summary: Delete (deregister) a project
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Deleted. }
+
+  /api/projects/{projectName}/sessions:
+    get:
+      tags: [Sessions]
+      summary: List sessions for a project
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Sessions sorted by lastActivity desc.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SessionMeta' }
+
+  /api/projects/{projectName}/sessions/{sessionId}:
+    delete:
+      tags: [Sessions]
+      summary: Delete a session
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+        - { name: sessionId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Deleted. }
+
+  /api/sessions/{sessionId}/rename:
+    put:
+      tags: [Sessions]
+      summary: Rename a session
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+      responses:
+        '200': { description: Renamed. }
+
+  /api/sessions/{sessionId}/messages:
+    get:
+      tags: [Sessions]
+      summary: Get session message history
+      description: |
+        Note: this is mounted at `/api/sessions`, NOT under `/api/projects` — the
+        `projectName` is supplied as a query parameter rather than a path
+        segment. The mount lives in `server/routes/messages.js`.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string } }
+        - { name: projectName, in: query, required: true, schema: { type: string }, description: Pixcode project the session belongs to. }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 100 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, default: 0 } }
+      responses:
+        '200':
+          description: Normalized message stream.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages: { type: array, items: { type: object, additionalProperties: true } }
+                  total: { type: integer }
+                  hasMore: { type: boolean }
+
+  /api/search/conversations:
+    get:
+      tags: [Search]
+      summary: Full-text search across all sessions
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string }, description: Search query. }
+        - { name: provider, in: query, required: false, schema: { type: string, enum: [claude, cursor, codex, gemini, qwen, opencode] } }
+        - { name: limit, in: query, required: false, schema: { type: integer, default: 50 } }
+      responses:
+        '200':
+          description: Ranked matches.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results: { type: array, items: { type: object, additionalProperties: true } }
+                  total: { type: integer }
+
+  /api/projects/{projectName}/files:
+    get:
+      tags: [Files]
+      summary: List files in a project subtree
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+        - { name: path, in: query, required: false, schema: { type: string }, description: Subdirectory relative to project root. }
+      responses:
+        '200':
+          description: Directory listing.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    path: { type: string }
+                    type: { type: string, enum: [file, directory] }
+                    size: { type: integer, nullable: true }
+    delete:
+      tags: [Files]
+      summary: Delete a file or folder (path in body)
+      description: |
+        Same path as the listing endpoint above — discriminated by HTTP method.
+        The target's project-relative path goes in the body, NOT the query
+        string (so directory deletes can't be partially URL-encoded into a
+        broken state).
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: { type: string, description: 'Project-relative path of the file or directory to delete.' }
+                type: { type: string, enum: [file, directory], description: 'Optional hint; server detects automatically if omitted.' }
+      responses:
+        '200': { description: Deleted. }
+
+  /api/projects/{projectName}/file:
+    get:
+      tags: [Files]
+      summary: Read a single file
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+        - { name: path, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: File contents (utf-8 text or base64 binary).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content: { type: string }
+                  encoding: { type: string, enum: [utf-8, base64] }
+    put:
+      tags: [Files]
+      summary: Overwrite a file
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, content]
+              properties:
+                path: { type: string }
+                content: { type: string }
+      responses:
+        '200': { description: Saved. }
+
+  /api/projects/{projectName}/files/create:
+    post:
+      tags: [Files]
+      summary: Create a new file or folder
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, type]
+              properties:
+                path: { type: string }
+                type: { type: string, enum: [file, directory] }
+                content: { type: string, description: 'Initial content for files; ignored for directories.' }
+      responses:
+        '201': { description: Created. }
+
+  /api/projects/{projectName}/files/rename:
+    put:
+      tags: [Files]
+      summary: Rename / move a file
+      parameters:
+        - { name: projectName, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPath, newPath]
+              properties:
+                oldPath: { type: string }
+                newPath: { type: string }
+      responses:
+        '200': { description: Renamed. }
+
+
+  /api/browse-filesystem:
+    get:
+      tags: [Files]
+      summary: Native filesystem browser (outside project tree)
+      description: Used by Quick Start to let the user pick a folder anywhere on the host. Honours `~` expansion.
+      parameters:
+        - { name: path, in: query, required: false, schema: { type: string, default: '~' } }
+      responses:
+        '200':
+          description: Directory listing.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: { type: string }
+                  parent: { type: string, nullable: true }
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: { type: string }
+                        type: { type: string, enum: [file, directory] }
+
+  /api/git/status:
+    get:
+      tags: [Git]
+      summary: Working tree status
+      parameters:
+        - { name: project, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Git status snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GitStatus' }
+
+  /api/git/diff:
+    get:
+      tags: [Git]
+      summary: Unified diff for one file or the whole tree
+      parameters:
+        - { name: project, in: query, required: true, schema: { type: string } }
+        - { name: file, in: query, required: false, schema: { type: string } }
+        - { name: staged, in: query, required: false, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: Diff text.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  diff: { type: string }
+
+  /api/git/branches:
+    get:
+      tags: [Git]
+      summary: List local + remote branches
+      parameters:
+        - { name: project, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Branch list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current: { type: string }
+                  local: { type: array, items: { type: string } }
+                  remote: { type: array, items: { type: string } }
+
+  /api/git/commit:
+    post:
+      tags: [Git]
+      summary: Create a commit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project, message]
+              properties:
+                project: { type: string }
+                message: { type: string }
+                files: { type: array, items: { type: string }, description: 'When omitted, all staged changes are committed.' }
+      responses:
+        '200': { description: Commit created. }
+
+  /api/git/push:
+    post:
+      tags: [Git]
+      summary: Push to remote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project]
+              properties:
+                project: { type: string }
+                remote: { type: string, default: origin }
+                branch: { type: string }
+                force: { type: boolean, default: false }
+      responses:
+        '200': { description: Pushed. }
+
+  /api/git/pull:
+    post:
+      tags: [Git]
+      summary: Pull from remote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project]
+              properties:
+                project: { type: string }
+      responses:
+        '200': { description: Pulled. }
+
+  /api/git/checkout:
+    post:
+      tags: [Git]
+      summary: Switch branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project, branch]
+              properties:
+                project: { type: string }
+                branch: { type: string }
+      responses:
+        '200': { description: Switched. }
+
+  /api/providers/credentials:
+    get:
+      tags: [Providers]
+      summary: List stored credentials across providers
+      description: Returns a sanitised inventory of API keys / OAuth tokens Pixcode is currently holding for each provider. Real secret values are NOT returned — only presence + masked tail.
+      responses:
+        '200':
+          description: Credentials inventory.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    hasCredential: { type: boolean }
+                    masked: { type: string, nullable: true, example: '...beef' }
+
+  /api/providers/{provider}/auth/status:
+    get:
+      tags: [Providers]
+      summary: Auth status for a single provider
+      description: |
+        Returns whether the provider's CLI is installed, whether it has a
+        valid auth credential (api key / OAuth token), and the resolved
+        binary path the spawn layer will use.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [claude, cursor, codex, gemini, qwen, opencode] } }
+      responses:
+        '200':
+          description: Auth status snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProviderInfo' }
+
+  /api/providers/{provider}/auth/api-key:
+    post:
+      tags: [Providers]
+      summary: Save / replace an API-key credential for a provider
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [apiKey]
+              properties:
+                apiKey: { type: string }
+                baseUrl: { type: string, description: Optional override (e.g. self-hosted Anthropic compat endpoint). }
+      responses:
+        '200': { description: Credential saved. }
+
+  /api/providers/{provider}/oauth-paste:
+    post:
+      tags: [Providers]
+      summary: Paste an OAuth callback URL to complete login
+      description: |
+        For providers (Claude, Cursor) whose login flow opens a browser tab and
+        bounces back to a URL the user copies into Pixcode. The handler parses
+        the token and stores it as the active credential.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri }
+      responses:
+        '200': { description: Token extracted and stored. }
+        '400': { description: URL did not contain a recognisable token. }
+
+  /api/providers/{provider}/models:
+    get:
+      tags: [Providers]
+      summary: List models the provider's CLI exposes
+      description: |
+        Pixcode caches the model list per provider on first call (or when the
+        cache is busted via `DELETE …/models/cache`). Each entry is the
+        `provider/model` form OpenCode expects.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Model catalog.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, example: 'opencode/gpt-5.2' }
+                    name: { type: string }
+                    contextWindow: { type: integer, nullable: true }
+
+  /api/providers/{provider}/models/cache:
+    delete:
+      tags: [Providers]
+      summary: Bust the cached model list for one provider
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Cache cleared; next GET re-fetches. }
+
+  /api/providers/{provider}/install:
+    post:
+      tags: [Providers]
+      summary: Install / update a provider CLI in the Pixcode sandbox
+      description: |
+        Installs the provider's npm package into `~/.pixcode/cli-bin/` (no
+        `-g`, no sudo/UAC). Returns a `jobId` immediately; subscribe to
+        `/install/{jobId}/stream` for live logs.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        '202':
+          description: Job accepted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InstallJob' }
+
+  /api/providers/{provider}/install/{jobId}/stream:
+    get:
+      tags: [Providers]
+      summary: Stream install job output (SSE)
+      description: Replays buffered output, then streams live until the job ends. Send `Last-Event-ID` to resume after disconnect.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 'SSE event stream — `event: log`, `event: status`, `event: done`, `event: error`.'
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  /api/providers/{provider}/install/{jobId}:
+    delete:
+      tags: [Providers]
+      summary: Cancel an in-flight install
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: jobId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Cancelled. }
+
+  /api/providers/{provider}/mcp/servers:
+    get:
+      tags: [MCP]
+      summary: List MCP servers configured for one provider
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: MCP server list (matches the provider's native config schema).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: object, additionalProperties: true }
+    post:
+      tags: [MCP]
+      summary: Add or replace an MCP server entry
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, command]
+              properties:
+                name: { type: string }
+                command: { type: string }
+                args: { type: array, items: { type: string } }
+                env: { type: object, additionalProperties: { type: string } }
+                scope: { type: string, enum: [local, user], default: user }
+      responses:
+        '200': { description: Server saved. }
+
+  /api/providers/{provider}/mcp/servers/{name}:
+    delete:
+      tags: [MCP]
+      summary: Remove an MCP server entry
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: name, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Removed. }
+
+  /api/providers/mcp/servers/global:
+    post:
+      tags: [MCP]
+      summary: Add an MCP server to every provider that supports MCP
+      description: Convenience endpoint that fans out the same server config to all MCP-capable providers (Claude, Cursor, Codex, OpenCode). Per-provider edits override.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, command]
+              properties:
+                name: { type: string }
+                command: { type: string }
+                args: { type: array, items: { type: string } }
+                env: { type: object, additionalProperties: { type: string } }
+      responses:
+        '200': { description: Server fanned out. }
+
+  /api/providers/{provider}/config-files:
+    get:
+      tags: [Providers]
+      summary: List config files Pixcode knows about for a provider
+      description: |
+        Returns the catalog of editable config files for a provider — typically
+        `settings.json`, `auth.json`, `opencode.json`, etc. Each entry has an
+        opaque `fileId` used by `GET/PUT …/{fileId}`.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Config file catalog.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fileId: { type: string }
+                    path: { type: string }
+                    label: { type: string }
+                    exists: { type: boolean }
+                    size: { type: integer, nullable: true }
+
+  /api/providers/{provider}/config-files/{fileId}:
+    get:
+      tags: [Providers]
+      summary: Read a provider config file's contents
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: File contents.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content: { type: string }
+                  path: { type: string }
+                  encoding: { type: string, enum: [utf-8] }
+    put:
+      tags: [Providers]
+      summary: Overwrite a provider config file
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string }
+      responses:
+        '200': { description: Saved. }
+        '400': { description: Content failed validation (e.g. malformed JSON). }
+
+  /api/network/endpoints:
+    get:
+      tags: [Network]
+      summary: LAN endpoints for mobile QR pairing
+      description: Returns every reachable IPv4 the host has bound, formatted as `http://<ip>:<port>`.
+      responses:
+        '200':
+          description: LAN endpoint list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  endpoints: { type: array, items: { type: string } }
+                  port: { type: integer }
+
+  /api/network/external:
+    get:
+      tags: [Network]
+      summary: Current external-access state (UPnP + tunnel)
+      responses:
+        '200':
+          description: Snapshot.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upnp:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      externalIp: { type: string, nullable: true }
+                      mappedPort: { type: integer, nullable: true }
+                  tunnel:
+                    type: object
+                    properties:
+                      active: { type: boolean }
+                      provider: { type: string, enum: [cloudflared, ngrok], nullable: true }
+                      url: { type: string, nullable: true }
+
+  /api/network/upnp:
+    post:
+      tags: [Network]
+      summary: Open the LAN port on the router
+      responses:
+        '200': { description: Mapping created (or already present). }
+    delete:
+      tags: [Network]
+      summary: Remove the UPnP mapping
+      responses:
+        '200': { description: Removed. }
+
+  /api/network/tunnel:
+    post:
+      tags: [Network]
+      summary: Start a public tunnel (cloudflared / ngrok auto-detect)
+      responses:
+        '200':
+          description: Tunnel started; URL returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string, format: uri }
+                  provider: { type: string }
+    delete:
+      tags: [Network]
+      summary: Stop the tunnel
+      responses:
+        '200': { description: Stopped. }
+
+  /api/settings/notification-preferences:
+    get:
+      tags: [Settings]
+      summary: Get notification preferences
+      responses:
+        '200':
+          description: Per-channel + per-event toggles.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  preferences:
+                    type: object
+                    properties:
+                      channels:
+                        type: object
+                        properties:
+                          inApp: { type: boolean }
+                          webPush: { type: boolean }
+                      events:
+                        type: object
+                        properties:
+                          actionRequired: { type: boolean }
+                          stop: { type: boolean }
+                          error: { type: boolean }
+    put:
+      tags: [Settings]
+      summary: Update notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Saved. }
+
+  /api/agent:
+    post:
+      tags: [Providers]
+      summary: External REST entry point (API-key authenticated)
+      description: |
+        One-shot non-interactive run for automation/CI. Spawns the chosen
+        provider, optionally cloning a GitHub repo first, optionally cutting
+        a branch + opening a PR. **API key required** — accepts the same `ck_`
+        keys as the rest of the API on `Authorization: Bearer`, `X-API-Key`,
+        or `?apiKey=`.
+
+        Default response is an SSE stream of provider-native events; pass
+        `stream: false` to buffer and return JSON.
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  description: Prompt text to send to the agent.
+                provider:
+                  type: string
+                  enum: [claude, cursor, codex, gemini, qwen, opencode]
+                  default: claude
+                model:
+                  type: string
+                  description: Provider-specific model id (e.g. `opencode/gpt-5.2`).
+                projectPath:
+                  type: string
+                  description: Absolute path on the host. Required if `githubUrl` is omitted.
+                githubUrl:
+                  type: string
+                  format: uri
+                  description: Clone this repo before running. Mutually inclusive with `projectPath` (used as the clone target if both are given).
+                githubToken:
+                  type: string
+                  description: Optional override for the per-user GitHub PAT stored under Settings → Git.
+                branchName:
+                  type: string
+                  description: 'Cutting `branchName` implies `createBranch: true`.'
+                createBranch:
+                  type: boolean
+                  default: false
+                createPR:
+                  type: boolean
+                  default: false
+                sessionId:
+                  type: string
+                  description: Resume an existing session instead of starting a new one.
+                stream:
+                  type: boolean
+                  default: true
+                  description: 'Set false to buffer to a single JSON response.'
+                cleanup:
+                  type: boolean
+                  default: true
+                  description: When `githubUrl` was used, delete the temp clone after the run.
+      responses:
+        '200':
+          description: |
+            When `stream:true` — SSE stream of provider events. When `stream:false` — final JSON payload with `text` + `sessionId` + `usage`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text: { type: string }
+                  sessionId: { type: string }
+                  usage:
+                    type: object
+                    properties:
+                      input: { type: integer }
+                      output: { type: integer }
+                      total: { type: integer }
+                      cost: { type: number }
+            text/event-stream:
+              schema: { type: string }
+        '400':
+          description: 'Missing required fields, unknown provider, or invalid GitHub URL.'
+        '401':
+          description: Missing or invalid API key.

@@ -6,6 +6,7 @@ import type {
   CursorPermissionsState,
   CodexPermissionMode,
   GeminiPermissionMode,
+  OpencodePermissionsState,
   QwenPermissionMode,
   SettingsProject,
 } from '../../../types/types';
@@ -34,6 +35,8 @@ export type AgentsSettingsTabProps = {
   onGeminiPermissionModeChange: (value: GeminiPermissionMode) => void;
   qwenPermissionMode: QwenPermissionMode;
   onQwenPermissionModeChange: (value: QwenPermissionMode) => void;
+  opencodePermissions: OpencodePermissionsState;
+  onOpencodePermissionsChange: (value: OpencodePermissionsState) => void;
   projects: SettingsProject[];
 };
 
@@ -64,5 +67,7 @@ export type AgentCategoryContentSectionProps = {
   onGeminiPermissionModeChange: (value: GeminiPermissionMode) => void;
   qwenPermissionMode: QwenPermissionMode;
   onQwenPermissionModeChange: (value: QwenPermissionMode) => void;
+  opencodePermissions: OpencodePermissionsState;
+  onOpencodePermissionsChange: (value: OpencodePermissionsState) => void;
   projects: SettingsProject[];
 };

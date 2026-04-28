@@ -20,6 +20,53 @@ export class QwenSessionsProvider implements IProviderSessions {
     const ts = raw.timestamp || new Date().toISOString();
     const baseId = raw.uuid || generateMessageId('qwen');
 
+    // Qwen Code stream-json (verified from `qwen --output-format stream-json --yolo`):
+    //   { type:"system", subtype:"init", session_id, ... }
+    //   { type:"assistant", uuid, session_id, message:{ role:"assistant", content:[{type:"text", text:"…"}], usage:{...} } }
+    //   { type:"result",  subtype:"success", result:"…final…", usage:{...} }
+    // The previous matcher (`type==='message' && role==='assistant'`) checked
+    // a shape Qwen has never emitted — every chat returned empty messages,
+    // including API-error messages like "[API Error: 401 invalid access token
+    // or token expired]" which then landed in the void instead of reaching
+    // the user. Match the real shape.
+    if (raw.type === 'assistant' && raw.message && typeof raw.message === 'object') {
+      const msg = raw.message as Record<string, unknown>;
+      const parts = Array.isArray(msg.content) ? (msg.content as Record<string, unknown>[]) : [];
+      const text = parts
+        .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+        .filter(Boolean)
+        .join('');
+      const messages: NormalizedMessage[] = [];
+      if (text) {
+        messages.push(createNormalizedMessage({
+          id: baseId,
+          sessionId,
+          timestamp: ts,
+          provider: PROVIDER,
+          kind: 'stream_delta',
+          content: text,
+        }));
+      }
+      // Surface tool_use parts inline so the agent route can see them too.
+      for (const part of parts) {
+        if (part?.type === 'tool_use') {
+          messages.push(createNormalizedMessage({
+            id: typeof part.id === 'string' ? part.id : generateMessageId('qwen'),
+            sessionId,
+            timestamp: ts,
+            provider: PROVIDER,
+            kind: 'tool_use',
+            toolName: typeof part.name === 'string' ? part.name : '',
+            toolInput: (part.input as AnyRecord) || {},
+            toolId: typeof part.id === 'string' ? part.id : '',
+          }));
+        }
+      }
+      return messages;
+    }
+
+    // Legacy `type:"message"` shape — kept so any persisted history that
+    // pre-dates the stream-json migration still parses cleanly.
     if (raw.type === 'message' && raw.role === 'assistant') {
       const content = raw.content || '';
       const messages: NormalizedMessage[] = [];

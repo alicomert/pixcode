@@ -147,11 +147,23 @@
       "new": {
         "title": "新しいワークスペース",
         "description": "新しいワークスペースを作成し、必要に応じてGitHubリポジトリからクローンする"
+      },
+      "githubClone": {
+        "title": "GitHub からクローン",
+        "description": "対象フォルダを選び、リポジトリをそこにクローン"
+      },
+      "subfolder": {
+        "title": "サブフォルダを作成",
+        "description": "親フォルダを選び、その中に新しいサブフォルダを作成"
       }
     },
     "step2": {
       "existingPath": "ワークスペースのパス",
       "newPath": "ワークスペースのパス",
+      "subfolderParentPath": "親フォルダ",
+      "subfolderParentHelp": "新しいサブフォルダを作成する親フォルダのパス",
+      "subfolderName": "サブフォルダ名",
+      "subfolderNameHelp": "この名前のフォルダが親フォルダ内に作成されます",
       "existingPlaceholder": "/path/to/existing/workspace",
       "newPlaceholder": "/path/to/new/workspace",
       "existingHelp": "既存のワークスペースディレクトリのフルパス",
@@ -179,7 +191,10 @@
       "workspaceType": "ワークスペースの種類:",
       "existingWorkspace": "既存のワークスペース",
       "newWorkspace": "新しいワークスペース",
+      "subfolderWorkspace": "新しいサブフォルダ",
       "path": "パス:",
+      "parentPath": "親パス:",
+      "subfolderName": "サブフォルダ名:",
       "cloneFrom": "クローン元:",
       "authentication": "認証:",
       "usingStoredToken": "保存済みトークンを使用:",
@@ -189,6 +204,7 @@
       "existingInfo": "ワークスペースがプロジェクト一覧に追加され、Claude/Cursorセッションで使用できるようになります。",
       "newWithClone": "このフォルダからリポジトリがクローンされます。",
       "newEmpty": "ワークスペースがプロジェクト一覧に追加され、Claude/Cursorセッションで使用できるようになります。",
+      "subfolderInfo": "親フォルダ内に新しいサブフォルダが作成され、プロジェクト一覧に追加されます。",
       "cloningRepository": "リポジトリをクローンしています..."
     },
     "buttons": {
@@ -202,6 +218,8 @@
     "errors": {
       "selectType": "既存のワークスペースか新規作成かを選択してください",
       "providePath": "ワークスペースのパスを入力してください",
+      "provideSubfolderName": "サブフォルダ名を入力してください",
+      "subfolderNameInvalid": "サブフォルダ名にパス区切りを含めることはできず、. / .. もできません",
       "failedToCreate": "ワークスペースの作成に失敗しました",
       "failedToCreateFolder": "フォルダの作成に失敗しました"
     }

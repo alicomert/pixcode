@@ -438,7 +438,8 @@
     "skipPermissions": {
       "label": "İzin istemlerini atla (dikkatli kullan)",
       "claudeDescription": "--dangerously-skip-permissions bayrağının eşdeğeri",
-      "cursorDescription": "Cursor CLI'daki -f bayrağının eşdeğeri"
+      "cursorDescription": "Cursor CLI'daki -f bayrağının eşdeğeri",
+      "opencodeDescription": "OpenCode'daki --dangerously-skip-permissions bayrağının eşdeğeri"
     },
     "allowedTools": {
       "title": "İzin Verilen Araçlar",
@@ -479,6 +480,26 @@
       "gitStatus": "- git status'a izin ver",
       "npmInstall": "- npm install'a izin ver",
       "rmRf": "- Özyinelemeli silmeyi engelle"
+    },
+    "opencodeAllowed": {
+      "title": "İzin Verilen Bash Desenleri",
+      "description": "OpenCode'un onay istemeden otomatik kabul ettiği bash komut desenleri",
+      "placeholder": "ör. \"git *\" veya \"npm test\"",
+      "quickAdd": "Yaygın desenleri hızlı ekle:",
+      "empty": "İzin verilen desen yok"
+    },
+    "opencodeBlocked": {
+      "title": "Engellenen Bash Desenleri",
+      "description": "OpenCode'un her zaman reddettiği bash komut desenleri",
+      "placeholder": "ör. \"rm -rf *\" veya \"sudo *\"",
+      "empty": "Engellenen desen yok"
+    },
+    "opencodeExamples": {
+      "title": "Desen Örnekleri:",
+      "gitAll": "- Tüm git komutlarına izin ver",
+      "gitPush": "- Sadece git push'u engelle",
+      "rmRf": "- Özyinelemeli silmeyi engelle",
+      "npm": "- Tüm npm komutlarına izin ver"
     },
     "codex": {
       "permissionMode": "İzin Modu",

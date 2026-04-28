@@ -9,6 +9,7 @@ type StepConfigurationProps = {
   workspaceType: WorkspaceType;
   workspacePath: string;
   githubUrl: string;
+  subfolderName: string;
   tokenMode: TokenMode;
   selectedGithubToken: string;
   newGithubToken: string;
@@ -18,16 +19,35 @@ type StepConfigurationProps = {
   isCreating: boolean;
   onWorkspacePathChange: (workspacePath: string) => void;
   onGithubUrlChange: (githubUrl: string) => void;
+  onSubfolderNameChange: (name: string) => void;
   onTokenModeChange: (tokenMode: TokenMode) => void;
   onSelectedGithubTokenChange: (tokenId: string) => void;
   onNewGithubTokenChange: (tokenValue: string) => void;
   onAdvanceToConfirm: () => void;
 };
 
+// Per-flow copy keys for the path field — each workspace type wants
+// slightly different label + help text:
+//   existing  → "Mevcut klasör yolu / pick the folder you want to open"
+//   new       → "Hedef klasör / where to clone the repo"
+//   subfolder → "Üst klasör / where the new subfolder will live"
+const PATH_LABEL_KEY: Record<WorkspaceType, string> = {
+  existing: 'projectWizard.step2.existingPath',
+  new: 'projectWizard.step2.newPath',
+  subfolder: 'projectWizard.step2.subfolderParentPath',
+};
+
+const PATH_HELP_KEY: Record<WorkspaceType, string> = {
+  existing: 'projectWizard.step2.existingHelp',
+  new: 'projectWizard.step2.newHelp',
+  subfolder: 'projectWizard.step2.subfolderParentHelp',
+};
+
 export default function StepConfiguration({
   workspaceType,
   workspacePath,
   githubUrl,
+  subfolderName,
   tokenMode,
   selectedGithubToken,
   newGithubToken,
@@ -37,6 +57,7 @@ export default function StepConfiguration({
   isCreating,
   onWorkspacePathChange,
   onGithubUrlChange,
+  onSubfolderNameChange,
   onTokenModeChange,
   onSelectedGithubTokenChange,
   onNewGithubTokenChange,
@@ -49,9 +70,7 @@ export default function StepConfiguration({
     <div className="space-y-4">
       <div>
         <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-          {workspaceType === 'existing'
-            ? t('projectWizard.step2.existingPath')
-            : t('projectWizard.step2.newPath')}
+          {t(PATH_LABEL_KEY[workspaceType])}
         </label>
 
         <WorkspacePathField
@@ -63,11 +82,28 @@ export default function StepConfiguration({
         />
 
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {workspaceType === 'existing'
-            ? t('projectWizard.step2.existingHelp')
-            : t('projectWizard.step2.newHelp')}
+          {t(PATH_HELP_KEY[workspaceType])}
         </p>
       </div>
+
+      {workspaceType === 'subfolder' && (
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('projectWizard.step2.subfolderName')}
+          </label>
+          <Input
+            type="text"
+            value={subfolderName}
+            onChange={(event) => onSubfolderNameChange(event.target.value)}
+            placeholder="my-new-app"
+            className="w-full"
+            disabled={isCreating}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t('projectWizard.step2.subfolderNameHelp')}
+          </p>
+        </div>
+      )}
 
       {workspaceType === 'new' && (
         <>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, Plus, Shield, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import { Button, Input } from '../../../../../../../shared/view/ui';
-import type { CodexPermissionMode, GeminiPermissionMode, QwenPermissionMode } from '../../../../../types/types';
+import type { CodexPermissionMode, GeminiPermissionMode, OpencodePermissionsState, QwenPermissionMode } from '../../../../../types/types';
 
 const COMMON_CLAUDE_TOOLS = [
   'Bash(git log:*)',
@@ -34,6 +34,23 @@ const COMMON_CURSOR_COMMANDS = [
   'Shell(npm run)',
   'Shell(python)',
   'Shell(node)',
+];
+
+// OpenCode reads bash patterns directly out of opencode.json's
+// `permission.bash` map: key is a glob like `git *`, value is `allow|ask|deny`.
+// Pixcode lets the user maintain two flat lists; the backend collapses them
+// into the JSON map at spawn time.
+const COMMON_OPENCODE_PATTERNS = [
+  'git *',
+  'git push *',
+  'npm test',
+  'npm run *',
+  'pnpm *',
+  'bun *',
+  'cargo *',
+  'go test *',
+  'rm -rf *',
+  'sudo *',
 ];
 
 const addUnique = (items: string[], value: string): string[] => {
@@ -792,12 +809,206 @@ function QwenPermissions({ permissionMode, onPermissionModeChange }: Omit<QwenPe
   );
 }
 
+type OpencodePermissionsProps = {
+  agent: 'opencode';
+  permissions: OpencodePermissionsState;
+  onChange: (value: OpencodePermissionsState) => void;
+};
+
+function OpencodePermissions({ permissions, onChange }: Omit<OpencodePermissionsProps, 'agent'>) {
+  const { t } = useTranslation('settings');
+  const [newAllowPattern, setNewAllowPattern] = useState('');
+  const [newDenyPattern, setNewDenyPattern] = useState('');
+
+  const handleAddAllow = (pattern: string) => {
+    const updated = addUnique(permissions.allowPatterns, pattern);
+    if (updated.length === permissions.allowPatterns.length) return;
+    onChange({ ...permissions, allowPatterns: updated });
+    setNewAllowPattern('');
+  };
+
+  const handleAddDeny = (pattern: string) => {
+    const updated = addUnique(permissions.denyPatterns, pattern);
+    if (updated.length === permissions.denyPatterns.length) return;
+    onChange({ ...permissions, denyPatterns: updated });
+    setNewDenyPattern('');
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-orange-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.title')}</h3>
+        </div>
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-800 dark:bg-orange-900/20">
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={permissions.skipPermissions}
+              onChange={(event) => onChange({ ...permissions, skipPermissions: event.target.checked })}
+              className="h-4 w-4 rounded border-input bg-card text-primary focus:ring-2 focus:ring-primary"
+            />
+            <div>
+              <div className="font-medium text-orange-900 dark:text-orange-100">
+                {t('permissions.skipPermissions.label')}
+              </div>
+              <div className="text-sm text-orange-700 dark:text-orange-300">
+                {t('permissions.skipPermissions.opencodeDescription')}
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-green-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.opencodeAllowed.title')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.opencodeAllowed.description')}</p>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={newAllowPattern}
+            onChange={(event) => setNewAllowPattern(event.target.value)}
+            placeholder={t('permissions.opencodeAllowed.placeholder')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                handleAddAllow(newAllowPattern);
+              }
+            }}
+            className="h-10 flex-1"
+          />
+          <Button
+            onClick={() => handleAddAllow(newAllowPattern)}
+            disabled={!newAllowPattern.trim()}
+            size="sm"
+            className="h-10 px-4"
+          >
+            <Plus className="mr-2 h-4 w-4 sm:mr-0" />
+            <span className="sm:hidden">{t('permissions.actions.add')}</span>
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">
+            {t('permissions.opencodeAllowed.quickAdd')}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {COMMON_OPENCODE_PATTERNS.map((pattern) => (
+              <Button
+                key={pattern}
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddAllow(pattern)}
+                disabled={permissions.allowPatterns.includes(pattern)}
+                className="h-8 text-xs"
+              >
+                {pattern}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {permissions.allowPatterns.map((pattern) => (
+            <div key={pattern} className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20">
+              <span className="font-mono text-sm text-green-800 dark:text-green-200">{pattern}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onChange({ ...permissions, allowPatterns: removeValue(permissions.allowPatterns, pattern) })}
+                className="text-green-600 hover:text-green-700"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          {permissions.allowPatterns.length === 0 && (
+            <div className="py-6 text-center text-muted-foreground">
+              {t('permissions.opencodeAllowed.empty')}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <h3 className="text-lg font-medium text-foreground">{t('permissions.opencodeBlocked.title')}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">{t('permissions.opencodeBlocked.description')}</p>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={newDenyPattern}
+            onChange={(event) => setNewDenyPattern(event.target.value)}
+            placeholder={t('permissions.opencodeBlocked.placeholder')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                handleAddDeny(newDenyPattern);
+              }
+            }}
+            className="h-10 flex-1"
+          />
+          <Button
+            onClick={() => handleAddDeny(newDenyPattern)}
+            disabled={!newDenyPattern.trim()}
+            size="sm"
+            className="h-10 px-4"
+          >
+            <Plus className="mr-2 h-4 w-4 sm:mr-0" />
+            <span className="sm:hidden">{t('permissions.actions.add')}</span>
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {permissions.denyPatterns.map((pattern) => (
+            <div key={pattern} className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+              <span className="font-mono text-sm text-red-800 dark:text-red-200">{pattern}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onChange({ ...permissions, denyPatterns: removeValue(permissions.denyPatterns, pattern) })}
+                className="text-red-600 hover:text-red-700"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          {permissions.denyPatterns.length === 0 && (
+            <div className="py-6 text-center text-muted-foreground">
+              {t('permissions.opencodeBlocked.empty')}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 dark:border-teal-800 dark:bg-teal-900/20">
+        <h4 className="mb-2 font-medium text-teal-900 dark:text-teal-100">
+          {t('permissions.opencodeExamples.title')}
+        </h4>
+        <ul className="space-y-1 text-sm text-teal-800 dark:text-teal-200">
+          <li><code className="rounded bg-teal-100 px-1 dark:bg-teal-800">"git *"</code> {t('permissions.opencodeExamples.gitAll')}</li>
+          <li><code className="rounded bg-teal-100 px-1 dark:bg-teal-800">"git push *"</code> {t('permissions.opencodeExamples.gitPush')}</li>
+          <li><code className="rounded bg-teal-100 px-1 dark:bg-teal-800">"rm -rf *"</code> {t('permissions.opencodeExamples.rmRf')}</li>
+          <li><code className="rounded bg-teal-100 px-1 dark:bg-teal-800">"npm *"</code> {t('permissions.opencodeExamples.npm')}</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 type PermissionsContentProps =
   | ClaudePermissionsProps
   | CursorPermissionsProps
   | CodexPermissionsProps
   | GeminiPermissionsProps
-  | QwenPermissionsProps;
+  | QwenPermissionsProps
+  | OpencodePermissionsProps;
 
 export default function PermissionsContent(props: PermissionsContentProps) {
   if (props.agent === 'claude') {
@@ -814,6 +1025,10 @@ export default function PermissionsContent(props: PermissionsContentProps) {
 
   if (props.agent === 'qwen') {
     return <QwenPermissions {...props} />;
+  }
+
+  if (props.agent === 'opencode') {
+    return <OpencodePermissions {...props} />;
   }
 
   return <CodexPermissions {...props} />;

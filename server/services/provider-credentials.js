@@ -20,17 +20,36 @@ import path from 'node:path';
 const CONFIG_FILE = path.join(os.homedir(), '.pixcode', 'provider-credentials.json');
 
 /**
- * Map provider id → {apiKeyEnv, baseUrlEnv} so we know which env vars to
- * inject into the spawn env. Cursor is OAuth-only; it has no api-key entry.
+ * Map provider id → {apiKeyEnv, baseUrlEnv, extraEnv?} so we know which env
+ * vars to inject into the spawn env. Cursor is OAuth-only; it has no api-key
+ * entry.
+ *
+ * `baseUrlEnv` lets users point a provider at any OpenAI-compatible (or
+ * Gemini-compatible) endpoint they want — third-party gateways, self-hosted
+ * proxies, OpenRouter, Together, etc. — without forking the CLI. The CLI
+ * picks the env var up natively because every supported CLI honours its
+ * vendor's standard variable names. **Don't rename these.** Pixcode is just
+ * a passthrough; people expect the same names that work outside Pixcode.
+ *
+ * `extraEnv` is a list of additional env-var names that should be mirrored
+ * across with the same value as `baseUrlEnv` — handy when a provider has
+ * historical aliases (e.g. Gemini's `GOOGLE_GEMINI_BASE_URL` vs newer
+ * `GEMINI_BASE_URL` clients).
  */
 export const PROVIDER_ENV_VARS = Object.freeze({
     claude:   { apiKeyEnv: 'ANTHROPIC_API_KEY', baseUrlEnv: 'ANTHROPIC_BASE_URL' },
     codex:    { apiKeyEnv: 'OPENAI_API_KEY',    baseUrlEnv: 'OPENAI_BASE_URL' },
-    gemini:   { apiKeyEnv: 'GEMINI_API_KEY',    baseUrlEnv: null },
+    gemini:   {
+        apiKeyEnv: 'GEMINI_API_KEY',
+        baseUrlEnv: 'GOOGLE_GEMINI_BASE_URL',
+        // Some Gemini-API-compatible gateways pick up the shorter
+        // `GEMINI_BASE_URL` name; mirror so either client works.
+        extraBaseUrlEnv: ['GEMINI_BASE_URL'],
+    },
     qwen:     { apiKeyEnv: 'OPENAI_API_KEY',    baseUrlEnv: 'OPENAI_BASE_URL' },
-    // OpenCode is multi-provider. Set ANTHROPIC_API_KEY by default since
-    // Claude is OpenCode Zen's recommended backend; users wanting OpenAI
-    // or OpenRouter can override via the opencode.json `provider` block.
+    // OpenCode is multi-provider. Default-set ANTHROPIC_*, but ALSO mirror
+    // the same key into OPENAI_API_KEY when the user picks an OpenAI-flavour
+    // model — handled at spawn time in opencode-cli.js, not here.
     opencode: { apiKeyEnv: 'ANTHROPIC_API_KEY', baseUrlEnv: 'ANTHROPIC_BASE_URL' },
 });
 
@@ -98,7 +117,13 @@ export async function buildSpawnEnv(provider, baseEnv = process.env) {
     if (!creds) return env;
 
     if (envVars.apiKeyEnv) env[envVars.apiKeyEnv] = creds.apiKey;
-    if (envVars.baseUrlEnv && creds.baseUrl) env[envVars.baseUrlEnv] = creds.baseUrl;
+    if (envVars.baseUrlEnv && creds.baseUrl) {
+        env[envVars.baseUrlEnv] = creds.baseUrl;
+        // Mirror to alias env-var names so clients that read either work.
+        for (const alias of envVars.extraBaseUrlEnv || []) {
+            env[alias] = creds.baseUrl;
+        }
+    }
     return env;
 }
 
@@ -116,7 +141,12 @@ export async function applyAllStoredCredentialsToEnv() {
         const apiKey = typeof entry.apiKey === 'string' ? entry.apiKey.trim() : '';
         const baseUrl = typeof entry.baseUrl === 'string' ? entry.baseUrl.trim() : '';
         if (envVars.apiKeyEnv && apiKey) process.env[envVars.apiKeyEnv] = apiKey;
-        if (envVars.baseUrlEnv && baseUrl) process.env[envVars.baseUrlEnv] = baseUrl;
+        if (envVars.baseUrlEnv && baseUrl) {
+            process.env[envVars.baseUrlEnv] = baseUrl;
+            for (const alias of envVars.extraBaseUrlEnv || []) {
+                process.env[alias] = baseUrl;
+            }
+        }
     }
 }
 
@@ -136,6 +166,10 @@ export async function applyProviderCredentialsToEnv(provider) {
     if (envVars.baseUrlEnv) {
         if (creds?.baseUrl) process.env[envVars.baseUrlEnv] = creds.baseUrl;
         else delete process.env[envVars.baseUrlEnv];
+        for (const alias of envVars.extraBaseUrlEnv || []) {
+            if (creds?.baseUrl) process.env[alias] = creds.baseUrl;
+            else delete process.env[alias];
+        }
     }
 }
 

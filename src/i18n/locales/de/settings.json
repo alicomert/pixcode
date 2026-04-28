@@ -325,7 +325,8 @@
     "skipPermissions": {
       "label": "Berechtigungsaufforderungen überspringen (mit Vorsicht verwenden)",
       "claudeDescription": "Entspricht dem Flag --dangerously-skip-permissions",
-      "cursorDescription": "Entspricht dem Flag -f in der Cursor CLI"
+      "cursorDescription": "Entspricht dem Flag -f in der Cursor CLI",
+      "opencodeDescription": "Entspricht dem Flag --dangerously-skip-permissions in OpenCode"
     },
     "allowedTools": {
       "title": "Erlaubte Werkzeuge",
@@ -366,6 +367,26 @@
       "gitStatus": "- git status erlauben",
       "npmInstall": "- npm install erlauben",
       "rmRf": "- Rekursives Löschen sperren"
+    },
+    "opencodeAllowed": {
+      "title": "Erlaubte Bash-Muster",
+      "description": "Bash-Befehlsmuster, die OpenCode ohne Rückfrage automatisch genehmigt",
+      "placeholder": "z. B. \"git *\" oder \"npm test\"",
+      "quickAdd": "Häufige Muster schnell hinzufügen:",
+      "empty": "Keine erlaubten Muster konfiguriert"
+    },
+    "opencodeBlocked": {
+      "title": "Gesperrte Bash-Muster",
+      "description": "Bash-Befehlsmuster, die OpenCode immer ablehnt",
+      "placeholder": "z. B. \"rm -rf *\" oder \"sudo *\"",
+      "empty": "Keine gesperrten Muster konfiguriert"
+    },
+    "opencodeExamples": {
+      "title": "Beispielmuster:",
+      "gitAll": "- Alle git-Befehle erlauben",
+      "gitPush": "- git push gezielt blockieren",
+      "rmRf": "- Rekursives Löschen blockieren",
+      "npm": "- Alle npm-Befehle erlauben"
     },
     "codex": {
       "permissionMode": "Berechtigungsmodus",

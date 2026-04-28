@@ -15,6 +15,48 @@ import { createNormalizedMessage } from './shared/utils.js';
 
 let activeGeminiProcesses = new Map(); // Track active processes by session ID
 
+/**
+ * Auto-create `~/.gemini/settings.json` when the user has signed in via OAuth
+ * (so `oauth_creds.json` exists) but never opened the Gemini TUI to write the
+ * `selectedAuthType` field. Without this, `gemini --prompt … --output-format
+ * stream-json --yolo` exits 41 with "Please set an Auth method in your
+ * settings.json" — even though credentials are perfectly valid. We respect a
+ * pre-existing `settings.json` and never overwrite a chosen auth type.
+ *
+ * Triggered every spawn (cheap: one fs.access + maybe one tiny write).
+ */
+async function ensureGeminiSettingsJson() {
+    const home = os.homedir();
+    const dir = path.join(home, '.gemini');
+    const settingsPath = path.join(dir, 'settings.json');
+    const oauthPath = path.join(dir, 'oauth_creds.json');
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    try {
+        await fs.access(settingsPath);
+        return; // user-managed, leave it.
+    } catch { /* missing — we may create it */ }
+
+    let selectedAuthType = null;
+    if (apiKey && apiKey.trim()) {
+        selectedAuthType = 'gemini-api-key';
+    } else {
+        try {
+            await fs.access(oauthPath);
+            selectedAuthType = 'oauth-personal';
+        } catch { /* no oauth either */ }
+    }
+    if (!selectedAuthType) return;
+
+    try {
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(settingsPath, JSON.stringify({ selectedAuthType }, null, 2), { mode: 0o600 });
+        console.log(`[gemini] auto-bootstrapped ~/.gemini/settings.json with selectedAuthType="${selectedAuthType}"`);
+    } catch (error) {
+        console.warn('[gemini] failed to bootstrap settings.json:', error?.message || error);
+    }
+}
+
 async function spawnGemini(command, options = {}, ws) {
     const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary } = options;
     let capturedSessionId = sessionId; // Track session ID throughout the process
@@ -173,6 +215,24 @@ async function spawnGemini(command, options = {}, ws) {
     // overlays on top of process.env so Gemini picks it up without the user
     // exporting GEMINI_API_KEY in their shell.
     const spawnEnv = await buildSpawnEnv('gemini');
+
+    // OAuth-only users never opened the TUI → no settings.json → spawn dies
+    // with exit 41. Bootstrap it once.
+    await ensureGeminiSettingsJson();
+
+    // Headless OAuth handshake. Without this Gemini exits 41 with "Please
+    // set an Auth method..." even when ~/.gemini/oauth_creds.json is fully
+    // valid — the CLI gates oauth-personal mode behind GOOGLE_GENAI_USE_GCA
+    // when running non-interactively. Only set when the user hasn't supplied
+    // an API key (which has its own auth path).
+    if (!spawnEnv.GEMINI_API_KEY) {
+        spawnEnv.GOOGLE_GENAI_USE_GCA = 'true';
+    }
+    // `--yolo` skips approval prompts but Gemini still refuses to operate
+    // on directories it doesn't recognise as trusted. There's no
+    // interactive prompt available in our pty-less spawn, so we set the
+    // documented headless escape hatch.
+    spawnEnv.GEMINI_CLI_TRUST_WORKSPACE = 'true';
 
     return new Promise((resolve, reject) => {
         const geminiProcess = spawnFunction(spawnCmd, spawnArgs, {

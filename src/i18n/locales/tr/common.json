@@ -147,11 +147,23 @@
       "new": {
         "title": "Yeni Çalışma Alanı",
         "description": "Yeni bir çalışma alanı oluştur, istersen bir GitHub deposundan klonla"
+      },
+      "githubClone": {
+        "title": "GitHub'tan Klonla",
+        "description": "Bir hedef klasör seç, repoyu içine klonla"
+      },
+      "subfolder": {
+        "title": "Alt Klasör Oluştur",
+        "description": "Bir üst klasör seç, içinde yeni bir alt klasör oluştur"
       }
     },
     "step2": {
       "existingPath": "Çalışma Alanı Yolu",
       "newPath": "Çalışma Alanı Yolu",
+      "subfolderParentPath": "Üst Klasör",
+      "subfolderParentHelp": "Yeni alt klasörün oluşturulacağı klasörün yolu",
+      "subfolderName": "Alt Klasör Adı",
+      "subfolderNameHelp": "Bu isimde yeni bir klasör yukarıdaki üst klasörün içinde oluşturulacak",
       "existingPlaceholder": "/mevcut/calisma-alani/yolu",
       "newPlaceholder": "/yeni/calisma-alani/yolu",
       "existingHelp": "Mevcut çalışma alanı dizinine giden tam yol",
@@ -179,7 +191,10 @@
       "workspaceType": "Çalışma Alanı Türü:",
       "existingWorkspace": "Mevcut Çalışma Alanı",
       "newWorkspace": "Yeni Çalışma Alanı",
+      "subfolderWorkspace": "Yeni Alt Klasör",
       "path": "Yol:",
+      "parentPath": "Üst Yol:",
+      "subfolderName": "Alt Klasör Adı:",
       "cloneFrom": "Şuradan Klonla:",
       "authentication": "Kimlik Doğrulama:",
       "usingStoredToken": "Kayıtlı token kullanılıyor:",
@@ -189,6 +204,7 @@
       "existingInfo": "Çalışma alanı proje listene eklenecek ve Claude/Cursor oturumları için kullanılabilir olacak.",
       "newWithClone": "Depo bu klasöre klonlanacak.",
       "newEmpty": "Çalışma alanı proje listene eklenecek ve Claude/Cursor oturumları için kullanılabilir olacak.",
+      "subfolderInfo": "Üst klasörün içinde yeni bir alt klasör oluşturulacak ve proje listene eklenecek.",
       "cloningRepository": "Depo klonlanıyor..."
     },
     "buttons": {
@@ -202,6 +218,8 @@
     "errors": {
       "selectType": "Lütfen mevcut çalışma alanın olduğunu mu yoksa yeni oluşturmak mı istediğini seç",
       "providePath": "Lütfen bir çalışma alanı yolu gir",
+      "provideSubfolderName": "Lütfen alt klasör için bir isim gir",
+      "subfolderNameInvalid": "Alt klasör adı yol ayırıcı içeremez veya . / .. olamaz",
       "failedToCreate": "Çalışma alanı oluşturulamadı",
       "failedToCreateFolder": "Klasör oluşturulamadı"
     }
