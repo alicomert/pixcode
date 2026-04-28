@@ -39,6 +39,7 @@ export interface Message {
   messageId: string;
   role: Role;
   parts: Part[];
+  /** Required for task-scoped messages. Omit only for broadcast/standalone messages. */
   taskId?: string;
 }
 
@@ -48,6 +49,8 @@ export type ArtifactType =
   | 'preview-url'
   | 'data';
 
+// Note: Artifact and AuthScheme use `type` discriminator (matches A2A
+// v0.2 wire format). Part and BusEvent use `kind` per the same spec.
 export interface Artifact {
   artifactId: string;
   type: ArtifactType;
