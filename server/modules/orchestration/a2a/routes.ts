@@ -25,24 +25,49 @@ import {
 // In-memory task store. Persistence is out of scope for the foundation;
 // a follow-on plan adds SQLite-backed storage.
 const tasks = new Map<string, Task>();
+// Per-task bus unsubscribe handles; called on terminal state.
+const taskUnsubs = new Map<string, () => void>();
+// Eviction timeouts (terminal tasks live for 1 hour before being purged).
+const taskEvictions = new Map<string, NodeJS.Timeout>();
+const TERMINAL_TASK_TTL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_TASKS = 1000;
 
 function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
 }
 
 function getBaseUrl(req: Request): string {
-  // Honour the standard reverse-proxy headers when present.
+  // TODO: this trusts X-Forwarded-Proto/Host without checking app's
+  // trust-proxy setting. Same posture as auth.middleware.ts; revisit
+  // when project-wide trust-proxy decision lands.
   const proto = req.header('x-forwarded-proto') ?? req.protocol;
   const host = req.header('x-forwarded-host') ?? req.get('host');
   return `${proto}://${host}`;
 }
 
-function attachBusToTask(task: Task): () => void {
-  return a2aBus.subscribe(task.id, (event: BusEvent) => {
+function attachBusToTask(task: Task): void {
+  const unsubscribe = a2aBus.subscribe(task.id, (event: BusEvent) => {
     if (event.kind === 'task-state') {
       task.state = event.state;
       if (event.error) task.error = event.error;
       task.updatedAt = Date.now();
+      if (event.state === 'completed' || event.state === 'canceled' || event.state === 'failed') {
+        // Release the listener; schedule eviction.
+        const unsub = taskUnsubs.get(task.id);
+        if (unsub) {
+          unsub();
+          taskUnsubs.delete(task.id);
+        }
+        const existingTimeout = taskEvictions.get(task.id);
+        if (existingTimeout) clearTimeout(existingTimeout);
+        taskEvictions.set(
+          task.id,
+          setTimeout(() => {
+            tasks.delete(task.id);
+            taskEvictions.delete(task.id);
+          }, TERMINAL_TASK_TTL_MS),
+        );
+      }
     } else if (event.kind === 'message') {
       task.history.push(event.message);
       task.updatedAt = Date.now();
@@ -51,6 +76,7 @@ function attachBusToTask(task: Task): () => void {
       task.updatedAt = Date.now();
     }
   });
+  taskUnsubs.set(task.id, unsubscribe);
 }
 
 export function createA2ARouter(): Router {
@@ -95,6 +121,33 @@ export function createA2ARouter(): Router {
       return;
     }
 
+    // Enforce MAX_TASKS cap. Evict the oldest terminal task first; if all
+    // active, fail closed with 503.
+    if (tasks.size >= MAX_TASKS) {
+      let evicted = false;
+      for (const [tid, t] of tasks) {
+        if (t.state === 'completed' || t.state === 'canceled' || t.state === 'failed') {
+          const timeout = taskEvictions.get(tid);
+          if (timeout) clearTimeout(timeout);
+          taskEvictions.delete(tid);
+          const unsub = taskUnsubs.get(tid);
+          if (unsub) {
+            unsub();
+            taskUnsubs.delete(tid);
+          }
+          tasks.delete(tid);
+          evicted = true;
+          break;
+        }
+      }
+      if (!evicted) {
+        res.status(503).json({
+          error: { code: 'TASK_LIMIT', message: `task store at capacity (${MAX_TASKS})` },
+        });
+        return;
+      }
+    }
+
     const userMessage: Message = req.body.message;
     const task: Task = {
       id: newId('task'),
@@ -115,11 +168,18 @@ export function createA2ARouter(): Router {
     try {
       await adapter.submitTask(task, { cwd: process.cwd() });
     } catch (err) {
-      task.state = 'failed';
-      task.error = {
-        code: 'ADAPTER_SUBMIT_FAILED',
-        message: err instanceof Error ? err.message : String(err),
-      };
+      // Publish to bus so SSE subscribers and the attachBusToTask listener
+      // both see the failure transition. The listener mutates the stored
+      // task in place, so the 202 body still reflects the failed state.
+      a2aBus.publish({
+        kind: 'task-state',
+        taskId: task.id,
+        state: 'failed',
+        error: {
+          code: 'ADAPTER_SUBMIT_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+        },
+      });
     }
 
     res.status(202).json(task);
