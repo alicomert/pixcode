@@ -71,6 +71,11 @@ import qwenRoutes from './routes/qwen.js';
 import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+import {
+  createA2ARouter,
+  adapterRegistry,
+  ClaudeCodeA2AAdapter,
+} from './modules/orchestration/index.js';
 import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
 import { restoreBotFromConfig } from './services/telegram/bot.js';
@@ -375,6 +380,10 @@ app.use('/api/sessions', authenticateToken, messagesRoutes);
 
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
+
+// A2A protocol router — has its own auth middleware, do NOT wrap with authenticateToken
+adapterRegistry.register(new ClaudeCodeA2AAdapter());
+app.use('/a2a', createA2ARouter());
 
 // Network discovery / QR endpoints (protected)
 app.use('/api/network', authenticateToken, networkRoutes);
