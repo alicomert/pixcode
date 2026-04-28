@@ -94,7 +94,10 @@ async function spawnOpencode(command, options = {}, ws) {
     if (sessionId) {
         const session = sessionManager.getSession(sessionId);
         const cliId = session?.cliSessionId || sessionId;
-        if (cliId && safeSessionIdPattern.test(cliId)) {
+        // OpenCode CLI requires session IDs to start with 'ses' (e.g. ses_22d6…).
+        // Pixcode's internal IDs (opencode_xxxxx) must NOT be passed to -s,
+        // otherwise the CLI exits with "Invalid session ID: must start with 'ses'".
+        if (cliId && safeSessionIdPattern.test(cliId) && cliId.startsWith('ses')) {
             args.push('-s', cliId);
         }
     }
