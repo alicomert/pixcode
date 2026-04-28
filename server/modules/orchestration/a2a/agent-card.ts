@@ -2,14 +2,38 @@
 // Pixcode advertises itself as one A2A agent at /a2a/.well-known/agent-card.json.
 // Per-CLI adapters publish their own cards under /a2a/agents/:id/agent-card.
 
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { adapterRegistry } from '@/modules/orchestration/a2a/adapter-registry.js';
 import type { AgentCard } from '@/modules/orchestration/a2a/types.js';
 
-const VERSION: string =
-  // __PIXCODE_UI_VERSION__ is defined by Vite for the frontend bundle, but
-  // the backend reads the package.json directly via load-env. We accept
-  // either origin so this file works during dev and after build.
-  ((globalThis as any).__PIXCODE_UI_VERSION__ as string | undefined) ?? '0.0.0-dev';
+// Resolve <repo-root>/package.json from this file's location.
+// Source layout:    server/modules/orchestration/a2a/agent-card.ts        (4 levels deep from repo root)
+// Built layout:     dist-server/server/modules/orchestration/a2a/agent-card.js  (5 levels deep)
+// Walk up until a package.json containing "name":"@pixelbyte-software/pixcode" is found.
+function readPixcodeVersion(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 8; i++) {
+    try {
+      const candidate = resolve(dir, 'package.json');
+      const raw = readFileSync(candidate, 'utf8');
+      const pkg = JSON.parse(raw) as { name?: string; version?: string };
+      if (pkg.name === '@pixelbyte-software/pixcode' && typeof pkg.version === 'string') {
+        return pkg.version;
+      }
+    } catch {
+      // not here, walk up
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return '0.0.0-dev';
+}
+
+const VERSION: string = readPixcodeVersion();
 
 export function buildPixcodeAgentCard(baseUrl: string): AgentCard {
   const skills = adapterRegistry
@@ -24,7 +48,7 @@ export function buildPixcodeAgentCard(baseUrl: string): AgentCard {
       'Claude Code, Codex, Cursor, Gemini, Qwen, or OpenCode adapters.',
     url: `${baseUrl.replace(/\/$/, '')}/a2a`,
     version: VERSION,
-    capabilities: ['streaming', 'pushNotifications', 'taskRouting'],
+    capabilities: ['streaming', 'taskRouting'],
     skills,
     authentication: { type: 'bearer' },
   };
