@@ -182,7 +182,11 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
       case 'status':
       case 'stream_delta':
       case 'stream_end':
-        // not user-facing — skip emitting
+        // session_created and status are not user-facing.
+        // stream_delta and stream_end CARRY user-visible delta text but are
+        // not currently emitted by claude-sdk.js (it doesn't pass
+        // includePartialMessages: true to query()). If that flag flips on
+        // upstream, these cases must be re-routed to emit text Messages.
         return;
 
       case 'text':
@@ -233,15 +237,38 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
       case 'permission_cancelled':
       case 'interactive_prompt':
       case 'task_notification':
-      case 'error':
-      case 'complete':
-        // surface as data artifact (user can reason about flow)
+        // Informational — surface as data artifact for visibility.
         this.emitArtifact(taskId, {
           artifactId: newId('art'),
           type: 'data',
           parts: [{ kind: 'data', data: f as Record<string, unknown> }],
           metadata: { source: `claude-${f.kind}` },
         });
+        return;
+
+      case 'error': {
+        // claude-sdk.js catches internally and emits an error frame without
+        // rethrowing, so the IIFE await would resolve cleanly. Force the
+        // failed state here and remove from active so the IIFE's
+        // 'completed' emit is suppressed by its active.has() guard.
+        const message =
+          typeof f.content === 'string'
+            ? f.content
+            : typeof f.text === 'string'
+              ? f.text
+              : 'Claude Code reported an error';
+        this.emitState(taskId, 'failed', {
+          code: 'CLAUDE_RUNTIME_ERROR',
+          message,
+          details: f as Record<string, unknown>,
+        });
+        this.active.delete(taskId);
+        return;
+      }
+
+      case 'complete':
+        // Lifecycle redundant with the IIFE's 'completed' emit; suppress to
+        // avoid double-signaling. The IIFE owns terminal state transitions.
         return;
 
       default:
