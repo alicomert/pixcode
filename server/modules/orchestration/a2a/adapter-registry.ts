@@ -2,7 +2,8 @@
 // In-process registry mapping adapter ids to AbstractA2AAdapter
 // instances. Resolution supports three id forms:
 //   - "claude-code"        explicit
-//   - "skill:<skillId>"    first adapter advertising that skill
+//   - "skill:<skillId>"    first REGISTERED adapter advertising that skill
+//                          (Map iteration is insertion-ordered per ES spec).
 //   - "auto"               first registered adapter (placeholder until
 //                          AI-suggested routing arrives in a later plan)
 
@@ -10,6 +11,7 @@ import type { AbstractA2AAdapter } from '@/modules/orchestration/a2a/adapters/ab
 import type { AgentCard } from '@/modules/orchestration/a2a/types.js';
 
 class AdapterRegistry {
+  // Map iteration order is insertion-ordered (ES spec); auto and skill: resolution depend on this.
   private readonly byId = new Map<string, AbstractA2AAdapter>();
 
   register(adapter: AbstractA2AAdapter): void {
@@ -21,6 +23,13 @@ class AdapterRegistry {
 
   get(idOrSelector: string): AbstractA2AAdapter | undefined {
     if (idOrSelector === 'auto') {
+      if (this.byId.size > 1) {
+        throw new Error(
+          'A2A adapter selector "auto" is not yet implemented for multi-adapter registries. ' +
+          'Pass an explicit adapter id ("claude-code") or a "skill:<id>" selector. ' +
+          'AI-suggested routing will replace this stub in a later plan.',
+        );
+      }
       const first = this.byId.values().next().value;
       return first ?? undefined;
     }
