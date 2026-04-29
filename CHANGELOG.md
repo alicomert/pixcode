@@ -50,15 +50,25 @@ Ports upstream `siteboon/claudecodeui` v1.30.0 features on top of Pixcode's v1.2
 * new UI primitives (Alert, Card, Collapsible, Command, Confirmation, Dialog, Reasoning, Shimmer, PromptInput, Queue) usable from `@/shared/view/ui`
 * add `PlanDisplay` and `ToolStatusBadge` helpers for the upcoming chat redesign
 * add history view switch (Recent / By project), session action menu, session starring, and time-bucketed flat list in the sidebar
+* **orchestration:** add A2A adapters for Codex, Cursor, Gemini, Qwen, and OpenCode so all first-party CLI integrations are reachable from `/a2a/*`
+* **orchestration:** add `POST /a2a/adapters/resolve` and `GET /a2a/tasks` for adapter dry-run resolution plus task listing/filtering
+* **orchestration:** persist A2A tasks to disk with restart recovery and task summary responses for external clients
 
 ### Refactoring
 
 * provider runtimes consolidated under `server/modules/providers/*` with auth/sessions/MCP split into dedicated providers (upstream PR [#666](https://github.com/siteboon/claudecodeui/pull/666))
 * chat composer, tool display, plan mode, and session model selector rebuilt on top of the new primitives (upstream refactor commits [7763e60](https://github.com/siteboon/claudecodeui/commit/7763e60), [5758bee](https://github.com/siteboon/claudecodeui/commit/5758bee), [ec0ff97](https://github.com/siteboon/claudecodeui/commit/ec0ff97))
+* **orchestration:** split task persistence into a dedicated A2A task store and extend the orchestration barrel/types surface for summaries and multi-adapter boot registration
 
 ### Bug Fixes
 
 * iOS scrolling in main chat area, mobile permission mode button tap target and provider selector sizing, PlanDisplay raw params migration, precise Claude SDK denial detection
+* **orchestration:** keep the A2A layer opt-in while hardening selector resolution, task-scoped message history, missing-task errors, and richer adapter-not-found responses
+* **orchestration:** make smoke/API coverage reflect the real six-adapter boot set and validate resolve/listing negative paths
+
+### Tests
+
+* **orchestration:** extend `scripts/smoke/a2a-roundtrip.mjs` to cover adapter registration, resolution, invalid submit/message paths, task listing, and the task stream happy path
 
 ## [1.29.5](https://github.com/alicomert/pixcode/compare/v1.29.4...v1.29.5) (2026-04-16)
 

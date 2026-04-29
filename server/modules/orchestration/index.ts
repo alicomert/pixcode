@@ -6,6 +6,11 @@
 export { createA2ARouter } from './a2a/routes.js';
 export { adapterRegistry } from './a2a/adapter-registry.js';
 export { ClaudeCodeA2AAdapter } from './a2a/adapters/claude-code.adapter.js';
+export { CodexA2AAdapter } from './a2a/adapters/codex.adapter.js';
+export { CursorA2AAdapter } from './a2a/adapters/cursor.adapter.js';
+export { GeminiA2AAdapter } from './a2a/adapters/gemini.adapter.js';
+export { QwenA2AAdapter } from './a2a/adapters/qwen.adapter.js';
+export { OpenCodeA2AAdapter } from './a2a/adapters/opencode.adapter.js';
 export type {
   AdapterContext,
   TaskHandle,
@@ -21,6 +26,7 @@ export type {
   Part,
   SubmitTaskInput,
   Task,
+  TaskSummary,
   TaskError,
   TaskState,
 } from './a2a/types.js';

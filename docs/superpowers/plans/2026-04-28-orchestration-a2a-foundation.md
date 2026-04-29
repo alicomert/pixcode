@@ -12,6 +12,18 @@
 
 **Out of scope for this plan:** five remaining adapters (Codex, Cursor, Gemini, Qwen, OpenCode), worktree/Docker isolation, port watcher, task board UI, workflow DAG runner. Each gets its own plan after this one ships.
 
+## Progress Update
+
+- [x] Foundation module shipped: `server/modules/orchestration/` with `types`, `bus`, `auth.middleware`, `agent-card`, `validator`, `adapter-registry`, `routes`
+- [x] Claude Code A2A adapter shipped and mounted under `/a2a/*`
+- [x] Remaining first-party adapters landed after the initial foundation: `codex`, `cursor`, `gemini`, `qwen`, `opencode`
+- [x] Durable A2A task persistence added via `task-store.ts` with restart recovery and terminal-task TTL eviction
+- [x] External-client ergonomics added: `POST /a2a/adapters/resolve`, `GET /a2a/tasks`, task summaries, selector/routing hints
+- [x] Smoke coverage expanded beyond the original Claude-only roundtrip to cover full adapter registration plus API negative paths
+- [ ] Still pending beyond foundation scope: workflow DAG runner, task board orchestration UI, worktree/Docker execution isolation, port watcher/auto-preview
+
+**Status:** The original foundation goal is complete and has been extended into a six-adapter, opt-in A2A surface. The remaining work is now productization and orchestration depth, not basic protocol bootstrapping.
+
 ---
 
 ## Verification approach (CLAUDE.md-compliant)
