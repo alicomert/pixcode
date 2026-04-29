@@ -10,6 +10,7 @@ import { adapterRegistry } from '@/modules/orchestration/a2a/adapter-registry.js
 import { buildPixcodeAgentCard } from '@/modules/orchestration/a2a/agent-card.js';
 import { a2aAuth } from '@/modules/orchestration/a2a/auth.middleware.js';
 import { a2aBus } from '@/modules/orchestration/a2a/bus.js';
+import { A2ATaskStore } from '@/modules/orchestration/a2a/task-store.js';
 import type {
   BusEvent,
   Message,
@@ -22,18 +23,43 @@ import {
   assertSubmitTaskInput,
 } from '@/modules/orchestration/a2a/validator.js';
 
-// In-memory task store. Persistence is out of scope for the foundation;
-// a follow-on plan adds SQLite-backed storage.
-const tasks = new Map<string, Task>();
+type RoutingHints = {
+  preferredAdapterId?: string;
+  preferredProvider?: string;
+  preferredSkillId?: string;
+};
+
+function readRoutingHints(value: unknown): RoutingHints {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  const source = value as Record<string, unknown>;
+  return {
+    preferredAdapterId:
+      typeof source.preferredAdapterId === 'string' ? source.preferredAdapterId : undefined,
+    preferredProvider:
+      typeof source.preferredProvider === 'string' ? source.preferredProvider : undefined,
+    preferredSkillId:
+      typeof source.preferredSkillId === 'string' ? source.preferredSkillId : undefined,
+  };
+}
+
+const TERMINAL: TaskState[] = ['completed', 'canceled', 'failed'];
 // Per-task bus unsubscribe handles; called on terminal state.
 const taskUnsubs = new Map<string, () => void>();
 // Eviction timeouts (terminal tasks live for 1 hour before being purged).
 const taskEvictions = new Map<string, NodeJS.Timeout>();
 const TERMINAL_TASK_TTL_MS = 60 * 60 * 1000; // 1 hour
 const MAX_TASKS = 1000;
+const taskStore = new A2ATaskStore({ terminalTaskTtlMs: TERMINAL_TASK_TTL_MS });
 
 function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
+}
+
+function isTerminalTaskState(state: TaskState): boolean {
+  return TERMINAL.includes(state);
 }
 
 function getBaseUrl(req: Request): string {
@@ -45,38 +71,94 @@ function getBaseUrl(req: Request): string {
   return `${proto}://${host}`;
 }
 
+function scheduleTaskEviction(taskId: string): void {
+  const existingTimeout = taskEvictions.get(taskId);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+  }
+
+  const task = taskStore.get(taskId);
+  if (!task) {
+    taskEvictions.delete(taskId);
+    return;
+  }
+
+  const remainingMs = Math.max(0, task.updatedAt + TERMINAL_TASK_TTL_MS - Date.now());
+  taskEvictions.set(
+    taskId,
+    setTimeout(() => {
+      taskStore.delete(taskId);
+      taskEvictions.delete(taskId);
+    }, remainingMs),
+  );
+}
+
+function parseTaskState(value: unknown): TaskState | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (
+    normalized === 'submitted' ||
+    normalized === 'working' ||
+    normalized === 'input-required' ||
+    normalized === 'completed' ||
+    normalized === 'canceled' ||
+    normalized === 'failed'
+  ) {
+    return normalized;
+  }
+
+  return undefined;
+}
+
+function parsePositiveInt(value: unknown, fallback: number): number {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return parsed;
+}
+
 function attachBusToTask(task: Task): void {
   const unsubscribe = a2aBus.subscribe(task.id, (event: BusEvent) => {
     if (event.kind === 'task-state') {
       task.state = event.state;
       if (event.error) task.error = event.error;
       task.updatedAt = Date.now();
-      if (event.state === 'completed' || event.state === 'canceled' || event.state === 'failed') {
+      taskStore.set(task);
+      if (isTerminalTaskState(event.state)) {
         // Release the listener; schedule eviction.
         const unsub = taskUnsubs.get(task.id);
         if (unsub) {
           unsub();
           taskUnsubs.delete(task.id);
         }
-        const existingTimeout = taskEvictions.get(task.id);
-        if (existingTimeout) clearTimeout(existingTimeout);
-        taskEvictions.set(
-          task.id,
-          setTimeout(() => {
-            tasks.delete(task.id);
-            taskEvictions.delete(task.id);
-          }, TERMINAL_TASK_TTL_MS),
-        );
+        scheduleTaskEviction(task.id);
       }
     } else if (event.kind === 'message') {
       task.history.push(event.message);
       task.updatedAt = Date.now();
+      taskStore.set(task);
     } else if (event.kind === 'artifact') {
       task.artifacts.push(event.artifact);
       task.updatedAt = Date.now();
+      taskStore.set(task);
     }
   });
   taskUnsubs.set(task.id, unsubscribe);
+}
+
+for (const task of taskStore.values()) {
+  if (isTerminalTaskState(task.state)) {
+    scheduleTaskEviction(task.id);
+  }
 }
 
 export function createA2ARouter(): Router {
@@ -103,6 +185,57 @@ export function createA2ARouter(): Router {
     res.json(adapter.agentCard);
   });
 
+  router.post('/adapters/resolve', (req, res) => {
+    const selector = typeof req.body?.adapterId === 'string' ? req.body.adapterId : '';
+    if (!selector.trim()) {
+      res.status(400).json({
+        error: { code: 'ADAPTER_ID_REQUIRED', message: 'adapterId is required.' },
+      });
+      return;
+    }
+
+    const routing = readRoutingHints(req.body?.routing);
+    const adapter = adapterRegistry.resolve(selector, routing);
+    if (!adapter) {
+      res.status(404).json({
+        error: {
+          code: 'ADAPTER_NOT_FOUND',
+          message: selector,
+          availableAdapters: adapterRegistry.list().map((candidate) => candidate.id),
+        },
+      });
+      return;
+    }
+
+    res.json({
+      selector,
+      resolvedAdapterId: adapter.id,
+      agentCard: adapter.agentCard,
+    });
+  });
+
+  router.get('/tasks', (req, res) => {
+    const state = parseTaskState(req.query.state);
+    const contextId = typeof req.query.contextId === 'string' ? req.query.contextId : undefined;
+    const adapterId = typeof req.query.adapterId === 'string' ? req.query.adapterId : undefined;
+    const limit = parsePositiveInt(req.query.limit, 50);
+
+    const tasks = taskStore
+      .list({ state, contextId, adapterId, limit })
+      .map((task) => taskStore.summarize(task));
+
+    res.json({
+      tasks,
+      count: tasks.length,
+      filters: {
+        state,
+        contextId,
+        adapterId,
+        limit,
+      },
+    });
+  });
+
   // Task lifecycle
   router.post('/tasks', async (req: Request, res: Response) => {
     try {
@@ -113,20 +246,27 @@ export function createA2ARouter(): Router {
       return;
     }
 
-    const adapter = adapterRegistry.get(req.body.adapterId);
+    const metadata = req.body.metadata as Record<string, unknown> | undefined;
+    const routing = readRoutingHints(metadata?.routing);
+
+    const adapter = adapterRegistry.resolve(req.body.adapterId, routing);
     if (!adapter) {
       res.status(404).json({
-        error: { code: 'ADAPTER_NOT_FOUND', message: req.body.adapterId },
+        error: {
+          code: 'ADAPTER_NOT_FOUND',
+          message: req.body.adapterId,
+          availableAdapters: adapterRegistry.list().map((candidate) => candidate.id),
+        },
       });
       return;
     }
 
     // Enforce MAX_TASKS cap. Evict the oldest terminal task first; if all
     // active, fail closed with 503.
-    if (tasks.size >= MAX_TASKS) {
+    if (taskStore.size >= MAX_TASKS) {
       let evicted = false;
-      for (const [tid, t] of tasks) {
-        if (t.state === 'completed' || t.state === 'canceled' || t.state === 'failed') {
+      for (const [tid, t] of taskStore.entries()) {
+        if (isTerminalTaskState(t.state)) {
           const timeout = taskEvictions.get(tid);
           if (timeout) clearTimeout(timeout);
           taskEvictions.delete(tid);
@@ -135,7 +275,7 @@ export function createA2ARouter(): Router {
             unsub();
             taskUnsubs.delete(tid);
           }
-          tasks.delete(tid);
+          taskStore.delete(tid);
           evicted = true;
           break;
         }
@@ -153,16 +293,21 @@ export function createA2ARouter(): Router {
       id: newId('task'),
       contextId: req.body.contextId,
       state: 'submitted',
-      history: [userMessage],
+      history: [],
       artifacts: [],
       metadata: req.body.metadata,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    tasks.set(task.id, task);
+    task.history.push({ ...userMessage, taskId: task.id });
     // Persist adapterId in metadata so cancel can resolve the owning adapter
     // even when the original request body is no longer available.
-    task.metadata = { ...task.metadata, adapterId: req.body.adapterId };
+    task.metadata = {
+      ...task.metadata,
+      adapterId: adapter.id,
+      adapterSelector: req.body.adapterId,
+    };
+    taskStore.set(task);
     attachBusToTask(task);
 
     try {
@@ -186,7 +331,7 @@ export function createA2ARouter(): Router {
   });
 
   router.get('/tasks/:id', (req, res) => {
-    const task = tasks.get(req.params.id);
+    const task = taskStore.get(req.params.id);
     if (!task) {
       res.status(404).json({ error: { code: 'TASK_NOT_FOUND', message: req.params.id } });
       return;
@@ -195,7 +340,7 @@ export function createA2ARouter(): Router {
   });
 
   router.get('/tasks/:id/stream', (req, res) => {
-    const task = tasks.get(req.params.id);
+    const task = taskStore.get(req.params.id);
     if (!task) {
       res.status(404).json({ error: { code: 'TASK_NOT_FOUND', message: req.params.id } });
       return;
@@ -209,7 +354,6 @@ export function createA2ARouter(): Router {
     const initial = { kind: 'task-snapshot' as const, task };
     res.write(`event: snapshot\ndata: ${JSON.stringify(initial)}\n\n`);
 
-    const TERMINAL: TaskState[] = ['completed', 'canceled', 'failed'];
     const unsubscribe = a2aBus.subscribe(task.id, (event) => {
       res.write(`event: ${event.kind}\ndata: ${JSON.stringify(event)}\n\n`);
       if (event.kind === 'task-state' && TERMINAL.includes(event.state)) {
@@ -223,14 +367,14 @@ export function createA2ARouter(): Router {
   });
 
   router.post('/tasks/:id/cancel', async (req, res) => {
-    const task = tasks.get(req.params.id);
+    const task = taskStore.get(req.params.id);
     if (!task) {
       res.status(404).json({ error: { code: 'TASK_NOT_FOUND', message: req.params.id } });
       return;
     }
     // Look up the adapter that owns this task. We stored adapterId in metadata.
     const adapterId = req.body?.adapterId ?? task.metadata?.adapterId;
-    const adapter = typeof adapterId === 'string' ? adapterRegistry.get(adapterId) : undefined;
+    const adapter = typeof adapterId === 'string' ? adapterRegistry.resolve(adapterId) : undefined;
     if (!adapter) {
       res.status(400).json({
         error: {
@@ -241,7 +385,7 @@ export function createA2ARouter(): Router {
       return;
     }
     await adapter.cancelTask(task.id);
-    res.json(tasks.get(task.id));
+    res.json(taskStore.get(task.id));
   });
 
   router.post('/messages', (req, res) => {
@@ -250,6 +394,12 @@ export function createA2ARouter(): Router {
     } catch (err) {
       const e = err as A2AValidationError;
       res.status(400).json({ error: { code: 'INVALID_INPUT', message: e.message, path: e.path } });
+      return;
+    }
+    if (typeof req.body.taskId === 'string' && !taskStore.get(req.body.taskId)) {
+      res.status(404).json({
+        error: { code: 'TASK_NOT_FOUND', message: req.body.taskId },
+      });
       return;
     }
     a2aBus.publish({

@@ -21,6 +21,19 @@ function assertNonEmptyString(value: unknown, path: string): asserts value is st
   }
 }
 
+function assertOptionalNonEmptyString(value: unknown, path: string): void {
+  if (value === undefined) {
+    return;
+  }
+  assertNonEmptyString(value, path);
+}
+
+function assertPlainObject(value: unknown, path: string): void {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new A2AValidationError('expected plain object', path);
+  }
+}
+
 function assertPart(value: unknown, path: string): asserts value is Part {
   if (!value || typeof value !== 'object') {
     throw new A2AValidationError('expected object', path);
@@ -48,7 +61,7 @@ export function assertMessage(value: unknown, path = '$'): asserts value is Mess
   if (!value || typeof value !== 'object') {
     throw new A2AValidationError('expected object', path);
   }
-  const m = value as { messageId?: unknown; role?: unknown; parts?: unknown };
+  const m = value as { messageId?: unknown; role?: unknown; parts?: unknown; taskId?: unknown };
   assertNonEmptyString(m.messageId, `${path}.messageId`);
   if (m.role !== 'user' && m.role !== 'agent') {
     throw new A2AValidationError('role must be user|agent', `${path}.role`);
@@ -56,6 +69,7 @@ export function assertMessage(value: unknown, path = '$'): asserts value is Mess
   if (!Array.isArray(m.parts) || m.parts.length === 0) {
     throw new A2AValidationError('parts must be non-empty array', `${path}.parts`);
   }
+  assertOptionalNonEmptyString(m.taskId, `${path}.taskId`);
   m.parts.forEach((p, i) => assertPart(p, `${path}.parts[${i}]`));
 }
 
@@ -63,9 +77,18 @@ export function assertSubmitTaskInput(value: unknown): asserts value is SubmitTa
   if (!value || typeof value !== 'object') {
     throw new A2AValidationError('expected object', '$');
   }
-  const v = value as { message?: unknown; adapterId?: unknown };
+  const v = value as {
+    message?: unknown;
+    adapterId?: unknown;
+    contextId?: unknown;
+    metadata?: unknown;
+  };
   assertMessage(v.message, '$.message');
   assertNonEmptyString(v.adapterId, '$.adapterId');
+  assertOptionalNonEmptyString(v.contextId, '$.contextId');
+  if (v.metadata !== undefined) {
+    assertPlainObject(v.metadata, '$.metadata');
+  }
 }
 
 export function assertAgentCard(value: unknown): asserts value is AgentCard {

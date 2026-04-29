@@ -76,6 +76,20 @@ export interface Task {
   updatedAt: number;
 }
 
+export interface TaskSummary {
+  id: string;
+  contextId?: string;
+  state: TaskState;
+  adapterId?: string;
+  adapterSelector?: string;
+  error?: TaskError;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  artifactCount: number;
+  lastMessage?: Message;
+}
+
 export interface AgentSkill {
   id: string;
   description: string;

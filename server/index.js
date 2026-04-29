@@ -75,6 +75,11 @@ import {
   createA2ARouter,
   adapterRegistry,
   ClaudeCodeA2AAdapter,
+  CodexA2AAdapter,
+  CursorA2AAdapter,
+  GeminiA2AAdapter,
+  OpenCodeA2AAdapter,
+  QwenA2AAdapter,
 } from './modules/orchestration/index.js';
 import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
@@ -383,6 +388,11 @@ app.use('/api/providers', authenticateToken, providerRoutes);
 
 // A2A protocol router — has its own auth middleware, do NOT wrap with authenticateToken
 adapterRegistry.register(new ClaudeCodeA2AAdapter());
+adapterRegistry.register(new CodexA2AAdapter());
+adapterRegistry.register(new CursorA2AAdapter());
+adapterRegistry.register(new GeminiA2AAdapter());
+adapterRegistry.register(new QwenA2AAdapter());
+adapterRegistry.register(new OpenCodeA2AAdapter());
 app.use('/a2a', createA2ARouter());
 
 // Network discovery / QR endpoints (protected)
