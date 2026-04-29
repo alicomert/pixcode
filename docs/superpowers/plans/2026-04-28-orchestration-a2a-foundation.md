@@ -1,5 +1,13 @@
 # Pixcode v2 Orchestration + A2A Foundation Implementation Plan
 
+> **Current state:** Completed / archive. This plan describes the foundation that is already present in `server/modules/orchestration/`. Do not use the unchecked historical tasks below as the next implementation queue.
+>
+> **Next active plans:**
+> - `docs/superpowers/plans/2026-04-29-orchestration-workspace-isolation.md`
+> - `docs/superpowers/plans/2026-04-29-orchestration-auto-preview.md`
+> - `docs/superpowers/plans/2026-04-29-orchestration-task-dispatch-ui.md`
+> - `docs/superpowers/plans/2026-04-29-orchestration-workflow-dag-runner.md`
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Land the orchestrator + A2A protocol foundation for pixcode — a new `server/modules/orchestration/` module with full A2A v0.2 HTTP surface, an in-process A2A bus, and one working CLI adapter (Claude Code) end-to-end. After this plan, an external A2A client can submit a task to pixcode, watch it stream over SSE, and read back artifacts produced by Claude Code.

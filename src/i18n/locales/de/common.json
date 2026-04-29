@@ -22,7 +22,8 @@
     "shell": "Terminal",
     "files": "Dateien",
     "git": "Quellcodeverwaltung",
-    "tasks": "Aufgaben"
+    "tasks": "Aufgaben",
+    "orchestration": "Orchestrierung"
   },
   "status": {
     "loading": "Lädt...",
@@ -93,7 +94,18 @@
     "createProjectDesktop": "Erstell ein neues Projekt, indem du auf das Ordnersymbol in der Seitenleiste klickst",
     "newSession": "Neue Sitzung",
     "untitledSession": "Unbenannte Sitzung",
-    "projectFiles": "Projektdateien"
+    "projectFiles": "Projektdateien",
+    "landing": {
+      "title": "Pixcode-Arbeitsbereich starten",
+      "description": "Wähle ein Projekt, starte einen neuen Chat oder starte die Orchestrierung mit einem Ziel. Die Orchestrierung verwaltet die von dir ausgewählten CLI-Agenten, zeigt jeden Schritt und macht Fehler direkt sichtbar.",
+      "startOrchestration": "Orchestrierung starten",
+      "startOrchestrationDescription": "Erstellt automatisch ein Projekt und öffnet die Orchestrierungsansicht mit Agentensteuerung und Verlauf.",
+      "startChat": "Neuen Chat starten",
+      "startChatDescription": "Erstellt automatisch einen Ordner und öffnet den normalen Chat mit einem Agenten.",
+      "taskSystem": "Task-System",
+      "taskSystemDescription": "Nutze den TaskMaster-Tab im Projekt, um Aufgaben, Status und geplante Arbeit zu verfolgen.",
+      "sidebarHint": "Wenn du ein vorhandenes Projekt in der Seitenleiste auswählst, bleiben Chatverlauf, Dateien, Git-Status, Tasks und Orchestrierung in derselben Hauptansicht."
+    }
   },
   "fileTree": {
     "loading": "Dateien werden geladen...",
@@ -251,6 +263,153 @@
       "settings": "Einstellungen",
       "updateAvailable": "Update verfügbar",
       "closeSidebar": "Seitenleiste schließen"
+    }
+  },
+  "orchestration": {
+    "title": "Orchestrierung",
+    "refresh": "Aktualisieren",
+    "goal": "Ziel",
+    "mode": "Ausführungsmodus",
+    "systemPlan": "Systemplan",
+    "noMode": "Kein Modus ausgewählt",
+    "loadingPlan": "Agentenplan wird geladen.",
+    "start": "Team starten",
+    "starting": "Wird gestartet",
+    "needAgent": "Aktiviere mindestens einen CLI-Arbeiter.",
+    "startFailed": "Workflow konnte nicht gestartet werden.",
+    "cliControl": "CLI-Team",
+    "enabledCount": "{{count}} aktiv",
+    "enabled": "Aktiv",
+    "disabled": "Inaktiv",
+    "history": "Verlauf",
+    "emptyHistory": "Noch keine Läufe. Schreibe ein Ziel und starte die Agenten.",
+    "steps": "{{done}}/{{total}} Schritte",
+    "notSelected": "Kein Lauf ausgewählt",
+    "notSelectedDescription": "Wähle einen früheren Lauf oder starte ein neues Ziel. Agentennachrichten, Fehler, Änderungszusammenfassungen und Vorschauausgaben erscheinen hier.",
+    "loadFailed": "Laufdetails konnten nicht geladen werden.",
+    "loadingRun": "Lauf wird geladen...",
+    "agentSteps": "Agentenschritte",
+    "noStepOutput": "Keine Schrittausgabe.",
+    "agentMessages": "Agentennachrichten",
+    "noAgentMessages": "Dieser Agent hat noch keine Nachricht erzeugt. Wenn der Lauf fehlgeschlagen ist, erscheint der echte CLI-Fehler oben.",
+    "outputs": "Ausgaben",
+    "noOutputs": "Noch keine Änderungszusammenfassung, Vorschau oder Befehlsausgabe.",
+    "open": "Öffnen",
+    "subtitle": "Gib in {{project}} ein Ziel ein; wähle die CLI-Arbeiter, dupliziere bei Bedarf ein CLI und weise Arbeit direkt zu oder lass den Koordinator sie aufteilen.",
+    "goalPlaceholder": "Beispiel: Auth-Ansicht für Single-Port-Deployment korrigieren, Fehler erfassen und mit Lint und Typecheck prüfen.",
+    "artifact": {
+      "fileDiff": "Änderungszusammenfassung",
+      "previewUrl": "Vorschau",
+      "commandOutput": "Befehlsausgabe"
+    },
+    "role": {
+      "user": "Benutzer",
+      "agent": "Agent"
+    },
+    "status": {
+      "queued": "Wartet",
+      "running": "Läuft",
+      "completed": "Abgeschlossen",
+      "failed": "Fehler",
+      "canceled": "Abgebrochen",
+      "skipped": "Übersprungen"
+    },
+    "nodes": {
+      "codex_review": "Codex-Prüfung",
+      "gemini_review": "Gemini-Prüfung",
+      "claude_review": "Claude-Prüfung",
+      "claude_code_review": "Claude-Prüfung",
+      "cursor_review": "Cursor-Prüfung",
+      "aggregate": "Zusammenfassung",
+      "architect": "Planung",
+      "implement": "Implementierung",
+      "review": "Prüfung",
+      "proposal": "Vorschlag",
+      "critique": "Kritik",
+      "response": "Antwort",
+      "judge": "Entscheidung",
+      "coordinator": "Koordinator",
+      "final_report": "Abschlussbericht"
+    },
+    "workflows": {
+      "multi_model_review": {
+        "name": "Multi-Modell-Prüfung",
+        "description": "Aktive CLI-Agenten prüfen dasselbe Ziel getrennt, danach fasst ein aktiver Agent das Ergebnis zusammen."
+      },
+      "sequential_handoff": {
+        "name": "Sequenzielle Übergabe",
+        "description": "Agenten planen, implementieren und prüfen nacheinander. Deaktivierte CLI-Schritte werden übersprungen."
+      },
+      "adversarial_debate": {
+        "name": "Entscheidungsdebatte",
+        "description": "Agenten schlagen vor, kritisieren, antworten und erzeugen eine finale Empfehlung."
+      },
+      "agent_team": {
+        "name": "Agententeam",
+        "description": "Ein Koordinator liest Ziel und aktive CLI-Instanzen, weist Arbeit zu und sammelt anschließend das Ergebnis."
+      }
+    },
+    "adapters": {
+      "claude-code": {
+        "label": "Claude Code",
+        "role": "CLI-Arbeiter"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "role": "CLI-Arbeiter"
+      },
+      "codex": {
+        "label": "Codex",
+        "role": "CLI-Arbeiter"
+      },
+      "gemini": {
+        "label": "Gemini",
+        "role": "CLI-Arbeiter"
+      },
+      "qwen": {
+        "label": "Qwen Code",
+        "role": "CLI-Arbeiter"
+      },
+      "opencode": {
+        "label": "OpenCode",
+        "role": "CLI-Arbeiter"
+      }
+    },
+    "activeCount": "{{active}}/{{total}} aktiv",
+    "teamHint": "Jede Zeile ist ein CLI-Arbeiter. Du kannst mehrere Claude-, Codex-, Cursor-, Gemini-, Qwen- oder OpenCode-Arbeiter erstellen und jedem eine eigene Aufgabe geben.",
+    "parallelLimit": "Parallel-Limit",
+    "addAgent": "{{agent}} hinzufügen",
+    "duplicateAgent": "{{agent}} duplizieren",
+    "removeAgent": "{{agent}} entfernen",
+    "assignment": "Aufgabe",
+    "assignmentPlaceholder": "Optional: sag diesem Arbeiter genau, was er übernehmen soll. Leer lassen, wenn der Koordinator zuweisen soll.",
+    "agentInstance": "{{name}} #{{number}}",
+    "taskTitle": "Aufgabe",
+    "taskTitlePlaceholder": "Feature umsetzen",
+    "taskDescription": "Beschreibung",
+    "taskDescriptionPlaceholder": "Umfang, Grenzen, erwartetes Ergebnis",
+    "addTask": "Hinzufügen",
+    "runTask": "Ausführen",
+    "cancelTask": "Abbrechen",
+    "dispatchTask": "Aufgabe zuweisen",
+    "adapter": "Adapter",
+    "isolation": "Isolation",
+    "dispatch": "Zuweisen",
+    "auto": "Automatisch",
+    "waitingForStream": "Warte auf Stream...",
+    "workflow": "Workflow",
+    "input": "Eingabe",
+    "taskStates": {
+      "todo": "Zu erledigen",
+      "in_progress": "In Arbeit",
+      "in_review": "In Prüfung",
+      "done": "Erledigt",
+      "failed": "Fehlgeschlagen"
+    },
+    "isolationKind": {
+      "worktree": "Worktree",
+      "host": "Host",
+      "docker": "Docker"
     }
   }
 }

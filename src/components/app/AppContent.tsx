@@ -40,6 +40,7 @@ export default function AppContent() {
     openSettings,
     refreshProjectsSilently,
     sidebarSharedProps,
+    handleQuickStartOrchestration,
   } = useProjectsState({
     sessionId,
     navigate,
@@ -200,6 +201,7 @@ export default function AppContent() {
           onShowSettings={() => setShowSettings(true)}
           externalMessageUpdate={externalMessageUpdate}
           onQuickStartSession={sidebarSharedProps.onQuickStartSession}
+          onQuickStartOrchestration={handleQuickStartOrchestration}
         />
       </div>
 

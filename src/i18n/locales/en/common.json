@@ -22,7 +22,8 @@
     "shell": "Shell",
     "files": "Files",
     "git": "Source Control",
-    "tasks": "Tasks"
+    "tasks": "Tasks",
+    "orchestration": "Orchestration"
   },
   "status": {
     "loading": "Loading...",
@@ -93,7 +94,165 @@
     "createProjectDesktop": "Create a new project by clicking the folder icon in the sidebar",
     "newSession": "New Session",
     "untitledSession": "Untitled Session",
-    "projectFiles": "Project Files"
+    "projectFiles": "Project Files",
+    "landing": {
+      "title": "Start a Pixcode workspace",
+      "description": "Choose a project, start a new chat, or launch Orchestration with one goal. Orchestration manages the CLI agents you select, shows every step, and surfaces errors directly.",
+      "startOrchestration": "Start Orchestration",
+      "startOrchestrationDescription": "Creates an automatic project and opens the Orchestration screen with agent control and run history.",
+      "startChat": "Start a new chat",
+      "startChatDescription": "Creates a folder automatically and opens the normal chat screen with one agent.",
+      "taskSystem": "Task system",
+      "taskSystemDescription": "Use the TaskMaster tab inside a project to track work items, status, and planned work.",
+      "sidebarHint": "When you select an existing project from the sidebar, chat history, files, git status, tasks, and orchestration stay in the same main screen."
+    }
+  },
+  "orchestration": {
+    "title": "Orchestration",
+    "subtitle": "Give one goal inside {{project}}; choose the CLI workers, duplicate any CLI when needed, and assign work directly or let the coordinator split it.",
+    "refresh": "Refresh",
+    "goal": "Goal",
+    "goalPlaceholder": "Example: Fix the auth screen for single-port deployment, capture errors, and verify with lint and typecheck.",
+    "mode": "Run mode",
+    "systemPlan": "System plan",
+    "noMode": "No mode selected",
+    "loadingPlan": "Loading agent plan.",
+    "start": "Start team",
+    "starting": "Starting",
+    "needAgent": "Enable at least one CLI worker.",
+    "startFailed": "Workflow could not start.",
+    "cliControl": "CLI team",
+    "enabledCount": "{{count}} enabled",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "history": "History",
+    "emptyHistory": "No runs yet. Write a goal and start the agents.",
+    "steps": "{{done}}/{{total}} steps",
+    "notSelected": "No run selected",
+    "notSelectedDescription": "Select a previous run or start a new goal. Agent messages, errors, change summaries, and preview outputs appear here.",
+    "loadFailed": "Run details could not be loaded.",
+    "loadingRun": "Loading run...",
+    "agentSteps": "Agent steps",
+    "noStepOutput": "No step output.",
+    "agentMessages": "Agent messages",
+    "noAgentMessages": "This agent has not produced a message yet. If the run failed, the real CLI error appears above.",
+    "outputs": "Outputs",
+    "noOutputs": "No change summary, preview, or command output yet.",
+    "open": "Open",
+    "artifact": {
+      "fileDiff": "Change summary",
+      "previewUrl": "Preview",
+      "commandOutput": "Command output"
+    },
+    "role": {
+      "user": "User",
+      "agent": "Agent"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "canceled": "Canceled",
+      "skipped": "Skipped"
+    },
+    "nodes": {
+      "codex_review": "Codex review",
+      "gemini_review": "Gemini review",
+      "claude_review": "Claude review",
+      "claude_code_review": "Claude review",
+      "cursor_review": "Cursor review",
+      "aggregate": "Aggregate",
+      "architect": "Planning",
+      "implement": "Implementation",
+      "review": "Review",
+      "proposal": "Proposal",
+      "critique": "Critique",
+      "response": "Response",
+      "judge": "Decision",
+      "coordinator": "Coordinator",
+      "final_report": "Final report"
+    },
+    "workflows": {
+      "multi_model_review": {
+        "name": "Multi-model review",
+        "description": "Enabled CLI agents review the same goal separately, then one enabled agent aggregates the result."
+      },
+      "sequential_handoff": {
+        "name": "Sequential handoff",
+        "description": "Agents plan, implement, and review in order. Disabled CLI steps are skipped."
+      },
+      "adversarial_debate": {
+        "name": "Decision debate",
+        "description": "Agents propose, critique, respond, and produce a final recommendation."
+      },
+      "agent_team": {
+        "name": "Agent team",
+        "description": "A coordinator reads the goal and active CLI instances, assigns work, then collects the result."
+      }
+    },
+    "adapters": {
+      "claude-code": {
+        "label": "Claude Code",
+        "role": "CLI worker"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "role": "CLI worker"
+      },
+      "codex": {
+        "label": "Codex",
+        "role": "CLI worker"
+      },
+      "gemini": {
+        "label": "Gemini",
+        "role": "CLI worker"
+      },
+      "qwen": {
+        "label": "Qwen Code",
+        "role": "CLI worker"
+      },
+      "opencode": {
+        "label": "OpenCode",
+        "role": "CLI worker"
+      }
+    },
+    "activeCount": "{{active}}/{{total}} active",
+    "teamHint": "Each row is one CLI worker. You can create multiple Claude, Codex, Cursor, Gemini, Qwen, or OpenCode workers and give each a different assignment.",
+    "parallelLimit": "Parallel limit",
+    "addAgent": "Add {{agent}}",
+    "duplicateAgent": "Duplicate {{agent}}",
+    "removeAgent": "Remove {{agent}}",
+    "assignment": "Assignment",
+    "assignmentPlaceholder": "Optional: tell this worker exactly what to handle. Leave empty for coordinator assignment.",
+    "agentInstance": "{{name}} #{{number}}",
+    "taskTitle": "Task",
+    "taskTitlePlaceholder": "Implement feature",
+    "taskDescription": "Description",
+    "taskDescriptionPlaceholder": "Scope, constraints, expected output",
+    "addTask": "Add",
+    "runTask": "Run",
+    "cancelTask": "Cancel",
+    "dispatchTask": "Dispatch task",
+    "adapter": "Adapter",
+    "isolation": "Isolation",
+    "dispatch": "Dispatch",
+    "auto": "Auto",
+    "waitingForStream": "Waiting for stream...",
+    "workflow": "Workflow",
+    "input": "Input",
+    "taskStates": {
+      "todo": "To Do",
+      "in_progress": "In Progress",
+      "in_review": "In Review",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "isolationKind": {
+      "worktree": "Worktree",
+      "host": "Host",
+      "docker": "Docker"
+    }
   },
   "fileTree": {
     "loading": "Loading files...",

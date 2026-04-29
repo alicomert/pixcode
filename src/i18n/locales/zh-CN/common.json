@@ -22,7 +22,8 @@
     "shell": "终端",
     "files": "文件",
     "git": "源代码管理",
-    "tasks": "任务"
+    "tasks": "任务",
+    "orchestration": "编排"
   },
   "status": {
     "loading": "加载中...",
@@ -93,7 +94,18 @@
     "createProjectDesktop": "点击侧边栏中的文件夹图标以创建新项目",
     "newSession": "新会话",
     "untitledSession": "未命名会话",
-    "projectFiles": "项目文件"
+    "projectFiles": "项目文件",
+    "landing": {
+      "title": "启动 Pixcode 工作区",
+      "description": "选择一个项目、开始新聊天，或用一个目标启动编排。编排会管理你选择的 CLI Agent，显示每一步，并直接展示错误。",
+      "startOrchestration": "启动编排",
+      "startOrchestrationDescription": "自动创建项目，并打开带有 Agent 控制和运行历史的编排界面。",
+      "startChat": "开始新聊天",
+      "startChatDescription": "自动创建文件夹，并用单个 Agent 打开普通聊天界面。",
+      "taskSystem": "任务系统",
+      "taskSystemDescription": "在项目内使用 TaskMaster 标签页跟踪工作项、状态和计划任务。",
+      "sidebarHint": "从侧边栏选择现有项目时，聊天历史、文件、git 状态、任务和编排会保留在同一个主界面中。"
+    }
   },
   "fileTree": {
     "loading": "正在加载文件...",
@@ -281,6 +293,153 @@
       "settings": "设置",
       "updateAvailable": "有可用更新",
       "closeSidebar": "关闭侧边栏"
+    }
+  },
+  "orchestration": {
+    "title": "编排",
+    "subtitle": "在 {{project}} 中输入一个目标；选择 CLI 工作单元，需要时复制同一种 CLI，并直接分配任务或交给协调器拆分。",
+    "refresh": "刷新",
+    "goal": "目标",
+    "goalPlaceholder": "示例：修复认证界面以适配单端口部署，捕获错误，并用 lint 和 typecheck 验证。",
+    "mode": "运行模式",
+    "systemPlan": "系统计划",
+    "noMode": "未选择模式",
+    "loadingPlan": "正在加载 Agent 计划。",
+    "start": "启动团队",
+    "starting": "正在启动",
+    "needAgent": "至少启用一个 CLI 工作单元。",
+    "startFailed": "无法启动 workflow。",
+    "cliControl": "CLI 团队",
+    "enabledCount": "已启用 {{count}} 个",
+    "enabled": "启用",
+    "disabled": "禁用",
+    "history": "历史",
+    "emptyHistory": "还没有运行记录。输入目标并启动 Agent。",
+    "steps": "{{done}}/{{total}} 步",
+    "notSelected": "未选择运行",
+    "notSelectedDescription": "选择以前的运行或启动新目标。Agent 消息、错误、变更摘要和预览输出会显示在这里。",
+    "loadFailed": "无法加载运行详情。",
+    "loadingRun": "正在加载运行...",
+    "agentSteps": "Agent 步骤",
+    "noStepOutput": "没有步骤输出。",
+    "agentMessages": "Agent 消息",
+    "noAgentMessages": "此 Agent 尚未生成消息。如果运行失败，真实 CLI 错误会显示在上方。",
+    "outputs": "输出",
+    "noOutputs": "还没有变更摘要、预览或命令输出。",
+    "open": "打开",
+    "artifact": {
+      "fileDiff": "变更摘要",
+      "previewUrl": "预览",
+      "commandOutput": "命令输出"
+    },
+    "role": {
+      "user": "用户",
+      "agent": "Agent"
+    },
+    "status": {
+      "queued": "排队中",
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "错误",
+      "canceled": "已取消",
+      "skipped": "已跳过"
+    },
+    "nodes": {
+      "codex_review": "Codex 审查",
+      "gemini_review": "Gemini 审查",
+      "claude_review": "Claude 审查",
+      "claude_code_review": "Claude 审查",
+      "cursor_review": "Cursor 审查",
+      "aggregate": "汇总",
+      "architect": "规划",
+      "implement": "实现",
+      "review": "审查",
+      "proposal": "方案",
+      "critique": "批评",
+      "response": "回应",
+      "judge": "决策",
+      "coordinator": "协调器",
+      "final_report": "最终报告"
+    },
+    "workflows": {
+      "multi_model_review": {
+        "name": "多模型审查",
+        "description": "启用的 CLI Agent 会分别审查同一个目标，然后由一个启用的 Agent 汇总结果。"
+      },
+      "sequential_handoff": {
+        "name": "顺序交接",
+        "description": "Agent 按顺序规划、实现并审查。禁用的 CLI 步骤会被跳过。"
+      },
+      "adversarial_debate": {
+        "name": "决策辩论",
+        "description": "Agent 提出方案、批评、回应，并生成最终建议。"
+      },
+      "agent_team": {
+        "name": "智能体团队",
+        "description": "协调器读取目标和已启用的 CLI 实例，分配工作，然后汇总结果。"
+      }
+    },
+    "adapters": {
+      "claude-code": {
+        "label": "Claude Code",
+        "role": "CLI 工作单元"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "role": "CLI 工作单元"
+      },
+      "codex": {
+        "label": "Codex",
+        "role": "CLI 工作单元"
+      },
+      "gemini": {
+        "label": "Gemini",
+        "role": "CLI 工作单元"
+      },
+      "qwen": {
+        "label": "Qwen Code",
+        "role": "CLI 工作单元"
+      },
+      "opencode": {
+        "label": "OpenCode",
+        "role": "CLI 工作单元"
+      }
+    },
+    "activeCount": "{{active}}/{{total}} 已启用",
+    "teamHint": "每一行都是一个 CLI 工作单元。你可以创建多个 Claude、Codex、Cursor、Gemini、Qwen 或 OpenCode，并为每个单元写不同任务。",
+    "parallelLimit": "并行上限",
+    "addAgent": "添加 {{agent}}",
+    "duplicateAgent": "复制 {{agent}}",
+    "removeAgent": "移除 {{agent}}",
+    "assignment": "任务分配",
+    "assignmentPlaceholder": "可选：明确写下这个工作单元要处理什么。留空则由协调器按目标分配。",
+    "agentInstance": "{{name}} #{{number}}",
+    "taskTitle": "任务",
+    "taskTitlePlaceholder": "实现功能",
+    "taskDescription": "描述",
+    "taskDescriptionPlaceholder": "范围、约束、预期输出",
+    "addTask": "添加",
+    "runTask": "运行",
+    "cancelTask": "取消",
+    "dispatchTask": "分配任务",
+    "adapter": "适配器",
+    "isolation": "隔离",
+    "dispatch": "分配",
+    "auto": "自动",
+    "waitingForStream": "等待流输出...",
+    "workflow": "工作流",
+    "input": "输入",
+    "taskStates": {
+      "todo": "待办",
+      "in_progress": "进行中",
+      "in_review": "审核中",
+      "done": "完成",
+      "failed": "失败"
+    },
+    "isolationKind": {
+      "worktree": "Worktree",
+      "host": "Host",
+      "docker": "Docker"
     }
   }
 }

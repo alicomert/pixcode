@@ -80,6 +80,9 @@ import {
   GeminiA2AAdapter,
   OpenCodeA2AAdapter,
   QwenA2AAdapter,
+  createPreviewProxyRouter,
+  createOrchestrationTaskRouter,
+  createWorkflowRouter,
 } from './modules/orchestration/index.js';
 import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
@@ -394,6 +397,9 @@ adapterRegistry.register(new GeminiA2AAdapter());
 adapterRegistry.register(new QwenA2AAdapter());
 adapterRegistry.register(new OpenCodeA2AAdapter());
 app.use('/a2a', createA2ARouter());
+app.use('/preview', authenticateToken, createPreviewProxyRouter());
+app.use('/api/orchestration', authenticateToken, createOrchestrationTaskRouter());
+app.use('/api/orchestration', authenticateToken, createWorkflowRouter());
 
 // Network discovery / QR endpoints (protected)
 app.use('/api/network', authenticateToken, networkRoutes);
@@ -2841,6 +2847,7 @@ const SERVER_PORT = process.env.SERVER_PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 const DISPLAY_HOST = getConnectableHost(HOST);
 const VITE_PORT = process.env.VITE_PORT || 5173;
+const SEPARATE_FRONTEND = process.env.PIXCODE_SEPARATE_FRONTEND === '1';
 
 async function isPortOpen(port, timeoutMs = 800) {
     return await new Promise((resolve) => {
@@ -2892,7 +2899,17 @@ function printSystemDaemonActiveNotice(port) {
     console.log(`${c.info('[INFO]')} Logs: ${c.bright(logsCommand)}`);
 }
 
-function printUserDaemonActiveNotice(port, frontendPort) {
+function daemonFrontendArgs() {
+    return SEPARATE_FRONTEND
+        ? ['--frontend-port', String(VITE_PORT)]
+        : ['--single-port'];
+}
+
+function daemonInstallArgs(mode) {
+    return ['install', '--mode', mode, '--port', String(SERVER_PORT), ...daemonFrontendArgs()];
+}
+
+function printUserDaemonActiveNotice(port, frontendPort, frontendEnabled = SEPARATE_FRONTEND) {
     const effectivePort = Number(port) || 3001;
     const effectiveFrontendPort = Number(frontendPort) || 5173;
     const statusCommand = buildDaemonCliCommand(
@@ -2908,8 +2925,10 @@ function printUserDaemonActiveNotice(port, frontendPort) {
         DAEMON_COMMAND_CONTEXT
     );
     console.log(`${c.ok('[OK]')} User daemon is active for this account.`);
-    console.log(`${c.info('[INFO]')} Backend: ${c.bright(`http://localhost:${effectivePort}`)}`);
-    console.log(`${c.info('[INFO]')} Frontend: ${c.bright(`http://localhost:${effectiveFrontendPort}`)}`);
+    console.log(`${c.info('[INFO]')} App URL: ${c.bright(`http://localhost:${effectivePort}`)}`);
+    if (frontendEnabled) {
+        console.log(`${c.info('[INFO]')} Frontend: ${c.bright(`http://localhost:${effectiveFrontendPort}`)}`);
+    }
     console.log(`${c.info('[INFO]')} Status: ${c.bright(statusCommand)}`);
     console.log(`${c.info('[INFO]')} Stop: ${c.bright(stopCommand)}`);
     console.log(`${c.info('[INFO]')} Logs: ${c.bright(logsCommand)}`);
@@ -2929,8 +2948,8 @@ async function maybeAutoDaemonBootstrapFromIndex() {
 
     process.env.PIXCODE_DAEMON_ATTEMPTED = '1';
 
-    const systemArgs = ['install', '--mode=system', '--port', String(SERVER_PORT), '--frontend-port', String(VITE_PORT)];
-    const userArgs = ['install', '--mode=user', '--port', String(SERVER_PORT), '--frontend-port', String(VITE_PORT)];
+    const systemArgs = daemonInstallArgs('system');
+    const userArgs = daemonInstallArgs('user');
 
     try {
         console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for Pixcode...`);
@@ -2954,7 +2973,7 @@ async function maybeAutoDaemonBootstrapFromIndex() {
                 {
                     subcommand: 'install',
                     mode: 'system',
-                    extraArgs: ['--port', String(SERVER_PORT), '--frontend-port', String(VITE_PORT)],
+                    extraArgs: ['--port', String(SERVER_PORT), ...daemonFrontendArgs()],
                 },
                 DAEMON_COMMAND_CONTEXT
             );
@@ -2988,7 +3007,7 @@ async function maybeAutoDaemonBootstrapFromIndex() {
                 {
                     subcommand: 'install',
                     mode: 'system',
-                    extraArgs: ['--port', String(SERVER_PORT), '--frontend-port', String(VITE_PORT)],
+                    extraArgs: ['--port', String(SERVER_PORT), ...daemonFrontendArgs()],
                 },
                 DAEMON_COMMAND_CONTEXT
             );
@@ -2996,7 +3015,7 @@ async function maybeAutoDaemonBootstrapFromIndex() {
                 {
                     subcommand: 'install',
                     mode: 'user',
-                    extraArgs: ['--port', String(SERVER_PORT), '--frontend-port', String(VITE_PORT)],
+                    extraArgs: ['--port', String(SERVER_PORT), ...daemonFrontendArgs()],
                 },
                 DAEMON_COMMAND_CONTEXT
             );
@@ -3064,7 +3083,9 @@ async function startServer() {
             console.log(`${c.info('[INFO]')} To run in production mode, go to http://${DISPLAY_HOST}:${SERVER_PORT}`);            
         }
 
-        console.log(`${c.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
+        if (SEPARATE_FRONTEND) {
+            console.log(`${c.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
+        }
    
         server.listen(SERVER_PORT, HOST, async () => {
             const appInstallPath = APP_ROOT;

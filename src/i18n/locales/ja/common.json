@@ -22,7 +22,8 @@
     "shell": "シェル",
     "files": "ファイル",
     "git": "ソース管理",
-    "tasks": "タスク"
+    "tasks": "タスク",
+    "orchestration": "オーケストレーション"
   },
   "status": {
     "loading": "読み込み中...",
@@ -93,7 +94,18 @@
     "createProjectDesktop": "サイドバーのフォルダアイコンをクリックして新しいプロジェクトを作成できます",
     "newSession": "新しいセッション",
     "untitledSession": "無題のセッション",
-    "projectFiles": "プロジェクトファイル"
+    "projectFiles": "プロジェクトファイル",
+    "landing": {
+      "title": "Pixcode ワークスペースを開始",
+      "description": "プロジェクトを選ぶか、新しいチャットを始めるか、1つの目標でオーケストレーションを開始できます。オーケストレーションは選択したCLIエージェントを管理し、各ステップとエラーを表示します。",
+      "startOrchestration": "オーケストレーションを開始",
+      "startOrchestrationDescription": "自動でプロジェクトを作成し、エージェント制御と実行履歴を持つオーケストレーション画面を開きます。",
+      "startChat": "新しいチャットを開始",
+      "startChatDescription": "フォルダを自動作成し、通常のチャット画面を1つのエージェントで開きます。",
+      "taskSystem": "タスクシステム",
+      "taskSystemDescription": "プロジェクト内のTaskMasterタブで作業項目、状態、計画作業を追跡します。",
+      "sidebarHint": "サイドバーから既存プロジェクトを選ぶと、チャット履歴、ファイル、git状態、タスク、オーケストレーションが同じメイン画面に残ります。"
+    }
   },
   "fileTree": {
     "loading": "ファイルを読み込んでいます...",
@@ -281,6 +293,153 @@
       "settings": "設定",
       "updateAvailable": "アップデートあり",
       "closeSidebar": "サイドバーを閉じる"
+    }
+  },
+  "orchestration": {
+    "title": "オーケストレーション",
+    "subtitle": "{{project}} で1つの目標を入力し、CLIワーカーを選択します。必要なら同じCLIを複製し、直接割り当てるかコーディネーターに分担させます。",
+    "refresh": "更新",
+    "goal": "目標",
+    "goalPlaceholder": "例: 認証画面を単一ポート配信に合わせて修正し、エラーを捕捉し、lint と typecheck で検証する。",
+    "mode": "実行モード",
+    "systemPlan": "システム計画",
+    "noMode": "モード未選択",
+    "loadingPlan": "エージェント計画を読み込み中。",
+    "start": "チームを開始",
+    "starting": "開始中",
+    "needAgent": "少なくとも1つのCLIワーカーを有効にしてください。",
+    "startFailed": "ワークフローを開始できませんでした。",
+    "cliControl": "CLIチーム",
+    "enabledCount": "{{count}} 有効",
+    "enabled": "有効",
+    "disabled": "無効",
+    "history": "履歴",
+    "emptyHistory": "実行はまだありません。目標を書いてエージェントを開始してください。",
+    "steps": "{{done}}/{{total}} ステップ",
+    "notSelected": "実行が選択されていません",
+    "notSelectedDescription": "過去の実行を選択するか新しい目標を開始してください。エージェントのメッセージ、エラー、変更概要、プレビュー出力がここに表示されます。",
+    "loadFailed": "実行詳細を読み込めませんでした。",
+    "loadingRun": "実行を読み込み中...",
+    "agentSteps": "エージェント手順",
+    "noStepOutput": "ステップ出力はありません。",
+    "agentMessages": "エージェントメッセージ",
+    "noAgentMessages": "このエージェントはまだメッセージを生成していません。失敗した場合、実際のCLIエラーが上に表示されます。",
+    "outputs": "出力",
+    "noOutputs": "変更概要、プレビュー、コマンド出力はまだありません。",
+    "open": "開く",
+    "artifact": {
+      "fileDiff": "変更概要",
+      "previewUrl": "プレビュー",
+      "commandOutput": "コマンド出力"
+    },
+    "role": {
+      "user": "ユーザー",
+      "agent": "エージェント"
+    },
+    "status": {
+      "queued": "待機中",
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "エラー",
+      "canceled": "キャンセル",
+      "skipped": "スキップ"
+    },
+    "nodes": {
+      "codex_review": "Codexレビュー",
+      "gemini_review": "Geminiレビュー",
+      "claude_review": "Claudeレビュー",
+      "claude_code_review": "Claudeレビュー",
+      "cursor_review": "Cursorレビュー",
+      "aggregate": "集約",
+      "architect": "計画",
+      "implement": "実装",
+      "review": "レビュー",
+      "proposal": "提案",
+      "critique": "批評",
+      "response": "応答",
+      "judge": "判断",
+      "coordinator": "コーディネーター",
+      "final_report": "最終レポート"
+    },
+    "workflows": {
+      "multi_model_review": {
+        "name": "マルチモデルレビュー",
+        "description": "有効なCLIエージェントが同じ目標を個別にレビューし、その後有効なエージェントが結果を集約します。"
+      },
+      "sequential_handoff": {
+        "name": "順次ハンドオフ",
+        "description": "エージェントが順番に計画、実装、レビューします。無効なCLIステップはスキップされます。"
+      },
+      "adversarial_debate": {
+        "name": "意思決定ディベート",
+        "description": "エージェントが提案、批評、応答し、最終推奨を生成します。"
+      },
+      "agent_team": {
+        "name": "エージェントチーム",
+        "description": "コーディネーターが目標と有効なCLIインスタンスを読み取り、作業を割り当てて結果を集約します。"
+      }
+    },
+    "adapters": {
+      "claude-code": {
+        "label": "Claude Code",
+        "role": "CLIワーカー"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "role": "CLIワーカー"
+      },
+      "codex": {
+        "label": "Codex",
+        "role": "CLIワーカー"
+      },
+      "gemini": {
+        "label": "Gemini",
+        "role": "CLIワーカー"
+      },
+      "qwen": {
+        "label": "Qwen Code",
+        "role": "CLIワーカー"
+      },
+      "opencode": {
+        "label": "OpenCode",
+        "role": "CLIワーカー"
+      }
+    },
+    "activeCount": "{{active}}/{{total}} 有効",
+    "teamHint": "各行は1つのCLIワーカーです。Claude、Codex、Cursor、Gemini、Qwen、OpenCodeを複数作成し、それぞれに別の割り当てを書けます。",
+    "parallelLimit": "並列上限",
+    "addAgent": "{{agent}}を追加",
+    "duplicateAgent": "{{agent}}を複製",
+    "removeAgent": "{{agent}}を削除",
+    "assignment": "割り当て",
+    "assignmentPlaceholder": "任意: このワーカーが担当する内容を具体的に書きます。空欄ならコーディネーターが割り当てます。",
+    "agentInstance": "{{name}} #{{number}}",
+    "taskTitle": "タスク",
+    "taskTitlePlaceholder": "機能を実装",
+    "taskDescription": "説明",
+    "taskDescriptionPlaceholder": "範囲、制約、期待する出力",
+    "addTask": "追加",
+    "runTask": "実行",
+    "cancelTask": "キャンセル",
+    "dispatchTask": "タスクを割り当て",
+    "adapter": "アダプター",
+    "isolation": "分離",
+    "dispatch": "割り当て",
+    "auto": "自動",
+    "waitingForStream": "ストリーム待機中...",
+    "workflow": "ワークフロー",
+    "input": "入力",
+    "taskStates": {
+      "todo": "未着手",
+      "in_progress": "進行中",
+      "in_review": "レビュー中",
+      "done": "完了",
+      "failed": "失敗"
+    },
+    "isolationKind": {
+      "worktree": "Worktree",
+      "host": "Host",
+      "docker": "Docker"
     }
   }
 }

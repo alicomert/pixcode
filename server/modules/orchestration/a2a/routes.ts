@@ -22,6 +22,15 @@ import {
   assertMessage,
   assertSubmitTaskInput,
 } from '@/modules/orchestration/a2a/validator.js';
+import { portWatcher } from '@/modules/orchestration/preview/port-watcher.js';
+import type { PreviewArtifactData } from '@/modules/orchestration/preview/types.js';
+import { workspaceManager } from '@/modules/orchestration/workspace/workspace-manager.js';
+import type {
+  WorkspaceHandle,
+  WorkspaceKind,
+  WorkspaceMetadata,
+} from '@/modules/orchestration/workspace/types.js';
+import { WorkspaceError } from '@/modules/orchestration/workspace/types.js';
 
 type RoutingHints = {
   preferredAdapterId?: string;
@@ -53,6 +62,9 @@ const taskEvictions = new Map<string, NodeJS.Timeout>();
 const TERMINAL_TASK_TTL_MS = 60 * 60 * 1000; // 1 hour
 const MAX_TASKS = 1000;
 const taskStore = new A2ATaskStore({ terminalTaskTtlMs: TERMINAL_TASK_TTL_MS });
+const activeWorkspaces = new Map<string, WorkspaceHandle>();
+const previewStops = new Map<string, () => void>();
+const finalizingTasks = new Set<string>();
 
 function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
@@ -126,6 +138,86 @@ function parsePositiveInt(value: unknown, fallback: number): number {
   return parsed;
 }
 
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function readWorkspaceKind(value: unknown): WorkspaceKind | undefined {
+  return value === 'host' || value === 'worktree' || value === 'docker' ? value : undefined;
+}
+
+function workspaceMetadata(workspace: WorkspaceHandle, keepAfterCompletion?: boolean): WorkspaceMetadata {
+  return {
+    id: workspace.id,
+    kind: workspace.kind,
+    path: workspace.path,
+    baseRef: workspace.baseRef,
+    branchName: workspace.branchName,
+    keepAfterCompletion,
+  };
+}
+
+async function finalizeTerminalTask(task: Task): Promise<void> {
+  if (finalizingTasks.has(task.id)) return;
+  finalizingTasks.add(task.id);
+
+  const stopPreview = previewStops.get(task.id);
+  if (stopPreview) {
+    stopPreview();
+    previewStops.delete(task.id);
+  }
+
+  const workspace = activeWorkspaces.get(task.id);
+  try {
+    if (workspace) {
+      const diff = await workspace.diff();
+      a2aBus.publish({
+        kind: 'artifact',
+        taskId: task.id,
+        artifact: {
+          artifactId: newId('art'),
+          type: 'file-diff',
+          parts: [{ kind: 'text', text: diff }],
+          metadata: {
+            source: 'workspace-diff',
+            workspaceId: workspace.id,
+            workspaceKind: workspace.kind,
+            baseRef: workspace.baseRef,
+          },
+        },
+      });
+
+      const keepAfterCompletion = task.metadata?.workspace &&
+        typeof task.metadata.workspace === 'object' &&
+        readBoolean((task.metadata.workspace as Record<string, unknown>).keepAfterCompletion);
+      if (workspace.kind !== 'host' && keepAfterCompletion !== true) {
+        await workspace.destroy();
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    task.metadata = {
+      ...task.metadata,
+      workspaceFinalizationError: message,
+    };
+    task.updatedAt = Date.now();
+    taskStore.set(task);
+  } finally {
+    activeWorkspaces.delete(task.id);
+    const unsub = taskUnsubs.get(task.id);
+    if (unsub) {
+      unsub();
+      taskUnsubs.delete(task.id);
+    }
+    scheduleTaskEviction(task.id);
+    finalizingTasks.delete(task.id);
+  }
+}
+
 function attachBusToTask(task: Task): void {
   const unsubscribe = a2aBus.subscribe(task.id, (event: BusEvent) => {
     if (event.kind === 'task-state') {
@@ -134,13 +226,7 @@ function attachBusToTask(task: Task): void {
       task.updatedAt = Date.now();
       taskStore.set(task);
       if (isTerminalTaskState(event.state)) {
-        // Release the listener; schedule eviction.
-        const unsub = taskUnsubs.get(task.id);
-        if (unsub) {
-          unsub();
-          taskUnsubs.delete(task.id);
-        }
-        scheduleTaskEviction(task.id);
+        void finalizeTerminalTask(task);
       }
     } else if (event.kind === 'message') {
       task.history.push(event.message);
@@ -300,6 +386,9 @@ export function createA2ARouter(): Router {
       updatedAt: Date.now(),
     };
     task.history.push({ ...userMessage, taskId: task.id });
+    const workspaceOptions = (metadata?.workspace && typeof metadata.workspace === 'object'
+      ? metadata.workspace
+      : {}) as Record<string, unknown>;
     // Persist adapterId in metadata so cancel can resolve the owning adapter
     // even when the original request body is no longer available.
     task.metadata = {
@@ -310,8 +399,72 @@ export function createA2ARouter(): Router {
     taskStore.set(task);
     attachBusToTask(task);
 
+    let workspace: WorkspaceHandle;
     try {
-      await adapter.submitTask(task, { cwd: process.cwd() });
+      workspace = await workspaceManager.create({
+        taskId: task.id,
+        projectPath: readString(workspaceOptions.projectPath) ?? process.cwd(),
+        kind: readWorkspaceKind(workspaceOptions.kind) ?? readWorkspaceKind(metadata?.isolation),
+        baseRef: readString(workspaceOptions.baseRef) ?? readString(metadata?.baseRef) ?? 'HEAD',
+        keepAfterCompletion: readBoolean(workspaceOptions.keepAfterCompletion),
+        metadata: workspaceOptions,
+      });
+    } catch (err) {
+      const workspaceError = err instanceof WorkspaceError ? err : undefined;
+      a2aBus.publish({
+        kind: 'task-state',
+        taskId: task.id,
+        state: 'failed',
+        error: {
+          code: workspaceError?.code ?? 'WORKSPACE_CREATE_FAILED',
+          message: err instanceof Error ? err.message : String(err),
+          details: workspaceError?.details,
+        },
+      });
+      res.status(202).json(task);
+      return;
+    }
+
+    activeWorkspaces.set(task.id, workspace);
+    task.metadata = {
+      ...task.metadata,
+      workspace: workspaceMetadata(workspace, readBoolean(workspaceOptions.keepAfterCompletion)),
+    };
+    taskStore.set(task);
+
+    previewStops.set(
+      task.id,
+      portWatcher.watch({
+        taskId: task.id,
+        workspace,
+        onPort: (event) => {
+          const data: PreviewArtifactData = {
+            url: event.url,
+            proxiedUrl: `/preview/${event.port}/`,
+            port: event.port,
+            host: event.host,
+            processName: event.processName,
+            confidence: event.confidence,
+          };
+          a2aBus.publish({
+            kind: 'artifact',
+            taskId: task.id,
+            artifact: {
+              artifactId: newId('art'),
+              type: 'preview-url',
+              parts: [{ kind: 'data', data: { ...data } }],
+              metadata: {
+                source: 'port-watcher',
+                workspaceId: workspace.id,
+              },
+            },
+          });
+        },
+      }),
+    );
+
+    try {
+      await adapter.submitTask(task, { cwd: workspace.path, workspace });
     } catch (err) {
       // Publish to bus so SSE subscribers and the attachBusToTask listener
       // both see the failure transition. The listener mutates the stored
@@ -357,7 +510,7 @@ export function createA2ARouter(): Router {
     const unsubscribe = a2aBus.subscribe(task.id, (event) => {
       res.write(`event: ${event.kind}\ndata: ${JSON.stringify(event)}\n\n`);
       if (event.kind === 'task-state' && TERMINAL.includes(event.state)) {
-        res.end();
+        setTimeout(() => res.end(), 1500);
       }
     });
 

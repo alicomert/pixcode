@@ -1,9 +1,15 @@
-import { Folder, Sparkles } from '@/lib/icons';
+import { ClipboardCheck, Folder, Sparkles, Workflow } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { MainContentStateViewProps } from '../../types/types';
 import MobileMenuButton from './MobileMenuButton';
 
-export default function MainContentStateView({ mode, isMobile, onMenuClick, onQuickStartSession }: MainContentStateViewProps) {
+export default function MainContentStateView({
+  mode,
+  isMobile,
+  onMenuClick,
+  onQuickStartSession,
+  onQuickStartOrchestration,
+}: MainContentStateViewProps) {
   const { t } = useTranslation();
 
   const isLoading = mode === 'loading';
@@ -34,29 +40,55 @@ export default function MainContentStateView({ mode, isMobile, onMenuClick, onQu
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center">
-          <div className="mx-auto max-w-md px-6 text-center">
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/50">
-              <Folder className="h-7 w-7 text-muted-foreground" />
+        <div className="flex flex-1 items-center justify-center overflow-auto p-5">
+          <div className="w-full max-w-4xl">
+            <div className="mb-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-muted/60">
+                <Folder className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h2 className="text-2xl font-semibold text-foreground">{t('mainContent.landing.title')}</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {t('mainContent.landing.description')}
+              </p>
             </div>
-            <h2 className="mb-2 text-xl font-semibold text-foreground">{t('mainContent.chooseProject')}</h2>
-            <p className="mb-5 text-sm leading-relaxed text-muted-foreground">{t('mainContent.selectProjectDescription')}</p>
-            {onQuickStartSession ? (
+
+            <div className="grid gap-3 md:grid-cols-3">
               <button
                 type="button"
-                onClick={() => { void onQuickStartSession(); }}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                onClick={() => { void onQuickStartOrchestration?.(); }}
+                className="rounded-md border border-primary/30 bg-primary/5 p-4 text-left transition-colors hover:bg-primary/10"
               >
-                <Sparkles className="h-4 w-4" />
-                {t('mainContent.startChatting', { defaultValue: 'Start a new chat' })}
+                <Workflow className="mb-3 h-5 w-5 text-primary" />
+                <div className="text-sm font-semibold">{t('mainContent.landing.startOrchestration')}</div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {t('mainContent.landing.startOrchestrationDescription')}
+                </p>
               </button>
-            ) : (
-              <div className="rounded-xl border border-primary/10 bg-primary/5 p-3.5">
-                <p className="text-sm text-primary">
-                  <strong>{t('mainContent.tip')}:</strong> {isMobile ? t('mainContent.createProjectMobile') : t('mainContent.createProjectDesktop')}
+
+              <button
+                type="button"
+                onClick={() => { void onQuickStartSession?.(); }}
+                className="rounded-md border border-border p-4 text-left transition-colors hover:bg-muted/40"
+              >
+                <Sparkles className="mb-3 h-5 w-5 text-foreground" />
+                <div className="text-sm font-semibold">{t('mainContent.landing.startChat')}</div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {t('mainContent.landing.startChatDescription')}
+                </p>
+              </button>
+
+              <div className="rounded-md border border-border p-4">
+                <ClipboardCheck className="mb-3 h-5 w-5 text-foreground" />
+                <div className="text-sm font-semibold">{t('mainContent.landing.taskSystem')}</div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {t('mainContent.landing.taskSystemDescription')}
                 </p>
               </div>
-            )}
+            </div>
+
+            <div className="mt-5 rounded-md border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+              {t('mainContent.landing.sidebarHint')}
+            </div>
           </div>
         </div>
       )}

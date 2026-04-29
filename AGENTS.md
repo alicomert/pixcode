@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Web UI (`pixcode`) for Claude Code, Cursor CLI, Codex, and Gemini CLI. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins.
+Web UI (`pixcode`) for Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins.
 
 ## Stack & topology
 
@@ -31,7 +31,7 @@ Web UI (`pixcode`) for Claude Code, Cursor CLI, Codex, and Gemini CLI. React+Vit
 - Default auth DB is `~/.pixcode/auth.db` (hardcoded in `server/load-env.js`). Override with `DATABASE_PATH`.
 - `.env` is loaded manually by `server/load-env.js` from the app root (found by walking up to the nearest `server/` folder — works from both `server/` source and `dist-server/server/`). `VITE_*` vars are separately read by Vite via `loadEnv`.
 - Port env vars: `SERVER_PORT` (backend), `VITE_PORT` (frontend). Legacy `PORT` is still accepted but planned for removal (see `vite.config.js`). `HOST=0.0.0.0` binds all interfaces; Vite uses `shared/networkHosts.js` to pick the right loopback/proxy host.
-- `plugins/starter` is a **git submodule** (see `.gitmodules`). It ships empty unless `git submodule update --init` was run.
+
 - Frontend entry is `main.jsx` (JSX file) but imports `App.tsx`. Mixed JS/TS is intentional — don't mass-rename.
 - Service worker at `/sw.js` is registered in `main.jsx`; PWA assets live in `public/`.
 
@@ -53,30 +53,29 @@ Config: `eslint.config.js` (flat config, two blocks).
 - **Conventional Commits required.** Non-conforming messages are rejected locally. Types: `feat|fix|perf|refactor|docs|style|chore|ci|test|build` (see `CONTRIBUTING.md`). Breaking: `feat!:` or `BREAKING CHANGE:` footer.
 - Release-it config (`.release-it.json`) requires branch `main` and clean tree; runs `npm run build` before release; publishes to npm with `--access public`; tag format `v${version}`.
 
-## Backend layout (current reality)
+## Backend layout
 
-- `server/index.js` — Express app, route mounting, static serving of `public/` + `dist/`, WS setup. Single large file. Mounts new provider routes under `/api/providers` and legacy per-provider routes under `/api/{codex,cursor,gemini,...}`.
-- `server/cli.js` — user-facing CLI (`start`, `daemon`, `sandbox`, `status`, `version`, ...). Installed as `pixcode`.
-- `server/daemon/manager.js` + `server/daemon-manager.js` — systemd-based daemon install/logs/restart (Linux focus).
-- `server/modules/providers/` — **new canonical home** for provider code (post v1.30.0 merge):
-  - `list/{claude,codex,cursor,gemini}/*-{auth,mcp,sessions}.provider.ts` — per-provider auth, MCP management, and session discovery
-  - `services/{provider-auth,mcp,sessions}.service.ts` — orchestration over those providers
-  - `provider.registry.ts` — `ProviderRegistry` instance wiring everything together
-  - `provider.routes.ts` — express router mounted at `/api/providers`
-  - `shared/base/abstract.provider.ts` + `shared/mcp/mcp.provider.ts` — shared base classes
-  - `tests/*.test.ts` — TS unit-test files (no runner configured yet; typecheck only)
-- `server/shared/{types,interfaces,utils}.ts` — shared TypeScript contracts that backend modules can import (see boundaries rules above).
-- `server/routes/*.js` — legacy per-surface routes still in use (auth, projects, git, mcp-utils, codex, cursor, gemini, taskmaster, plugins, agent, commands, settings, user, messages, cli-auth). Some (like `mcp.js`) were deleted during the v1.30.0 merge — the new MCP functionality lives under `server/modules/providers/services/mcp.service.ts` and is exposed through `provider.routes.ts`.
-- `server/database/{db.js,schema.js}` — `better-sqlite3` auth/user/token storage. Classified as `backend-legacy-runtime` for boundary rules.
-- `server/utils/plugin-loader.js` + `plugin-process-manager.js` — dynamic plugin loading (frontend tabs + optional Node backends).
-- `server/claude-sdk.js`, `server/cursor-cli.js`, `server/openai-codex.js`, `server/gemini-cli.js` — still top-level agent runtime files, not yet moved under modules/.
-- `~/.claude` is read/written directly for MCP config, sessions, permissions — this is the integration model, not a duplicate store. `.claude/settings.json` env vars (e.g. `ANTHROPIC_BASE_URL`) are forwarded into the SDK subprocess via `claude-sdk.js` `mapCliOptionsToSDK`.
+- `server/index.js` — Express app, route mounting, static serving of `public/` + `dist/`, WS setup. Single large file. Mounts provider routes under `/api/providers` and legacy per-provider routes under `/api/{codex,cursor,gemini,...}`.
+- `server/cli.js` — CLI (`start`, `daemon`, `sandbox`, `status`, `version`, ...). Installed as `pixcode`.
+- `server/daemon/manager.js` + `server/daemon-manager.js` — systemd-based daemon management (Linux focus).
+- `server/modules/providers/` — provider code:
+  - `list/{claude,codex,cursor,gemini}/*-{auth,mcp,sessions}.provider.ts` — per-provider auth, MCP, sessions
+  - `services/{provider-auth,mcp,sessions}.service.ts` — orchestration
+  - `provider.registry.ts` — registry wiring
+  - `provider.routes.ts` — router mounted at `/api/providers`
+  - `shared/base/abstract.provider.ts` + `shared/mcp/mcp.provider.ts` — base classes
+- `server/shared/{types,interfaces,utils}.ts` — shared TypeScript contracts (see boundaries rules above).
+- `server/routes/*.js` — legacy routes (auth, projects, git, mcp-utils, codex, cursor, gemini, taskmaster, plugins, agent, commands, settings, user, messages, cli-auth).
+- `server/database/{db.js,schema.js}` — `better-sqlite3` auth/user/token storage (`backend-legacy-runtime`).
+- `server/utils/plugin-loader.js` + `plugin-process-manager.js` — dynamic plugin loading.
+- `server/claude-sdk.js`, `server/cursor-cli.js`, `server/openai-codex.js`, `server/gemini-cli.js` — agent runtime files.
+- `~/.claude` is read/written directly for MCP config, sessions, permissions — not a duplicate store.
 
-## Frontend layout additions (post v1.30.0 merge)
+## Frontend layout
 
-- `src/shared/view/ui/` — rich primitive set now exported via the barrel `index.ts`: `Alert, Card, Collapsible, Command, Confirmation, Dialog, PromptInput, Queue, Reasoning, Shimmer` in addition to the existing `Badge, Button, Input, ScrollArea, Tooltip, DarkModeToggle, LanguageSelector, PillBar`.
-- `src/components/mcp/` — replaces the old settings-modal MCP flow. `view/McpServers.tsx` and `view/modals/McpServerFormModal.tsx` drive the UI; `hooks/useMcpServers.ts` + `hooks/useMcpServerForm.ts` own the data. The old `src/components/settings/view/modals/{Claude,Codex}McpFormModal.tsx` and `tabs/agents-settings/sections/content/McpServersContent.tsx` are deleted.
-- `src/components/chat/tools/components/{PlanDisplay,ToolStatusBadge}.tsx` — rendered by `ToolRenderer` on top of the new primitives to show Claude plan mode blocks and tool run status.
-- `src/contexts/PermissionContext.tsx` — new context holding the per-session permission mode / active tool approvals.
-- `src/hooks/useServerPlatform.ts` — reports whether the backend is running as the managed Pixcode platform variant; some UI shows extra entry points when it is.
-- `tailwind.config.js` exposes three keyframes/animations the new primitives rely on: `shimmer`, `dialog-overlay-show`, `dialog-content-show`.
+- `src/shared/view/ui/` — primitives exported via barrel `index.ts`: `Alert, Card, Collapsible, Command, Confirmation, Dialog, PromptInput, Queue, Reasoning, Shimmer` plus `Badge, Button, Input, ScrollArea, Tooltip, DarkModeToggle, LanguageSelector, PillBar`.
+- `src/components/mcp/` — MCP server management UI. `view/McpServers.tsx`, `view/modals/McpServerFormModal.tsx`, hooks `useMcpServers.ts`, `useMcpServerForm.ts`.
+- `src/components/chat/tools/components/{PlanDisplay,ToolStatusBadge}.tsx` — rendered by `ToolRenderer` for Claude plan mode and tool run status.
+- `src/contexts/PermissionContext.tsx` — per-session permission mode / active tool approvals.
+- `src/hooks/useServerPlatform.ts` — reports whether backend runs as managed Pixcode platform variant.
+- `tailwind.config.js` exposes keyframes: `shimmer`, `dialog-overlay-show`, `dialog-content-show`.

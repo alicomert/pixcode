@@ -56,6 +56,7 @@ export type MainContentProps = {
   /** Forwarded to the empty-state view so the primary CTA there can
    *  create a pixcode-project-N and land the user on the chat screen. */
   onQuickStartSession?: () => void | Promise<void>;
+  onQuickStartOrchestration?: () => void | Promise<void>;
 };
 
 export type MainContentHeaderProps = {
@@ -77,6 +78,7 @@ export type MainContentStateViewProps = {
    *  quick-start flow so the user can dive into the composer without
    *  filling out the project creation wizard first. */
   onQuickStartSession?: () => void | Promise<void>;
+  onQuickStartOrchestration?: () => void | Promise<void>;
 };
 
 export type MobileMenuButtonProps = {
