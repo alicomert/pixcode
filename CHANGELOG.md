@@ -3,6 +3,41 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.34.0](https://github.com/alicomert/pixcode/compare/v1.33.11...v1.34.0) (2026-04-29)
+
+### New Features
+
+* **orchestration:** add A2A auth middleware (localhost bypass + JWT) ([45732c5](https://github.com/alicomert/pixcode/commit/45732c5a47b9bdd2e442a8e5d468496421ed033f))
+* **orchestration:** add A2A v0.2 HTTP router (discovery, tasks, SSE, messages) ([d21ac5e](https://github.com/alicomert/pixcode/commit/d21ac5e3e76f04e447b070959083bf8f08616f21))
+* **orchestration:** add AbstractA2AAdapter base class ([3568c32](https://github.com/alicomert/pixcode/commit/3568c32a73779156f3a5daf1a06761a3feaf4f86))
+* **orchestration:** add adapter registry with id/skill/auto resolution ([96134be](https://github.com/alicomert/pixcode/commit/96134bed950f54e102804099275d2bf4d6116d59))
+* **orchestration:** add ClaudeCodeA2AAdapter wrapping claude-sdk.js ([b1fda25](https://github.com/alicomert/pixcode/commit/b1fda25bfc4c38ec05af0c49621abc4d06a7a78c))
+* **orchestration:** add empty module skeleton with barrel ([9bd5d87](https://github.com/alicomert/pixcode/commit/9bd5d87f61c5239095bc5f2279eac158ad7581ae))
+* **orchestration:** add hand-written A2A payload validators ([70e6737](https://github.com/alicomert/pixcode/commit/70e673752c6cdeb030a2db4efd7c6b01067399a9))
+* **orchestration:** add in-process A2A pub/sub bus ([80e9615](https://github.com/alicomert/pixcode/commit/80e9615e829f79d164c371b0f5d5f322a1e50754))
+* **orchestration:** add pixcode self-AgentCard generator ([f4a0ba3](https://github.com/alicomert/pixcode/commit/f4a0ba3d3a9f6942c772b4083ecfe064397c1dd0))
+* **orchestration:** define A2A v0.2 core types ([5b2a343](https://github.com/alicomert/pixcode/commit/5b2a34339fcb2270ca1d62163a31cf9d2d32fbcd))
+* **orchestration:** mount /a2a router and register Claude adapter at boot ([2d94e48](https://github.com/alicomert/pixcode/commit/2d94e4824337be8764a95f8ef2525e2a3797451e))
+* **orchestration:** publish module barrel and document protocol semantics ([112478d](https://github.com/alicomert/pixcode/commit/112478ddccead0492fd9b3927a42e5455e25fce6))
+
+### Bug Fixes
+
+* **orchestration:** correct Claude adapter frame translation and cancel race ([c852d00](https://github.com/alicomert/pixcode/commit/c852d00fdaa953b2e9f5ba8b912e8a1bf57cb044))
+* **orchestration:** harden adapter registry auto/skill resolution semantics ([dbe41a5](https://github.com/alicomert/pixcode/commit/dbe41a593a97f50ae9eea7454168d7dc9a1bc7b7))
+* **orchestration:** map Claude error frames to failed task state ([df0baf1](https://github.com/alicomert/pixcode/commit/df0baf1421f4b3f5ec7cb0993f58efa39da87e51))
+* **orchestration:** publish failure to bus, bound tasks store, plug listener leak ([fe87c54](https://github.com/alicomert/pixcode/commit/fe87c5405b8816216a2c21a78a6d3ee5b4c1285b))
+* **orchestration:** read pixcode version from package.json on backend ([3f0a422](https://github.com/alicomert/pixcode/commit/3f0a42200cf42d8abf5a1aff9de54212f87f28cf))
+* **orchestration:** tighten A2A validators for soundness and consistency ([7e8c416](https://github.com/alicomert/pixcode/commit/7e8c416388017233957e3d5af78f8c37a3491735))
+
+### Documentation
+
+* add orchestration+A2A foundation implementation plan ([4cdd2b9](https://github.com/alicomert/pixcode/commit/4cdd2b970320a852f135373f1d28acc6b3f6b479))
+* add v2 multi-CLI A2A platform vision spec ([f1b2cb8](https://github.com/alicomert/pixcode/commit/f1b2cb8bd41b6c033b988e121cd372caf745224e))
+
+### Tests
+
+* **orchestration:** add A2A end-to-end smoke script ([66ebe16](https://github.com/alicomert/pixcode/commit/66ebe16e191a603eb715a7e2a4aa627caa9248f3))
+
 ## Unreleased
 
 Ports upstream `siteboon/claudecodeui` v1.30.0 features on top of Pixcode's v1.29.5 base. The release-it tooling will generate the final numbered entry when the next Pixcode version is cut.
