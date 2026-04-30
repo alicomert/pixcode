@@ -814,6 +814,57 @@
   }
 }
 
+@layer components {
+  .orchestration-markdown {
+    color: hsl(var(--foreground));
+  }
+
+  .orchestration-markdown :where(h1, h2, h3, h4) {
+    color: hsl(var(--foreground));
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .orchestration-markdown :where(h3, h4) {
+    margin-top: 0.65rem;
+    margin-bottom: 0.45rem;
+  }
+
+  .orchestration-markdown :where(p, li) {
+    color: hsl(var(--foreground) / 0.92);
+    line-height: 1.7;
+  }
+
+  .orchestration-markdown :where(ul, ol) {
+    margin-top: 0.45rem;
+    margin-bottom: 0.65rem;
+    padding-left: 1.25rem;
+  }
+
+  .orchestration-markdown :where(strong) {
+    color: hsl(var(--foreground));
+    font-weight: 700;
+  }
+
+  .orchestration-markdown :where(code) {
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted) / 0.55);
+    color: hsl(var(--foreground));
+  }
+
+  .orchestration-markdown :where(pre) {
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted) / 0.35) !important;
+  }
+
+  .orchestration-markdown :where(blockquote) {
+    border-left-color: hsl(var(--primary) / 0.55);
+    background: hsl(var(--muted) / 0.28);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
 /* Hide markdown backticks in prose content */
 .prose code::before,
 .prose code::after {

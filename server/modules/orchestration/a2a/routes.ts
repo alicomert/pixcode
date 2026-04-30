@@ -146,6 +146,10 @@ function readBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
 
+function readObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
 function readWorkspaceKind(value: unknown): WorkspaceKind | undefined {
   return value === 'host' || value === 'worktree' || value === 'docker' ? value : undefined;
 }
@@ -464,7 +468,13 @@ export function createA2ARouter(): Router {
     );
 
     try {
-      await adapter.submitTask(task, { cwd: workspace.path, workspace });
+      await adapter.submitTask(task, {
+        cwd: workspace.path,
+        workspace,
+        model: readString(metadata?.model),
+        permissionMode: readString(metadata?.permissionMode),
+        toolsSettings: readObject(metadata?.toolsSettings),
+      });
     } catch (err) {
       // Publish to bus so SSE subscribers and the attachBusToTask listener
       // both see the failure transition. The listener mutates the stored

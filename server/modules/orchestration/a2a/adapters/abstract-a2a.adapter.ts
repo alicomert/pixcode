@@ -20,7 +20,11 @@ export interface AdapterContext {
   /** Compatibility alias while legacy adapters still accept cwd directly. */
   cwd: string;
   /** pixcode permission mode passed through to the underlying CLI. */
-  permissionMode?: 'acceptEdits' | 'plan' | 'bypassPermissions' | 'default';
+  permissionMode?: string;
+  /** Provider model selected by the user in Pixcode. */
+  model?: string;
+  /** Provider-specific tool / permission settings from Pixcode Settings. */
+  toolsSettings?: Record<string, unknown>;
   /** Optional parent task id when this adapter is invoked inside a workflow. */
   parentTaskId?: string;
 }

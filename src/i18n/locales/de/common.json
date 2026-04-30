@@ -410,6 +410,85 @@
       "worktree": "Worktree",
       "host": "Host",
       "docker": "Docker"
-    }
+    },
+    "stop": "Team stoppen",
+    "stopping": "Wird gestoppt",
+    "cancelFailed": "Workflow konnte nicht gestoppt werden.",
+    "needRoles": "Weise für diesen Modus mindestens einen aktiven Agenten diesen Rollen zu: {{roles}}.",
+    "quickPrompts": {
+      "label": "Schnell-Prompt:",
+      "liveTrading": {
+        "label": "8024 Live-Trading-Ansicht",
+        "prompt": "Hallo, bitte erstelle ein kleines Projekt und starte es anschließend auf Port 8024. Ich möchte ein Binance-FAPI-verbundenes Design im TradingView-Stil mit TradingView-Chart und einem Stern-/Favoritensystem links. Teile die Arbeit logisch auf und verwalte den Prozess automatisch."
+      }
+    },
+    "teamHistory": "Teamverlauf",
+    "changeSummary": "Änderungsübersicht",
+    "noChangeSummary": "Die finale Zusammenfassung ist noch nicht bereit. Eine lesbare Markdown-Zusammenfassung erscheint hier, wenn die Agenten fertig sind.",
+    "prepareTeamFromReport": "Agententeam aus diesem Bericht vorbereiten",
+    "prepareTeamTitle": "Agententeam-Prompt vorbereiten",
+    "prepareTeamDescription": "Die Debattenausgabe wurde in einen neuen Agent-Team-Prompt umgewandelt. Du kannst ihn bearbeiten und dann in den Agent-Team-Modus übernehmen.",
+    "usePreparedPrompt": "Prompt verwenden",
+    "reportToPromptPrefix": "Bereite aus dem folgenden Debatten-/Entscheidungsbericht ein Agententeam vor und führe es aus. Teile die Anforderungen in Aufgaben, schlage sinnvolle Zuweisungen für die verfügbaren CLI-Agenten vor und starte erst nach Benutzerbestätigung.",
+    "generatedSummaryTitle": "Automatische Laufzusammenfassung",
+    "summaryStatus": "Gesamtstatus",
+    "summarySteps": "Abgeschlossene Schritte",
+    "summaryFailures": "Fehlgeschlagene Schritte",
+    "summaryCanceled": "Abgebrochene Schritte",
+    "summaryDiffs": "Diff-/Änderungsausgaben",
+    "summaryPreviews": "Vorschauausgaben",
+    "summaryErrorPrefix": "Fehler",
+    "assignedWork": "Zugewiesene Arbeit",
+    "autoAssigned": "Automatisch / Koordinator entscheidet",
+    "stages": {
+      "coordinator": "Koordinator",
+      "handoff": "Übergabe",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "implementation": "Implementierung",
+      "review": "Prüfung",
+      "repair": "Korrektur",
+      "proposal": "Vorschlag",
+      "critique": "Kritik",
+      "response": "Antwort",
+      "decision": "Entscheidung",
+      "report": "Bericht",
+      "final_report": "Finaler Bericht"
+    },
+    "agentRole": "Phase",
+    "agentRoles": {
+      "auto": "Automatisch",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "review": "Test / Prüfung",
+      "implementation": "Implementierung",
+      "proposal": "Vorschlag",
+      "critique": "Kritik",
+      "response": "Antwort",
+      "decision": "Entscheidung / Bericht",
+      "report": "Bericht",
+      "custom": "Benutzerdefiniert"
+    },
+    "customRolePlaceholder": "Z. B. Sicherheit, Mobile UX, DB-Architektur",
+    "roleHints": {
+      "default": "Leer lassen und der Koordinator weist diesen Agenten anhand des Ziels zu.",
+      "agent_team": "Wähle Backend-, Frontend- oder Review-Phasen oder lass Agenten auf automatisch.",
+      "multi_model_review": "Aktive Agenten prüfen; wenn eine Berichtsrolle gewählt ist, fasst dieser Agent die finale Zusammenfassung zusammen.",
+      "sequential_handoff": "Agenten laufen in der gewählten Reihenfolge; der Aufgabentext grenzt jeden Schritt ab.",
+      "adversarial_debate": "Die Phasenauswahl ist in der Entscheidungsdebatte optional; leer gelassen weist das System die gewählten Agenten der Reihe nach Vorschlag, Kritik und Antwort zu."
+    },
+    "soloAgent": "Nur mit {{agent}} ausführen",
+    "soloAgentShort": "Solo",
+    "cliSettings": "CLI-Einstellungen",
+    "workspaceTarget": "Ziel-Arbeitsbereich",
+    "workspaceTargets": {
+      "selectedProject": "Ausgewähltes Projekt",
+      "pixcodeApp": "Pixcode-System",
+      "custom": "Eigener Pfad"
+    },
+    "customWorkspacePlaceholder": "/pfad/zum/projekt",
+    "workspaceTargetHint": "Agenten laufen in: {{path}}",
+    "autoDetect": "automatisch erkennen",
+    "needWorkspacePath": "Gib einen eigenen Arbeitsbereichspfad ein."
   }
 }

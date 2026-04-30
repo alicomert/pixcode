@@ -440,6 +440,85 @@
       "worktree": "Worktree",
       "host": "Host",
       "docker": "Docker"
-    }
+    },
+    "stop": "停止团队",
+    "stopping": "正在停止",
+    "cancelFailed": "无法停止工作流。",
+    "needRoles": "此模式需要至少为以下角色分配一个已启用的 Agent：{{roles}}。",
+    "quickPrompts": {
+      "label": "快速提示：",
+      "liveTrading": {
+        "label": "8024 实时交易界面",
+        "prompt": "你好，请创建一个小项目，然后在 8024 端口运行。我需要一个连接 Binance FAPI 的 TradingView 风格设计，包含 TradingView 图表以及左侧星标/收藏系统。请合理拆分工作并自动管理流程。"
+      }
+    },
+    "teamHistory": "团队历史",
+    "changeSummary": "变更摘要",
+    "noChangeSummary": "最终摘要尚未生成。Agent 完成后，这里会显示可读的 Markdown 摘要。",
+    "prepareTeamFromReport": "用此报告准备 Agent 团队",
+    "prepareTeamTitle": "准备 Agent 团队提示词",
+    "prepareTeamDescription": "讨论输出已转换为新的 Agent Team 提示词。你可以编辑它，然后切换到 Agent Team 模式。",
+    "usePreparedPrompt": "使用提示词",
+    "reportToPromptPrefix": "根据以下讨论/决策报告准备并执行一个 Agent 团队。将需求拆分为任务，为可用 CLI Agent 提出合理分配，并在用户确认后启动。",
+    "generatedSummaryTitle": "自动运行摘要",
+    "summaryStatus": "整体状态",
+    "summarySteps": "已完成步骤",
+    "summaryFailures": "失败步骤",
+    "summaryCanceled": "已取消步骤",
+    "summaryDiffs": "Diff/变更输出",
+    "summaryPreviews": "预览输出",
+    "summaryErrorPrefix": "错误",
+    "assignedWork": "已分配工作",
+    "autoAssigned": "自动 / 由协调器决定",
+    "stages": {
+      "coordinator": "协调器",
+      "handoff": "交接",
+      "backend": "后端",
+      "frontend": "前端",
+      "implementation": "实现",
+      "review": "审查",
+      "repair": "修复",
+      "proposal": "提案",
+      "critique": "批评",
+      "response": "回应",
+      "decision": "决策",
+      "report": "报告",
+      "final_report": "最终报告"
+    },
+    "agentRole": "阶段",
+    "agentRoles": {
+      "auto": "自动",
+      "backend": "后端",
+      "frontend": "前端",
+      "review": "测试 / 审查",
+      "implementation": "实现",
+      "proposal": "提案",
+      "critique": "批评",
+      "response": "回应",
+      "decision": "决策 / 报告",
+      "report": "报告",
+      "custom": "自定义"
+    },
+    "customRolePlaceholder": "例如：安全、移动端 UX、数据库架构",
+    "roleHints": {
+      "default": "留空时，协调器会根据目标为此 Agent 分配任务。",
+      "agent_team": "可选择后端、前端或审查阶段，也可保持自动。",
+      "multi_model_review": "已启用的 Agent 会进行审查；如果选择报告角色，该 Agent 会汇总最终摘要。",
+      "sequential_handoff": "Agent 按你选择的顺序运行；任务文本定义每一步的范围。",
+      "adversarial_debate": "决策讨论中阶段选择是可选的；留空时系统会按顺序将所选 Agent 分配为提案、批评和回应。"
+    },
+    "soloAgent": "仅使用 {{agent}} 运行",
+    "soloAgentShort": "单独",
+    "cliSettings": "CLI 设置",
+    "workspaceTarget": "目标工作区",
+    "workspaceTargets": {
+      "selectedProject": "已选项目",
+      "pixcodeApp": "Pixcode 系统",
+      "custom": "自定义路径"
+    },
+    "customWorkspacePlaceholder": "/path/to/project",
+    "workspaceTargetHint": "智能体将在此目录运行：{{path}}",
+    "autoDetect": "自动检测",
+    "needWorkspacePath": "请输入自定义工作区路径。"
   }
 }

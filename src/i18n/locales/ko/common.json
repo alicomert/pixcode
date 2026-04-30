@@ -440,6 +440,85 @@
       "worktree": "Worktree",
       "host": "Host",
       "docker": "Docker"
-    }
+    },
+    "stop": "팀 중지",
+    "stopping": "중지 중",
+    "cancelFailed": "워크플로를 중지할 수 없습니다.",
+    "needRoles": "이 모드에서는 다음 역할에 최소 한 명의 활성 에이전트를 할당해야 합니다: {{roles}}.",
+    "quickPrompts": {
+      "label": "빠른 프롬프트:",
+      "liveTrading": {
+        "label": "8024 라이브 트레이딩 화면",
+        "prompt": "안녕하세요. 작은 프로젝트를 만들고 이후 8024 포트에서 실행해 주세요. Binance FAPI와 연결된 TradingView 스타일 디자인, TradingView 차트, 왼쪽 별표/즐겨찾기 시스템을 원합니다. 작업을 논리적으로 나누고 프로세스를 자동으로 관리해 주세요."
+      }
+    },
+    "teamHistory": "팀 기록",
+    "changeSummary": "변경 요약",
+    "noChangeSummary": "최종 요약이 아직 준비되지 않았습니다. 에이전트가 완료되면 읽기 쉬운 Markdown 요약이 여기에 표시됩니다.",
+    "prepareTeamFromReport": "이 보고서로 에이전트 팀 준비",
+    "prepareTeamTitle": "에이전트 팀 프롬프트 준비",
+    "prepareTeamDescription": "토론 결과가 새 Agent Team 프롬프트로 변환되었습니다. 수정한 뒤 Agent Team 모드로 이동할 수 있습니다.",
+    "usePreparedPrompt": "프롬프트 사용",
+    "reportToPromptPrefix": "아래 토론/결정 보고서를 바탕으로 에이전트 팀을 준비하고 실행하세요. 요구사항을 작업으로 나누고 사용 가능한 CLI 에이전트에 적절한 할당을 제안한 뒤, 사용자 확인 후 시작하세요.",
+    "generatedSummaryTitle": "자동 실행 요약",
+    "summaryStatus": "전체 상태",
+    "summarySteps": "완료된 단계",
+    "summaryFailures": "실패한 단계",
+    "summaryCanceled": "취소된 단계",
+    "summaryDiffs": "Diff/변경 출력",
+    "summaryPreviews": "미리보기 출력",
+    "summaryErrorPrefix": "오류",
+    "assignedWork": "할당된 작업",
+    "autoAssigned": "자동 / 코디네이터 결정",
+    "stages": {
+      "coordinator": "코디네이터",
+      "handoff": "인계",
+      "backend": "백엔드",
+      "frontend": "프론트엔드",
+      "implementation": "구현",
+      "review": "리뷰",
+      "repair": "수정",
+      "proposal": "제안",
+      "critique": "비판",
+      "response": "응답",
+      "decision": "결정",
+      "report": "보고서",
+      "final_report": "최종 보고서"
+    },
+    "agentRole": "단계",
+    "agentRoles": {
+      "auto": "자동",
+      "backend": "백엔드",
+      "frontend": "프론트엔드",
+      "review": "테스트 / 리뷰",
+      "implementation": "구현",
+      "proposal": "제안",
+      "critique": "비판",
+      "response": "응답",
+      "decision": "결정 / 보고서",
+      "report": "보고서",
+      "custom": "사용자 지정"
+    },
+    "customRolePlaceholder": "예: 보안, 모바일 UX, DB 아키텍처",
+    "roleHints": {
+      "default": "비워두면 코디네이터가 목표에 따라 이 에이전트에 할당합니다.",
+      "agent_team": "백엔드, 프론트엔드, 리뷰 단계를 선택하거나 자동으로 둘 수 있습니다.",
+      "multi_model_review": "활성 에이전트가 리뷰합니다. 보고서 역할을 선택하면 해당 에이전트가 최종 요약을 모읍니다.",
+      "sequential_handoff": "에이전트는 선택한 순서대로 실행됩니다. 작업 문구가 각 단계의 범위를 정의합니다.",
+      "adversarial_debate": "결정 토론에서는 단계 선택이 선택사항입니다. 비워두면 시스템이 선택된 에이전트를 순서대로 제안, 비판, 응답에 배정합니다."
+    },
+    "soloAgent": "{{agent}}만 실행",
+    "soloAgentShort": "단독",
+    "cliSettings": "CLI 설정",
+    "workspaceTarget": "대상 작업 영역",
+    "workspaceTargets": {
+      "selectedProject": "선택한 프로젝트",
+      "pixcodeApp": "Pixcode 시스템",
+      "custom": "사용자 지정 경로"
+    },
+    "customWorkspacePlaceholder": "/path/to/project",
+    "workspaceTargetHint": "에이전트 실행 위치: {{path}}",
+    "autoDetect": "자동 감지",
+    "needWorkspacePath": "사용자 지정 작업 영역 경로를 입력하세요."
   }
 }

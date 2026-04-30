@@ -410,6 +410,85 @@
       "worktree": "Worktree",
       "host": "Host",
       "docker": "Docker"
-    }
+    },
+    "stop": "Остановить команду",
+    "stopping": "Остановка",
+    "cancelFailed": "Не удалось остановить workflow.",
+    "needRoles": "Для этого режима назначьте хотя бы одного активного агента на роли: {{roles}}.",
+    "quickPrompts": {
+      "label": "Быстрый промпт:",
+      "liveTrading": {
+        "label": "Live trading экран 8024",
+        "prompt": "Привет, создай небольшой проект и затем запусти его на порту 8024. Нужен дизайн в стиле TradingView с подключением к Binance FAPI, графиком TradingView и системой избранного/звезд слева. Раздели работу логично и управляй процессом автоматически."
+      }
+    },
+    "teamHistory": "История команды",
+    "changeSummary": "Сводка изменений",
+    "noChangeSummary": "Финальная сводка еще не готова. Читаемая Markdown-сводка появится здесь после завершения агентов.",
+    "prepareTeamFromReport": "Подготовить команду агентов из этого отчета",
+    "prepareTeamTitle": "Подготовить промпт команды агентов",
+    "prepareTeamDescription": "Результат обсуждения преобразован в новый prompt для Agent Team. Отредактируйте его и перенесите в режим Agent Team.",
+    "usePreparedPrompt": "Использовать prompt",
+    "reportToPromptPrefix": "Подготовь и запусти команду агентов по следующему отчету обсуждения/решения. Разбей потребности на задачи, предложи разумные назначения для доступных CLI-агентов и запускай только после подтверждения пользователя.",
+    "generatedSummaryTitle": "Автоматическая сводка запуска",
+    "summaryStatus": "Общий статус",
+    "summarySteps": "Завершенные шаги",
+    "summaryFailures": "Ошибочные шаги",
+    "summaryCanceled": "Отмененные шаги",
+    "summaryDiffs": "Вывод diff/изменений",
+    "summaryPreviews": "Вывод предпросмотра",
+    "summaryErrorPrefix": "Ошибка",
+    "assignedWork": "Назначенная работа",
+    "autoAssigned": "Автоматически / решает координатор",
+    "stages": {
+      "coordinator": "Координатор",
+      "handoff": "Передача",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "implementation": "Реализация",
+      "review": "Review",
+      "repair": "Исправление",
+      "proposal": "Предложение",
+      "critique": "Критика",
+      "response": "Ответ",
+      "decision": "Решение",
+      "report": "Отчет",
+      "final_report": "Финальный отчет"
+    },
+    "agentRole": "Этап",
+    "agentRoles": {
+      "auto": "Авто",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "review": "Тест / review",
+      "implementation": "Реализация",
+      "proposal": "Предложение",
+      "critique": "Критика",
+      "response": "Ответ",
+      "decision": "Решение / отчет",
+      "report": "Отчет",
+      "custom": "Свой"
+    },
+    "customRolePlaceholder": "Напр.: безопасность, Mobile UX, DB-архитектура",
+    "roleHints": {
+      "default": "Оставьте пустым, и координатор назначит работу агенту по цели.",
+      "agent_team": "Выберите этапы backend, frontend или review либо оставьте агентов на авто.",
+      "multi_model_review": "Активные агенты выполняют review; если выбрана роль отчета, этот агент собирает финальную сводку.",
+      "sequential_handoff": "Агенты работают в выбранном порядке; текст задания задает границы каждого шага.",
+      "adversarial_debate": "Выбор этапа в обсуждении решения необязателен; если оставить пустым, система назначит выбранных агентов по порядку на предложение, критику и ответ."
+    },
+    "soloAgent": "Запустить только с {{agent}}",
+    "soloAgentShort": "Соло",
+    "cliSettings": "Настройки CLI",
+    "workspaceTarget": "Целевая рабочая область",
+    "workspaceTargets": {
+      "selectedProject": "Выбранный проект",
+      "pixcodeApp": "Система Pixcode",
+      "custom": "Пользовательский путь"
+    },
+    "customWorkspacePlaceholder": "/path/to/project",
+    "workspaceTargetHint": "Агенты будут запущены в: {{path}}",
+    "autoDetect": "автоопределение",
+    "needWorkspacePath": "Введите пользовательский путь рабочей области."
   }
 }

@@ -19,6 +19,7 @@
       --primary-hover: #1d4ed8;
       --accent: #10b981;
       --warn: #f59e0b;
+      --code-bg: #05080d;
     }
     @media (prefers-color-scheme: light) {
       :root {
@@ -28,6 +29,7 @@
         --border: #d0d7de;
         --fg: #1f2328;
         --fg-muted: #656d76;
+        --code-bg: #f6f8fa;
       }
     }
 
@@ -112,6 +114,68 @@
     }
     .apikey-bar .status.ok { color: var(--accent); border-color: var(--accent); }
 
+    /* ── Quick guide ──────────────────────────────────────────────── */
+    .quick-guide {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 420px);
+      gap: 14px;
+      padding: 14px 16px;
+      background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 16%, transparent), transparent 38%),
+        var(--bg-soft);
+      border-bottom: 1px solid var(--border);
+    }
+    .quick-guide h2 {
+      margin: 0 0 6px;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+    .quick-guide p {
+      margin: 0;
+      color: var(--fg-muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .guide-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .guide-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--bg-card) 86%, transparent);
+      padding: 10px;
+      min-width: 0;
+    }
+    .guide-card strong {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .guide-card code {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--accent);
+      font-family: 'SF Mono', ui-monospace, monospace;
+      font-size: 11px;
+    }
+    .curl-box {
+      margin: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--code-bg);
+      color: var(--fg);
+      padding: 12px;
+      font-family: 'SF Mono', ui-monospace, monospace;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
     /* ── Scalar host ──────────────────────────────────────────────── */
     #scalar-host { min-height: calc(100vh - 130px); }
 
@@ -122,6 +186,8 @@
       .topbar-actions a.btn span:not(.icon) { display: none; }
       .apikey-bar { padding: 8px 10px; }
       .apikey-bar .hint { display: none; }
+      .quick-guide { grid-template-columns: 1fr; padding: 12px 10px; }
+      .guide-grid { grid-template-columns: 1fr; }
     }
 
     /* ── Loading state ────────────────────────────────────────────── */
@@ -148,7 +214,7 @@
   <a href="/" class="topbar-brand">
     <img src="/logo.svg" alt="Pixcode" />
     <span data-i18n="title">Pixcode API</span>
-    <span class="badge" data-i18n="badge">v1.33</span>
+    <span class="badge" data-i18n="badge">v1.34</span>
   </a>
   <div class="topbar-spacer"></div>
   <div class="topbar-actions">
@@ -184,6 +250,37 @@
   <span class="hint" data-i18n="apiKey.hint">Generate one under Settings → API. Stored locally only.</span>
 </div>
 
+<section class="quick-guide" aria-labelledby="quick-guide-title">
+  <div>
+    <h2 id="quick-guide-title" data-i18n="guide.title">Orchestration API quick start</h2>
+    <p data-i18n="guide.body">
+      Use role-based metadata to preview, run, stream, and cancel multi-agent work modes. Instructions and model ids are optional; omit model to use CLI settings.
+    </p>
+    <div class="guide-grid" aria-label="Orchestration endpoints">
+      <div class="guide-card">
+        <strong data-i18n="guide.preview">Preview DAG</strong>
+        <code>POST /api/orchestration/workflows/{id}/preview</code>
+      </div>
+      <div class="guide-card">
+        <strong data-i18n="guide.run">Start run</strong>
+        <code>POST /api/orchestration/workflows/{id}/runs</code>
+      </div>
+      <div class="guide-card">
+        <strong data-i18n="guide.stream">Stream run</strong>
+        <code>GET /api/orchestration/workflows/runs/{runId}/events</code>
+      </div>
+      <div class="guide-card">
+        <strong data-i18n="guide.context">Execution context</strong>
+        <code>GET /api/orchestration/workflows/context</code>
+      </div>
+    </div>
+  </div>
+  <pre class="curl-box"><code data-i18n="guide.curl">curl -H "Authorization: Bearer ck_..." \
+  -H "content-type: application/json" \
+  -d '{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}' \
+  /api/orchestration/workflows/agent_team/preview</code></pre>
+</section>
+
 <div id="scalar-host">
   <div class="loader">
     <div class="spinner"></div>
@@ -199,90 +296,146 @@
   const I18N = {
     en: {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: 'Download spec',
       backToApp: 'Back to app',
       'apiKey.label': 'API key',
       'apiKey.notSet': 'Not set',
       'apiKey.set': 'Saved',
       'apiKey.hint': 'Generate one under Settings → API. Stored locally only.',
+      'guide.title': 'Orchestration API quick start',
+      'guide.body': 'Use role-based metadata to preview, run, stream, and cancel multi-agent work modes. Instructions and model ids are optional; omit model to use CLI settings.',
+      'guide.preview': 'Preview DAG',
+      'guide.run': 'Start run',
+      'guide.stream': 'Stream run',
+      'guide.context': 'Execution context',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: 'Loading API reference…',
     },
     tr: {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: 'Spec\'i indir',
       backToApp: 'Uygulamaya dön',
       'apiKey.label': 'API anahtarı',
       'apiKey.notSet': 'Boş',
       'apiKey.set': 'Kaydedildi',
       'apiKey.hint': 'Ayarlar → API\'den oluşturun. Sadece bu cihazda saklanır.',
+      'guide.title': 'Orkestrasyon API hızlı başlangıç',
+      'guide.body': 'Çok ajanlı çalışma modlarını rol tabanlı metadata ile önizleyin, başlatın, izleyin ve iptal edin. Instruction ve model id opsiyoneldir; model verilmezse CLI ayarları kullanılır.',
+      'guide.preview': 'DAG önizle',
+      'guide.run': 'Run başlat',
+      'guide.stream': 'Run izle',
+      'guide.context': 'Çalışma bağlamı',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: 'API referansı yükleniyor…',
     },
     de: {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: 'Spezifikation laden',
       backToApp: 'Zurück zur App',
       'apiKey.label': 'API-Schlüssel',
       'apiKey.notSet': 'Nicht gesetzt',
       'apiKey.set': 'Gespeichert',
       'apiKey.hint': 'Unter Einstellungen → API erstellen. Nur lokal gespeichert.',
+      'guide.title': 'Orchestrierungs-API Schnellstart',
+      'guide.body': 'Verwenden Sie rollenbasierte Metadaten, um Multi-Agent-Arbeitsmodi vorzuschauen, zu starten, zu streamen und abzubrechen. Instructions und Model-IDs sind optional; ohne Model werden CLI-Einstellungen genutzt.',
+      'guide.preview': 'DAG-Vorschau',
+      'guide.run': 'Run starten',
+      'guide.stream': 'Run streamen',
+      'guide.context': 'Ausführungskontext',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: 'API-Referenz wird geladen…',
     },
     it: {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: 'Scarica specifica',
       backToApp: "Torna all'app",
       'apiKey.label': 'Chiave API',
       'apiKey.notSet': 'Non impostata',
       'apiKey.set': 'Salvata',
       'apiKey.hint': 'Generala in Impostazioni → API. Memorizzata solo localmente.',
+      'guide.title': 'Avvio rapido API di orchestrazione',
+      'guide.body': 'Usa metadata basati sui ruoli per visualizzare, avviare, seguire e annullare modalità multi-agente. Instruction e model id sono opzionali; senza model si usano le impostazioni CLI.',
+      'guide.preview': 'Anteprima DAG',
+      'guide.run': 'Avvia run',
+      'guide.stream': 'Stream run',
+      'guide.context': 'Contesto di esecuzione',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: 'Caricamento riferimento API…',
     },
     ja: {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: '仕様をダウンロード',
       backToApp: 'アプリに戻る',
       'apiKey.label': 'API キー',
       'apiKey.notSet': '未設定',
       'apiKey.set': '保存済み',
       'apiKey.hint': '設定 → API で生成してください。このデバイスのみに保存されます。',
+      'guide.title': 'オーケストレーション API クイックスタート',
+      'guide.body': 'ロールベースのメタデータでマルチエージェントの実行モードをプレビュー、開始、ストリーム、キャンセルできます。instruction と model id は任意で、model を省略すると CLI 設定を使います。',
+      'guide.preview': 'DAG をプレビュー',
+      'guide.run': 'Run を開始',
+      'guide.stream': 'Run をストリーム',
+      'guide.context': '実行コンテキスト',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: 'API リファレンスを読み込み中…',
     },
     ko: {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: '스펙 다운로드',
       backToApp: '앱으로 돌아가기',
       'apiKey.label': 'API 키',
       'apiKey.notSet': '미설정',
       'apiKey.set': '저장됨',
       'apiKey.hint': '설정 → API에서 생성하세요. 이 기기에만 저장됩니다.',
+      'guide.title': '오케스트레이션 API 빠른 시작',
+      'guide.body': '역할 기반 metadata로 멀티 에이전트 작업 모드를 미리보기, 시작, 스트리밍, 취소할 수 있습니다. instruction과 model id는 선택 사항이며, model을 생략하면 CLI 설정을 사용합니다.',
+      'guide.preview': 'DAG 미리보기',
+      'guide.run': 'Run 시작',
+      'guide.stream': 'Run 스트림',
+      'guide.context': '실행 컨텍스트',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: 'API 참조 로드 중…',
     },
     ru: {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: 'Скачать спецификацию',
       backToApp: 'Вернуться в приложение',
       'apiKey.label': 'API-ключ',
       'apiKey.notSet': 'Не задан',
       'apiKey.set': 'Сохранён',
       'apiKey.hint': 'Создайте в Настройки → API. Хранится только локально.',
+      'guide.title': 'Быстрый старт API оркестрации',
+      'guide.body': 'Используйте role-based metadata, чтобы предварительно просматривать, запускать, стримить и отменять multi-agent work modes. instruction и model id необязательны; без model используются настройки CLI.',
+      'guide.preview': 'Просмотр DAG',
+      'guide.run': 'Запустить run',
+      'guide.stream': 'Стрим run',
+      'guide.context': 'Контекст выполнения',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: 'Загрузка справочника API…',
     },
     'zh-CN': {
       title: 'Pixcode API',
-      badge: 'v1.33',
+      badge: 'v1.34',
       downloadSpec: '下载规范',
       backToApp: '返回应用',
       'apiKey.label': 'API 密钥',
       'apiKey.notSet': '未设置',
       'apiKey.set': '已保存',
       'apiKey.hint': '在 设置 → API 生成。仅本地存储。',
+      'guide.title': '编排 API 快速开始',
+      'guide.body': '使用基于角色的 metadata 预览、启动、流式跟踪和取消多代理工作模式。instruction 和 model id 都是可选字段；省略 model 时使用 CLI 设置。',
+      'guide.preview': '预览 DAG',
+      'guide.run': '启动 run',
+      'guide.stream': '流式 run',
+      'guide.context': '执行上下文',
+      'guide.curl': 'curl -H "Authorization: Bearer ck_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
       loading: '正在加载 API 参考…',
     },
   };

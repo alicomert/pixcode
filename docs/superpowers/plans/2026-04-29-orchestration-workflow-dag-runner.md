@@ -4,6 +4,21 @@
 **Status:** Draft, implement after task dispatch UI
 **Depends on:** `2026-04-29-orchestration-task-dispatch-ui.md`
 
+## Progress Update
+
+- [x] Workflow DAG runner exists and submits child A2A tasks with one shared `contextId`.
+- [x] Workflow UI shows per-node status, child A2A task ids, messages, artifacts, and cancel.
+- [x] Agent-team workflow now uses bounded backend handoff nodes so frontend can start from a contract instead of waiting for full backend implementation.
+- [x] Handoff nodes have a timeout and `continue` fail policy to prevent one agent from blocking the whole team indefinitely.
+- [x] Downstream prompt context is compacted before handoff to avoid huge prior-agent transcripts breaking later agents.
+- [x] Restart recovery marks non-terminal workflow runs/nodes failed instead of leaving the UI stuck in `running`.
+- [x] Workflow API now has a dry-run preview endpoint and parent run SSE stream for API-level testing.
+- [x] Added `metadata.agents[].role` so API callers can route agents explicitly without language-specific instruction heuristics.
+- [x] Agent-team runs can append bounded `repair` and `recheck` nodes dynamically when a review stage reports actionable issues.
+- [x] Added `npm run smoke:orchestration-api` to verify API key auth, workflow listing, and agent-team DAG shape without launching CLI agents.
+- [x] Workflow runs now carry an explicit target workspace (`selected_project`, `pixcode_app`, or `custom`) so agents do not infer the wrong repository from the currently selected UI project.
+- [x] Every workflow node prompt starts with the resolved workspace context, including the actual working directory and Pixcode app root.
+
 ## Goal
 
 Add a workflow runner that can execute multi-CLI pipelines: parallel review fan-out, sequential handoff, and adversarial debate. Each workflow node expands to an A2A task, and all child tasks share a `contextId`.

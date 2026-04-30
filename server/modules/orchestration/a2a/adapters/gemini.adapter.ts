@@ -85,7 +85,9 @@ export class GeminiA2AAdapter extends AbstractA2AAdapter {
           promptText,
           {
             cwd: ctx.cwd,
+            model: ctx.model,
             permissionMode: ctx.permissionMode === 'bypassPermissions' ? 'yolo' : ctx.permissionMode,
+            toolsSettings: ctx.toolsSettings,
           },
           fakeWriter,
         );

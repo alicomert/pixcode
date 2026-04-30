@@ -440,6 +440,85 @@
       "worktree": "Worktree",
       "host": "Host",
       "docker": "Docker"
-    }
+    },
+    "stop": "Ferma team",
+    "stopping": "Arresto...",
+    "cancelFailed": "Impossibile fermare il workflow.",
+    "needRoles": "Assegna almeno un agente attivo a questi ruoli per questa modalità: {{roles}}.",
+    "quickPrompts": {
+      "label": "Prompt rapido:",
+      "liveTrading": {
+        "label": "Schermata trading live 8024",
+        "prompt": "Ciao, crea un piccolo progetto e poi avvialo sulla porta 8024. Voglio un design in stile TradingView collegato a Binance FAPI, con grafico TradingView e sistema di preferiti/stelle a sinistra. Dividi il lavoro in modo logico e gestisci automaticamente il processo."
+      }
+    },
+    "teamHistory": "Cronologia team",
+    "changeSummary": "Riepilogo modifiche",
+    "noChangeSummary": "Il riepilogo finale non è ancora pronto. Un riepilogo Markdown leggibile apparirà qui quando gli agenti avranno finito.",
+    "prepareTeamFromReport": "Prepara team agenti da questo report",
+    "prepareTeamTitle": "Prepara prompt team agenti",
+    "prepareTeamDescription": "L’output della discussione è stato trasformato in un nuovo prompt Agent Team. Modificalo e poi spostalo in modalità Agent Team.",
+    "usePreparedPrompt": "Usa prompt",
+    "reportToPromptPrefix": "Prepara ed esegui un team di agenti dal seguente report di discussione/decisione. Dividi le necessità in attività, proponi assegnazioni sensate per gli agenti CLI disponibili e avvia solo dopo conferma dell’utente.",
+    "generatedSummaryTitle": "Riepilogo automatico esecuzione",
+    "summaryStatus": "Stato generale",
+    "summarySteps": "Passaggi completati",
+    "summaryFailures": "Passaggi falliti",
+    "summaryCanceled": "Passaggi annullati",
+    "summaryDiffs": "Output diff/modifiche",
+    "summaryPreviews": "Output anteprima",
+    "summaryErrorPrefix": "Errore",
+    "assignedWork": "Lavoro assegnato",
+    "autoAssigned": "Automatico / decide il coordinatore",
+    "stages": {
+      "coordinator": "Coordinatore",
+      "handoff": "Passaggio",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "implementation": "Implementazione",
+      "review": "Revisione",
+      "repair": "Correzione",
+      "proposal": "Proposta",
+      "critique": "Critica",
+      "response": "Risposta",
+      "decision": "Decisione",
+      "report": "Report",
+      "final_report": "Report finale"
+    },
+    "agentRole": "Fase",
+    "agentRoles": {
+      "auto": "Automatico",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "review": "Test / revisione",
+      "implementation": "Implementazione",
+      "proposal": "Proposta",
+      "critique": "Critica",
+      "response": "Risposta",
+      "decision": "Decisione / report",
+      "report": "Report",
+      "custom": "Personalizzato"
+    },
+    "customRolePlaceholder": "Es. Sicurezza, UX mobile, architettura DB",
+    "roleHints": {
+      "default": "Lascia vuoto e il coordinatore assegnerà questo agente in base all’obiettivo.",
+      "agent_team": "Scegli fasi backend, frontend o revisione, oppure lascia gli agenti in automatico.",
+      "multi_model_review": "Gli agenti attivi revisionano; se è selezionato un ruolo report, quell’agente aggrega il riepilogo finale.",
+      "sequential_handoff": "Gli agenti lavorano nell’ordine scelto; il testo attività definisce ogni passaggio.",
+      "adversarial_debate": "La selezione della fase è opzionale nella discussione decisionale; se vuota, il sistema assegna gli agenti selezionati a Proposta, Critica e Risposta in ordine."
+    },
+    "soloAgent": "Esegui solo con {{agent}}",
+    "soloAgentShort": "Solo",
+    "cliSettings": "Impostazioni CLI",
+    "workspaceTarget": "Workspace di destinazione",
+    "workspaceTargets": {
+      "selectedProject": "Progetto selezionato",
+      "pixcodeApp": "Sistema Pixcode",
+      "custom": "Percorso personalizzato"
+    },
+    "customWorkspacePlaceholder": "/percorso/del/progetto",
+    "workspaceTargetHint": "Gli agenti verranno eseguiti in: {{path}}",
+    "autoDetect": "rilevamento automatico",
+    "needWorkspacePath": "Inserisci un percorso workspace personalizzato."
   }
 }

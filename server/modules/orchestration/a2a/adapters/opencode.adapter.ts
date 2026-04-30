@@ -85,7 +85,9 @@ export class OpenCodeA2AAdapter extends AbstractA2AAdapter {
           promptText,
           {
             cwd: ctx.cwd,
+            model: ctx.model,
             permissionMode: ctx.permissionMode,
+            toolsSettings: ctx.toolsSettings,
           },
           fakeWriter,
         );

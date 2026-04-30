@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Pixcode REST API
-  version: 1.33.10
+  version: 1.34.0
   description: |
     REST API for Pixcode — the multi-CLI web UI for Claude Code, Cursor CLI,
     Codex, Gemini CLI, Qwen Code, and OpenCode.
@@ -71,6 +71,8 @@ tags:
     description: Git status, diffs, branches, commits, push/pull.
   - name: Providers
     description: Multi-CLI provider auth, install, sessions, configuration.
+  - name: Orchestration
+    description: A2A-backed multi-agent workflow planning, preview, execution, streaming, and cancellation.
   - name: Network
     description: LAN discovery, UPnP, public tunnel.
   - name: Settings
@@ -220,6 +222,176 @@ components:
         jobId: { type: string }
         provider: { type: string }
         status: { type: string, enum: [pending, running, succeeded, failed, cancelled] }
+
+    OrchestrationAgent:
+      type: object
+      required: [adapterId]
+      properties:
+        instanceId:
+          type: string
+          description: Stable client-side instance id. If omitted, Pixcode derives one from adapter id + order.
+          example: codex-backend-1
+        adapterId:
+          type: string
+          enum: [claude-code, codex, cursor, gemini, qwen, opencode]
+          description: CLI adapter to execute this agent.
+        label:
+          type: string
+          description: Human-readable label shown in workflow history.
+          example: Backend Agent
+        role:
+          type: string
+          description: |
+            Optional language-independent orchestration hint. Known values are
+            routed directly (`backend`, `frontend`, `review`, `proposal`,
+            `critique`, etc.); custom stage names are accepted.
+        instruction:
+          type: string
+          description: |
+            Optional per-agent assignment supplied by the API caller. Pixcode
+            does not require a fixed language or fixed text here.
+        model:
+          type: string
+          description: Optional provider-specific model id. Omit this field to let the underlying CLI use its own configured/default model.
+        permissionMode:
+          type: string
+          description: Provider-specific permission/sandbox mode.
+        enabled:
+          type: boolean
+          default: true
+        toolsSettings:
+          type: object
+          additionalProperties: true
+
+    WorkflowNodeRun:
+      type: object
+      properties:
+        nodeId: { type: string }
+        adapterId: { type: string }
+        agentInstanceId: { type: string }
+        agentLabel: { type: string }
+        assignment: { type: string }
+        model: { type: string }
+        permissionMode: { type: string }
+        timeoutMs: { type: integer }
+        status:
+          type: string
+          enum: [queued, running, completed, failed, canceled, skipped]
+        a2aTaskId: { type: string }
+        startedAt: { type: integer, format: int64 }
+        finishedAt: { type: integer, format: int64 }
+        error: { type: string }
+        outputText: { type: string }
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role: { type: string, enum: [user, agent] }
+              text: { type: string }
+              createdAt: { type: integer, format: int64 }
+        artifacts:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string, enum: [file-diff, command-output, preview-url, data] }
+              text: { type: string }
+              data: { type: object, additionalProperties: true }
+              metadata: { type: object, additionalProperties: true }
+
+    WorkspaceTarget:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [selected_project, pixcode_app, custom]
+          description: Which workspace should become the child agent cwd.
+        label:
+          type: string
+          description: Human-readable target label shown in run metadata.
+        projectPath:
+          type: string
+          description: Required for `custom`; optional for `pixcode_app`, where the server resolves the app root.
+
+    WorkflowRun:
+      type: object
+      properties:
+        id: { type: string, example: wrun_1234abcd }
+        workflowId: { type: string, example: agent_team }
+        contextId:
+          type: string
+          description: Shared A2A context id used by every child task in this run.
+          example: ctx_1234abcd
+        status:
+          type: string
+          enum: [queued, running, completed, failed, canceled]
+        input: { type: string }
+        startedAt: { type: integer, format: int64 }
+        finishedAt: { type: integer, format: int64 }
+        metadata: { type: object, additionalProperties: true }
+        nodeRuns:
+          type: array
+          items: { $ref: '#/components/schemas/WorkflowNodeRun' }
+
+    WorkflowRunCreateRequest:
+      type: object
+      properties:
+        input:
+          type: string
+          description: User goal sent to the workflow.
+        metadata:
+          type: object
+          properties:
+            projectId: { type: string }
+            selectedProjectPath:
+              type: string
+              description: Absolute path of the UI-selected project used for history grouping and fallback.
+            projectPath:
+              type: string
+              description: Resolved absolute host path where CLI agents should run.
+            workspaceTarget:
+              $ref: '#/components/schemas/WorkspaceTarget'
+            agents:
+              type: array
+              items: { $ref: '#/components/schemas/OrchestrationAgent' }
+            settings:
+              type: object
+              properties:
+                maxParallelAgents:
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+                  default: 3
+                isolation:
+                  type: string
+                  enum: [host, worktree, docker]
+                keepWorkspace:
+                  type: boolean
+                  default: true
+
+    WorkflowPreviewResponse:
+      type: object
+      properties:
+        workflow:
+          type: object
+          additionalProperties: true
+        nodeCount: { type: integer }
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              adapterId: { type: string }
+              agentInstanceId: { type: string }
+              agentLabel: { type: string }
+              inputs:
+                type: array
+                items: { type: string }
+              onFail: { type: string, enum: [abort, continue, retry] }
+              output: { type: string, enum: [message, artifact, both] }
+              timeoutMs: { type: integer }
 
 security:
   - bearerAuth: []
@@ -1110,6 +1282,216 @@ paths:
       responses:
         '200': { description: Saved. }
         '400': { description: Content failed validation (e.g. malformed JSON). }
+
+  /api/orchestration/workflows:
+    get:
+      tags: [Orchestration]
+      summary: List built-in workflow modes
+      description: |
+        Returns the available "Çalışma modu / Work mode" definitions. The
+        `agent_team` workflow is dynamic: it expands from the API caller's
+        `metadata.agents` list at preview/run time.
+      responses:
+        '200':
+          description: Workflow catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflows:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /api/orchestration/workflows/context:
+    get:
+      tags: [Orchestration]
+      summary: Read workflow execution context
+      description: |
+        Returns the Pixcode app root and supported target workspace modes so
+        clients can decide whether child agents should run in the selected
+        project, Pixcode itself, or a custom path.
+      responses:
+        '200':
+          description: Workflow execution context.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  appRoot: { type: string, example: /root/pixcode }
+                  defaultWorkspaceTarget: { type: string, example: selected_project }
+                  supportedWorkspaceTargets:
+                    type: array
+                    items:
+                      type: string
+                      enum: [selected_project, pixcode_app, custom]
+
+  /api/orchestration/workflows/{workflowId}/preview:
+    post:
+      tags: [Orchestration]
+      summary: Preview expanded workflow DAG without running agents
+      description: |
+        Dry-run endpoint for API clients and automated tests. It expands
+        `metadata.agents` into the actual node graph, validates dependencies,
+        and returns node ids, adapters, inputs, fail policy, and timeout values.
+
+        Use `metadata.agents[].role` (`backend`, `frontend`, `review`,
+        `implementation`) for language-independent routing. `instruction` is
+        optional and fully caller-controlled.
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema: { type: string, example: agent_team }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkflowRunCreateRequest' }
+            examples:
+              roleBasedAgentTeam:
+                summary: Role-based agent team, no fixed instruction language
+                value:
+                  metadata:
+                    agents:
+                      - adapterId: codex
+                        label: Frontend Agent
+                        role: frontend
+                      - adapterId: codex
+                        label: Backend Agent
+                        role: backend
+                      - adapterId: codex
+                        label: Review Agent
+                        role: review
+                    settings:
+                      maxParallelAgents: 3
+                      isolation: host
+      responses:
+        '200':
+          description: Expanded workflow graph.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowPreviewResponse' }
+        '400':
+          description: Invalid workflow metadata.
+
+  /api/orchestration/workflows/{workflowId}/runs:
+    post:
+      tags: [Orchestration]
+      summary: Start a workflow run
+      description: |
+        Starts a multi-agent workflow. Every child A2A task shares one
+        `contextId`, and the returned `nodeRuns[].a2aTaskId` values can be used
+        for low-level A2A inspection.
+
+        For `agent_team`, Pixcode creates a coordinator, optional bounded
+        backend handoff nodes, worker nodes, review nodes, and a final report.
+        Frontend agents depend on backend handoff contracts, not on the full
+        backend implementation, so one slow backend task does not block all
+        UI work.
+      parameters:
+        - name: workflowId
+          in: path
+          required: true
+          schema: { type: string, example: agent_team }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkflowRunCreateRequest' }
+      responses:
+        '202':
+          description: Workflow accepted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowRun' }
+        '400':
+          description: Invalid workflow request.
+        '404':
+          description: Workflow not found.
+
+  /api/orchestration/workflows/runs:
+    get:
+      tags: [Orchestration]
+      summary: List workflow runs
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Runs sorted newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkflowRun' }
+
+  /api/orchestration/workflows/runs/{runId}:
+    get:
+      tags: [Orchestration]
+      summary: Read one workflow run snapshot
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Workflow run state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowRun' }
+        '404':
+          description: Run not found.
+
+  /api/orchestration/workflows/runs/{runId}/events:
+    get:
+      tags: [Orchestration]
+      summary: Stream workflow run snapshots (SSE)
+      description: |
+        Emits `event: snapshot` frames every second while the run is active.
+        Each `data:` payload is `{ "run": WorkflowRun }`. The stream ends
+        automatically when the run reaches `completed`, `failed`, or
+        `canceled`.
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Server-Sent Events stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '404':
+          description: Run not found.
+
+  /api/orchestration/workflows/runs/{runId}/cancel:
+    post:
+      tags: [Orchestration]
+      summary: Cancel a workflow run and active child A2A tasks
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Updated canceled run.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkflowRun' }
+        '404':
+          description: Run not found.
 
   /api/network/endpoints:
     get:

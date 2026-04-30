@@ -8,9 +8,13 @@ export interface WorkflowNode {
   inputs: string[];
   output: 'message' | 'artifact' | 'both';
   onFail: 'abort' | 'continue' | 'retry';
+  stage?: string;
   agentInstanceId?: string;
   agentLabel?: string;
   assignment?: string;
+  model?: string;
+  permissionMode?: string;
+  toolsSettings?: Record<string, unknown>;
   isolation?: 'host' | 'worktree' | 'docker';
   timeoutMs?: number;
 }
@@ -30,6 +34,10 @@ export interface WorkflowNodeRun {
   agentInstanceId?: string;
   agentLabel?: string;
   assignment?: string;
+  model?: string;
+  permissionMode?: string;
+  timeoutMs?: number;
+  stage?: string;
   status: WorkflowNodeStatus;
   a2aTaskId?: string;
   startedAt?: number;
