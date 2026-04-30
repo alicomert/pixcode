@@ -22,7 +22,8 @@
     "shell": "Терминал",
     "files": "Файлы",
     "git": "Система контроля версий",
-    "tasks": "Задачи"
+    "tasks": "Задачи",
+    "orchestration": "Оркестрация"
   },
   "status": {
     "loading": "Загрузка...",
@@ -93,7 +94,18 @@
     "createProjectDesktop": "Создайте новый проект, нажав на значок папки на боковой панели",
     "newSession": "Новый сеанс",
     "untitledSession": "Безымянный сеанс",
-    "projectFiles": "Файлы проекта"
+    "projectFiles": "Файлы проекта",
+    "landing": {
+      "title": "Запустить рабочую область Pixcode",
+      "description": "Выберите проект, начните новый чат или запустите оркестрацию с одной целью. Оркестрация управляет выбранными CLI-агентами, показывает каждый шаг и выводит ошибки напрямую.",
+      "startOrchestration": "Запустить оркестрацию",
+      "startOrchestrationDescription": "Автоматически создает проект и открывает экран оркестрации с управлением агентами и историей запусков.",
+      "startChat": "Начать новый чат",
+      "startChatDescription": "Автоматически создает папку и открывает обычный чат с одним агентом.",
+      "taskSystem": "Система задач",
+      "taskSystemDescription": "Используйте вкладку TaskMaster в проекте для отслеживания задач, статусов и планируемой работы.",
+      "sidebarHint": "При выборе существующего проекта в боковой панели история чатов, файлы, состояние git, задачи и оркестрация остаются в одном основном экране."
+    }
   },
   "fileTree": {
     "loading": "Загрузка файлов...",
@@ -252,5 +264,231 @@
       "updateAvailable": "Доступно обновление",
       "closeSidebar": "Закрыть боковую панель"
     }
+  },
+  "orchestration": {
+    "title": "Оркестрация",
+    "subtitle": "Задайте одну цель в {{project}}; выберите CLI-исполнителей, при необходимости дублируйте любой CLI и назначьте работу напрямую или дайте координатору разделить ее.",
+    "refresh": "Обновить",
+    "goal": "Цель",
+    "goalPlaceholder": "Например: исправить экран auth для развертывания на одном порту, собрать ошибки и проверить через lint и typecheck.",
+    "mode": "Режим запуска",
+    "systemPlan": "План системы",
+    "noMode": "Режим не выбран",
+    "loadingPlan": "Загрузка плана агентов.",
+    "start": "Запустить команду",
+    "starting": "Запуск",
+    "needAgent": "Включите хотя бы одного CLI-исполнителя.",
+    "startFailed": "Не удалось запустить workflow.",
+    "cliControl": "CLI-команда",
+    "enabledCount": "{{count}} включено",
+    "enabled": "Включено",
+    "disabled": "Отключено",
+    "history": "История",
+    "emptyHistory": "Запусков пока нет. Напишите цель и запустите агентов.",
+    "steps": "{{done}}/{{total}} шагов",
+    "notSelected": "Запуск не выбран",
+    "notSelectedDescription": "Выберите прошлый запуск или начните новую цель. Сообщения агентов, ошибки, сводки изменений и preview появятся здесь.",
+    "loadFailed": "Не удалось загрузить детали запуска.",
+    "loadingRun": "Загрузка запуска...",
+    "agentSteps": "Шаги агентов",
+    "noStepOutput": "Нет вывода шага.",
+    "agentMessages": "Сообщения агентов",
+    "noAgentMessages": "Этот агент еще не создал сообщение. Если запуск завершился ошибкой, реальная ошибка CLI появится выше.",
+    "outputs": "Выводы",
+    "noOutputs": "Сводки изменений, preview или вывода команды пока нет.",
+    "open": "Открыть",
+    "artifact": {
+      "fileDiff": "Сводка изменений",
+      "previewUrl": "Preview",
+      "commandOutput": "Вывод команды"
+    },
+    "role": {
+      "user": "Пользователь",
+      "agent": "Агент"
+    },
+    "status": {
+      "queued": "В очереди",
+      "running": "Выполняется",
+      "completed": "Завершено",
+      "failed": "Ошибка",
+      "canceled": "Отменено",
+      "skipped": "Пропущено"
+    },
+    "nodes": {
+      "codex_review": "Проверка Codex",
+      "gemini_review": "Проверка Gemini",
+      "claude_review": "Проверка Claude",
+      "claude_code_review": "Проверка Claude",
+      "cursor_review": "Проверка Cursor",
+      "aggregate": "Сводка",
+      "architect": "Планирование",
+      "implement": "Реализация",
+      "review": "Проверка",
+      "proposal": "Предложение",
+      "critique": "Критика",
+      "response": "Ответ",
+      "judge": "Решение",
+      "coordinator": "Координатор",
+      "final_report": "Итоговый отчет"
+    },
+    "workflows": {
+      "multi_model_review": {
+        "name": "Мультимодельная проверка",
+        "description": "Включенные CLI-агенты отдельно проверяют одну цель, затем включенный агент собирает результат."
+      },
+      "sequential_handoff": {
+        "name": "Последовательная передача",
+        "description": "Агенты по очереди планируют, реализуют и проверяют. Отключенные CLI-шаги пропускаются."
+      },
+      "adversarial_debate": {
+        "name": "Дебаты по решению",
+        "description": "Агенты предлагают, критикуют, отвечают и формируют финальную рекомендацию."
+      },
+      "agent_team": {
+        "name": "Команда агентов",
+        "description": "Координатор читает цель и активные CLI-инстансы, назначает работу и собирает результат."
+      }
+    },
+    "adapters": {
+      "claude-code": {
+        "label": "Claude Code",
+        "role": "CLI-исполнитель"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "role": "CLI-исполнитель"
+      },
+      "codex": {
+        "label": "Codex",
+        "role": "CLI-исполнитель"
+      },
+      "gemini": {
+        "label": "Gemini",
+        "role": "CLI-исполнитель"
+      },
+      "qwen": {
+        "label": "Qwen Code",
+        "role": "CLI-исполнитель"
+      },
+      "opencode": {
+        "label": "OpenCode",
+        "role": "CLI-исполнитель"
+      }
+    },
+    "activeCount": "{{active}}/{{total}} активно",
+    "teamHint": "Каждая строка — один CLI-исполнитель. Можно создать несколько Claude, Codex, Cursor, Gemini, Qwen или OpenCode и дать каждому отдельное задание.",
+    "parallelLimit": "Параллельный лимит",
+    "addAgent": "Добавить {{agent}}",
+    "duplicateAgent": "Дублировать {{agent}}",
+    "removeAgent": "Удалить {{agent}}",
+    "assignment": "Задание",
+    "assignmentPlaceholder": "Необязательно: укажите, что именно должен сделать этот исполнитель. Если оставить пустым, назначит координатор.",
+    "agentInstance": "{{name}} #{{number}}",
+    "taskTitle": "Задача",
+    "taskTitlePlaceholder": "Реализовать функцию",
+    "taskDescription": "Описание",
+    "taskDescriptionPlaceholder": "Объем, ограничения, ожидаемый результат",
+    "addTask": "Добавить",
+    "runTask": "Запустить",
+    "cancelTask": "Отмена",
+    "dispatchTask": "Назначить задачу",
+    "adapter": "Адаптер",
+    "isolation": "Изоляция",
+    "dispatch": "Назначить",
+    "auto": "Авто",
+    "waitingForStream": "Ожидание потока...",
+    "workflow": "Workflow",
+    "input": "Ввод",
+    "taskStates": {
+      "todo": "К выполнению",
+      "in_progress": "В работе",
+      "in_review": "На проверке",
+      "done": "Готово",
+      "failed": "Ошибка"
+    },
+    "isolationKind": {
+      "worktree": "Worktree",
+      "host": "Host",
+      "docker": "Docker"
+    },
+    "stop": "Остановить команду",
+    "stopping": "Остановка",
+    "cancelFailed": "Не удалось остановить workflow.",
+    "needRoles": "Для этого режима назначьте хотя бы одного активного агента на роли: {{roles}}.",
+    "quickPrompts": {
+      "label": "Быстрый промпт:",
+      "liveTrading": {
+        "label": "Live trading экран 8024",
+        "prompt": "Привет, создай небольшой проект и затем запусти его на порту 8024. Нужен дизайн в стиле TradingView с подключением к Binance FAPI, графиком TradingView и системой избранного/звезд слева. Раздели работу логично и управляй процессом автоматически."
+      }
+    },
+    "teamHistory": "История команды",
+    "changeSummary": "Сводка изменений",
+    "noChangeSummary": "Финальная сводка еще не готова. Читаемая Markdown-сводка появится здесь после завершения агентов.",
+    "prepareTeamFromReport": "Подготовить команду агентов из этого отчета",
+    "prepareTeamTitle": "Подготовить промпт команды агентов",
+    "prepareTeamDescription": "Результат обсуждения преобразован в новый prompt для Agent Team. Отредактируйте его и перенесите в режим Agent Team.",
+    "usePreparedPrompt": "Использовать prompt",
+    "reportToPromptPrefix": "Подготовь и запусти команду агентов по следующему отчету обсуждения/решения. Разбей потребности на задачи, предложи разумные назначения для доступных CLI-агентов и запускай только после подтверждения пользователя.",
+    "generatedSummaryTitle": "Автоматическая сводка запуска",
+    "summaryStatus": "Общий статус",
+    "summarySteps": "Завершенные шаги",
+    "summaryFailures": "Ошибочные шаги",
+    "summaryCanceled": "Отмененные шаги",
+    "summaryDiffs": "Вывод diff/изменений",
+    "summaryPreviews": "Вывод предпросмотра",
+    "summaryErrorPrefix": "Ошибка",
+    "assignedWork": "Назначенная работа",
+    "autoAssigned": "Автоматически / решает координатор",
+    "stages": {
+      "coordinator": "Координатор",
+      "handoff": "Передача",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "implementation": "Реализация",
+      "review": "Review",
+      "repair": "Исправление",
+      "proposal": "Предложение",
+      "critique": "Критика",
+      "response": "Ответ",
+      "decision": "Решение",
+      "report": "Отчет",
+      "final_report": "Финальный отчет"
+    },
+    "agentRole": "Этап",
+    "agentRoles": {
+      "auto": "Авто",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "review": "Тест / review",
+      "implementation": "Реализация",
+      "proposal": "Предложение",
+      "critique": "Критика",
+      "response": "Ответ",
+      "decision": "Решение / отчет",
+      "report": "Отчет",
+      "custom": "Свой"
+    },
+    "customRolePlaceholder": "Напр.: безопасность, Mobile UX, DB-архитектура",
+    "roleHints": {
+      "default": "Оставьте пустым, и координатор назначит работу агенту по цели.",
+      "agent_team": "Выберите этапы backend, frontend или review либо оставьте агентов на авто.",
+      "multi_model_review": "Активные агенты выполняют review; если выбрана роль отчета, этот агент собирает финальную сводку.",
+      "sequential_handoff": "Агенты работают в выбранном порядке; текст задания задает границы каждого шага.",
+      "adversarial_debate": "Выбор этапа в обсуждении решения необязателен; если оставить пустым, система назначит выбранных агентов по порядку на предложение, критику и ответ."
+    },
+    "soloAgent": "Запустить только с {{agent}}",
+    "soloAgentShort": "Соло",
+    "cliSettings": "Настройки CLI",
+    "workspaceTarget": "Целевая рабочая область",
+    "workspaceTargets": {
+      "selectedProject": "Выбранный проект",
+      "pixcodeApp": "Система Pixcode",
+      "custom": "Пользовательский путь"
+    },
+    "customWorkspacePlaceholder": "/path/to/project",
+    "workspaceTargetHint": "Агенты будут запущены в: {{path}}",
+    "autoDetect": "автоопределение",
+    "needWorkspacePath": "Введите пользовательский путь рабочей области."
   }
 }

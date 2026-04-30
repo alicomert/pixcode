@@ -106,6 +106,7 @@ export default tseslint.config(
     ignores: ["server/**/*.d.ts"], // skip generated declaration files in backend linting
     plugins: {
       boundaries, // enforce backend architecture boundaries (module-to-module contracts)
+      "@typescript-eslint": tseslint.plugin, // allow backend files to use scoped TS eslint-disable comments
       "import-x": importX, // keep import hygiene rules (duplicates, unresolved paths, etc.)
       "unused-imports": unusedImports, // remove dead imports/variables from backend files
     },
@@ -166,8 +167,14 @@ export default tseslint.config(
             "server/projects.js",
             "server/sessionManager.js",
             "server/database/*.{js,ts}",
+            "server/services/**/*.{js,ts}",
             "server/utils/runtime-paths.js",
           ], // provider history loading still resolves session data through these legacy runtime/database files
+          mode: "file",
+        },
+        {
+          type: "backend-shared-utils", // shared model constants live outside server/ but are runtime data
+          pattern: ["shared/modelConstants.{js,ts}"],
           mode: "file",
         },
         {

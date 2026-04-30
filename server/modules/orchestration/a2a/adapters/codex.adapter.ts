@@ -87,6 +87,7 @@ export class CodexA2AAdapter extends AbstractA2AAdapter {
           {
             cwd: ctx.cwd,
             permissionMode: ctx.permissionMode ?? 'default',
+            model: ctx.model,
           },
           fakeWriter,
         );

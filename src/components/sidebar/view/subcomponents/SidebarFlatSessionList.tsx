@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
-import { Inbox } from '@/lib/icons';
+
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
+import { authenticatedFetch } from '../../../../utils/api';
 import type { SessionWithProvider } from '../../types/types';
 import { animateStaggerIn } from '../../../../lib/animations';
 import { getSessionDate } from '../../utils/utils';
+import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+
 import SidebarProjectsState from './SidebarProjectsState';
 import SidebarSessionItem from './SidebarSessionItem';
+
+import { Inbox, Workflow } from '@/lib/icons';
 
 export type SidebarFlatSessionListProps = {
   projects: Project[];
@@ -26,6 +31,7 @@ export type SidebarFlatSessionListProps = {
   onToggleStarSession: (projectName: string, sessionId: string) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
+  onOpenOrchestration?: (project: Project, runId?: string) => void;
   onDeleteSession: (
     projectName: string,
     sessionId: string,
@@ -37,6 +43,19 @@ export type SidebarFlatSessionListProps = {
 
 type FlatSessionEntry = {
   session: SessionWithProvider;
+  project: Project;
+};
+
+type OrchestrationRun = {
+  id: string;
+  input?: string;
+  status: string;
+  startedAt: number;
+  nodeRuns: Array<{ adapterId?: string; status: string }>;
+};
+
+type FlatOrchestrationRun = {
+  run: OrchestrationRun;
   project: Project;
 };
 
@@ -71,6 +90,15 @@ const BUCKET_ORDER: Array<{ key: string; labelKey: string; fallback: string }> =
   { key: 'older', labelKey: 'time.buckets.older', fallback: 'Older' },
 ];
 
+const adapterProvider = (adapterId?: string): LLMProvider | null => {
+  if (adapterId === 'claude-code') return 'claude';
+  if (adapterId === 'codex') return 'codex';
+  if (adapterId === 'gemini') return 'gemini';
+  if (adapterId === 'qwen') return 'qwen';
+  if (adapterId === 'opencode') return 'opencode';
+  return null;
+};
+
 export default function SidebarFlatSessionList({
   projects,
   filteredProjects,
@@ -89,9 +117,40 @@ export default function SidebarFlatSessionList({
   onToggleStarSession,
   onProjectSelect,
   onSessionSelect,
+  onOpenOrchestration,
   onDeleteSession,
   t,
 }: SidebarFlatSessionListProps) {
+  const [orchestrationRuns, setOrchestrationRuns] = useState<FlatOrchestrationRun[]>([]);
+
+  useEffect(() => {
+    let canceled = false;
+    const loadRuns = async () => {
+      const results = await Promise.all(
+        filteredProjects.map(async (project) => {
+          const response = await authenticatedFetch(`/api/orchestration/workflows/runs?projectId=${encodeURIComponent(project.name)}`);
+          if (!response.ok) return [];
+          const data = await response.json() as { runs?: OrchestrationRun[] };
+          return (data.runs ?? []).slice(0, 3).map((run) => ({ run, project }));
+        }),
+      );
+      if (!canceled) {
+        setOrchestrationRuns(
+          results.flat().sort((a, b) => b.run.startedAt - a.run.startedAt).slice(0, 8),
+        );
+      }
+    };
+
+    void loadRuns();
+    const timer = window.setInterval(() => {
+      void loadRuns();
+    }, 10_000);
+    return () => {
+      canceled = true;
+      window.clearInterval(timer);
+    };
+  }, [filteredProjects]);
+
   // Flatten sessions from all filtered projects, then group by time bucket.
   // Starred items float to the top of their bucket.
   const buckets = useMemo<TimeBucket[]>(() => {
@@ -160,6 +219,44 @@ export default function SidebarFlatSessionList({
 
   return (
     <FlatSessionListBody buckets={buckets}>
+      {orchestrationRuns.length > 0 ? (
+        <div className="space-y-0.5" data-stagger-item>
+          <div className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            <Workflow className="h-3 w-3" />
+            {t('orchestration.section', { defaultValue: 'Orchestration' })}
+          </div>
+          {orchestrationRuns.map(({ run, project }) => {
+            const providers = [...new Set(run.nodeRuns.map((node) => adapterProvider(node.adapterId)).filter(Boolean))] as LLMProvider[];
+            return (
+              <button
+                key={`${project.name}-${run.id}`}
+                type="button"
+                onClick={() => onOpenOrchestration?.(project, run.id)}
+                className="w-full rounded-lg border border-transparent px-2 py-2 text-left transition-colors hover:border-border hover:bg-accent/60"
+              >
+                <div className="flex min-w-0 items-start gap-2">
+                  <Workflow className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-foreground">
+                      {run.input || t('orchestration.fallbackTitle', { defaultValue: 'Orchestration run' })}
+                    </div>
+                    <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <span className="truncate">{project.displayName || project.name}</span>
+                      <span>·</span>
+                      <span>{t(`common:orchestration.status.${run.status}`, { defaultValue: run.status })}</span>
+                      <span className="ml-auto flex shrink-0 gap-0.5">
+                        {providers.slice(0, 4).map((provider) => (
+                          <SessionProviderLogo key={provider} provider={provider} className="h-3.5 w-3.5" />
+                        ))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       {buckets.map((bucket) => (
         <div key={bucket.key} className="space-y-0.5" data-stagger-item>
           <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">

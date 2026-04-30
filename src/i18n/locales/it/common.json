@@ -22,7 +22,8 @@
     "shell": "Terminale",
     "files": "File",
     "git": "Controllo Versione",
-    "tasks": "Attività"
+    "tasks": "Attività",
+    "orchestration": "Orchestrazione"
   },
   "status": {
     "loading": "Caricamento...",
@@ -93,7 +94,18 @@
     "createProjectDesktop": "Crea un nuovo progetto cliccando l'icona cartella nella barra laterale",
     "newSession": "Nuova sessione",
     "untitledSession": "Sessione senza titolo",
-    "projectFiles": "File del progetto"
+    "projectFiles": "File del progetto",
+    "landing": {
+      "title": "Avvia uno spazio di lavoro Pixcode",
+      "description": "Scegli un progetto, avvia una nuova chat oppure lancia l’Orchestrazione con un solo obiettivo. L’Orchestrazione gestisce gli agenti CLI selezionati, mostra ogni passaggio e rende visibili gli errori.",
+      "startOrchestration": "Avvia Orchestrazione",
+      "startOrchestrationDescription": "Crea automaticamente un progetto e apre la schermata Orchestrazione con controllo agenti e cronologia.",
+      "startChat": "Avvia una nuova chat",
+      "startChatDescription": "Crea automaticamente una cartella e apre la chat normale con un agente.",
+      "taskSystem": "Sistema attività",
+      "taskSystemDescription": "Usa la scheda TaskMaster nel progetto per seguire attività, stati e lavoro pianificato.",
+      "sidebarHint": "Quando selezioni un progetto esistente dalla barra laterale, cronologia chat, file, stato git, attività e orchestrazione restano nella stessa schermata principale."
+    }
   },
   "fileTree": {
     "loading": "Caricamento file...",
@@ -282,5 +294,231 @@
       "updateAvailable": "Aggiornamento disponibile",
       "closeSidebar": "Chiudi barra laterale"
     }
+  },
+  "orchestration": {
+    "title": "Orchestrazione",
+    "subtitle": "Dai un obiettivo in {{project}}; scegli i worker CLI, duplica qualsiasi CLI se serve e assegna il lavoro direttamente o lascialo dividere al coordinatore.",
+    "refresh": "Aggiorna",
+    "goal": "Obiettivo",
+    "goalPlaceholder": "Esempio: correggi la schermata auth per il deployment su porta singola, cattura gli errori e verifica con lint e typecheck.",
+    "mode": "Modalità di esecuzione",
+    "systemPlan": "Piano di sistema",
+    "noMode": "Nessuna modalità selezionata",
+    "loadingPlan": "Caricamento piano agenti.",
+    "start": "Avvia team",
+    "starting": "Avvio in corso",
+    "needAgent": "Abilita almeno un worker CLI.",
+    "startFailed": "Impossibile avviare il workflow.",
+    "cliControl": "Team CLI",
+    "enabledCount": "{{count}} attivi",
+    "enabled": "Attivo",
+    "disabled": "Disattivo",
+    "history": "Cronologia",
+    "emptyHistory": "Nessuna esecuzione. Scrivi un obiettivo e avvia gli agenti.",
+    "steps": "{{done}}/{{total}} passaggi",
+    "notSelected": "Nessuna esecuzione selezionata",
+    "notSelectedDescription": "Seleziona un’esecuzione precedente o avvia un nuovo obiettivo. Qui appaiono messaggi degli agenti, errori, riepiloghi modifiche e anteprime.",
+    "loadFailed": "Impossibile caricare i dettagli dell’esecuzione.",
+    "loadingRun": "Caricamento esecuzione...",
+    "agentSteps": "Passaggi agenti",
+    "noStepOutput": "Nessun output del passaggio.",
+    "agentMessages": "Messaggi agenti",
+    "noAgentMessages": "Questo agente non ha ancora prodotto messaggi. Se l’esecuzione è fallita, l’errore CLI reale appare sopra.",
+    "outputs": "Output",
+    "noOutputs": "Nessun riepilogo modifiche, anteprima o output comando.",
+    "open": "Apri",
+    "artifact": {
+      "fileDiff": "Riepilogo modifiche",
+      "previewUrl": "Anteprima",
+      "commandOutput": "Output comando"
+    },
+    "role": {
+      "user": "Utente",
+      "agent": "Agente"
+    },
+    "status": {
+      "queued": "In coda",
+      "running": "In esecuzione",
+      "completed": "Completato",
+      "failed": "Errore",
+      "canceled": "Annullato",
+      "skipped": "Saltato"
+    },
+    "nodes": {
+      "codex_review": "Revisione Codex",
+      "gemini_review": "Revisione Gemini",
+      "claude_review": "Revisione Claude",
+      "claude_code_review": "Revisione Claude",
+      "cursor_review": "Revisione Cursor",
+      "aggregate": "Aggregazione",
+      "architect": "Pianificazione",
+      "implement": "Implementazione",
+      "review": "Revisione",
+      "proposal": "Proposta",
+      "critique": "Critica",
+      "response": "Risposta",
+      "judge": "Decisione",
+      "coordinator": "Coordinatore",
+      "final_report": "Report finale"
+    },
+    "workflows": {
+      "multi_model_review": {
+        "name": "Revisione multi-modello",
+        "description": "Gli agenti CLI attivi revisionano separatamente lo stesso obiettivo, poi un agente attivo aggrega il risultato."
+      },
+      "sequential_handoff": {
+        "name": "Passaggio sequenziale",
+        "description": "Gli agenti pianificano, implementano e revisionano in ordine. I passaggi CLI disattivati vengono saltati."
+      },
+      "adversarial_debate": {
+        "name": "Dibattito decisionale",
+        "description": "Gli agenti propongono, criticano, rispondono e producono una raccomandazione finale."
+      },
+      "agent_team": {
+        "name": "Team agenti",
+        "description": "Un coordinatore legge obiettivo e istanze CLI attive, assegna il lavoro e raccoglie il risultato."
+      }
+    },
+    "adapters": {
+      "claude-code": {
+        "label": "Claude Code",
+        "role": "Worker CLI"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "role": "Worker CLI"
+      },
+      "codex": {
+        "label": "Codex",
+        "role": "Worker CLI"
+      },
+      "gemini": {
+        "label": "Gemini",
+        "role": "Worker CLI"
+      },
+      "qwen": {
+        "label": "Qwen Code",
+        "role": "Worker CLI"
+      },
+      "opencode": {
+        "label": "OpenCode",
+        "role": "Worker CLI"
+      }
+    },
+    "activeCount": "{{active}}/{{total}} attivi",
+    "teamHint": "Ogni riga è un worker CLI. Puoi creare più worker Claude, Codex, Cursor, Gemini, Qwen o OpenCode e dare a ciascuno un incarico diverso.",
+    "parallelLimit": "Limite parallelo",
+    "addAgent": "Aggiungi {{agent}}",
+    "duplicateAgent": "Duplica {{agent}}",
+    "removeAgent": "Rimuovi {{agent}}",
+    "assignment": "Incarico",
+    "assignmentPlaceholder": "Opzionale: indica esattamente cosa deve gestire questo worker. Lascia vuoto per far assegnare al coordinatore.",
+    "agentInstance": "{{name}} #{{number}}",
+    "taskTitle": "Attività",
+    "taskTitlePlaceholder": "Implementa funzionalità",
+    "taskDescription": "Descrizione",
+    "taskDescriptionPlaceholder": "Ambito, vincoli, output atteso",
+    "addTask": "Aggiungi",
+    "runTask": "Esegui",
+    "cancelTask": "Annulla",
+    "dispatchTask": "Assegna attività",
+    "adapter": "Adapter",
+    "isolation": "Isolamento",
+    "dispatch": "Assegna",
+    "auto": "Automatico",
+    "waitingForStream": "In attesa dello stream...",
+    "workflow": "Workflow",
+    "input": "Input",
+    "taskStates": {
+      "todo": "Da fare",
+      "in_progress": "In corso",
+      "in_review": "In revisione",
+      "done": "Completato",
+      "failed": "Fallito"
+    },
+    "isolationKind": {
+      "worktree": "Worktree",
+      "host": "Host",
+      "docker": "Docker"
+    },
+    "stop": "Ferma team",
+    "stopping": "Arresto...",
+    "cancelFailed": "Impossibile fermare il workflow.",
+    "needRoles": "Assegna almeno un agente attivo a questi ruoli per questa modalità: {{roles}}.",
+    "quickPrompts": {
+      "label": "Prompt rapido:",
+      "liveTrading": {
+        "label": "Schermata trading live 8024",
+        "prompt": "Ciao, crea un piccolo progetto e poi avvialo sulla porta 8024. Voglio un design in stile TradingView collegato a Binance FAPI, con grafico TradingView e sistema di preferiti/stelle a sinistra. Dividi il lavoro in modo logico e gestisci automaticamente il processo."
+      }
+    },
+    "teamHistory": "Cronologia team",
+    "changeSummary": "Riepilogo modifiche",
+    "noChangeSummary": "Il riepilogo finale non è ancora pronto. Un riepilogo Markdown leggibile apparirà qui quando gli agenti avranno finito.",
+    "prepareTeamFromReport": "Prepara team agenti da questo report",
+    "prepareTeamTitle": "Prepara prompt team agenti",
+    "prepareTeamDescription": "L’output della discussione è stato trasformato in un nuovo prompt Agent Team. Modificalo e poi spostalo in modalità Agent Team.",
+    "usePreparedPrompt": "Usa prompt",
+    "reportToPromptPrefix": "Prepara ed esegui un team di agenti dal seguente report di discussione/decisione. Dividi le necessità in attività, proponi assegnazioni sensate per gli agenti CLI disponibili e avvia solo dopo conferma dell’utente.",
+    "generatedSummaryTitle": "Riepilogo automatico esecuzione",
+    "summaryStatus": "Stato generale",
+    "summarySteps": "Passaggi completati",
+    "summaryFailures": "Passaggi falliti",
+    "summaryCanceled": "Passaggi annullati",
+    "summaryDiffs": "Output diff/modifiche",
+    "summaryPreviews": "Output anteprima",
+    "summaryErrorPrefix": "Errore",
+    "assignedWork": "Lavoro assegnato",
+    "autoAssigned": "Automatico / decide il coordinatore",
+    "stages": {
+      "coordinator": "Coordinatore",
+      "handoff": "Passaggio",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "implementation": "Implementazione",
+      "review": "Revisione",
+      "repair": "Correzione",
+      "proposal": "Proposta",
+      "critique": "Critica",
+      "response": "Risposta",
+      "decision": "Decisione",
+      "report": "Report",
+      "final_report": "Report finale"
+    },
+    "agentRole": "Fase",
+    "agentRoles": {
+      "auto": "Automatico",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "review": "Test / revisione",
+      "implementation": "Implementazione",
+      "proposal": "Proposta",
+      "critique": "Critica",
+      "response": "Risposta",
+      "decision": "Decisione / report",
+      "report": "Report",
+      "custom": "Personalizzato"
+    },
+    "customRolePlaceholder": "Es. Sicurezza, UX mobile, architettura DB",
+    "roleHints": {
+      "default": "Lascia vuoto e il coordinatore assegnerà questo agente in base all’obiettivo.",
+      "agent_team": "Scegli fasi backend, frontend o revisione, oppure lascia gli agenti in automatico.",
+      "multi_model_review": "Gli agenti attivi revisionano; se è selezionato un ruolo report, quell’agente aggrega il riepilogo finale.",
+      "sequential_handoff": "Gli agenti lavorano nell’ordine scelto; il testo attività definisce ogni passaggio.",
+      "adversarial_debate": "La selezione della fase è opzionale nella discussione decisionale; se vuota, il sistema assegna gli agenti selezionati a Proposta, Critica e Risposta in ordine."
+    },
+    "soloAgent": "Esegui solo con {{agent}}",
+    "soloAgentShort": "Solo",
+    "cliSettings": "Impostazioni CLI",
+    "workspaceTarget": "Workspace di destinazione",
+    "workspaceTargets": {
+      "selectedProject": "Progetto selezionato",
+      "pixcodeApp": "Sistema Pixcode",
+      "custom": "Percorso personalizzato"
+    },
+    "customWorkspacePlaceholder": "/percorso/del/progetto",
+    "workspaceTargetHint": "Gli agenti verranno eseguiti in: {{path}}",
+    "autoDetect": "rilevamento automatico",
+    "needWorkspacePath": "Inserisci un percorso workspace personalizzato."
   }
 }

@@ -13,7 +13,11 @@
  * - getActiveCodexSessions() - List all active sessions
  */
 
+import { accessSync, constants } from 'node:fs';
+import path from 'node:path';
+
 import { Codex } from '@openai/codex-sdk';
+
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
@@ -21,6 +25,34 @@ import { createNormalizedMessage } from './shared/utils.js';
 
 // Track active sessions
 const activeCodexSessions = new Map();
+
+function isExecutable(filePath) {
+  try {
+    accessSync(filePath, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveCodexPathOverride() {
+  const configuredPath = process.env.CODEX_CLI_PATH || process.env.CODEX_PATH;
+  if (configuredPath && isExecutable(configuredPath)) {
+    return configuredPath;
+  }
+
+  const pathCandidates = (process.env.PATH || '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map((entry) => path.join(entry, 'codex'));
+
+  return [
+    ...pathCandidates,
+    '/root/.npm-global/bin/codex',
+    '/usr/local/bin/codex',
+    '/usr/bin/codex',
+  ].find(isExecutable);
+}
 
 /**
  * Transform Codex SDK event to WebSocket message format
@@ -213,16 +245,20 @@ export async function queryCodex(command, options = {}, ws) {
 
   try {
     // Initialize Codex SDK
-    codex = new Codex();
+    const codexPathOverride = resolveCodexPathOverride();
+    codex = new Codex(codexPathOverride ? { codexPathOverride } : undefined);
 
-    // Thread options with sandbox and approval settings
+    // Thread options with sandbox and approval settings. Do not pass a blank
+    // model: the SDK may resolve it to a hard default instead of CLI settings.
     const threadOptions = {
       workingDirectory,
       skipGitRepoCheck: true,
       sandboxMode,
-      approvalPolicy,
-      model
+      approvalPolicy
     };
+    if (typeof model === 'string' && model.trim()) {
+      threadOptions.model = model.trim();
+    }
 
     // Start or resume thread
     if (sessionId) {

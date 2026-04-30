@@ -150,5 +150,9 @@
   "historyView": {
     "flat": "Recenti",
     "grouped": "Per progetto"
+  },
+  "orchestration": {
+    "section": "Orchestrazione",
+    "fallbackTitle": "Esecuzione orchestrazione"
   }
 }

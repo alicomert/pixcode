@@ -36,6 +36,10 @@
     "showMore": "Show more sessions",
     "startToSee": "Start a new session to see it here."
   },
+  "orchestration": {
+    "section": "Orchestration",
+    "fallbackTitle": "Orchestration run"
+  },
   "historyView": {
     "flat": "Recent",
     "grouped": "By project"

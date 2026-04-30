@@ -22,7 +22,8 @@
     "shell": "Shell",
     "files": "Files",
     "git": "Source Control",
-    "tasks": "Tasks"
+    "tasks": "Tasks",
+    "orchestration": "Orchestration"
   },
   "status": {
     "loading": "Loading...",
@@ -93,7 +94,244 @@
     "createProjectDesktop": "Create a new project by clicking the folder icon in the sidebar",
     "newSession": "New Session",
     "untitledSession": "Untitled Session",
-    "projectFiles": "Project Files"
+    "projectFiles": "Project Files",
+    "landing": {
+      "title": "Start a Pixcode workspace",
+      "description": "Choose a project, start a new chat, or launch Orchestration with one goal. Orchestration manages the CLI agents you select, shows every step, and surfaces errors directly.",
+      "startOrchestration": "Start Orchestration",
+      "startOrchestrationDescription": "Creates an automatic project and opens the Orchestration screen with agent control and run history.",
+      "startChat": "Start a new chat",
+      "startChatDescription": "Creates a folder automatically and opens the normal chat screen with one agent.",
+      "taskSystem": "Task system",
+      "taskSystemDescription": "Use the TaskMaster tab inside a project to track work items, status, and planned work.",
+      "sidebarHint": "When you select an existing project from the sidebar, chat history, files, git status, tasks, and orchestration stay in the same main screen."
+    }
+  },
+  "orchestration": {
+    "title": "Orchestration",
+    "subtitle": "Give one goal inside {{project}}; choose the CLI workers, duplicate any CLI when needed, and assign work directly or let the coordinator split it.",
+    "refresh": "Refresh",
+    "goal": "Goal",
+    "goalPlaceholder": "Example: Fix the auth screen for single-port deployment, capture errors, and verify with lint and typecheck.",
+    "mode": "Run mode",
+    "systemPlan": "System plan",
+    "noMode": "No mode selected",
+    "loadingPlan": "Loading agent plan.",
+    "start": "Start team",
+    "starting": "Starting",
+    "stop": "Stop team",
+    "stopping": "Stopping",
+    "cancelFailed": "Workflow could not be stopped.",
+    "needAgent": "Enable at least one CLI worker.",
+    "needRoles": "Assign at least one enabled agent to these role(s) for this mode: {{roles}}.",
+    "startFailed": "Workflow could not start.",
+    "quickPrompts": {
+      "label": "Quick prompt:",
+      "liveTrading": {
+        "label": "8024 live trading screen",
+        "prompt": "Hi, please create a small project and then run it on port 8024. I want a Binance FAPI-connected TradingView-style design with a TradingView chart and a star/favorites system on the left. Split the work logically and manage the process automatically."
+      }
+    },
+    "cliControl": "CLI team",
+    "enabledCount": "{{count}} enabled",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "history": "History",
+    "emptyHistory": "No runs yet. Write a goal and start the agents.",
+    "steps": "{{done}}/{{total}} steps",
+    "notSelected": "No run selected",
+    "notSelectedDescription": "Select a previous run or start a new goal. Agent messages, errors, change summaries, and preview outputs appear here.",
+    "loadFailed": "Run details could not be loaded.",
+    "loadingRun": "Loading run...",
+    "teamHistory": "Team history",
+    "agentSteps": "Agent steps",
+    "changeSummary": "Change summary",
+    "noChangeSummary": "The final summary is not ready yet. A readable Markdown summary appears here when the agents finish.",
+    "prepareTeamFromReport": "Prepare agent team from this report",
+    "prepareTeamTitle": "Prepare agent team prompt",
+    "prepareTeamDescription": "The debate output was turned into a new Agent Team prompt. Edit it, then move it into Agent Team mode.",
+    "usePreparedPrompt": "Use prompt",
+    "reportToPromptPrefix": "Prepare and execute an agent team from the following debate/decision report. Split the needs into tasks, propose sensible assignments for the available CLI agents, and start only after user confirmation.",
+    "generatedSummaryTitle": "Automatic run summary",
+    "summaryStatus": "Overall status",
+    "summarySteps": "Completed steps",
+    "summaryFailures": "Failed steps",
+    "summaryCanceled": "Canceled steps",
+    "summaryDiffs": "Diff/change outputs",
+    "summaryPreviews": "Preview outputs",
+    "summaryErrorPrefix": "Error",
+    "assignedWork": "Assigned work",
+    "autoAssigned": "Automatic / coordinator decides",
+    "noStepOutput": "No step output.",
+    "agentMessages": "Agent messages",
+    "noAgentMessages": "This agent has not produced a message yet. If the run failed, the real CLI error appears above.",
+    "outputs": "Outputs",
+    "noOutputs": "No change summary, preview, or command output yet.",
+    "open": "Open",
+    "artifact": {
+      "fileDiff": "Change summary",
+      "previewUrl": "Preview",
+      "commandOutput": "Command output"
+    },
+    "role": {
+      "user": "User",
+      "agent": "Agent"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "canceled": "Canceled",
+      "skipped": "Skipped"
+    },
+    "nodes": {
+      "codex_review": "Codex review",
+      "gemini_review": "Gemini review",
+      "claude_review": "Claude review",
+      "claude_code_review": "Claude review",
+      "cursor_review": "Cursor review",
+      "aggregate": "Aggregate",
+      "architect": "Planning",
+      "implement": "Implementation",
+      "review": "Review",
+      "proposal": "Proposal",
+      "critique": "Critique",
+      "response": "Response",
+      "judge": "Decision",
+      "coordinator": "Coordinator",
+      "final_report": "Final report"
+    },
+    "stages": {
+      "coordinator": "Coordinator",
+      "handoff": "Handoff",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "implementation": "Implementation",
+      "review": "Review",
+      "repair": "Repair",
+      "proposal": "Proposal",
+      "critique": "Critique",
+      "response": "Response",
+      "decision": "Decision",
+      "report": "Report",
+      "final_report": "Final report"
+    },
+    "workflows": {
+      "multi_model_review": {
+        "name": "Multi-model review",
+        "description": "Enabled CLI agents review the same goal separately, then one enabled agent aggregates the result."
+      },
+      "sequential_handoff": {
+        "name": "Sequential handoff",
+        "description": "Agents plan, implement, and review in order. Disabled CLI steps are skipped."
+      },
+      "adversarial_debate": {
+        "name": "Decision debate",
+        "description": "Agents propose, critique, respond, and produce a final recommendation."
+      },
+      "agent_team": {
+        "name": "Agent team",
+        "description": "A coordinator reads the goal and active CLI instances, assigns work, then collects the result."
+      }
+    },
+    "adapters": {
+      "claude-code": {
+        "label": "Claude Code",
+        "role": "CLI worker"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "role": "CLI worker"
+      },
+      "codex": {
+        "label": "Codex",
+        "role": "CLI worker"
+      },
+      "gemini": {
+        "label": "Gemini",
+        "role": "CLI worker"
+      },
+      "qwen": {
+        "label": "Qwen Code",
+        "role": "CLI worker"
+      },
+      "opencode": {
+        "label": "OpenCode",
+        "role": "CLI worker"
+      }
+    },
+    "activeCount": "{{active}}/{{total}} active",
+    "teamHint": "Each row is one CLI worker. You can create multiple Claude, Codex, Cursor, Gemini, Qwen, or OpenCode workers and give each a different assignment.",
+    "parallelLimit": "Parallel limit",
+    "agentRole": "Stage",
+    "agentRoles": {
+      "auto": "Auto",
+      "backend": "Backend",
+      "frontend": "Frontend",
+      "review": "Test / review",
+      "implementation": "Implementation",
+      "proposal": "Proposal",
+      "critique": "Critique",
+      "response": "Response",
+      "decision": "Decision / report",
+      "report": "Report",
+      "custom": "Custom"
+    },
+    "customRolePlaceholder": "Example: Security, Mobile UX, DB architecture",
+    "roleHints": {
+      "default": "Leave empty and the coordinator assigns this agent from the goal.",
+      "agent_team": "Pick backend, frontend, or review stages, or leave agents on auto.",
+      "multi_model_review": "Enabled agents review; if a report role is selected, that agent aggregates the final summary.",
+      "sequential_handoff": "Agents run in your selected order; assignment text defines each step.",
+      "adversarial_debate": "Stage selection is optional in decision debate; if left empty, the system assigns selected agents to Proposal, Critique, and Response in order."
+    },
+    "addAgent": "Add {{agent}}",
+    "soloAgent": "Run only with {{agent}}",
+    "soloAgentShort": "Solo",
+    "duplicateAgent": "Duplicate {{agent}}",
+    "removeAgent": "Remove {{agent}}",
+    "assignment": "Assignment",
+    "assignmentPlaceholder": "Optional: tell this worker exactly what to handle. Leave empty for coordinator assignment.",
+    "agentInstance": "{{name}} #{{number}}",
+    "taskTitle": "Task",
+    "taskTitlePlaceholder": "Implement feature",
+    "taskDescription": "Description",
+    "taskDescriptionPlaceholder": "Scope, constraints, expected output",
+    "addTask": "Add",
+    "runTask": "Run",
+    "cancelTask": "Cancel",
+    "dispatchTask": "Dispatch task",
+    "adapter": "Adapter",
+    "isolation": "Isolation",
+    "dispatch": "Dispatch",
+    "auto": "Auto",
+    "cliSettings": "CLI settings",
+    "waitingForStream": "Waiting for stream...",
+    "workflow": "Workflow",
+    "input": "Input",
+    "taskStates": {
+      "todo": "To Do",
+      "in_progress": "In Progress",
+      "in_review": "In Review",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "isolationKind": {
+      "worktree": "Worktree",
+      "host": "Host",
+      "docker": "Docker"
+    },
+    "workspaceTarget": "Target workspace",
+    "workspaceTargets": {
+      "selectedProject": "Selected project",
+      "pixcodeApp": "Pixcode system",
+      "custom": "Custom path"
+    },
+    "customWorkspacePlaceholder": "/path/to/project",
+    "workspaceTargetHint": "Agents will run in: {{path}}",
+    "autoDetect": "auto-detect",
+    "needWorkspacePath": "Enter a custom workspace path."
   },
   "fileTree": {
     "loading": "Loading files...",

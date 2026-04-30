@@ -40,6 +40,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json",
     "lint": "eslint src/ server/",
     "lint:fix": "eslint src/ server/ --fix",
+    "smoke:orchestration-api": "node scripts/smoke/orchestration-api.mjs",
+    "smoke:orchestration-live": "node scripts/smoke/orchestration-live-run.mjs",
     "start": "npm run build && npm run server",
     "release": "./release.sh",
     "prepublishOnly": "npm run build",

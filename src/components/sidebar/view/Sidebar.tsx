@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences, type HistoryViewMode } from '../../../hooks/useUiPreferences';
@@ -8,6 +9,7 @@ import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
 import type { MCPServerStatus, SidebarProps } from '../types/types';
+
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
@@ -26,6 +28,7 @@ function Sidebar({
   onProjectSelect,
   onSessionSelect,
   onNewSession,
+  onOpenOrchestration,
   onQuickStartSession,
   onSessionDelete,
   onProjectDelete,
@@ -192,6 +195,7 @@ function Sidebar({
       void loadMoreSessions(project);
     },
     onNewSession,
+    onOpenOrchestration,
     onEditingSessionNameChange: setEditingSessionName,
     onStartEditingSession: startEditingSession,
     onCancelEditingSession: cancelEditingSession,
@@ -217,6 +221,7 @@ function Sidebar({
     onToggleStarSession: toggleStarSession,
     onProjectSelect: handleProjectSelect,
     onSessionSelect: handleSessionClick,
+    onOpenOrchestration,
     onDeleteSession: showDeleteSessionConfirmation,
     t,
   };

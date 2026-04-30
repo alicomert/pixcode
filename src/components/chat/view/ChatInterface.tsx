@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import PermissionContext from '../../../contexts/PermissionContext';
-import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { ChatInterfaceProps, Provider  } from '../types/types';
 import type { LLMProvider } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
@@ -318,6 +317,12 @@ function ChatInterface({
     handlePermissionDecision,
   }), [pendingPermissionRequests, handlePermissionDecision]);
 
+  // Directory-deleted detection — banner + composer lock. Calling the hook
+  // before early returns keeps hook order stable while still no-oping when
+  // there is no selected project.
+  const directoryStatus = useProjectDirectoryStatus(selectedProject?.name);
+  const isProjectMissing = directoryStatus.isDeleted;
+
   if (!selectedProject) {
     const selectedProviderLabel =
       provider === 'cursor'
@@ -343,13 +348,6 @@ function ChatInterface({
       </div>
     );
   }
-
-  // Directory-deleted detection — banner + composer lock. Using the hook
-  // here (rather than inside the banner) lets us thread the "disabled"
-  // flag into ChatComposer, which keeps the send button greyed out and
-  // stops a trailing typed prompt from ever leaving the page.
-  const directoryStatus = useProjectDirectoryStatus(selectedProject?.name);
-  const isProjectMissing = directoryStatus.isDeleted;
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
@@ -482,8 +480,6 @@ function ChatInterface({
           sendByCtrlEnter={sendByCtrlEnter}
         />
       </div>
-
-      <QuickSettingsPanel />
     </PermissionContext.Provider>
   );
 }

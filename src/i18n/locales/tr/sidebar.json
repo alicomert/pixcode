@@ -36,6 +36,10 @@
     "showMore": "Daha fazla oturum göster",
     "startToSee": "Burada görmek için yeni bir oturum başlat."
   },
+  "orchestration": {
+    "section": "Orkestrasyon",
+    "fallbackTitle": "Orkestrasyon çalışması"
+  },
   "tooltips": {
     "viewEnvironments": "Ortamları Görüntüle",
     "hideSidebar": "Kenar çubuğunu gizle",

@@ -12,13 +12,19 @@ import type {
   TaskError,
   TaskState,
 } from '@/modules/orchestration/a2a/types.js';
+import type { WorkspaceHandle } from '@/modules/orchestration/workspace/types.js';
 
 export interface AdapterContext {
-  /** Where the adapter executes — for now this is the project cwd; a future
-   *  plan introduces WorkspaceHandle (worktree / docker). */
+  /** Isolated execution workspace for the task. */
+  workspace: WorkspaceHandle;
+  /** Compatibility alias while legacy adapters still accept cwd directly. */
   cwd: string;
   /** pixcode permission mode passed through to the underlying CLI. */
-  permissionMode?: 'acceptEdits' | 'plan' | 'bypassPermissions' | 'default';
+  permissionMode?: string;
+  /** Provider model selected by the user in Pixcode. */
+  model?: string;
+  /** Provider-specific tool / permission settings from Pixcode Settings. */
+  toolsSettings?: Record<string, unknown>;
   /** Optional parent task id when this adapter is invoked inside a workflow. */
   parentTaskId?: string;
 }

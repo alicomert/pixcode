@@ -185,7 +185,7 @@ Examples:
   $ pixcode --port 8080            # Start on port 8080
   $ pixcode --no-daemon            # Force foreground mode
   $ sudo pixcode daemon install --mode system --port 3001
-  $ pixcode daemon install --mode user --port 3001 --frontend-port 5173
+  $ pixcode daemon install --mode user --port 3001 --single-port
   $ pixcode daemon doctor --mode system
   $ pixcode update --restart-daemon
   $ pixcode sandbox ~/my-project   # Run in a Docker sandbox
@@ -696,9 +696,8 @@ function printSystemDaemonActiveNotice(port) {
     console.log(`${c.info('[INFO]')} Logs: ${c.bright(logsCommand)}`);
 }
 
-function printUserDaemonActiveNotice(port, frontendPort) {
+function printUserDaemonActiveNotice(port) {
     const effectivePort = Number(port) || 3001;
-    const effectiveFrontendPort = Number(frontendPort) || 5173;
     const statusCommand = buildDaemonCliCommand(
         { subcommand: 'status', mode: 'user' },
         DAEMON_COMMAND_CONTEXT
@@ -712,8 +711,7 @@ function printUserDaemonActiveNotice(port, frontendPort) {
         DAEMON_COMMAND_CONTEXT
     );
     console.log(`${c.ok('[OK]')} User daemon is active for this account.`);
-    console.log(`${c.info('[INFO]')} Backend: ${c.bright(`http://localhost:${effectivePort}`)}`);
-    console.log(`${c.info('[INFO]')} Frontend: ${c.bright(`http://localhost:${effectiveFrontendPort}`)}`);
+    console.log(`${c.info('[INFO]')} UI: ${c.bright(`http://localhost:${effectivePort}`)}`);
     console.log(`${c.info('[INFO]')} Status: ${c.bright(statusCommand)}`);
     console.log(`${c.info('[INFO]')} Stop: ${c.bright(stopCommand)}`);
     console.log(`${c.info('[INFO]')} Logs: ${c.bright(logsCommand)}`);
@@ -725,7 +723,7 @@ function isSystemPermissionError(error) {
     return /(access denied|permission denied|must be root|interactive authentication required|not permitted|failed to connect to bus|operation not permitted|authentication is required|polkit)/i.test(message);
 }
 
-function buildAutoInstallArgs(mode, options, frontendPort) {
+function buildAutoInstallArgs(mode, options) {
     const args = ['install', `--mode=${mode}`];
     if (options.serverPort) {
         args.push('--port', String(options.serverPort));
@@ -733,9 +731,7 @@ function buildAutoInstallArgs(mode, options, frontendPort) {
     if (options.databasePath) {
         args.push('--database-path', String(options.databasePath));
     }
-    if (frontendPort) {
-        args.push('--frontend-port', String(frontendPort));
-    }
+    args.push('--single-port');
     return args;
 }
 
@@ -748,9 +744,8 @@ async function maybeAutoDaemonStart(options = {}) {
 
     process.env.PIXCODE_DAEMON_ATTEMPTED = '1';
     const daemonPort = Number(options.serverPort || process.env.SERVER_PORT || process.env.PORT || '3001');
-    const frontendPort = Number(process.env.VITE_PORT || '5173');
-    const systemArgs = buildAutoInstallArgs('system', options, frontendPort);
-    const userArgs = buildAutoInstallArgs('user', options, frontendPort);
+    const systemArgs = buildAutoInstallArgs('system', options);
+    const userArgs = buildAutoInstallArgs('user', options);
 
     try {
         console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for Pixcode...`);
@@ -773,7 +768,7 @@ async function maybeAutoDaemonStart(options = {}) {
                 {
                     subcommand: 'install',
                     mode: 'system',
-                    extraArgs: ['--port', String(daemonPort), '--frontend-port', String(frontendPort)],
+                    extraArgs: ['--port', String(daemonPort), '--single-port'],
                 },
                 DAEMON_COMMAND_CONTEXT
             );
@@ -793,20 +788,20 @@ async function maybeAutoDaemonStart(options = {}) {
                 defaultPort: process.env.SERVER_PORT || process.env.PORT || '3001',
                 color: c,
             });
-            printUserDaemonActiveNotice(daemonPort, frontendPort);
+            printUserDaemonActiveNotice(daemonPort);
             return true;
         } catch (userError) {
             const userHealthySoon = await waitForPortOpen(daemonPort);
             if (userHealthySoon) {
                 console.log(`${c.warn('[WARN]')} User daemon health check was delayed, but port ${daemonPort} is now reachable.`);
-                printUserDaemonActiveNotice(daemonPort, frontendPort);
+                printUserDaemonActiveNotice(daemonPort);
                 return true;
             }
             const installSystemCommand = buildDaemonCliCommand(
                 {
                     subcommand: 'install',
                     mode: 'system',
-                    extraArgs: ['--port', String(daemonPort), '--frontend-port', String(frontendPort)],
+                    extraArgs: ['--port', String(daemonPort), '--single-port'],
                 },
                 DAEMON_COMMAND_CONTEXT
             );
@@ -814,7 +809,7 @@ async function maybeAutoDaemonStart(options = {}) {
                 {
                     subcommand: 'install',
                     mode: 'user',
-                    extraArgs: ['--port', String(daemonPort), '--frontend-port', String(frontendPort)],
+                    extraArgs: ['--port', String(daemonPort), '--single-port'],
                 },
                 DAEMON_COMMAND_CONTEXT
             );

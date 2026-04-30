@@ -6,7 +6,9 @@ import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import GitPanel from '../../git-panel/view/GitPanel';
+import OrchestrationPage from '../../orchestration/OrchestrationPage';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
+import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
@@ -52,6 +54,7 @@ function MainContent({
   onShowSettings,
   externalMessageUpdate,
   onQuickStartSession,
+  onQuickStartOrchestration,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
   const { autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter } = preferences;
@@ -107,6 +110,7 @@ function MainContent({
         isMobile={isMobile}
         onMenuClick={onMenuClick}
         onQuickStartSession={onQuickStartSession}
+        onQuickStartOrchestration={onQuickStartOrchestration}
       />
     );
   }
@@ -136,6 +140,7 @@ function MainContent({
             'flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden',
             editorExpanded && 'hidden',
             !editingFile && 'mx-auto w-full max-w-[1100px] px-4 md:px-8',
+            !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
           )}
         >
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
@@ -190,6 +195,12 @@ function MainContent({
             </div>
           )}
 
+          {activeTab === 'orchestration' && (
+            <div className="h-full overflow-hidden">
+              <OrchestrationPage selectedProject={selectedProject} />
+            </div>
+          )}
+
           {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
 
           <div className={`h-full overflow-hidden ${activeTab === 'preview' ? 'block' : 'hidden'}`} />
@@ -219,6 +230,7 @@ function MainContent({
           fillSpace={activeTab === 'files'}
         />
       </div>
+      <QuickSettingsPanel />
     </div>
   );
 }

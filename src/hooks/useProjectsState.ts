@@ -108,13 +108,17 @@ const isUpdateAdditive = (
   );
 };
 
-const VALID_TABS: Set<string> = new Set(['chat', 'files', 'shell', 'git', 'tasks', 'preview']);
+const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'files', 'shell', 'git', 'tasks', 'preview']);
 
 const isValidTab = (tab: string): tab is AppTab => {
   return VALID_TABS.has(tab) || tab.startsWith('plugin:');
 };
 
 const readPersistedTab = (): AppTab => {
+  if (typeof window !== 'undefined' && window.location.pathname.endsWith('/orchestration')) {
+    return 'orchestration';
+  }
+
   try {
     const stored = localStorage.getItem('activeTab');
     if (stored && isValidTab(stored)) {
@@ -450,7 +454,7 @@ export function useProjectsState({
     (session: ProjectSession) => {
       setSelectedSession(session);
 
-      if (activeTab === 'tasks' || activeTab === 'preview') {
+      if (activeTab === 'tasks' || activeTab === 'preview' || activeTab === 'orchestration') {
         setActiveTab('chat');
       }
 
@@ -497,7 +501,7 @@ export function useProjectsState({
    * prompt — we want the friction of starting a new conversation to
    * match what users expect from ChatGPT/Claude.ai.
    */
-  const handleQuickStartSession = useCallback(async () => {
+  const quickStartIntoTab = useCallback(async (targetTab: AppTab) => {
     try {
       const response = await api.quickStartProject();
       const body = await response.json().catch(() => ({}));
@@ -511,13 +515,37 @@ export function useProjectsState({
       ));
       setSelectedProject(project);
       setSelectedSession(null);
-      setActiveTab('chat');
+      setActiveTab(targetTab);
       navigate('/');
       if (isMobile) setSidebarOpen(false);
     } catch (err) {
       console.error('[quick-start] error:', err);
     }
   }, [isMobile, navigate]);
+
+  const handleQuickStartSession = useCallback(async () => {
+    await quickStartIntoTab('chat');
+  }, [quickStartIntoTab]);
+
+  const handleQuickStartOrchestration = useCallback(async () => {
+    await quickStartIntoTab('orchestration');
+  }, [quickStartIntoTab]);
+
+  const handleOpenOrchestration = useCallback(
+    (project: Project, runId?: string) => {
+      setSelectedProject(project);
+      setSelectedSession(null);
+      setActiveTab('orchestration');
+      if (runId) {
+        localStorage.setItem('pixcode.orchestration.selectedRunId', runId);
+      }
+      navigate('/');
+      if (isMobile) {
+        setSidebarOpen(false);
+      }
+    },
+    [isMobile, navigate],
+  );
 
   const handleSessionDelete = useCallback(
     (sessionIdToDelete: string) => {
@@ -608,6 +636,7 @@ export function useProjectsState({
       onSessionSelect: handleSessionSelect,
       onNewSession: handleNewSession,
       onQuickStartSession: handleQuickStartSession,
+      onOpenOrchestration: handleOpenOrchestration,
       onSessionDelete: handleSessionDelete,
       onProjectDelete: handleProjectDelete,
       isLoading: isLoadingProjects,
@@ -621,6 +650,7 @@ export function useProjectsState({
     }),
     [
       handleNewSession,
+      handleOpenOrchestration,
       handleQuickStartSession,
       handleProjectDelete,
       handleProjectSelect,
@@ -661,6 +691,8 @@ export function useProjectsState({
     handleProjectSelect,
     handleSessionSelect,
     handleNewSession,
+    handleOpenOrchestration,
+    handleQuickStartOrchestration,
     handleSessionDelete,
     handleProjectDelete,
     handleSidebarRefresh,

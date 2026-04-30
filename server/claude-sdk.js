@@ -12,12 +12,13 @@
  * - WebSocket message streaming
  */
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import crypto from 'crypto';
-import { promises as fs } from 'fs';
+import { existsSync, readFileSync, promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import { CLAUDE_MODELS } from '../shared/modelConstants.js';
+
+import { query } from '@anthropic-ai/claude-agent-sdk';
+
 import {
   createNotificationEvent,
   notifyRunFailed,
@@ -140,6 +141,43 @@ function matchesToolPermission(entry, toolName, input) {
   return false;
 }
 
+function readClaudeSettingsEnv(filePath) {
+  try {
+    if (!existsSync(filePath)) return {};
+    const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+    const env = parsed?.env;
+    if (!env || typeof env !== 'object') return {};
+
+    return Object.fromEntries(
+      Object.entries(env)
+        .filter(([key, value]) =>
+          typeof value === 'string' &&
+          value.trim() &&
+          !key.startsWith('//'),
+        ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function loadClaudeSettingsEnv(cwd) {
+  const files = [
+    path.join(os.homedir(), '.claude', 'settings.json'),
+  ];
+  if (cwd) {
+    files.push(
+      path.join(cwd, '.claude', 'settings.json'),
+      path.join(cwd, '.claude', 'settings.local.json'),
+    );
+  }
+
+  return files.reduce((env, filePath) => ({
+    ...env,
+    ...readClaudeSettingsEnv(filePath),
+  }), {});
+}
+
 /**
  * Maps CLI options to SDK-compatible options format
  * @param {Object} options - CLI options
@@ -154,7 +192,7 @@ function mapCliOptionsToSDK(options = {}) {
   // Since claude-agent-sdk 0.2.113+, options.env REPLACES process.env in the subprocess
   // instead of overlaying it. Without spreading process.env here, users who rely on
   // ANTHROPIC_BASE_URL, HTTP(S)_PROXY, etc. would silently lose those settings.
-  sdkOptions.env = { ...process.env };
+  sdkOptions.env = { ...process.env, ...loadClaudeSettingsEnv(cwd) };
 
   // Claude Code on Windows hard-requires a POSIX bash (typically from Git
   // for Windows) and reads its path from CLAUDE_CODE_GIT_BASH_PATH. If the
@@ -228,9 +266,12 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
-  // Map model (default to sonnet)
-  // Valid models: sonnet, opus, haiku, opusplan, sonnet[1m]
-  sdkOptions.model = options.model || CLAUDE_MODELS.DEFAULT;
+  // Map model only when Pixcode explicitly passes one. If omitted, let
+  // Claude Code load the user's own project/user/local settings, including
+  // ~/.claude/settings.json "model".
+  if (typeof options.model === 'string' && options.model.trim()) {
+    sdkOptions.model = options.model.trim();
+  }
   // Model logged at query start below
 
   // Map system prompt configuration

@@ -53,6 +53,9 @@ Ports upstream `siteboon/claudecodeui` v1.30.0 features on top of Pixcode's v1.2
 * **orchestration:** add A2A adapters for Codex, Cursor, Gemini, Qwen, and OpenCode so all first-party CLI integrations are reachable from `/a2a/*`
 * **orchestration:** add `POST /a2a/adapters/resolve` and `GET /a2a/tasks` for adapter dry-run resolution plus task listing/filtering
 * **orchestration:** persist A2A tasks to disk with restart recovery and task summary responses for external clients
+* **orchestration:** make agent-team workflows append bounded repair/recheck steps when review agents report actionable issues
+* **orchestration:** add an explicit target workspace selector so agent teams can run against the selected project, the Pixcode app root, or a custom path
+* **desktop:** align the Electron wrapper package and bundled Pixcode dependency with version 1.34.0 for installer releases
 
 ### Refactoring
 
@@ -65,6 +68,11 @@ Ports upstream `siteboon/claudecodeui` v1.30.0 features on top of Pixcode's v1.2
 * iOS scrolling in main chat area, mobile permission mode button tap target and provider selector sizing, PlanDisplay raw params migration, precise Claude SDK denial detection
 * **orchestration:** keep the A2A layer opt-in while hardening selector resolution, task-scoped message history, missing-task errors, and richer adapter-not-found responses
 * **orchestration:** make smoke/API coverage reflect the real six-adapter boot set and validate resolve/listing negative paths
+* **orchestration:** propagate workspace context into every workflow prompt and fill new orchestration locale strings across all supported languages
+
+### Documentation
+
+* document the Pixcode system architecture and orchestration workflow model in dedicated Markdown guides
 
 ### Tests
 

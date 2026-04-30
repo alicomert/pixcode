@@ -85,6 +85,8 @@ export class CursorA2AAdapter extends AbstractA2AAdapter {
           promptText,
           {
             cwd: ctx.cwd,
+            model: ctx.model,
+            toolsSettings: ctx.toolsSettings,
             skipPermissions:
               ctx.permissionMode === 'acceptEdits' || ctx.permissionMode === 'bypassPermissions',
           },
