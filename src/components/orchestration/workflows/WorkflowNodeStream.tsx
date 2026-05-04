@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../shared/view/ui';
 import { Markdown } from '../../chat/view/subcomponents/Markdown';
 
-import { AlertTriangle, Bot, ChevronDown, ChevronRight, Code2, ExternalLink, FileText, MessageSquare } from '@/lib/icons';
+import { AlertTriangle, Bot, ChevronDown, ChevronRight, Code2, ExternalLink, FileText, MessageSquare, Monitor } from '@/lib/icons';
 
 type WorkflowArtifact = {
   type: string;
@@ -45,6 +45,28 @@ function artifactLabelKey(type: string): string {
 
 function isFinalSummaryNode(nodeId: string): boolean {
   return nodeId === 'final_report' || nodeId.includes('aggregate') || nodeId.includes('review');
+}
+
+function InlinePreview({ url, label }: { url: string; label: string }) {
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('auth-token') : null;
+  const src = token && url.startsWith('/preview/')
+    ? `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+    : url;
+
+  return (
+    <div className="overflow-hidden rounded-md border border-border/70">
+      <div className="flex h-8 items-center gap-2 border-b border-border/70 bg-muted/20 px-3 text-xs text-muted-foreground">
+        <Monitor className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <iframe
+        src={src}
+        title={label}
+        className="h-64 w-full border-0 bg-white"
+        sandbox="allow-scripts allow-same-origin allow-forms"
+      />
+    </div>
+  );
 }
 
 export default function WorkflowNodeStream({ node }: WorkflowNodeStreamProps) {
@@ -134,12 +156,24 @@ export default function WorkflowNodeStream({ node }: WorkflowNodeStreamProps) {
             </div>
           ) : visibleArtifacts.map((artifact, index) => {
             const previewUrl = typeof artifact.data?.proxiedUrl === 'string' ? artifact.data.proxiedUrl : undefined;
+            const directUrl = typeof artifact.data?.url === 'string' ? artifact.data.url : undefined;
             const isCollapsedByDefault = artifact.type === 'command-output' || artifact.type === 'data';
             const body = artifact.text
               ? artifact.text
               : artifact.data
                 ? JSON.stringify(artifact.data, null, 2)
                 : '';
+
+            if (artifact.type === 'preview-url' && previewUrl) {
+              const port = typeof artifact.data?.port === 'number' ? artifact.data.port : 0;
+              return (
+                <InlinePreview
+                  key={`${artifact.type}-${index}`}
+                  url={previewUrl}
+                  label={port ? `:${port}` : 'Preview'}
+                />
+              );
+            }
 
             return (
               <Collapsible key={`${artifact.type}-${index}`} defaultOpen={!isCollapsedByDefault}>
@@ -153,8 +187,8 @@ export default function WorkflowNodeStream({ node }: WorkflowNodeStreamProps) {
                         {t(artifactLabelKey(artifact.type), { defaultValue: artifact.type })}
                       </span>
                     </CollapsibleTrigger>
-                  {previewUrl ? (
-                    <a href={previewUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
+                  {directUrl ? (
+                    <a href={directUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
                       {t('orchestration.open')}
                     </a>
                   ) : null}
