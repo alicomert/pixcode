@@ -16,6 +16,7 @@ import { spawn } from 'child_process';
 import { extractProjectDirectory } from '../projects.js';
 import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
 import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
+import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
 
 const router = express.Router();
 
@@ -94,6 +95,53 @@ async function checkTaskMasterInstallation() {
     });
 }
 
+
+async function readTaskMasterTasks(projectName) {
+    const projectPath = await extractProjectDirectory(projectName);
+    const tasksFilePath = path.join(projectPath, '.taskmaster', 'tasks', 'tasks.json');
+
+    await fsPromises.access(tasksFilePath);
+    const tasksContent = await fsPromises.readFile(tasksFilePath, 'utf8');
+    const tasksData = JSON.parse(tasksContent);
+
+    let tasks = [];
+    let currentTag = 'master';
+
+    if (Array.isArray(tasksData)) {
+        tasks = tasksData;
+    } else if (tasksData.tasks) {
+        tasks = tasksData.tasks;
+    } else if (tasksData[currentTag] && tasksData[currentTag].tasks) {
+        tasks = tasksData[currentTag].tasks;
+    } else if (tasksData.master && tasksData.master.tasks) {
+        tasks = tasksData.master.tasks;
+    } else {
+        const firstTag = Object.keys(tasksData).find((key) =>
+            tasksData[key].tasks && Array.isArray(tasksData[key].tasks)
+        );
+        if (firstTag) {
+            tasks = tasksData[firstTag].tasks;
+            currentTag = firstTag;
+        }
+    }
+
+    const transformedTasks = tasks.map((task) => ({
+        id: task.id,
+        title: task.title || 'Untitled Task',
+        description: task.description || '',
+        status: task.status || 'pending',
+        priority: task.priority || 'medium',
+        dependencies: task.dependencies || [],
+        createdAt: task.createdAt || task.created || new Date().toISOString(),
+        updatedAt: task.updatedAt || task.updated || new Date().toISOString(),
+        details: task.details || '',
+        testStrategy: task.testStrategy || task.test_strategy || '',
+        subtasks: task.subtasks || []
+    }));
+
+    return { projectPath, transformedTasks, currentTag };
+}
+
 // API Routes
 
 /**
@@ -138,110 +186,87 @@ router.get('/installation-status', async (req, res) => {
 router.get('/tasks/:projectName', async (req, res) => {
     try {
         const { projectName } = req.params;
-        
-        // Get project path
-        let projectPath;
-        try {
-            projectPath = await extractProjectDirectory(projectName);
-        } catch (error) {
-            return res.status(404).json({
-                error: 'Project not found',
-                message: `Project "${projectName}" does not exist`
-            });
-        }
 
-        const taskMasterPath = path.join(projectPath, '.taskmaster');
-        const tasksFilePath = path.join(taskMasterPath, 'tasks', 'tasks.json');
+        const { projectPath, transformedTasks, currentTag } = await readTaskMasterTasks(projectName);
 
-        // Check if tasks file exists
-        try {
-            await fsPromises.access(tasksFilePath);
-        } catch (error) {
+        res.json({
+            projectName,
+            projectPath,
+            tasks: transformedTasks,
+            currentTag,
+            totalTasks: transformedTasks.length,
+            tasksByStatus: {
+                pending: transformedTasks.filter(t => t.status === 'pending').length,
+                'in-progress': transformedTasks.filter(t => t.status === 'in-progress').length,
+                done: transformedTasks.filter(t => t.status === 'done').length,
+                review: transformedTasks.filter(t => t.status === 'review').length,
+                deferred: transformedTasks.filter(t => t.status === 'deferred').length,
+                cancelled: transformedTasks.filter(t => t.status === 'cancelled').length
+            },
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (error) {
+        if (error?.code === 'ENOENT') {
             return res.json({
-                projectName,
+                projectName: req.params.projectName,
                 tasks: [],
                 message: 'No tasks.json file found'
             });
         }
-
-        // Read and parse tasks file
-        try {
-            const tasksContent = await fsPromises.readFile(tasksFilePath, 'utf8');
-            const tasksData = JSON.parse(tasksContent);
-            
-            let tasks = [];
-            let currentTag = 'master';
-            
-            // Handle both tagged and legacy formats
-            if (Array.isArray(tasksData)) {
-                // Legacy format
-                tasks = tasksData;
-            } else if (tasksData.tasks) {
-                // Simple format with tasks array
-                tasks = tasksData.tasks;
-            } else {
-                // Tagged format - get tasks from current tag or master
-                if (tasksData[currentTag] && tasksData[currentTag].tasks) {
-                    tasks = tasksData[currentTag].tasks;
-                } else if (tasksData.master && tasksData.master.tasks) {
-                    tasks = tasksData.master.tasks;
-                } else {
-                    // Get tasks from first available tag
-                    const firstTag = Object.keys(tasksData).find(key => 
-                        tasksData[key].tasks && Array.isArray(tasksData[key].tasks)
-                    );
-                    if (firstTag) {
-                        tasks = tasksData[firstTag].tasks;
-                        currentTag = firstTag;
-                    }
-                }
-            }
-
-            // Transform tasks to ensure all have required fields
-            const transformedTasks = tasks.map(task => ({
-                id: task.id,
-                title: task.title || 'Untitled Task',
-                description: task.description || '',
-                status: task.status || 'pending',
-                priority: task.priority || 'medium',
-                dependencies: task.dependencies || [],
-                createdAt: task.createdAt || task.created || new Date().toISOString(),
-                updatedAt: task.updatedAt || task.updated || new Date().toISOString(),
-                details: task.details || '',
-                testStrategy: task.testStrategy || task.test_strategy || '',
-                subtasks: task.subtasks || []
-            }));
-
-            res.json({
-                projectName,
-                projectPath,
-                tasks: transformedTasks,
-                currentTag,
-                totalTasks: transformedTasks.length,
-                tasksByStatus: {
-                    pending: transformedTasks.filter(t => t.status === 'pending').length,
-                    'in-progress': transformedTasks.filter(t => t.status === 'in-progress').length,
-                    done: transformedTasks.filter(t => t.status === 'done').length,
-                    review: transformedTasks.filter(t => t.status === 'review').length,
-                    deferred: transformedTasks.filter(t => t.status === 'deferred').length,
-                    cancelled: transformedTasks.filter(t => t.status === 'cancelled').length
-                },
-                timestamp: new Date().toISOString()
-            });
-
-        } catch (parseError) {
-            console.error('Failed to parse tasks.json:', parseError);
-            return res.status(500).json({
-                error: 'Failed to parse tasks file',
-                message: parseError.message
+        if (String(error?.message || '').includes('does not exist')) {
+            return res.status(404).json({
+                error: 'Project not found',
+                message: `Project "${req.params.projectName}" does not exist`
             });
         }
-
-    } catch (error) {
         console.error('TaskMaster tasks loading error:', error);
         res.status(500).json({
             error: 'Failed to load TaskMaster tasks',
             message: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/taskmaster/sync-orchestration/:projectName
+ * One-way sync: TaskMaster -> Orchestration tasks
+ */
+router.post('/sync-orchestration/:projectName', async (req, res) => {
+    try {
+        const { projectName } = req.params;
+        const { transformedTasks } = await readTaskMasterTasks(projectName);
+
+        const projectId = typeof req.body?.projectId === 'string' && req.body.projectId.trim()
+            ? req.body.projectId.trim()
+            : projectName;
+
+        const syncedTasks = transformedTasks.map((task) =>
+            orchestrationTaskService.upsertFromTaskMaster({
+                projectId,
+                taskmasterId: String(task.id),
+                title: task.title,
+                description: task.description,
+            })
+        );
+
+        res.json({
+            success: true,
+            projectName,
+            projectId,
+            synced: syncedTasks.length,
+            tasks: syncedTasks,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        if (error?.code === 'ENOENT') {
+            return res.json({ success: true, projectName: req.params.projectName, synced: 0, tasks: [] });
+        }
+        console.error('TaskMaster orchestration sync error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to sync TaskMaster tasks to orchestration',
+            message: error.message,
         });
     }
 });
