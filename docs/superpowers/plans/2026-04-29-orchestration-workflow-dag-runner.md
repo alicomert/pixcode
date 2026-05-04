@@ -1,7 +1,7 @@
 # Pixcode v2 Orchestration Workflow DAG Runner Plan
 
 **Date:** 2026-04-29
-**Status:** Draft, implement after task dispatch UI
+**Status:** Active (partially shipped; follow-up hardening remains)
 **Depends on:** `2026-04-29-orchestration-task-dispatch-ui.md`
 
 ## Progress Update

@@ -131,6 +131,8 @@ dev-debug.log
 # Task files
 tasks.json
 tasks/ 
+!server/modules/orchestration/tasks/
+!server/modules/orchestration/tasks/*.ts
 
 # Translations
 !src/i18n/locales/en/tasks.json
