@@ -11,7 +11,8 @@ function buildTargetUrl(port: number, path: string): string {
 
 function proxyHandler(): RequestHandler {
   return async (req, res) => {
-    const rawPort = Array.isArray(req.params.port) ? req.params.port[0] : req.params.port;
+    const portParam = req.params.port ?? req.params[0];
+    const rawPort = Array.isArray(portParam) ? portParam[0] : portParam;
     const port = Number.parseInt(rawPort, 10);
     if (!Number.isFinite(port) || port <= 0 || !getKnownPreviewPort(port)) {
       res.status(404).json({
@@ -54,7 +55,6 @@ function proxyHandler(): RequestHandler {
 
 export function createPreviewProxyRouter(): Router {
   const router = express.Router();
-  router.use('/:port', proxyHandler());
-  router.use('/:port/*', proxyHandler());
+  router.use(/^\/(\d+)(?:\/.*)?$/, proxyHandler());
   return router;
 }

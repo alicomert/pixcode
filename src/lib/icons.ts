@@ -63,6 +63,7 @@ import {
   CodeBracketIcon,
   Cog6ToothIcon,
   CommandLineIcon,
+  ComputerDesktopIcon,
   DevicePhoneMobileIcon,
   DocumentDuplicateIcon,
   DocumentTextIcon,
@@ -270,6 +271,7 @@ export const KeyRound = KeyIcon;
 export const Languages = LanguageIcon;
 export const Lock = LockClosedIcon;
 export const Moon = MoonIcon;
+export const Monitor = ComputerDesktopIcon;
 export const Palette = SwatchIcon;
 export const Puzzle = PuzzlePieceIcon;
 export const Server = ServerIcon;
