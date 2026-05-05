@@ -5,6 +5,7 @@ import { authenticatedFetch } from '../../utils/api';
 export type OrchestrationTask = {
   id: string;
   a2aTaskId?: string;
+  taskmasterId?: string;
   projectId: string;
   title: string;
   description?: string;
