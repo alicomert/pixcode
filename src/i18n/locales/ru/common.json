@@ -392,6 +392,8 @@
     "runTask": "Запустить",
     "cancelTask": "Отмена",
     "dispatchTask": "Назначить задачу",
+    "syncTaskMaster": "Синхронизировать TaskMaster",
+    "taskMasterSource": "TaskMaster",
     "adapter": "Адаптер",
     "isolation": "Изоляция",
     "dispatch": "Назначить",
@@ -404,7 +406,8 @@
       "in_progress": "В работе",
       "in_review": "На проверке",
       "done": "Готово",
-      "failed": "Ошибка"
+      "failed": "Ошибка",
+      "canceled": "Отменено"
     },
     "isolationKind": {
       "worktree": "Worktree",

@@ -17,21 +17,51 @@ export type OrchestrationTask = {
   updatedAt: number;
 };
 
+export type TaskMasterTask = {
+  id: string | number;
+  title: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  details?: string;
+  testStrategy?: string;
+  parentId?: string | number;
+  dependencies?: Array<string | number>;
+  subtasks?: TaskMasterTask[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type UnifiedTask = OrchestrationTask & {
+  source: 'orchestration' | 'taskmaster';
+  taskmasterId?: string | number;
+  taskmasterStatus?: string;
+  isImported?: boolean;
+};
+
 export type AgentCard = {
   name: string;
   skills: Array<{ id: string; description: string }>;
 };
 
 export function useOrchestrationTasks(projectId = 'default') {
-  const [tasks, setTasks] = useState<OrchestrationTask[]>([]);
+  const [tasks, setTasks] = useState<UnifiedTask[]>([]);
   const [agents, setAgents] = useState<AgentCard[]>([]);
 
   const refresh = useCallback(async () => {
     const response = await authenticatedFetch(`/api/orchestration/tasks?projectId=${encodeURIComponent(projectId)}`);
-    if (response.ok) {
-      const data = await response.json() as { tasks: OrchestrationTask[] };
-      setTasks(data.tasks);
+    if (!response.ok) {
+      setTasks([]);
+      return;
     }
+    const data = await response.json() as { tasks: OrchestrationTask[] };
+    const unified: UnifiedTask[] = data.tasks.map((task) => ({
+      ...task,
+      source: 'orchestration' as const,
+      taskmasterId: task.taskmasterId,
+      isImported: Boolean(task.taskmasterId),
+    }));
+    setTasks(unified);
   }, [projectId]);
 
   useEffect(() => {
@@ -73,6 +103,24 @@ export function useOrchestrationTasks(projectId = 'default') {
     await refresh();
   }, [refresh]);
 
+  const importTaskMasterTask = useCallback(async (taskmasterId: string | number, title: string, description?: string) => {
+    const response = await authenticatedFetch('/api/orchestration/tasks', {
+      method: 'POST',
+      body: JSON.stringify({ projectId, title, description, taskmasterId: String(taskmasterId) }),
+    });
+    if (!response.ok) throw new Error('Failed to import TaskMaster task');
+    await refresh();
+  }, [projectId, refresh]);
+
+  const syncTaskMaster = useCallback(async (projectName: string) => {
+    const response = await authenticatedFetch(`/api/taskmaster/sync-orchestration/${encodeURIComponent(projectName)}`, {
+      method: 'POST',
+      body: JSON.stringify({ projectId }),
+    });
+    if (!response.ok) throw new Error('Failed to sync TaskMaster tasks');
+    await refresh();
+  }, [projectId, refresh]);
+
   return {
     tasks,
     agents,
@@ -80,5 +128,27 @@ export function useOrchestrationTasks(projectId = 'default') {
     createTask,
     dispatchTask,
     cancelTask,
+    importTaskMasterTask,
+    syncTaskMaster,
   };
+}
+
+function mapTaskMasterStatus(status?: string): OrchestrationTask['state'] {
+  switch (status?.toLowerCase()) {
+    case 'pending':
+    case 'deferred':
+      return 'todo';
+    case 'in-progress':
+      return 'in_progress';
+    case 'review':
+      return 'in_review';
+    case 'done':
+      return 'done';
+    case 'blocked':
+      return 'failed';
+    case 'cancelled':
+      return 'canceled';
+    default:
+      return 'todo';
+  }
 }

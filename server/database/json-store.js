@@ -29,7 +29,7 @@ import path from 'node:path';
 const CURRENT_VERSION = 1;
 
 // Tables the store manages — empty arrays on a fresh file.
-const EMPTY_STORE = () => ({
+const EMPTY_STORE = (extraTables = {}) => ({
   _version: CURRENT_VERSION,
   _sequences: {
     users: 0,
@@ -37,6 +37,7 @@ const EMPTY_STORE = () => ({
     user_credentials: 0,
     vapid_keys: 0,
     push_subscriptions: 0,
+    ...Object.fromEntries(Object.keys(extraTables).map((k) => [k, 0])),
   },
   users: [],
   api_keys: [],
@@ -48,12 +49,14 @@ const EMPTY_STORE = () => ({
   app_config: [], // each row: { key, value, created_at }
   telegram_config: [], // 0 or 1 row: { id=1, bot_token, bot_username, updated_at }
   telegram_links: [], // each row: { user_id, chat_id, ... }
+  ...Object.fromEntries(Object.entries(extraTables).map(([k, v]) => [k, v ?? []])),
 });
 
 export class JsonStore {
-  constructor(filePath) {
+  constructor(filePath, extraTables = {}) {
     this.filePath = filePath;
     this.tmpPath = `${filePath}.tmp`;
+    this.extraTables = extraTables;
     this.data = null;
     this._ensureLoaded();
   }
@@ -69,7 +72,7 @@ export class JsonStore {
     }
 
     if (!fs.existsSync(this.filePath)) {
-      this.data = EMPTY_STORE();
+      this.data = EMPTY_STORE(this.extraTables);
       this._flush();
       return;
     }
@@ -79,7 +82,7 @@ export class JsonStore {
       const parsed = JSON.parse(raw);
       // Fill missing keys from EMPTY_STORE so adding a new "table" in a
       // later schema doesn't crash a fresh deploy reading an old file.
-      this.data = { ...EMPTY_STORE(), ...parsed };
+      this.data = { ...EMPTY_STORE(this.extraTables), ...parsed };
       // Ensure each well-known array key is actually an array — defends
       // against a hand-edited file that set one to null or an object.
       const empty = EMPTY_STORE();
@@ -96,7 +99,7 @@ export class JsonStore {
       const backup = `${this.filePath}.corrupt-${Date.now()}`;
       console.error(`[JsonStore] Failed to read ${this.filePath}: ${err.message}. Backing up to ${backup}.`);
       try { fs.renameSync(this.filePath, backup); } catch { /* noop */ }
-      this.data = EMPTY_STORE();
+      this.data = EMPTY_STORE(this.extraTables);
       this._flush();
     }
   }

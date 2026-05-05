@@ -422,6 +422,8 @@
     "runTask": "运行",
     "cancelTask": "取消",
     "dispatchTask": "分配任务",
+    "syncTaskMaster": "同步 TaskMaster",
+    "taskMasterSource": "TaskMaster",
     "adapter": "适配器",
     "isolation": "隔离",
     "dispatch": "分配",
@@ -434,7 +436,8 @@
       "in_progress": "进行中",
       "in_review": "审核中",
       "done": "完成",
-      "failed": "失败"
+      "failed": "失败",
+      "canceled": "已取消"
     },
     "isolationKind": {
       "worktree": "Worktree",

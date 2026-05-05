@@ -422,6 +422,8 @@
     "runTask": "実行",
     "cancelTask": "キャンセル",
     "dispatchTask": "タスクを割り当て",
+    "syncTaskMaster": "TaskMaster を同期",
+    "taskMasterSource": "TaskMaster",
     "adapter": "アダプター",
     "isolation": "分離",
     "dispatch": "割り当て",
@@ -434,7 +436,8 @@
       "in_progress": "進行中",
       "in_review": "レビュー中",
       "done": "完了",
-      "failed": "失敗"
+      "failed": "失敗",
+      "canceled": "キャンセル済み"
     },
     "isolationKind": {
       "worktree": "Worktree",

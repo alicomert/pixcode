@@ -422,6 +422,8 @@
     "runTask": "실행",
     "cancelTask": "취소",
     "dispatchTask": "작업 배정",
+    "syncTaskMaster": "TaskMaster 동기화",
+    "taskMasterSource": "TaskMaster",
     "adapter": "어댑터",
     "isolation": "격리",
     "dispatch": "배정",
@@ -434,7 +436,8 @@
       "in_progress": "진행 중",
       "in_review": "검토 중",
       "done": "완료",
-      "failed": "실패"
+      "failed": "실패",
+      "canceled": "취소됨"
     },
     "isolationKind": {
       "worktree": "Worktree",

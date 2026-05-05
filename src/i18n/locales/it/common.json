@@ -422,6 +422,8 @@
     "runTask": "Esegui",
     "cancelTask": "Annulla",
     "dispatchTask": "Assegna attività",
+    "syncTaskMaster": "Sincronizza TaskMaster",
+    "taskMasterSource": "TaskMaster",
     "adapter": "Adapter",
     "isolation": "Isolamento",
     "dispatch": "Assegna",
@@ -434,7 +436,8 @@
       "in_progress": "In corso",
       "in_review": "In revisione",
       "done": "Completato",
-      "failed": "Fallito"
+      "failed": "Fallito",
+      "canceled": "Annullato"
     },
     "isolationKind": {
       "worktree": "Worktree",

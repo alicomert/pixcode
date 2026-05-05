@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { Play } from '@/lib/icons';
 import { Button, Dialog, DialogContent, DialogTitle } from '../../shared/view/ui';
 import AdapterSelector from './AdapterSelector';
-import type { AgentCard, OrchestrationTask } from './useOrchestrationTasks';
+import type { AgentCard, UnifiedTask } from './useOrchestrationTasks';
 
 type TaskDispatchModalProps = {
-  task: OrchestrationTask | null;
+  task: UnifiedTask | null;
   agents: AgentCard[];
   onClose: () => void;
   onDispatch: (taskId: string, adapterId: string, isolation: string) => Promise<void>;

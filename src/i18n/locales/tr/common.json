@@ -302,6 +302,8 @@
     "runTask": "Çalıştır",
     "cancelTask": "İptal",
     "dispatchTask": "Görevi ata",
+    "syncTaskMaster": "TaskMaster Senkronize Et",
+    "taskMasterSource": "TaskMaster",
     "adapter": "Adaptör",
     "isolation": "Çalışma alanı",
     "dispatch": "Ata",
@@ -315,7 +317,8 @@
       "in_progress": "Devam ediyor",
       "in_review": "İncelemede",
       "done": "Bitti",
-      "failed": "Hatalı"
+      "failed": "Hatalı",
+      "canceled": "İptal edildi"
     },
     "isolationKind": {
       "worktree": "Worktree",

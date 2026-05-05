@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Plus } from '@/lib/icons';
+import { Plus, RefreshCw } from '@/lib/icons';
 import { Button, Input } from '../../shared/view/ui';
 import TaskCard from './TaskCard';
 import TaskDispatchModal from './TaskDispatchModal';
-import { useOrchestrationTasks, type OrchestrationTask } from './useOrchestrationTasks';
+import { useOrchestrationTasks, type UnifiedTask } from './useOrchestrationTasks';
 
-const columns: Array<{ id: OrchestrationTask['state'] }> = [
+const columns: Array<{ id: UnifiedTask['state'] }> = [
   { id: 'todo' },
   { id: 'in_progress' },
   { id: 'in_review' },
@@ -23,16 +23,27 @@ export default function TaskBoard() {
     createTask,
     dispatchTask,
     cancelTask,
+    syncTaskMaster,
   } = useOrchestrationTasks('default');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [dispatching, setDispatching] = useState<OrchestrationTask | null>(null);
+  const [dispatching, setDispatching] = useState<UnifiedTask | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const submit = async () => {
     if (!title.trim()) return;
     await createTask(title.trim(), description.trim());
     setTitle('');
     setDescription('');
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      await syncTaskMaster('default');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -59,6 +70,10 @@ export default function TaskBoard() {
             <Plus />
             {t('orchestration.addTask')}
           </Button>
+          <Button type="button" variant="outline" onClick={() => void handleSync()} disabled={syncing}>
+            <RefreshCw className={syncing ? 'animate-spin' : ''} />
+            {t('orchestration.syncTaskMaster')}
+          </Button>
         </div>
       </header>
       <section className="grid min-h-0 flex-1 gap-3 overflow-auto p-4 lg:grid-cols-5">
@@ -66,6 +81,9 @@ export default function TaskBoard() {
           <div key={column.id} className="min-h-48 rounded-md border border-border/70 bg-muted/20">
             <div className="border-b border-border/70 px-3 py-2 text-sm font-semibold">
               {t(`orchestration.taskStates.${column.id}`)}
+              <span className="ml-1 text-xs text-muted-foreground">
+                ({tasks.filter((task) => task.state === column.id).length})
+              </span>
             </div>
             <div className="space-y-3 p-3">
               {tasks.filter((task) => task.state === column.id).map((task) => (

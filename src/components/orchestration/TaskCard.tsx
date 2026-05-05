@@ -3,22 +3,32 @@ import { useTranslation } from 'react-i18next';
 import { GitBranch, Play, SquareIcon } from '@/lib/icons';
 import { Badge, Button } from '../../shared/view/ui';
 import TaskStreamPanel from './TaskStreamPanel';
-import type { OrchestrationTask } from './useOrchestrationTasks';
+import type { UnifiedTask } from './useOrchestrationTasks';
 
 type TaskCardProps = {
-  task: OrchestrationTask;
-  onDispatch: (task: OrchestrationTask) => void;
+  task: UnifiedTask;
+  onDispatch: (task: UnifiedTask) => void;
   onCancel: (taskId: string) => void;
 };
 
 export default function TaskCard({ task, onDispatch, onCancel }: TaskCardProps) {
   const { t } = useTranslation();
 
+  const canDispatch = task.state === 'todo' || task.state === 'failed';
+  const canCancel = task.state === 'in_progress';
+
   return (
     <article className="rounded-md border border-border bg-card p-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold">{task.title}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-sm font-semibold">{task.title}</h3>
+            {task.taskmasterId ? (
+              <Badge variant="outline" className="text-[10px]">
+                {t('orchestration.taskMasterSource')}
+              </Badge>
+            ) : null}
+          </div>
           {task.description ? (
             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
           ) : null}
@@ -40,13 +50,13 @@ export default function TaskCard({ task, onDispatch, onCancel }: TaskCardProps) 
         <TaskStreamPanel a2aTaskId={task.a2aTaskId} />
       </div>
       <div className="mt-3 flex justify-end gap-2">
-        {task.state === 'todo' || task.state === 'failed' ? (
+        {canDispatch ? (
           <Button type="button" size="sm" onClick={() => onDispatch(task)}>
             <Play />
             {t('orchestration.runTask')}
           </Button>
         ) : null}
-        {task.state === 'in_progress' ? (
+        {canCancel ? (
           <Button type="button" size="sm" variant="outline" onClick={() => onCancel(task.id)}>
             <SquareIcon />
             {t('orchestration.cancelTask')}
