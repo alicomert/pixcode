@@ -3,6 +3,13 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.35.1](https://github.com/alicomert/pixcode/compare/v1.35.0...v1.35.1) (2026-05-05)
+
+### Bug Fixes
+
+* **orchestration:** align A2ATaskStore API with Map surface expected by routes ([f4c4ba3](https://github.com/alicomert/pixcode/commit/f4c4ba3f488d4c7873ba524847592f5939465c44))
+* support Express 5 preview proxy routes ([1b52ec1](https://github.com/alicomert/pixcode/commit/1b52ec17bf17073927f734a868e6139c4d345f86))
+
 ## [1.34.0](https://github.com/alicomert/pixcode/compare/v1.33.11...v1.34.0) (2026-04-29)
 
 ### New Features
