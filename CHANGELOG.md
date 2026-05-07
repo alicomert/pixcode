@@ -2,6 +2,11 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.35.3](https://github.com/alicomert/pixcode/compare/v1.35.2...v1.35.3) (2026-05-07)
+
+### Bug Fixes
+
+* open project after wizard creation ([9bd4857](https://github.com/alicomert/pixcode/commit/9bd48578b1c2361e83ad32abfd06e492797530b9))
 
 ## [1.35.1](https://github.com/alicomert/pixcode/compare/v1.35.0...v1.35.1) (2026-05-05)
 
