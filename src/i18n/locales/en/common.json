@@ -104,7 +104,9 @@
       "startChatDescription": "Creates a folder automatically and opens the normal chat screen with one agent.",
       "taskSystem": "Task system",
       "taskSystemDescription": "Use the TaskMaster tab inside a project to track work items, status, and planned work.",
-      "sidebarHint": "When you select an existing project from the sidebar, chat history, files, git status, tasks, and orchestration stay in the same main screen."
+      "sidebarHint": "When you select an existing project from the sidebar, chat history, files, git status, tasks, and orchestration stay in the same main screen.",
+      "createProject": "Create New Project",
+      "createProjectDescription": "Add an existing workspace or create a folder, then open the provider picker for coding."
     }
   },
   "orchestration": {

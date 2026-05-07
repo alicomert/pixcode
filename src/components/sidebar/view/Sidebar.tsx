@@ -28,6 +28,7 @@ function Sidebar({
   onProjectSelect,
   onSessionSelect,
   onNewSession,
+  onProjectCreated,
   onOpenOrchestration,
   onQuickStartSession,
   onSessionDelete,
@@ -122,6 +123,16 @@ function Sidebar({
   });
 
   useEffect(() => {
+    const handleCreateProjectRequest = () => setShowNewProject(true);
+
+    window.addEventListener('pixcode:create-project', handleCreateProjectRequest);
+
+    return () => {
+      window.removeEventListener('pixcode:create-project', handleCreateProjectRequest);
+    };
+  }, [setShowNewProject]);
+
+  useEffect(() => {
     if (typeof document === 'undefined') {
       return;
     }
@@ -130,13 +141,19 @@ function Sidebar({
     document.body.classList.toggle('pwa-mode', isPWA);
   }, [isPWA]);
 
-  const handleProjectCreated = () => {
+  const handleProjectCreated = (project?: Project) => {
+    if (project) {
+      onProjectCreated?.(project);
+    }
+
     if (window.refreshProjects) {
       void window.refreshProjects();
       return;
     }
 
-    window.location.reload();
+    if (!project) {
+      window.location.reload();
+    }
   };
 
   // Shared editing-session callbacks so the grouped and flat list use identical behavior.

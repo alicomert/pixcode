@@ -28,6 +28,7 @@ export type SidebarProps = {
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: ProjectSession) => void;
   onNewSession: (project: Project) => void;
+  onProjectCreated?: (project: Project) => void;
   onOpenOrchestration?: (project: Project, runId?: string) => void;
   /** Zero-config new-chat action: auto-creates a pixcode-project-N on the
    *  server and lands the user on the chat screen. Plumbed through to

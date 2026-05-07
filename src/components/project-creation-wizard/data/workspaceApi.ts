@@ -109,7 +109,7 @@ export const cloneWorkspaceWithProgress = (
   params: CloneWorkspaceParams,
   handlers: CloneProgressHandlers,
 ) =>
-  new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
+  new Promise<CreateWorkspaceResponse['project']>((resolve, reject) => {
     const query = buildCloneProgressQuery(params);
     const eventSource = new EventSource(`/api/projects/clone-progress?${query}`);
     let settled = false;

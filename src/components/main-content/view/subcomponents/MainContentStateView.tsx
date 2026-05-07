@@ -1,4 +1,4 @@
-import { ClipboardCheck, Folder, Sparkles, Workflow } from '@/lib/icons';
+import { ClipboardCheck, Folder, FolderPlus, Sparkles, Workflow } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 import type { MainContentStateViewProps } from '../../types/types';
 import MobileMenuButton from './MobileMenuButton';
@@ -52,7 +52,7 @@ export default function MainContentStateView({
               </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <button
                 type="button"
                 onClick={() => { void onQuickStartOrchestration?.(); }}
@@ -74,6 +74,22 @@ export default function MainContentStateView({
                 <div className="text-sm font-semibold">{t('mainContent.landing.startChat')}</div>
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">
                   {t('mainContent.landing.startChatDescription')}
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('pixcode:create-project'))}
+                className="rounded-md border border-border p-4 text-left transition-colors hover:bg-muted/40"
+              >
+                <FolderPlus className="mb-3 h-5 w-5 text-foreground" />
+                <div className="text-sm font-semibold">
+                  {t('mainContent.landing.createProject', { defaultValue: 'Create New Project' })}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {t('mainContent.landing.createProjectDescription', {
+                    defaultValue: 'Add an existing workspace or create a folder, then open the provider picker for coding.',
+                  })}
                 </p>
               </button>
 

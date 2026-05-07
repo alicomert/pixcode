@@ -104,7 +104,9 @@
       "startChatDescription": "Klasör otomatik oluşturulur ve normal chat ekranında tek ajanla ilerlersin.",
       "taskSystem": "Task sistemi",
       "taskSystemDescription": "Proje içinde iş listesini, durumları ve planlı işleri takip etmek için TaskMaster sekmesini kullanırsın.",
-      "sidebarHint": "Kenar çubuğundan mevcut bir proje seçersen sohbet geçmişi, dosyalar, git durumu, task sistemi ve orkestrasyon aynı ana ekranda kalır."
+      "sidebarHint": "Kenar çubuğundan mevcut bir proje seçersen sohbet geçmişi, dosyalar, git durumu, task sistemi ve orkestrasyon aynı ana ekranda kalır.",
+      "createProject": "Yeni Proje Oluştur",
+      "createProjectDescription": "Mevcut çalışma alanını ekle veya klasör oluştur; ardından kodlamaya başlamak için CLI seçim ekranına geç."
     }
   },
   "orchestration": {

@@ -477,8 +477,24 @@ export function useProjectsState({
     [activeTab, isMobile, navigate, selectedProject?.name],
   );
 
-  const handleNewSession = useCallback(
+  const openProjectChat = useCallback(
     (project: Project) => {
+      setProjects((prevProjects) => {
+        const existingIndex = prevProjects.findIndex(
+          (existingProject) => existingProject.name === project.name,
+        );
+
+        if (existingIndex === -1) {
+          return [project, ...prevProjects];
+        }
+
+        const nextProjects = [...prevProjects];
+        nextProjects[existingIndex] = {
+          ...nextProjects[existingIndex],
+          ...project,
+        };
+        return nextProjects;
+      });
       setSelectedProject(project);
       setSelectedSession(null);
       setActiveTab('chat');
@@ -489,6 +505,13 @@ export function useProjectsState({
       }
     },
     [isMobile, navigate],
+  );
+
+  const handleNewSession = useCallback(
+    (project: Project) => {
+      openProjectChat(project);
+    },
+    [openProjectChat],
   );
 
   /**
@@ -510,6 +533,11 @@ export function useProjectsState({
         return;
       }
       const project = body.project as Project;
+      if (targetTab === 'chat') {
+        openProjectChat(project);
+        return;
+      }
+
       setProjects((prev) => (
         prev.some((p) => p.name === project.name) ? prev : [project, ...prev]
       ));
@@ -521,7 +549,7 @@ export function useProjectsState({
     } catch (err) {
       console.error('[quick-start] error:', err);
     }
-  }, [isMobile, navigate]);
+  }, [isMobile, navigate, openProjectChat]);
 
   const handleQuickStartSession = useCallback(async () => {
     await quickStartIntoTab('chat');
@@ -635,6 +663,7 @@ export function useProjectsState({
       onProjectSelect: handleProjectSelect,
       onSessionSelect: handleSessionSelect,
       onNewSession: handleNewSession,
+      onProjectCreated: openProjectChat,
       onQuickStartSession: handleQuickStartSession,
       onOpenOrchestration: handleOpenOrchestration,
       onSessionDelete: handleSessionDelete,
@@ -651,6 +680,7 @@ export function useProjectsState({
     [
       handleNewSession,
       handleOpenOrchestration,
+      openProjectChat,
       handleQuickStartSession,
       handleProjectDelete,
       handleProjectSelect,
