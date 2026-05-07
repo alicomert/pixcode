@@ -10,11 +10,12 @@ import WizardProgress from './components/WizardProgress';
 import { useGithubTokens } from './hooks/useGithubTokens';
 import { cloneWorkspaceWithProgress, createWorkspaceRequest } from './data/workspaceApi';
 import { isCloneWorkflow, shouldShowGithubAuthentication } from './utils/pathUtils';
+import type { Project } from '../../types/app';
 import type { TokenMode, WizardFormState, WizardStep, WorkspaceType } from './types';
 
 type ProjectCreationWizardProps = {
   onClose: () => void;
-  onProjectCreated?: (project?: Record<string, unknown>) => void;
+  onProjectCreated?: (project?: Project) => void;
 };
 
 const initialFormState: WizardFormState = {

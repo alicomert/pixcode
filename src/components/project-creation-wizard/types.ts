@@ -1,3 +1,5 @@
+import type { Project } from '../../types/app';
+
 export type WizardStep = 1 | 2 | 3;
 
 // 'existing'  — open the picked folder as-is
@@ -47,7 +49,7 @@ export type CreateWorkspacePayload = {
 
 export type CreateWorkspaceResponse = {
   success?: boolean;
-  project?: Record<string, unknown>;
+  project?: Project;
   alreadyExisted?: boolean;
   error?: string;
   details?: string;
@@ -57,7 +59,7 @@ export type CreateWorkspaceResponse = {
 export type CloneProgressEvent = {
   type?: string;
   message?: string;
-  project?: Record<string, unknown>;
+  project?: Project;
 };
 
 export type WizardFormState = {

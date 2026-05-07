@@ -19,7 +19,7 @@ type SidebarModalsProps = {
   onCloseSettings: () => void;
   showNewProject: boolean;
   onCloseNewProject: () => void;
-  onProjectCreated: () => void;
+  onProjectCreated: (project?: Project) => void;
   deleteConfirmation: DeleteProjectConfirmation | null;
   onCancelDeleteProject: () => void;
   onConfirmDeleteProject: (deleteData?: boolean) => void;
