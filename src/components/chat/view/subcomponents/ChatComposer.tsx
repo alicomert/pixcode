@@ -179,7 +179,7 @@ export default function ChatComposer({
   const hasPendingPermissions = pendingPermissionRequests.length > 0;
 
   return (
-    <div className="flex-shrink-0 p-2 pb-2 sm:p-4 sm:pb-4 md:p-4 md:pb-6">
+    <div className="sticky bottom-0 z-20 flex-shrink-0 bg-gradient-to-t from-background via-background/95 to-background/70 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-4 md:pb-6">
       {!hasPendingPermissions && (
         <ClaudeStatus
           status={claudeStatus}

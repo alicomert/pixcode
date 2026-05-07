@@ -12,6 +12,9 @@ export default function MainContentHeader({
   selectedProject,
   selectedSession,
   shouldShowTasksTab,
+  activeSidePanelTab,
+  sidePanelMode,
+  canUseSidePanelSplit,
   isMobile,
   onMenuClick,
 }: MainContentHeaderProps) {
@@ -61,6 +64,10 @@ export default function MainContentHeader({
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               shouldShowTasksTab={shouldShowTasksTab}
+              activeSidePanelTab={activeSidePanelTab}
+              sidePanelMode={sidePanelMode}
+              canUseSidePanelSplit={canUseSidePanelSplit}
+              isMobile={isMobile}
             />
           </div>
           {canScrollRight && (

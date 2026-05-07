@@ -66,6 +66,9 @@ export type MainContentHeaderProps = {
   selectedProject: Project;
   selectedSession: ProjectSession | null;
   shouldShowTasksTab: boolean;
+  activeSidePanelTab?: AppTab | null;
+  sidePanelMode?: 'split' | 'full';
+  canUseSidePanelSplit?: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
 };

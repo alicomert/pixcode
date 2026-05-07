@@ -6,12 +6,26 @@ import type { AppTab } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 import PluginIcon from '../../../plugins/view/PluginIcon';
 
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, Workflow, type LucideIcon } from '@/lib/icons';
+import {
+  Columns,
+  Maximize2,
+  MessageSquare,
+  Terminal,
+  Folder,
+  GitBranch,
+  ClipboardCheck,
+  Workflow,
+  type LucideIcon,
+} from '@/lib/icons';
 
 type MainContentTabSwitcherProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   shouldShowTasksTab: boolean;
+  activeSidePanelTab?: AppTab | null;
+  sidePanelMode?: 'split' | 'full';
+  canUseSidePanelSplit?: boolean;
+  isMobile?: boolean;
 };
 
 type BuiltInTab = {
@@ -46,10 +60,16 @@ const TASKS_TAB: BuiltInTab = {
   icon: ClipboardCheck,
 };
 
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
+
 export default function MainContentTabSwitcher({
   activeTab,
   setActiveTab,
   shouldShowTasksTab,
+  activeSidePanelTab,
+  sidePanelMode = 'split',
+  canUseSidePanelSplit = true,
+  isMobile = false,
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -73,9 +93,20 @@ export default function MainContentTabSwitcher({
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
         const displayLabel = tab.kind === 'builtin' ? t(tab.labelKey) : tab.label;
+        const showLayoutIndicator = Boolean(
+          !isMobile
+          && canUseSidePanelSplit
+          && isActive
+          && activeSidePanelTab === tab.id
+          && sidePanelTabs.has(tab.id),
+        );
+        const isSplitMode = sidePanelMode === 'split';
+        const tooltipLabel = showLayoutIndicator
+          ? `${displayLabel} · ${isSplitMode ? 'Split view' : 'Full view'}`
+          : displayLabel;
 
         return (
-          <Tooltip key={tab.id} content={displayLabel} position="bottom">
+          <Tooltip key={tab.id} content={tooltipLabel} position="bottom">
             <Pill
               isActive={isActive}
               onClick={() => setActiveTab(tab.id)}
@@ -91,6 +122,24 @@ export default function MainContentTabSwitcher({
                 />
               )}
               <span className="hidden lg:inline">{displayLabel}</span>
+              {showLayoutIndicator && (
+                <span
+                  className={`ml-0.5 inline-flex h-4 items-center gap-1 rounded border px-1 text-[10px] font-semibold leading-none ${
+                    isSplitMode
+                      ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 dark:text-emerald-300'
+                      : 'border-zinc-400/40 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300'
+                  }`}
+                >
+                  {isSplitMode ? (
+                    <Columns className="h-3 w-3" />
+                  ) : (
+                    <Maximize2 className="h-3 w-3" />
+                  )}
+                  <span className="hidden xl:inline">
+                    {isSplitMode ? 'Split' : 'Full'}
+                  </span>
+                </span>
+              )}
             </Pill>
           </Tooltip>
         );

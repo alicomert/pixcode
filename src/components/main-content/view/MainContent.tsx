@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import gsap from 'gsap';
 
 import { cn } from '../../../lib/utils';
-import { useGsapCrossfade } from '../../../lib/animations';
+import { motion, useGsapCrossfade } from '../../../lib/animations';
 import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
@@ -10,7 +11,7 @@ import OrchestrationPage from '../../orchestration/OrchestrationPage';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
-import type { AppTab, Project  } from '../../../types/app';
+import type { AppTab, Project } from '../../../types/app';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
@@ -34,9 +35,21 @@ type TasksSettingsContextValue = {
 };
 
 const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
+const SIDE_PANEL_MIN_WIDTH = 32;
+const SIDE_PANEL_MAX_WIDTH = 62;
+const SIDE_PANEL_DEFAULT_WIDTH = 46;
 
 function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' {
   return sidePanelTabs.has(tab);
+}
+
+function clampSidePanelWidth(width: number) {
+  return Math.min(SIDE_PANEL_MAX_WIDTH, Math.max(SIDE_PANEL_MIN_WIDTH, width));
+}
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 }
 
 function MainContent({
@@ -69,15 +82,23 @@ function MainContent({
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
   const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
+  const [sidePanelWidth, setSidePanelWidth] = useState(SIDE_PANEL_DEFAULT_WIDTH);
+  const [isDraggingSidePanel, setIsDraggingSidePanel] = useState(false);
+  const [canUseSidePanelSplit, setCanUseSidePanelSplit] = useState(() => (
+    typeof window !== 'undefined' && window.innerWidth >= 1024
+  ));
 
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
   const activeSidePanelTab = isSidePanelTab(activeTab) ? activeTab : null;
-  const showSidePanelSplit = Boolean(activeSidePanelTab && !isMobile && sidePanelMode === 'split');
+  const showSidePanelSplit = Boolean(activeSidePanelTab && !isMobile && canUseSidePanelSplit && sidePanelMode === 'split');
   const showChatColumn = activeTab === 'chat' || showSidePanelSplit;
 
   // Subtle crossfade when switching tabs — drives a small fade+rise on the
   // active content column whenever activeTab changes.
   const tabContentRef = useRef<HTMLDivElement>(null);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const chatPaneRef = useRef<HTMLDivElement>(null);
+  const sidePanelRef = useRef<HTMLDivElement>(null);
   useGsapCrossfade(tabContentRef, activeTab);
 
   const {
@@ -129,9 +150,25 @@ function MainContent({
     }
   }, [shouldShowTasksTab, activeTab, setActiveTab]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const updateSplitCapability = () => {
+      setCanUseSidePanelSplit(window.innerWidth >= 1024);
+    };
+
+    updateSplitCapability();
+    window.addEventListener('resize', updateSplitCapability);
+    return () => {
+      window.removeEventListener('resize', updateSplitCapability);
+    };
+  }, []);
+
   const handleActiveTabChange = useCallback((next: React.SetStateAction<AppTab>) => {
     const nextTab = typeof next === 'function' ? next(activeTab) : next;
-    if (!isMobile && isSidePanelTab(nextTab)) {
+    if (!isMobile && canUseSidePanelSplit && isSidePanelTab(nextTab)) {
       if (activeTab === nextTab) {
         setSidePanelMode((previous) => previous === 'split' ? 'full' : 'split');
       } else {
@@ -141,7 +178,87 @@ function MainContent({
       setSidePanelMode('split');
     }
     setActiveTab(nextTab);
-  }, [activeTab, isMobile, setActiveTab]);
+  }, [activeTab, canUseSidePanelSplit, isMobile, setActiveTab]);
+
+  const handleSidePanelResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!splitContainerRef.current || !showSidePanelSplit) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setIsDraggingSidePanel(true);
+
+    const updateWidth = (clientX: number) => {
+      const rect = splitContainerRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0) return;
+      const nextWidth = ((rect.right - clientX) / rect.width) * 100;
+      setSidePanelWidth(clampSidePanelWidth(nextWidth));
+    };
+
+    updateWidth(event.clientX);
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      updateWidth(moveEvent.clientX);
+    };
+
+    const handlePointerEnd = () => {
+      setIsDraggingSidePanel(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerEnd, { once: true });
+    window.addEventListener('pointercancel', handlePointerEnd, { once: true });
+  }, [showSidePanelSplit]);
+
+  useEffect(() => {
+    if (!showSidePanelSplit) {
+      setIsDraggingSidePanel(false);
+    }
+  }, [showSidePanelSplit]);
+
+  useEffect(() => {
+    if (!showSidePanelSplit || prefersReducedMotion()) {
+      return;
+    }
+
+    const chatPane = chatPaneRef.current;
+    const sidePanel = sidePanelRef.current;
+    if (!chatPane || !sidePanel) {
+      return;
+    }
+
+    const context = gsap.context(() => {
+      gsap.fromTo(
+        chatPane,
+        { opacity: 0.92, x: -14 },
+        {
+          opacity: 1,
+          x: 0,
+          duration: motion.duration.base,
+          ease: motion.ease.out,
+          clearProps: 'transform,opacity',
+        },
+      );
+      gsap.fromTo(
+        sidePanel,
+        { opacity: 0, x: 40, scale: 0.985 },
+        {
+          opacity: 1,
+          x: 0,
+          scale: 1,
+          duration: motion.duration.enter,
+          ease: motion.ease.soft,
+          clearProps: 'transform,opacity',
+        },
+      );
+    }, splitContainerRef);
+
+    return () => context.revert();
+  }, [activeSidePanelTab, showSidePanelSplit]);
 
   if (isLoading) {
     return <MainContentStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
@@ -167,6 +284,9 @@ function MainContent({
         selectedProject={selectedProject}
         selectedSession={selectedSession}
         shouldShowTasksTab={shouldShowTasksTab}
+        activeSidePanelTab={activeSidePanelTab}
+        sidePanelMode={sidePanelMode}
+        canUseSidePanelSplit={canUseSidePanelSplit}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
       />
@@ -189,9 +309,24 @@ function MainContent({
           )}
         >
           {(showChatColumn || activeSidePanelTab) && (
-            <div className={cn('h-full min-h-0', showSidePanelSplit && 'grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(420px,48%)]')}>
+            <div
+              ref={splitContainerRef}
+              className={cn(
+                'h-full min-h-0',
+                showSidePanelSplit && 'flex overflow-hidden',
+                isDraggingSidePanel && 'select-none',
+              )}
+            >
               {showChatColumn && (
-                <div className="min-h-0 overflow-hidden rounded-none lg:rounded-lg lg:border lg:border-border/60 lg:bg-background/70">
+                <div
+                  ref={chatPaneRef}
+                  className={cn(
+                    'min-h-0 overflow-hidden',
+                    showSidePanelSplit && 'min-w-[320px] flex-none',
+                    !showSidePanelSplit && 'h-full',
+                  )}
+                  style={showSidePanelSplit ? { width: `${100 - sidePanelWidth}%` } : undefined}
+                >
                   <ErrorBoundary showDetails>
                     <ChatInterface
                       selectedProject={selectedProject}
@@ -221,11 +356,34 @@ function MainContent({
                 </div>
               )}
 
+              {showSidePanelSplit && (
+                <button
+                  type="button"
+                  className="group relative z-20 mx-1 flex w-3 shrink-0 cursor-col-resize touch-none items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  onPointerDown={handleSidePanelResizeStart}
+                  aria-label="Resize side panel"
+                  title="Drag to resize"
+                >
+                  <span className="absolute inset-y-3 -left-2 -right-2 rounded-full" />
+                  <span
+                    className={cn(
+                      'h-16 w-1 rounded-full bg-border transition-all duration-200 group-hover:h-24 group-hover:bg-foreground/40',
+                      isDraggingSidePanel && 'h-28 bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.35)]',
+                    )}
+                  />
+                </button>
+              )}
+
               {activeSidePanelTab && (
-                <div className={cn(
-                  'min-h-0 overflow-hidden rounded-lg border border-border/60 bg-card/40',
-                  !showSidePanelSplit && 'h-full',
-                )}>
+                <div
+                  ref={sidePanelRef}
+                  className={cn(
+                    'min-h-0 overflow-hidden rounded-lg border border-border/60 bg-card/40',
+                    showSidePanelSplit && 'min-w-[360px] flex-none shadow-sm',
+                    !showSidePanelSplit && 'h-full',
+                  )}
+                  style={showSidePanelSplit ? { width: `${sidePanelWidth}%` } : undefined}
+                >
                   {renderSidePanel(activeSidePanelTab)}
                 </div>
               )}
