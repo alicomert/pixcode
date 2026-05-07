@@ -2,6 +2,12 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.35.4](https://github.com/alicomert/pixcode/compare/v1.35.3...v1.35.4) (2026-05-07)
+
+### New Features
+
+* improve chat workspace UX with persistent modes, visible CLI activity, terminal-styled chat, desktop split panels, and responsive orchestration polish ([380002a](https://github.com/alicomert/pixcode/commit/380002a))
+
 ## [1.35.3](https://github.com/alicomert/pixcode/compare/v1.35.2...v1.35.3) (2026-05-07)
 
 ### Bug Fixes
