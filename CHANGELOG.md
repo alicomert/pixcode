@@ -2,6 +2,12 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.35.5](https://github.com/alicomert/pixcode/compare/v1.35.4...v1.35.5) (2026-05-07)
+
+### Bug Fixes
+
+* refine split panel workspace UX with desktop-only split/full indicators, draggable panel sizing, GSAP transitions, and sticky chat composer ([8e61d70](https://github.com/alicomert/pixcode/commit/8e61d70))
+
 ## [1.35.4](https://github.com/alicomert/pixcode/compare/v1.35.3...v1.35.4) (2026-05-07)
 
 ### New Features
