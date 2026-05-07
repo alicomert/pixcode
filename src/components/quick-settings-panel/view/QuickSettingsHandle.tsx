@@ -2,13 +2,15 @@ import type {
   MouseEvent as ReactMouseEvent,
   TouchEvent as ReactTouchEvent,
 } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import type { QuickSettingsHandleStyle } from '../types';
+
 import {
   ChevronLeft,
   ChevronRight,
   GripVertical,
 } from '@/lib/icons';
-import { useTranslation } from 'react-i18next';
-import type { QuickSettingsHandleStyle } from '../types';
 
 type QuickSettingsHandleProps = {
   isOpen: boolean;

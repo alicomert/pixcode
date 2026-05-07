@@ -10,6 +10,7 @@
  */
 
 import express from 'express';
+
 import { sessionsService } from '../modules/providers/services/sessions.service.js';
 
 const router = express.Router();

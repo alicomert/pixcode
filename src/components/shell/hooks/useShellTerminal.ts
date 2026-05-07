@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
+
 import type { Project } from '../../../types/app';
 import {
   CODEX_DEVICE_AUTH_URL,
@@ -240,10 +241,11 @@ export function useShellTerminal({
       }, TERMINAL_RESIZE_DELAY_MS);
     });
 
-    resizeObserver.observe(terminalContainerRef.current);
+    const terminalContainer = terminalContainerRef.current;
+    resizeObserver.observe(terminalContainer);
 
     return () => {
-      terminalContainerRef.current?.removeEventListener('copy', handleTerminalCopy);
+      terminalContainer.removeEventListener('copy', handleTerminalCopy);
       resizeObserver.disconnect();
       if (resizeTimeoutRef.current !== null) {
         window.clearTimeout(resizeTimeoutRef.current);

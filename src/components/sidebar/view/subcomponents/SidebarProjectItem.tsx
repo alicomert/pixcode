@@ -1,13 +1,16 @@
-import { Check, ChevronDown, ChevronRight, Edit3, Folder, FolderOpen, Star, Trash2, X } from '@/lib/icons';
 import type { TFunction } from 'i18next';
+
 import { Button } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
 import { getTaskIndicatorStatus } from '../../utils/utils';
+
 import ItemActionsMenu, { type MenuAction } from './ItemActionsMenu';
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
+
+import { Check, ChevronDown, ChevronRight, Edit3, Folder, FolderOpen, Star, Trash2, X } from '@/lib/icons';
 
 type SidebarProjectItemProps = {
   project: Project;

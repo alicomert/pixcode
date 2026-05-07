@@ -130,7 +130,7 @@ export const startTunnel = async ({ port }) => {
   while (Date.now() - start < 15000) {
     if (tunnelState.url) return tunnelState;
     if (!tunnelProc) break; // process died early
-    // eslint-disable-next-line no-await-in-loop
+     
     await new Promise((r) => setTimeout(r, 250));
   }
 

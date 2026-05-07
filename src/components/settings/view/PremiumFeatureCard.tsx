@@ -1,5 +1,6 @@
-import { ExternalLink, Lock } from '@/lib/icons';
 import type { ReactNode } from 'react';
+
+import { ExternalLink, Lock } from '@/lib/icons';
 
 const PIXCODE_URL = 'https://github.com/alicomert/pixcode';
 

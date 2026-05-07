@@ -1,4 +1,3 @@
-import { FolderOpen, Globe, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 
 import { Button, Input } from '../../../../shared/view/ui';
@@ -18,6 +17,8 @@ import type {
   McpTransport,
   ProviderMcpServer,
 } from '../../types';
+
+import { FolderOpen, Globe, X } from '@/lib/icons';
 
 type McpServerFormModalProps = {
   provider: McpProvider;

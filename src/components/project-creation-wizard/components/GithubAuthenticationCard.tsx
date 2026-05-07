@@ -1,7 +1,9 @@
-import { Key, Loader2 } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { Input } from '../../../shared/view/ui';
 import type { GithubTokenCredential, TokenMode } from '../types';
+
+import { Key, Loader2 } from '@/lib/icons';
 
 type GithubAuthenticationCardProps = {
   tokenMode: TokenMode;

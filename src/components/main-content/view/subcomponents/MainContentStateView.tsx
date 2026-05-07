@@ -1,7 +1,10 @@
-import { ClipboardCheck, Folder, FolderPlus, Sparkles, Workflow } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import type { MainContentStateViewProps } from '../../types/types';
+
 import MobileMenuButton from './MobileMenuButton';
+
+import { ClipboardCheck, Folder, FolderPlus, Sparkles, Workflow } from '@/lib/icons';
 
 export default function MainContentStateView({
   mode,

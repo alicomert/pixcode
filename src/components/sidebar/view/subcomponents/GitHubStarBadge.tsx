@@ -1,6 +1,7 @@
-import { Star, X } from '@/lib/icons';
 import { useGitHubStars } from '../../../../hooks/useGitHubStars';
 import { IS_PLATFORM } from '../../../../constants/config';
+
+import { Star, X } from '@/lib/icons';
 
 const GITHUB_REPO_URL = 'https://github.com/alicomert/pixcode';
 

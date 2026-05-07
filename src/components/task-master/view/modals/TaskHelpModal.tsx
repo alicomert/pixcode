@@ -1,5 +1,6 @@
-import { ExternalLink, FileText, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
+import { ExternalLink, FileText, X } from '@/lib/icons';
 
 type TaskHelpModalProps = {
   isOpen: boolean;

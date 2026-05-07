@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { useTheme } from '../../../contexts/ThemeContext';
 import { authenticatedFetch } from '../../../utils/api';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';

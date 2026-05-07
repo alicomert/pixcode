@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FolderPlus, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
+import type { Project } from '../../types/app';
+
 import ErrorBanner from './components/ErrorBanner';
 import StepConfiguration from './components/StepConfiguration';
 import StepReview from './components/StepReview';
@@ -10,8 +12,9 @@ import WizardProgress from './components/WizardProgress';
 import { useGithubTokens } from './hooks/useGithubTokens';
 import { cloneWorkspaceWithProgress, createWorkspaceRequest } from './data/workspaceApi';
 import { isCloneWorkflow, shouldShowGithubAuthentication } from './utils/pathUtils';
-import type { Project } from '../../types/app';
 import type { TokenMode, WizardFormState, WizardStep, WorkspaceType } from './types';
+
+import { FolderPlus, X } from '@/lib/icons';
 
 type ProjectCreationWizardProps = {
   onClose: () => void;

@@ -1,7 +1,9 @@
 import * as React from 'react';
-import { Search } from '@/lib/icons';
 
 import { cn } from '../../../lib/utils';
+
+import { Search } from '@/lib/icons';
+
 
 /*
  * Lightweight command palette — inspired by cmdk but no external deps.

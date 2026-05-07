@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Check, Download, RotateCcw, Trash2, Upload } from '@/lib/icons';
+
 import {
   CONFIRMATION_ACTION_LABELS,
   CONFIRMATION_BUTTON_CLASSES,
@@ -7,6 +7,8 @@ import {
   CONFIRMATION_TITLES,
 } from '../../constants/constants';
 import type { ConfirmationRequest } from '../../types/types';
+
+import { Check, Download, RotateCcw, Trash2, Upload } from '@/lib/icons';
 
 type ConfirmActionModalProps = {
   action: ConfirmationRequest | null;

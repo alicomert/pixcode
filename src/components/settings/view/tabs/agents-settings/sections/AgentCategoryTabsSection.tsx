@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+
 import { cn } from '../../../../../../lib/utils';
 import type { AgentCategory } from '../../../../types/types';
 import type { AgentCategoryTabsSectionProps } from '../types';

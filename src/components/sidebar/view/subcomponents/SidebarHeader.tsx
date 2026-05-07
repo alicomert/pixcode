@@ -1,10 +1,13 @@
-import { Folder, FolderPlus, List, MessageSquare, Plus, RefreshCw, Rows3, Search, Sparkles, X, PanelLeftClose } from '@/lib/icons';
 import type { TFunction } from 'i18next';
+
 import { Button, Input } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
 import type { HistoryViewMode } from '../../../../hooks/useUiPreferences';
 import { cn } from '../../../../lib/utils';
+
 import GitHubStarBadge from './GitHubStarBadge';
+
+import { Folder, FolderPlus, List, MessageSquare, Plus, RefreshCw, Rows3, Search, Sparkles, X, PanelLeftClose } from '@/lib/icons';
 
 type SearchMode = 'projects' | 'conversations';
 

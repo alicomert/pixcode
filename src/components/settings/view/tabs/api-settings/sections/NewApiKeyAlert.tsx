@@ -1,7 +1,9 @@
-import { Check, Copy } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { Button } from '../../../../../../shared/view/ui';
 import type { CreatedApiKey } from '../types';
+
+import { Check, Copy } from '@/lib/icons';
 
 type NewApiKeyAlertProps = {
   apiKey: CreatedApiKey;

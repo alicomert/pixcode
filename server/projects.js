@@ -57,13 +57,14 @@
  * - Session data is fetched on-demand, not cached
  */
 
-import { promises as fs } from 'fs';
-import fsSync from 'fs';
+import fsSync, { promises as fs } from 'fs';
 import path from 'path';
 import readline from 'readline';
 import crypto from 'crypto';
-import Database from 'better-sqlite3';
 import os from 'os';
+
+import Database from 'better-sqlite3';
+
 import sessionManager from './sessionManager.js';
 import { applyCustomSessionNames } from './database/db.js';
 

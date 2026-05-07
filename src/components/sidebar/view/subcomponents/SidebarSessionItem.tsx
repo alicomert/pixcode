@@ -1,5 +1,5 @@
-import { Check, X } from '@/lib/icons';
 import type { TFunction } from 'i18next';
+
 import { Button } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import { formatTimeAgo } from '../../../../utils/dateUtils';
@@ -7,7 +7,10 @@ import type { Project, ProjectSession, LLMProvider } from '../../../../types/app
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel, detectSessionFileExtensions } from '../../utils/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+
 import SessionActionsMenu from './SessionActionsMenu';
+
+import { Check, X } from '@/lib/icons';
 
 type SidebarSessionItemProps = {
   project: Project;
@@ -307,7 +310,7 @@ export default function SidebarSessionItem({
             onToggleStar={toggleStar}
             onDelete={requestDeleteSession}
             t={t}
-            className="opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+            className="opacity-0 focus-visible:opacity-100 group-hover/item:opacity-100"
           />
         </div>
       )}

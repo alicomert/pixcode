@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type React from 'react';
 import type { TFunction } from 'i18next';
+
 import { api } from '../../../utils/api';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type {
@@ -286,21 +286,6 @@ export function useSidebarController({
       }
     };
   }, [searchFilter, searchMode]);
-
-  const handleTouchClick = useCallback(
-    (callback: () => void) =>
-      (event: React.TouchEvent<HTMLElement>) => {
-        const target = event.target as HTMLElement;
-        if (target.closest('.overflow-y-auto') || target.closest('[data-scroll-container]')) {
-          return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        callback();
-      },
-    [],
-  );
 
   const toggleProject = useCallback((projectName: string) => {
     setExpandedProjects((prev) => {

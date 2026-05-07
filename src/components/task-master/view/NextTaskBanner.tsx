@@ -1,4 +1,11 @@
 import { useState } from 'react';
+
+import { cn } from '../../../lib/utils';
+import { useTaskMaster } from '../context/TaskMasterContext';
+
+import TaskDetailModal from './TaskDetailModal';
+import TaskMasterSetupModal from './modals/TaskMasterSetupModal';
+
 import {
   CheckCircle,
   Circle,
@@ -11,10 +18,6 @@ import {
   Terminal,
   Zap,
 } from '@/lib/icons';
-import { cn } from '../../../lib/utils';
-import { useTaskMaster } from '../context/TaskMasterContext';
-import TaskDetailModal from './TaskDetailModal';
-import TaskMasterSetupModal from './modals/TaskMasterSetupModal';
 
 type NextTaskBannerProps = {
   onShowAllTasks?: (() => void) | null;

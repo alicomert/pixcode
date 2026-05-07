@@ -1,4 +1,9 @@
 import { type MutableRefObject, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { Terminal } from '@xterm/xterm';
+
+import { sendSocketMessage } from '../../utils/socket';
+
 import {
   Clipboard,
   ArrowDownToLine,
@@ -7,9 +12,6 @@ import {
   ArrowLeft,
   ArrowRight,
 } from '@/lib/icons';
-import { useTranslation } from 'react-i18next';
-import type { Terminal } from '@xterm/xterm';
-import { sendSocketMessage } from '../../utils/socket';
 
 type Shortcut =
   | { type: 'key'; id: string; label: string; sequence: string }

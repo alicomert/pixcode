@@ -1,5 +1,6 @@
-import { Sparkles, X } from '@/lib/icons';
 import { PRD_DOCS_URL } from '../constants';
+
+import { Sparkles, X } from '@/lib/icons';
 
 type GenerateTasksModalProps = {
   isOpen: boolean;

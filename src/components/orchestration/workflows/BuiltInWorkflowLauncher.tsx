@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Workflow } from '@/lib/icons';
 import { Button, Input } from '../../../shared/view/ui';
 import { authenticatedFetch } from '../../../utils/api';
+
+import { Workflow } from '@/lib/icons';
 
 type BuiltInWorkflow = {
   id: string;

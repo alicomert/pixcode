@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+
 import type { LucideIcon } from '@/lib/icons';
 
 export type PreferenceToggleKey =

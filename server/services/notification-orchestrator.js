@@ -1,5 +1,7 @@
 import webPush from 'web-push';
+
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionNamesDb } from '../database/db.js';
+
 import { notifyUser as notifyTelegramUser } from './telegram/bot.js';
 
 const KIND_TO_PREF_KEY = {

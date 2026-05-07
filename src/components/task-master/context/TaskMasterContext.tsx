@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+
 import { api } from '../../../utils/api';
 import { useAuth } from '../../auth/context/AuthContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';

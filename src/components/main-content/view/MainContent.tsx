@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { cn } from '../../../lib/utils';
 import { useGsapCrossfade } from '../../../lib/animations';
@@ -10,13 +10,14 @@ import OrchestrationPage from '../../orchestration/OrchestrationPage';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
+import type { AppTab, Project  } from '../../../types/app';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
-import type { Project } from '../../../types/app';
 import { TaskMasterPanel } from '../../task-master';
+
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
 import ErrorBoundary from './ErrorBoundary';
@@ -31,6 +32,12 @@ type TasksSettingsContextValue = {
   isTaskMasterInstalled: boolean | null;
   isTaskMasterReady: boolean | null;
 };
+
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
+
+function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' {
+  return sidePanelTabs.has(tab);
+}
 
 function MainContent({
   selectedProject,
@@ -61,8 +68,12 @@ function MainContent({
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
+  const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
 
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
+  const activeSidePanelTab = isSidePanelTab(activeTab) ? activeTab : null;
+  const showSidePanelSplit = Boolean(activeSidePanelTab && !isMobile && sidePanelMode === 'split');
+  const showChatColumn = activeTab === 'chat' || showSidePanelSplit;
 
   // Subtle crossfade when switching tabs — drives a small fade+rise on the
   // active content column whenever activeTab changes.
@@ -84,6 +95,25 @@ function MainContent({
     isMobile,
   });
 
+  const renderSidePanel = (tab: 'files' | 'shell' | 'git') => {
+    if (tab === 'files') {
+      return <FileTree selectedProject={selectedProject} onFileOpen={handleFileOpen} />;
+    }
+
+    if (tab === 'shell') {
+      return (
+        <StandaloneShell
+          project={selectedProject}
+          session={selectedSession}
+          showHeader={false}
+          isActive={activeTab === 'shell'}
+        />
+      );
+    }
+
+    return <GitPanel selectedProject={selectedProject} isMobile={isMobile} onFileOpen={handleFileOpen} />;
+  };
+
   useEffect(() => {
     const selectedProjectName = selectedProject?.name;
     const currentProjectName = currentProject?.name;
@@ -98,6 +128,20 @@ function MainContent({
       setActiveTab('chat');
     }
   }, [shouldShowTasksTab, activeTab, setActiveTab]);
+
+  const handleActiveTabChange = useCallback((next: React.SetStateAction<AppTab>) => {
+    const nextTab = typeof next === 'function' ? next(activeTab) : next;
+    if (!isMobile && isSidePanelTab(nextTab)) {
+      if (activeTab === nextTab) {
+        setSidePanelMode((previous) => previous === 'split' ? 'full' : 'split');
+      } else {
+        setSidePanelMode('split');
+      }
+    } else {
+      setSidePanelMode('split');
+    }
+    setActiveTab(nextTab);
+  }, [activeTab, isMobile, setActiveTab]);
 
   if (isLoading) {
     return <MainContentStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
@@ -119,7 +163,7 @@ function MainContent({
     <div className="flex h-full flex-col">
       <MainContentHeader
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleActiveTabChange}
         selectedProject={selectedProject}
         selectedSession={selectedSession}
         shouldShowTasksTab={shouldShowTasksTab}
@@ -139,59 +183,52 @@ function MainContent({
           className={cn(
             'flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden',
             editorExpanded && 'hidden',
-            !editingFile && 'mx-auto w-full max-w-[1100px] px-4 md:px-8',
+            !editingFile && !showSidePanelSplit && 'mx-auto w-full max-w-[1100px] px-4 md:px-8',
+            !editingFile && showSidePanelSplit && 'w-full px-3 md:px-4',
             !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
           )}
         >
-          <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
-            <ErrorBoundary showDetails>
-              <ChatInterface
-                selectedProject={selectedProject}
-                selectedSession={selectedSession}
-                ws={ws}
-                sendMessage={sendMessage}
-                latestMessage={latestMessage}
-                onFileOpen={handleFileOpen}
-                onInputFocusChange={onInputFocusChange}
-                onSessionActive={onSessionActive}
-                onSessionInactive={onSessionInactive}
-                onSessionProcessing={onSessionProcessing}
-                onSessionNotProcessing={onSessionNotProcessing}
-                processingSessions={processingSessions}
-                onReplaceTemporarySession={onReplaceTemporarySession}
-                onNavigateToSession={onNavigateToSession}
-                onShowSettings={onShowSettings}
-                autoExpandTools={autoExpandTools}
-                showRawParameters={showRawParameters}
-                showThinking={showThinking}
-                autoScrollToBottom={autoScrollToBottom}
-                sendByCtrlEnter={sendByCtrlEnter}
-                externalMessageUpdate={externalMessageUpdate}
-                onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
-              />
-            </ErrorBoundary>
-          </div>
+          {(showChatColumn || activeSidePanelTab) && (
+            <div className={cn('h-full min-h-0', showSidePanelSplit && 'grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(420px,48%)]')}>
+              {showChatColumn && (
+                <div className="min-h-0 overflow-hidden rounded-none lg:rounded-lg lg:border lg:border-border/60 lg:bg-background/70">
+                  <ErrorBoundary showDetails>
+                    <ChatInterface
+                      selectedProject={selectedProject}
+                      selectedSession={selectedSession}
+                      ws={ws}
+                      sendMessage={sendMessage}
+                      latestMessage={latestMessage}
+                      onFileOpen={handleFileOpen}
+                      onInputFocusChange={onInputFocusChange}
+                      onSessionActive={onSessionActive}
+                      onSessionInactive={onSessionInactive}
+                      onSessionProcessing={onSessionProcessing}
+                      onSessionNotProcessing={onSessionNotProcessing}
+                      processingSessions={processingSessions}
+                      onReplaceTemporarySession={onReplaceTemporarySession}
+                      onNavigateToSession={onNavigateToSession}
+                      onShowSettings={onShowSettings}
+                      autoExpandTools={autoExpandTools}
+                      showRawParameters={showRawParameters}
+                      showThinking={showThinking}
+                      autoScrollToBottom={autoScrollToBottom}
+                      sendByCtrlEnter={sendByCtrlEnter}
+                      externalMessageUpdate={externalMessageUpdate}
+                      onShowAllTasks={tasksEnabled ? () => handleActiveTabChange('tasks') : null}
+                    />
+                  </ErrorBoundary>
+                </div>
+              )}
 
-          {activeTab === 'files' && (
-            <div className="h-full overflow-hidden">
-              <FileTree selectedProject={selectedProject} onFileOpen={handleFileOpen} />
-            </div>
-          )}
-
-          {activeTab === 'shell' && (
-            <div className="h-full w-full overflow-hidden">
-              <StandaloneShell
-                project={selectedProject}
-                session={selectedSession}
-                showHeader={false}
-                isActive={activeTab === 'shell'}
-              />
-            </div>
-          )}
-
-          {activeTab === 'git' && (
-            <div className="h-full overflow-hidden">
-              <GitPanel selectedProject={selectedProject} isMobile={isMobile} onFileOpen={handleFileOpen} />
+              {activeSidePanelTab && (
+                <div className={cn(
+                  'min-h-0 overflow-hidden rounded-lg border border-border/60 bg-card/40',
+                  !showSidePanelSplit && 'h-full',
+                )}>
+                  {renderSidePanel(activeSidePanelTab)}
+                </div>
+              )}
             </div>
           )}
 

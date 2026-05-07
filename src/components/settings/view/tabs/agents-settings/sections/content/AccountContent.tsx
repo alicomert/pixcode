@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, LogIn, Download, ExternalLink, Loader2, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
 import {
@@ -10,6 +10,8 @@ import {
 import { copyTextToClipboard } from '../../../../../../../utils/clipboard';
 import { authenticatedFetch } from '../../../../../../../utils/api';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
+
+import { Check, Copy, LogIn, Download, ExternalLink, Loader2, X } from '@/lib/icons';
 
 // Providers whose CLI can be installed by Pixcode itself (npm global). Cursor
 // ships via a bash script we don't want to pipe through our server; its
@@ -278,7 +280,7 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                   {displayName} is not installed
                 </div>
                 <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-200/80">
-                  Pixcode couldn&apos;t find the <code className="rounded bg-amber-100 px-1 py-0.5 text-xs font-mono text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">{agent === 'cursor' ? 'cursor-agent' : agent}</code> binary
+                  Pixcode couldn&apos;t find the <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">{agent === 'cursor' ? 'cursor-agent' : agent}</code> binary
                   on this host. Install it first and then come back to log in.
                 </p>
               </div>

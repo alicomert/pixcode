@@ -133,23 +133,3 @@ export function useOrchestrationTasks(projectId = 'default') {
     syncTaskMaster,
   };
 }
-
-function mapTaskMasterStatus(status?: string): OrchestrationTask['state'] {
-  switch (status?.toLowerCase()) {
-    case 'pending':
-    case 'deferred':
-      return 'todo';
-    case 'in-progress':
-      return 'in_progress';
-    case 'review':
-      return 'in_review';
-    case 'done':
-      return 'done';
-    case 'blocked':
-      return 'failed';
-    case 'cancelled':
-      return 'canceled';
-    default:
-      return 'todo';
-  }
-}

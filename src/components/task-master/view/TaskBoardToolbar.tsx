@@ -1,4 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { cn } from '../../../lib/utils';
+import type { PrdFile, TaskBoardSortField, TaskBoardSortOrder, TaskBoardView } from '../types';
+
+import TaskFiltersPanel from './shared/TaskFiltersPanel';
+import TaskQuickSortBar from './shared/TaskQuickSortBar';
+
 import {
   ChevronDown,
   Columns,
@@ -10,11 +18,6 @@ import {
   Plus,
   Search,
 } from '@/lib/icons';
-import { useTranslation } from 'react-i18next';
-import { cn } from '../../../lib/utils';
-import type { PrdFile, TaskBoardSortField, TaskBoardSortOrder, TaskBoardView } from '../types';
-import TaskFiltersPanel from './shared/TaskFiltersPanel';
-import TaskQuickSortBar from './shared/TaskQuickSortBar';
 
 type TaskBoardToolbarProps = {
   hasProject: boolean;

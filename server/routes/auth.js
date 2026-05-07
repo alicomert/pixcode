@@ -4,6 +4,7 @@ import express from 'express';
 // the install path. Existing $2a$/$2b$ hashes in the DB remain valid;
 // bcryptjs recognizes both prefixes so logins work across the swap.
 import bcrypt from 'bcryptjs';
+
 import { userDb, db } from '../database/db.js';
 import { generateToken, authenticateToken } from '../middleware/auth.js';
 

@@ -8,9 +8,10 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 
+import { cn } from '../../../../lib/utils';
+
 import { MoreHorizontal } from '@/lib/icons';
 
-import { cn } from '../../../../lib/utils';
 
 export type MenuAction = {
   /** Stable key — unique inside a single menu. */

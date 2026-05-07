@@ -1,8 +1,10 @@
-import { ChevronDown, Eye, FileText, FolderPlus, List, RefreshCw, Search, TableProperties, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { Button, Input } from '../../../shared/view/ui';
 import { cn } from '../../../lib/utils';
 import type { FileTreeViewMode } from '../types/types';
+
+import { ChevronDown, Eye, FileText, FolderPlus, List, RefreshCw, Search, TableProperties, X } from '@/lib/icons';
 
 type FileTreeHeaderProps = {
   viewMode: FileTreeViewMode;

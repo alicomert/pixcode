@@ -1,6 +1,8 @@
-import { Folder, Search } from '@/lib/icons';
 import type { TFunction } from 'i18next';
+
 import type { LoadingProgress } from '../../../../types/app';
+
+import { Folder, Search } from '@/lib/icons';
 
 type SidebarProjectsStateProps = {
   isLoading: boolean;

@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+
 import type { AppTab, Project, ProjectSession } from '../../../types/app';
 
 export type SessionLifecycleHandler = (sessionId?: string | null) => void;

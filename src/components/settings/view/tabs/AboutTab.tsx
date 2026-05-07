@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { CheckCircle, ExternalLink, Loader2, MessageSquare, RefreshCw, Star } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { IS_PLATFORM } from '../../../../constants/config';
 import { useVersionCheck } from '../../../../hooks/useVersionCheck';
 import PremiumFeatureCard from '../PremiumFeatureCard';
-import { Cloud, Users } from '@/lib/icons';
+
+import { CheckCircle, ExternalLink, Loader2, MessageSquare, RefreshCw, Star, Cloud, Users  } from '@/lib/icons';
 
 const GITHUB_REPO_URL = 'https://github.com/alicomert/pixcode';
 const DISCORD_URL = 'https://discord.gg/buxwujPNRE';
@@ -105,7 +106,7 @@ export default function AboutTab() {
           type="button"
           onClick={onCheckClick}
           disabled={checkStatus === 'checking'}
-          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-60 disabled:cursor-wait"
+          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
         >
           {checkStatus === 'checking' ? (
             <Loader2 className="h-4 w-4 animate-spin" />

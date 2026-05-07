@@ -1,4 +1,3 @@
-import { Edit3, Globe, Plus, Server, Terminal, Trash2, Zap } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
 
 import type { McpProject, McpProvider, McpScope, ProviderMcpServer } from '../types';
@@ -13,6 +12,8 @@ import { useMcpServers } from '../hooks/useMcpServers';
 import { maskSecret } from '../utils/mcpFormatting';
 
 import McpServerFormModal from './modals/McpServerFormModal';
+
+import { Edit3, Globe, Plus, Server, Terminal, Trash2, Zap } from '@/lib/icons';
 
 type McpServersProps = {
   selectedProvider: McpProvider;

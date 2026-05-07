@@ -1,6 +1,7 @@
+import { cn } from '../../../../lib/utils';
+
 import { AlertCircle, CheckCircle, Settings, X } from '@/lib/icons';
 import type { LucideIcon } from '@/lib/icons';
-import { cn } from '../../../../lib/utils';
 
 type TaskIndicatorStatus =
   | 'fully-configured'

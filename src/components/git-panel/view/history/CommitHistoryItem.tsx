@@ -1,8 +1,10 @@
-import { ChevronDown, ChevronRight } from '@/lib/icons';
 import { useMemo } from 'react';
+
 import type { GitCommitSummary } from '../../types/types';
 import { getStatusBadgeClass, parseCommitFiles } from '../../utils/gitPanelUtils';
 import GitDiffViewer from '../shared/GitDiffViewer';
+
+import { ChevronDown, ChevronRight } from '@/lib/icons';
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('en-US', {

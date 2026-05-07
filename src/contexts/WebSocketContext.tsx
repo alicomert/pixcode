@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+
 import { useAuth } from '../components/auth/context/AuthContext';
 import { IS_PLATFORM } from '../constants/config';
 
@@ -34,20 +35,6 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { token } = useAuth();
-
-  useEffect(() => {
-    connect();
-    
-    return () => {
-      unmountedRef.current = true;
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [token]); // everytime token changes, we reconnect
 
   const connect = useCallback(() => {
     if (unmountedRef.current) return; // Prevent connection if unmounted
@@ -97,6 +84,20 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       console.error('Error creating WebSocket connection:', error);
     }
   }, [token]); // everytime token changes, we reconnect
+
+  useEffect(() => {
+    connect();
+
+    return () => {
+      unmountedRef.current = true;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [connect]); // everytime token changes, we reconnect through connect()
 
   const sendMessage = useCallback((message: any) => {
     const socket = wsRef.current;

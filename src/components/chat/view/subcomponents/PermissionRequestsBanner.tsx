@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlertIcon } from '@/lib/icons';
+
 
 import type { PendingPermissionRequest } from '../../types/types';
 import { buildClaudeToolPermissionEntry, formatToolInputForDisplay } from '../../utils/chatPermissions';
@@ -13,6 +13,8 @@ import {
   ConfirmationActions,
   ConfirmationAction,
 } from '../../../../shared/view/ui';
+
+import { ShieldAlertIcon } from '@/lib/icons';
 
 registerPermissionPanel('AskUserQuestion', AskUserQuestionPanel);
 

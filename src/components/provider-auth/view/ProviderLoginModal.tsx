@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Check, ExternalLink, KeyRound, Loader2, X } from '@/lib/icons';
 import { authenticatedFetch } from '../../../utils/api';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
-import { DEFAULT_PROJECT_FOR_EMPTY_SHELL, IS_PLATFORM } from '../../../constants/config';
+import { DEFAULT_PROJECT_FOR_EMPTY_SHELL } from '../../../constants/config';
 import type { LLMProvider } from '../../../types/app';
 import { PROVIDER_DISPLAY_NAMES } from '../types';
+
+import { Check, ExternalLink, KeyRound, Loader2, X } from '@/lib/icons';
 
 type LoginTab = 'browser' | 'apiKey';
 

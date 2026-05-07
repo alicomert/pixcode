@@ -1,11 +1,22 @@
 #!/usr/bin/env node
+/* eslint-disable import-x/order */
 // Load environment variables before other imports execute
 import './load-env.js';
-import fs from 'fs';
+import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
-import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
+import os from 'os';
+import http from 'http';
+import net from 'node:net';
+import { spawn } from 'child_process';
+
+import express from 'express';
+import { WebSocketServer, WebSocket } from 'ws';
+import cors from 'cors';
 
 import { AppError, createNormalizedMessage } from '@/shared/utils.js';
+
+import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
+
 
 
 const __dirname = getModuleDir(import.meta.url);
@@ -31,14 +42,8 @@ import { c } from './utils/colors.js';
 
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
-import express from 'express';
-import { WebSocketServer, WebSocket } from 'ws';
-import os from 'os';
-import http from 'http';
-import net from 'node:net';
-import cors from 'cors';
-import { promises as fsPromises } from 'fs';
-import { spawn } from 'child_process';
+
+
 import pty from 'node-pty';
 import mime from 'mime-types';
 
@@ -90,10 +95,6 @@ import { restoreBotFromConfig } from './services/telegram/bot.js';
 import { ensurePortOpen } from './utils/port-access.js';
 import {
     applyAllStoredCredentialsToEnv,
-    applyProviderCredentialsToEnv,
-    listProviderCredentialSummaries,
-    PROVIDER_ENV_VARS,
-    setProviderCredentials,
 } from './services/provider-credentials.js';
 import { primeCliBinPath } from './services/install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
@@ -101,7 +102,9 @@ import { initializeDatabase, sessionNamesDb, applyCustomSessionNames } from './d
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
+
 import { getConnectableHost } from '../shared/networkHosts.js';
+
 import { buildDaemonCliCommand, handleDaemonCommand } from './daemon-manager.js';
 
 const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];

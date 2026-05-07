@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { cn } from '../../../../lib/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
@@ -73,7 +74,7 @@ export default function ClaudeStatus({
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 mb-3 w-full duration-500">
-      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 overflow-hidden rounded-full border border-border/50 bg-slate-100 px-3 py-1.5 shadow-sm backdrop-blur-md dark:bg-slate-900">
+      <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 overflow-hidden rounded-full border border-emerald-500/25 bg-zinc-950 px-3 py-1.5 text-emerald-50 shadow-sm shadow-emerald-950/20 backdrop-blur-md">
 
         {/* Left Side: Identity & Status */}
         <div className="flex min-w-0 items-center gap-2.5">
@@ -95,7 +96,7 @@ export default function ClaudeStatus({
                 {isLoading && (
                   <span
                     aria-hidden="true"
-                    className="ml-0.5 inline-block w-4 text-primary tabular-nums before:inline-block before:content-['...'] before:animate-chat-dots before:overflow-hidden before:align-bottom"
+                    className="ml-0.5 inline-block w-4 tabular-nums text-primary before:inline-block before:animate-chat-dots before:overflow-hidden before:align-bottom before:content-['...']"
                   />
                 )}
               </p>
@@ -107,7 +108,7 @@ export default function ClaudeStatus({
         <div className="flex items-center gap-2">
           {isLoading && status?.can_interrupt !== false && onAbort && (
             <>
-              <div className="hidden items-center rounded-md bg-muted/50 px-2 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground sm:flex">
+              <div className="hidden items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium tabular-nums text-emerald-200 sm:flex">
                 {formatElapsedTime(elapsedTime)}
               </div>
 

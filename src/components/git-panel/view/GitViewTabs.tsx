@@ -1,5 +1,6 @@
-import { FileText, GitBranch, History } from '@/lib/icons';
 import type { GitPanelView } from '../types/types';
+
+import { FileText, GitBranch, History } from '@/lib/icons';
 
 type GitViewTabsProps = {
   activeView: GitPanelView;

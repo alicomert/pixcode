@@ -1,3 +1,5 @@
+import type { PreferenceToggleItem } from './types';
+
 import {
   ArrowDown,
   Brain,
@@ -5,7 +7,6 @@ import {
   Languages,
   Maximize2,
 } from '@/lib/icons';
-import type { PreferenceToggleItem } from './types';
 
 export const HANDLE_POSITION_STORAGE_KEY = 'quickSettingsHandlePosition';
 

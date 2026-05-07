@@ -1,9 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import { useCallback, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
+
 import type { ChatMessage } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import { getIntrinsicMessageKey } from '../../utils/messageKeys';
+import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+
 import MessageComponent from './MessageComponent';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
 
@@ -12,6 +15,7 @@ interface ChatMessagesPaneProps {
   onWheel: () => void;
   onTouchMove: () => void;
   isLoadingSessionMessages: boolean;
+  isLoading: boolean;
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
@@ -61,6 +65,7 @@ export default function ChatMessagesPane({
   onWheel,
   onTouchMove,
   isLoadingSessionMessages,
+  isLoading,
   chatMessages,
   selectedSession,
   currentSessionId,
@@ -140,6 +145,31 @@ export default function ChatMessagesPane({
       onTouchMove={onTouchMove}
       className="relative flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-0 py-3 sm:space-y-4 sm:p-4"
     >
+      {isLoading && chatMessages.length > 0 && (
+        <div className="sticky top-2 z-30 mx-3 flex justify-center sm:mx-0">
+          <div className="flex max-w-full items-center gap-2 rounded-full border border-emerald-500/30 bg-zinc-950/95 px-3 py-1.5 text-xs font-medium text-emerald-100 shadow-lg shadow-emerald-950/20 backdrop-blur">
+            <SessionProviderLogo provider={provider} className="h-4 w-4" />
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+            <span className="truncate">
+              {t('claudeStatus.processing', {
+                defaultValue: '{{provider}} is working',
+                provider: provider === 'codex'
+                  ? t('messageTypes.codex')
+                  : provider === 'cursor'
+                    ? t('messageTypes.cursor')
+                    : provider === 'gemini'
+                      ? t('messageTypes.gemini')
+                      : provider === 'qwen'
+                        ? t('messageTypes.qwen', { defaultValue: 'Qwen Code' })
+                        : provider === 'opencode'
+                          ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
+                          : t('messageTypes.claude'),
+              })}
+            </span>
+          </div>
+        </div>
+      )}
+
       {isLoadingSessionMessages && chatMessages.length === 0 ? (
         <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
           <div className="flex items-center justify-center space-x-2">
@@ -273,4 +303,3 @@ export default function ChatMessagesPane({
     </div>
   );
 }
-

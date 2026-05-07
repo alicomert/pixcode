@@ -1,5 +1,6 @@
-import { Plus, RefreshCw } from '@/lib/icons';
 import { useEffect, useState } from 'react';
+
+import { Plus, RefreshCw } from '@/lib/icons';
 
 type NewBranchModalProps = {
   isOpen: boolean;

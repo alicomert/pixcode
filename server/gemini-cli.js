@@ -1,11 +1,10 @@
 import { spawn } from 'child_process';
+import { promises as fs } from 'fs';
+import os from 'os';
+import path from 'path';
+
 import crossSpawn from 'cross-spawn';
 
-// Use cross-spawn on Windows for correct .cmd resolution (same pattern as cursor-cli.js)
-const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
-import { promises as fs } from 'fs';
-import path from 'path';
-import os from 'os';
 import sessionManager from './sessionManager.js';
 import GeminiResponseHandler from './gemini-response-handler.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
@@ -13,6 +12,8 @@ import { buildSpawnEnv } from './services/provider-credentials.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
 
+// Use cross-spawn on Windows for correct .cmd resolution (same pattern as cursor-cli.js)
+const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 let activeGeminiProcesses = new Map(); // Track active processes by session ID
 
 /**

@@ -1,5 +1,6 @@
-import { Settings2 } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
+import { Settings2 } from '@/lib/icons';
 
 export default function QuickSettingsPanelHeader() {
   const { t } = useTranslation('settings');

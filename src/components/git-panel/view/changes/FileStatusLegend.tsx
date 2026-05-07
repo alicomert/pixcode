@@ -1,6 +1,8 @@
-import { ChevronDown, ChevronRight, Info } from '@/lib/icons';
 import { useState } from 'react';
+
 import { getStatusBadgeClass } from '../../utils/gitPanelUtils';
+
+import { ChevronDown, ChevronRight, Info } from '@/lib/icons';
 
 type FileStatusLegendProps = {
   isMobile: boolean;

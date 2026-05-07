@@ -1,6 +1,7 @@
 import type { MutableRefObject, RefObject } from 'react';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
+
 import type { Project, ProjectSession } from '../../../types/app';
 
 export type AuthCopyStatus = 'idle' | 'copied' | 'failed';

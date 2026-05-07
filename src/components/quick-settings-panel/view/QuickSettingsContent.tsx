@@ -1,5 +1,5 @@
-import { Moon, Sun } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { DarkModeToggle } from '../../../shared/view/ui';
 import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
 import {
@@ -13,8 +13,11 @@ import type {
   PreferenceToggleKey,
   QuickSettingsPreferences,
 } from '../types';
+
 import QuickSettingsSection from './QuickSettingsSection';
 import QuickSettingsToggleRow from './QuickSettingsToggleRow';
+
+import { Moon, Sun } from '@/lib/icons';
 
 type QuickSettingsContentProps = {
   isDarkMode: boolean;

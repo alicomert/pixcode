@@ -3,6 +3,7 @@ import { unifiedMergeView } from '@codemirror/merge';
 import type { Extension } from '@codemirror/state';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { useCodeEditorDocument } from '../hooks/useCodeEditorDocument';
 import { useCodeEditorSettings } from '../hooks/useCodeEditorSettings';
 import { useEditorKeyboardShortcuts } from '../hooks/useEditorKeyboardShortcuts';
@@ -10,6 +11,7 @@ import type { CodeEditorFile } from '../types/types';
 import { createMinimapExtension, createScrollToFirstChunkExtension, getLanguageExtensions } from '../utils/editorExtensions';
 import { getEditorStyles } from '../utils/editorStyles';
 import { createEditorToolbarPanelExtension } from '../utils/editorToolbarPanel';
+
 import CodeEditorFooter from './subcomponents/CodeEditorFooter';
 import CodeEditorHeader from './subcomponents/CodeEditorHeader';
 import CodeEditorLoadingState from './subcomponents/CodeEditorLoadingState';

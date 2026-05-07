@@ -1,9 +1,10 @@
-import { Check, ChevronLeft, ChevronRight, Loader2 } from '@/lib/icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import type { LLMProvider } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
+
 import AgentConnectionsStep from './subcomponents/AgentConnectionsStep';
 import GitConfigurationStep from './subcomponents/GitConfigurationStep';
 import OnboardingStepProgress from './subcomponents/OnboardingStepProgress';
@@ -11,6 +12,8 @@ import {
   gitEmailPattern,
   readErrorMessageFromResponse,
 } from './utils';
+
+import { Check, ChevronLeft, ChevronRight, Loader2 } from '@/lib/icons';
 
 type OnboardingProps = {
   onComplete?: () => void | Promise<void>;

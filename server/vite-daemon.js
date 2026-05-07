@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import process from 'node:process';
+
 import { createServer } from 'vite';
 
 const DEFAULT_PORT = 5173;

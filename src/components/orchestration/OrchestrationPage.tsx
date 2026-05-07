@@ -609,7 +609,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   };
 
   return (
-    <main className="flex min-h-dvh flex-col overflow-auto bg-background text-foreground xl:h-full xl:min-h-0 xl:overflow-hidden">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {preparedPrompt !== null ? (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:justify-center">
           <div className="w-full max-w-2xl rounded-xl border border-border bg-background shadow-2xl">
@@ -635,7 +635,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
           </div>
         </div>
       ) : null}
-      <div className="border-b border-border px-4 py-3 md:px-5">
+      <div className="shrink-0 border-b border-border px-3 py-2 md:px-5 md:py-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -653,15 +653,15 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
         </div>
       </div>
 
-      <div className="grid flex-1 gap-0 overflow-visible xl:min-h-0 xl:grid-cols-[minmax(480px,620px)_1fr] xl:overflow-hidden">
-        <aside className="min-h-0 overflow-auto border-b border-border xl:border-b-0 xl:border-r">
-          <section className="border-b border-border p-4 md:p-5">
+      <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(360px,520px)_1fr] xl:grid-cols-[minmax(480px,620px)_1fr]">
+        <aside className="min-h-0 overflow-auto border-b border-border lg:border-b-0 lg:border-r">
+          <section className="border-b border-border p-3 md:p-5">
             <label data-orchestration-goal className="block text-xs font-medium text-muted-foreground">{t('orchestration.goal')}</label>
             <textarea
               value={goal}
               onChange={(event) => setGoal(event.target.value)}
               placeholder={t('orchestration.goalPlaceholder')}
-              className="mt-2 min-h-32 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+              className="mt-2 min-h-24 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring md:min-h-32"
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">{t('orchestration.quickPrompts.label')}</span>
@@ -754,7 +754,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
             </Button>
           </section>
 
-          <section className="border-b border-border p-4 md:p-5">
+          <section className="border-b border-border p-3 md:p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Users className="h-4 w-4" />
@@ -815,7 +815,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                       agent.enabled ? 'border-primary/30 bg-primary/5' : 'border-border bg-muted/20'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       <button
                         type="button"
                         role="switch"
@@ -833,7 +833,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                         />
                       </button>
                       <SessionProviderLogo provider={adapter.provider} className="h-5 w-5" />
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-[140px] flex-1">
                         <div className="truncate text-sm font-medium">{label}</div>
                         <div className="truncate text-xs text-muted-foreground">
                           {adapterName(agent.adapterId)} · {runtimeOptions.model || t('orchestration.cliSettings')}
@@ -968,7 +968,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
             </div>
           </section>
 
-          <section className="p-4 md:p-5">
+          <section className="p-3 md:p-5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Clock className="h-4 w-4" />
@@ -1027,7 +1027,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
           </section>
         </aside>
 
-        <section className="min-h-[70vh] overflow-hidden xl:min-h-0">
+        <section className="min-h-0 overflow-hidden">
           <WorkflowRunPanel runId={runId} onPrepareTeamFromSummary={prepareTeamFromSummary} />
         </section>
       </div>

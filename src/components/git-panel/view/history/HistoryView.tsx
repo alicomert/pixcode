@@ -1,7 +1,10 @@
-import { History, RefreshCw } from '@/lib/icons';
 import { useCallback, useState } from 'react';
+
 import type { GitDiffMap, GitCommitSummary } from '../../types/types';
+
 import CommitHistoryItem from './CommitHistoryItem';
+
+import { History, RefreshCw } from '@/lib/icons';
 
 type HistoryViewProps = {
   isMobile: boolean;

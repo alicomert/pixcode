@@ -2,9 +2,10 @@ import { Send as TelegramIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { authenticatedFetch } from '../../../../../utils/api';
+
 import { AlertCircle, CheckCircle, RefreshCw, Trash2 } from '@/lib/icons';
 
-import { authenticatedFetch } from '../../../../../utils/api';
 
 type BotState = {
   running: boolean;

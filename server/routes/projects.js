@@ -1,8 +1,10 @@
-import express from 'express';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import os from 'os';
+
+import express from 'express';
+
 import { addProjectManually, extractProjectDirectory } from '../projects.js';
 
 const router = express.Router();

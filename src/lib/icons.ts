@@ -1,3 +1,4 @@
+/* eslint-disable import-x/order */
 /**
  * Centralized icon wrapper.
  *
@@ -19,7 +20,6 @@
  * accept Lucide's `size` or `strokeWidth` props — if any call site needs
  * those, migrate them to className-based sizing at that site.
  */
-
 import type { ComponentType, SVGProps } from 'react';
 import {
   AdjustmentsHorizontalIcon,

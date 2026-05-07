@@ -1,7 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Copy, Download, FileText, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from '@/lib/icons';
+
 import { cn } from '../../../lib/utils';
+
+import { Copy, Download, FileText, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from '@/lib/icons';
 
 type FileContextItem = {
   name: string;

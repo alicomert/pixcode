@@ -1,5 +1,6 @@
-import { Code2, Download, Eye, Maximize2, Minimize2, Save, Settings as SettingsIcon, X } from '@/lib/icons';
 import type { CodeEditorFile } from '../../types/types';
+
+import { Code2, Download, Eye, Maximize2, Minimize2, Save, Settings as SettingsIcon, X } from '@/lib/icons';
 
 type CodeEditorHeaderProps = {
   file: CodeEditorFile;

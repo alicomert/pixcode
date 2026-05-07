@@ -1,3 +1,5 @@
+import type { FileIconData, FileIconMap } from '../types/types';
+
 import {
   Archive,
   Binary,
@@ -36,7 +38,6 @@ import {
   Video,
   Workflow,
 } from '@/lib/icons';
-import type { FileIconData, FileIconMap } from '../types/types';
 
 export const ICON_SIZE_CLASS = 'w-4 h-4 flex-shrink-0';
 

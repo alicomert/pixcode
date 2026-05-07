@@ -18,6 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import net from 'node:net';
+
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import { buildDaemonCliCommand, handleDaemonCommand, hasInstalledDaemonUnit } from './daemon-manager.js';
 

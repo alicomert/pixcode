@@ -1,9 +1,11 @@
-import { Bell, Bot, GitBranch, Info, Key, ListChecks, Palette, Puzzle, Smartphone } from '@/lib/icons';
 import { Send as TelegramIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import { cn } from '../../../lib/utils';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import type { SettingsMainTab } from '../types/types';
+
+import { Bell, Bot, GitBranch, Info, Key, ListChecks, Palette, Puzzle, Smartphone } from '@/lib/icons';
 
 type SettingsSidebarProps = {
   activeTab: SettingsMainTab;

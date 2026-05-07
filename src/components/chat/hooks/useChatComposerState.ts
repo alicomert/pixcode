@@ -10,6 +10,7 @@ import type {
   TouchEvent,
 } from 'react';
 import { useDropzone } from 'react-dropzone';
+
 import { authenticatedFetch } from '../../../utils/api';
 import { thinkingModes } from '../constants/thinkingModes';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
@@ -21,6 +22,7 @@ import type {
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
+
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
 
@@ -137,6 +139,7 @@ export function useChatComposerState({
   setIsUserScrolledUp,
   setPendingPermissionRequests,
 }: UseChatComposerStateArgs) {
+  const selectedProjectName = selectedProject?.name;
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
       return safeLocalStorage.getItem(`draft_input_${selectedProject.name}`) || '';
@@ -768,27 +771,27 @@ export function useChatComposerState({
   }, [input]);
 
   useEffect(() => {
-    if (!selectedProject) {
+    if (!selectedProjectName) {
       return;
     }
-    const savedInput = safeLocalStorage.getItem(`draft_input_${selectedProject.name}`) || '';
+    const savedInput = safeLocalStorage.getItem(`draft_input_${selectedProjectName}`) || '';
     setInput((previous) => {
       const next = previous === savedInput ? previous : savedInput;
       inputValueRef.current = next;
       return next;
     });
-  }, [selectedProject?.name]);
+  }, [selectedProjectName]);
 
   useEffect(() => {
-    if (!selectedProject) {
+    if (!selectedProjectName) {
       return;
     }
     if (input !== '') {
-      safeLocalStorage.setItem(`draft_input_${selectedProject.name}`, input);
+      safeLocalStorage.setItem(`draft_input_${selectedProjectName}`, input);
     } else {
-      safeLocalStorage.removeItem(`draft_input_${selectedProject.name}`);
+      safeLocalStorage.removeItem(`draft_input_${selectedProjectName}`);
     }
-  }, [input, selectedProject]);
+  }, [input, selectedProjectName]);
 
   useEffect(() => {
     if (!textareaRef.current) {

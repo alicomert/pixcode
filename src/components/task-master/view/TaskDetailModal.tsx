@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+
+import { cn } from '../../../lib/utils';
+import { copyTextToClipboard } from '../../../utils/clipboard';
+import { api } from '../../../utils/api';
+import { useTaskMaster } from '../context/TaskMasterContext';
+import type { TaskId, TaskMasterTask, TaskReference } from '../types';
+
 import {
   AlertCircle,
   ArrowRight,
@@ -13,11 +20,6 @@ import {
   Save,
   X,
 } from '@/lib/icons';
-import { cn } from '../../../lib/utils';
-import { copyTextToClipboard } from '../../../utils/clipboard';
-import { api } from '../../../utils/api';
-import { useTaskMaster } from '../context/TaskMasterContext';
-import type { TaskId, TaskMasterTask, TaskReference } from '../types';
 
 type TaskDetailModalProps = {
   task: TaskMasterTask | null;

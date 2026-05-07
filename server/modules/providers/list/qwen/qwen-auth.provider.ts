@@ -1,3 +1,4 @@
+/* eslint-disable import-x/order */
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,7 +8,7 @@ import spawn from 'cross-spawn';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-ignore — plain-JS module, typed via inference
 import { getProviderCredentials } from '@/services/provider-credentials.js';
 

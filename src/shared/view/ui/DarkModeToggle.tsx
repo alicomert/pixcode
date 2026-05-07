@@ -1,7 +1,8 @@
-import { Moon, Sun } from '@/lib/icons';
 
 import { useTheme } from '../../../contexts/ThemeContext';
 import { cn } from '../../../lib/utils';
+
+import { Moon, Sun } from '@/lib/icons';
 
 type DarkModeToggleProps = {
   checked?: boolean;

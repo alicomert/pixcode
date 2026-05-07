@@ -1,5 +1,8 @@
 import { useRef } from 'react';
 import type { ReactNode } from 'react';
+
+import { cn } from '../../../lib/utils';
+
 import {
   Download,
   Eye,
@@ -12,7 +15,6 @@ import {
   Sun,
   X,
 } from '@/lib/icons';
-import { cn } from '../../../lib/utils';
 
 type PrdEditorHeaderProps = {
   fileName: string;

@@ -1,7 +1,9 @@
-import { ExternalLink, Key, Plus, Trash2 } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { Button, Input } from '../../../../../../shared/view/ui';
 import type { ApiKeyItem } from '../types';
+
+import { ExternalLink, Key, Plus, Trash2 } from '@/lib/icons';
 
 type ApiKeysSectionProps = {
   apiKeys: ApiKeyItem[];

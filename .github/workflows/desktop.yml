@@ -86,19 +86,13 @@ jobs:
             exit 0
           fi
 
-          # Narrow the diff to files that actually change installer contents.
-          # Installers bundle @pixelbyte-software/pixcode, so app/server/shared
-          # changes require a fresh matrix build rather than renamed old assets.
+          # Narrow the diff to files that actually change the desktop wrapper
+          # binary. App/server/package version bumps are delivered through the
+          # npm package and in-app update path, so they must not spend CI minutes
+          # rebuilding native installers on every release tag.
           if git diff --quiet "$PREV_TAG" "$CURRENT_TAG" -- \
-              package.json \
-              package-lock.json \
-              server/ \
-              shared/ \
-              src/ \
-              public/ \
               desktop/electron/ \
               desktop/electron-builder.yml \
-              desktop/package.json \
               desktop/build-resources/; then
             echo "Wrapper unchanged since $PREV_TAG — reusing its installers."
             echo "mode=reuse" >> "$GITHUB_OUTPUT"

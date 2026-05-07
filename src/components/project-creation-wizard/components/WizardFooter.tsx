@@ -1,7 +1,9 @@
-import { Check, ChevronLeft, ChevronRight, Loader2 } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { Button } from '../../../shared/view/ui';
 import type { WizardStep } from '../types';
+
+import { Check, ChevronLeft, ChevronRight, Loader2 } from '@/lib/icons';
 
 type WizardFooterProps = {
   step: WizardStep;

@@ -1,5 +1,6 @@
-import { Settings, Sparkles, PanelLeftOpen, Bug } from '@/lib/icons';
 import type { TFunction } from 'i18next';
+
+import { Settings, Sparkles, PanelLeftOpen, Bug } from '@/lib/icons';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/buxwujPNRE';
 const GITHUB_ISSUES_URL = 'https://github.com/alicomert/pixcode/issues/new';

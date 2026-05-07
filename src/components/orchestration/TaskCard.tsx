@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next';
 
-import { GitBranch, Play, SquareIcon } from '@/lib/icons';
 import { Badge, Button } from '../../shared/view/ui';
+
 import TaskStreamPanel from './TaskStreamPanel';
 import type { UnifiedTask } from './useOrchestrationTasks';
+
+import { GitBranch, Play, SquareIcon } from '@/lib/icons';
 
 type TaskCardProps = {
   task: UnifiedTask;

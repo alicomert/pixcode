@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, Download, Loader2, Lock, RefreshCw, X } from "@/lib/icons";
 import { useTranslation } from "react-i18next";
 
 import { useProviderModels } from "../../../../hooks/useProviderModels";
@@ -29,6 +28,8 @@ import {
   CommandGroup,
   CommandItem,
 } from "../../../../shared/view/ui";
+
+import { Check, ChevronDown, Download, Loader2, Lock, RefreshCw, X } from "@/lib/icons";
 
 type ProviderSelectionEmptyStateProps = {
   selectedSession: ProjectSession | null;

@@ -1,4 +1,9 @@
 import { memo } from 'react';
+
+import { cn } from '../../../lib/utils';
+import { Tooltip } from '../../../shared/view/ui';
+import type { TaskMasterTask } from '../types';
+
 import {
   AlertCircle,
   ArrowRight,
@@ -10,9 +15,6 @@ import {
   Pause,
   X,
 } from '@/lib/icons';
-import { cn } from '../../../lib/utils';
-import { Tooltip } from '../../../shared/view/ui';
-import type { TaskMasterTask } from '../types';
 
 type TaskCardProps = {
   task: TaskMasterTask;

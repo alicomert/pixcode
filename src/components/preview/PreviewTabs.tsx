@@ -1,6 +1,7 @@
 import { ExternalLink, RefreshCw, X } from 'lucide-react';
 
 import { Button } from '../../shared/view/ui';
+
 import type { PreviewTab } from './usePreviewArtifacts';
 
 type PreviewTabsProps = {

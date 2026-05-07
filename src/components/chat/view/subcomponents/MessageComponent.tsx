@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type {
   ChatMessage,
@@ -12,6 +13,7 @@ import { getClaudePermissionSuggestion } from '../../utils/chatPermissions';
 import type { Project } from '../../../../types/app';
 import { ToolRenderer, shouldHideToolResult } from '../../tools';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../shared/view/ui';
+
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 
@@ -119,7 +121,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
       {message.type === 'user' ? (
         /* User message bubble on the right */
         <div className="flex w-full items-end space-x-0 sm:w-auto sm:max-w-[85%] sm:space-x-3 md:max-w-md lg:max-w-lg xl:max-w-xl">
-          <div className="group flex-1 rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:flex-initial sm:px-4">
+          <div className="group flex-1 rounded-2xl rounded-br-md border border-emerald-500/25 bg-zinc-950 px-3 py-2 text-emerald-50 shadow-sm shadow-emerald-950/10 dark:bg-emerald-950/50 sm:flex-initial sm:px-4">
             <div className="whitespace-pre-wrap break-words text-sm">
               {message.content}
             </div>
@@ -136,7 +138,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                 ))}
               </div>
             )}
-            <div className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-100">
+            <div className="mt-1 flex items-center justify-end gap-1 text-xs text-emerald-200/70">
               {shouldShowUserCopyControl && (
                 <MessageCopyControl content={userCopyContent} messageType="user" />
               )}
@@ -144,7 +146,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
             </div>
           </div>
           {!isGrouped && (
-            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm text-white sm:flex">
+            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-emerald-500/25 bg-zinc-950 text-sm text-emerald-100 sm:flex">
               U
             </div>
           )}
@@ -167,7 +169,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                   !
                 </div>
               ) : message.type === 'tool' ? (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-sm text-white dark:bg-gray-700">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-zinc-700 text-sm text-white dark:bg-zinc-800">
                   🔧
                 </div>
               ) : (
@@ -181,7 +183,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
             </div>
           )}
 
-          <div className="w-full">
+          <div className="w-full rounded-2xl rounded-tl-md border border-border/55 bg-card/60 px-3 py-2 shadow-sm sm:px-4">
 
             {message.isToolUse ? (
               <>
@@ -393,7 +395,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                 </ReasoningContent>
               </Reasoning>
             ) : (
-              <div className="text-sm text-gray-700 dark:text-gray-300">
+              <div className="text-sm text-zinc-700 dark:text-zinc-200">
                 {/* Reasoning accordion */}
                 {showThinking && message.reasoning && (
                   <Reasoning className="mb-3" defaultOpen={false}>
@@ -469,4 +471,3 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
 });
 
 export default MessageComponent;
-

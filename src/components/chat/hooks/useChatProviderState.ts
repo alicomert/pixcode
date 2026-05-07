@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { authenticatedFetch } from '../../../utils/api';
 import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS, OPENCODE_MODELS, QWEN_MODELS } from '../../../../shared/modelConstants';
 import type { PendingPermissionRequest, PermissionMode } from '../types/types';
@@ -8,8 +9,19 @@ interface UseChatProviderStateArgs {
   selectedSession: ProjectSession | null;
 }
 
+const globalPermissionModeKey = 'permissionMode-global';
+
+const readPermissionMode = (key: string): PermissionMode | null => {
+  const value = localStorage.getItem(key);
+  return value === 'default' || value === 'acceptEdits' || value === 'bypassPermissions' || value === 'plan'
+    ? value
+    : null;
+};
+
 export function useChatProviderState({ selectedSession }: UseChatProviderStateArgs) {
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('default');
+  const [permissionMode, setPermissionModeState] = useState<PermissionMode>(() => (
+    readPermissionMode(globalPermissionModeKey) || 'default'
+  ));
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<PendingPermissionRequest[]>([]);
   const [provider, setProvider] = useState<LLMProvider>(() => {
     return (localStorage.getItem('selected-provider') as LLMProvider) || 'claude';
@@ -40,8 +52,8 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
       return;
     }
 
-    const savedMode = localStorage.getItem(`permissionMode-${selectedSession.id}`);
-    setPermissionMode((savedMode as PermissionMode) || 'default');
+    const savedMode = readPermissionMode(`permissionMode-${selectedSession.id}`) || readPermissionMode(globalPermissionModeKey);
+    setPermissionModeState(savedMode || 'default');
   }, [selectedSession?.id]);
 
   useEffect(() => {
@@ -89,6 +101,14 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
       });
   }, [provider]);
 
+  const setPermissionMode = useCallback((nextMode: PermissionMode) => {
+    setPermissionModeState(nextMode);
+    localStorage.setItem(globalPermissionModeKey, nextMode);
+    if (selectedSession?.id) {
+      localStorage.setItem(`permissionMode-${selectedSession.id}`, nextMode);
+    }
+  }, [selectedSession?.id]);
+
   const cyclePermissionMode = useCallback(() => {
     const modes: PermissionMode[] =
       provider === 'codex'
@@ -99,11 +119,7 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
     const nextIndex = (currentIndex + 1) % modes.length;
     const nextMode = modes[nextIndex];
     setPermissionMode(nextMode);
-
-    if (selectedSession?.id) {
-      localStorage.setItem(`permissionMode-${selectedSession.id}`, nextMode);
-    }
-  }, [permissionMode, provider, selectedSession?.id]);
+  }, [permissionMode, provider, setPermissionMode]);
 
   return {
     provider,

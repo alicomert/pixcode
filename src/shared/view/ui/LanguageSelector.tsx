@@ -1,9 +1,11 @@
 
 
 import { useTranslation } from 'react-i18next';
-import { Languages } from '@/lib/icons';
 
 import { languages } from '../../../i18n/languages';
+
+import { Languages } from '@/lib/icons';
+
 
 type LanguageSelectorProps = {
   compact?: boolean;

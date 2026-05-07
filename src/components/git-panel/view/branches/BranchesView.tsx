@@ -1,7 +1,9 @@
-import { Check, GitBranch, Globe, Plus, RefreshCw, Trash2 } from '@/lib/icons';
 import { useState } from 'react';
+
 import type { ConfirmationRequest, GitRemoteStatus } from '../../types/types';
 import NewBranchModal from '../modals/NewBranchModal';
+
+import { Check, GitBranch, Globe, Plus, RefreshCw, Trash2 } from '@/lib/icons';
 
 type BranchesViewProps = {
   isMobile: boolean;

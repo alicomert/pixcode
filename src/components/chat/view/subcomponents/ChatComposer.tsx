@@ -11,14 +11,8 @@ import type {
   SetStateAction,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, ListChecks } from '@/lib/icons';
+
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
-import CommandMenu from './CommandMenu';
-import ClaudeStatus from './ClaudeStatus';
-import ImageAttachment from './ImageAttachment';
-import PermissionRequestsBanner from './PermissionRequestsBanner';
-import ThinkingModeSelector from './ThinkingModeSelector';
-import TokenUsagePie from './TokenUsagePie';
 import {
   PromptInput,
   PromptInputHeader,
@@ -29,6 +23,15 @@ import {
   PromptInputButton,
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
+
+import CommandMenu from './CommandMenu';
+import ClaudeStatus from './ClaudeStatus';
+import ImageAttachment from './ImageAttachment';
+import PermissionRequestsBanner from './PermissionRequestsBanner';
+import ThinkingModeSelector from './ThinkingModeSelector';
+import TokenUsagePie from './TokenUsagePie';
+
+import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, ListChecks } from '@/lib/icons';
 
 interface MentionableFile {
   name: string;
@@ -396,7 +399,7 @@ export default function ChatComposer({
               <PromptInputButton
                 tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
                 onClick={onClearInput}
-                className="hidden sm:No-flex"
+                className="sm:No-flex hidden"
               >
                 <XIcon />
               </PromptInputButton>

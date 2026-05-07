@@ -1,7 +1,9 @@
-import { ArrowDown, ArrowUp, ArrowUpDown } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { cn } from '../../../../lib/utils';
 import type { TaskBoardSortField, TaskBoardSortOrder } from '../../types';
+
+import { ArrowDown, ArrowUp, ArrowUpDown } from '@/lib/icons';
 
 type TaskQuickSortBarProps = {
   sortField: TaskBoardSortField;

@@ -1,9 +1,11 @@
-import { Check } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { useGitSettings } from '../../../hooks/useGitSettings';
 import { Button, Input } from '../../../../../shared/view/ui';
 import SettingsCard from '../../SettingsCard';
 import SettingsSection from '../../SettingsSection';
+
+import { Check } from '@/lib/icons';
 
 export default function GitSettingsTab() {
   const { t } = useTranslation('settings');

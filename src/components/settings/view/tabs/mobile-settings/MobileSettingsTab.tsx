@@ -2,9 +2,10 @@ import QRCode from 'qrcode';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { authenticatedFetch } from '../../../../../utils/api';
+
 import { Clipboard, Cloud, Globe, RefreshCw, Smartphone } from '@/lib/icons';
 
-import { authenticatedFetch } from '../../../../../utils/api';
 
 type NetworkEndpoint = {
   host: string;
@@ -243,7 +244,7 @@ export default function MobileSettingsTab() {
       <div className="grid gap-3 sm:grid-cols-2">{qrs.map(renderQrCard)}</div>
 
       {/* External access */}
-      <div className="border-t border-border/40 pt-5 space-y-4">
+      <div className="space-y-4 border-t border-border/40 pt-5">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
             <Globe className="h-5 w-5" />

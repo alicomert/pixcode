@@ -1,11 +1,14 @@
 "use client";
 
 import * as React from 'react';
-import { BrainIcon, ChevronDownIcon } from '@/lib/icons';
+
 
 import { cn } from '../../../lib/utils';
+
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './Collapsible';
 import { Shimmer } from './Shimmer';
+
+import { BrainIcon, ChevronDownIcon } from '@/lib/icons';
 
 /* ─── Context ────────────────────────────────────────────────────── */
 

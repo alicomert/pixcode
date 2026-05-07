@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { RefObject } from 'react';
+
 import type { AuthCopyStatus } from '../../types/types';
 import { resolveAuthUrlForDisplay } from '../../utils/auth';
 

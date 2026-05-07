@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
+
 import type { MainContentHeaderProps } from '../../types/types';
+
 import MobileMenuButton from './MobileMenuButton';
 import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';

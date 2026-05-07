@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { AlertTriangle, Plus, Shield, X } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import { Button, Input } from '../../../../../../../shared/view/ui';
 import type { CodexPermissionMode, GeminiPermissionMode, OpencodePermissionsState, QwenPermissionMode } from '../../../../../types/types';
+
+import { AlertTriangle, Plus, Shield, X } from '@/lib/icons';
 
 const COMMON_CLAUDE_TOOLS = [
   'Bash(git log:*)',

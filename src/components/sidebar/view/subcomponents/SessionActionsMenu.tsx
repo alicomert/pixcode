@@ -1,8 +1,9 @@
 import type { TFunction } from 'i18next';
 
+import ItemActionsMenu, { type MenuAction } from './ItemActionsMenu';
+
 import { Edit2, Star, Trash2 } from '@/lib/icons';
 
-import ItemActionsMenu, { type MenuAction } from './ItemActionsMenu';
 
 export type SessionActionsMenuProps = {
   isStarred: boolean;

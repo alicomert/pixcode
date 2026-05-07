@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useQuickSettingsDrag } from '../hooks/useQuickSettingsDrag';
 import type { PreferenceToggleKey, QuickSettingsPreferences } from '../types';
+
 import QuickSettingsContent from './QuickSettingsContent';
 import QuickSettingsHandle from './QuickSettingsHandle';
 import QuickSettingsPanelHeader from './QuickSettingsPanelHeader';

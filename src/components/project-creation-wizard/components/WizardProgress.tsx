@@ -1,7 +1,9 @@
 import { Fragment } from 'react';
-import { Check } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import type { WizardStep } from '../types';
+
+import { Check } from '@/lib/icons';
 
 type WizardProgressProps = {
   step: WizardStep;

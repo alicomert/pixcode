@@ -1,6 +1,8 @@
-import { Check, ChevronDown, GitCommit, RefreshCw, Sparkles } from '@/lib/icons';
 import { useState } from 'react';
+
 import type { ConfirmationRequest } from '../../types/types';
+
+import { Check, ChevronDown, GitCommit, RefreshCw, Sparkles } from '@/lib/icons';
 
 // Persists commit messages across unmount/remount, keyed by project path
 const commitMessageCache = new Map<string, string>();

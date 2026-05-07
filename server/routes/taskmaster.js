@@ -8,15 +8,17 @@
  * - TaskMaster state and metadata management
  */
 
-import express from 'express';
-import fs from 'fs';
+import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
-import { promises as fsPromises } from 'fs';
 import { spawn } from 'child_process';
-import { extractProjectDirectory } from '../projects.js';
-import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
-import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
+
+import express from 'express';
+
 import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
+
+import { extractProjectDirectory } from '../projects.js';
+import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
+import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
 
 const router = express.Router();
 

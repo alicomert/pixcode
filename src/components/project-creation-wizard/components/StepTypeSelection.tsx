@@ -1,6 +1,8 @@
-import { FolderOpen, FolderPlus, GitBranch } from '@/lib/icons';
 import { useTranslation } from 'react-i18next';
+
 import type { WorkspaceType } from '../types';
+
+import { FolderOpen, FolderPlus, GitBranch } from '@/lib/icons';
 
 type StepTypeSelectionProps = {
   workspaceType: WorkspaceType;

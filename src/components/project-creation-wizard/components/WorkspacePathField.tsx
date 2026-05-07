@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FolderOpen } from '@/lib/icons';
+
 import { Button, Input } from '../../../shared/view/ui';
 import { browseFilesystemFolders } from '../data/workspaceApi';
 import { getSuggestionRootPath } from '../utils/pathUtils';
 import type { FolderSuggestion, WorkspaceType } from '../types';
+
 import FolderBrowserModal from './FolderBrowserModal';
+
+import { FolderOpen } from '@/lib/icons';
 
 type WorkspacePathFieldProps = {
   workspaceType: WorkspaceType;

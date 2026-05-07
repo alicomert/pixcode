@@ -1,6 +1,8 @@
 import { memo } from 'react';
-import type { LucideIcon } from '@/lib/icons';
+
 import { CHECKBOX_CLASS, TOGGLE_ROW_CLASS } from '../constants';
+
+import type { LucideIcon } from '@/lib/icons';
 
 type QuickSettingsToggleRowProps = {
   label: string;

@@ -1,8 +1,9 @@
+/* eslint-disable import-x/order */
 import express, { type Request, type Response } from 'express';
 
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-ignore — plain-JS service, typed via inference
 import {
   applyProviderCredentialsToEnv,
@@ -10,10 +11,10 @@ import {
   setProviderCredentials,
   PROVIDER_ENV_VARS,
 } from '@/services/provider-credentials.js';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-ignore — plain-JS service
 import { getProviderModels, clearProviderModelCache } from '@/services/provider-models.js';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-ignore — plain-JS service
 import {
   createInstallJob,
@@ -21,8 +22,17 @@ import {
   cancelInstallJob,
   snapshotDonePayload,
 } from '@/services/install-jobs.js';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+
+ 
 // @ts-ignore — plain-JS shared module
+import {
+  MAX_CONFIG_FILE_SIZE_BYTES,
+  PROVIDER_CONFIG_FILES,
+  type ProviderConfigFile,
+} from '@/modules/providers/shared/provider-configs.js';
+import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
+
 import {
   CLAUDE_MODELS,
   CODEX_MODELS,
@@ -40,18 +50,11 @@ const STATIC_MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ value: string; labe
   qwen: QWEN_MODELS.OPTIONS,
   opencode: OPENCODE_MODELS.OPTIONS,
 };
-import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
-import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
-import {
-  MAX_CONFIG_FILE_SIZE_BYTES,
-  PROVIDER_CONFIG_FILES,
-  type ProviderConfigFile,
-} from '@/modules/providers/shared/provider-configs.js';
 
 /**
  * npm-global install command per provider. Used by POST

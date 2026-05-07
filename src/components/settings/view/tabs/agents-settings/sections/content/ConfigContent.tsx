@@ -4,6 +4,8 @@ import CodeMirror from '@uiw/react-codemirror';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import type { AgentProvider } from '../../../../../types/types';
+
 import { AlertCircle, Check, Clipboard, Lock, RefreshCw } from '@/lib/icons';
 import SessionProviderLogo from '@/components/llm-logo-provider/SessionProviderLogo';
 import { PROVIDER_DISPLAY_NAMES } from '@/components/provider-auth/types';
@@ -11,7 +13,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { authenticatedFetch } from '@/utils/api';
 import { copyTextToClipboard } from '@/utils/clipboard';
 
-import type { AgentProvider } from '../../../../../types/types';
 
 type ConfigFormat = 'json' | 'toml' | 'env' | 'text';
 

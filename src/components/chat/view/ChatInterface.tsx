@@ -211,7 +211,6 @@ function ChatInterface({
     handlePermissionDecision,
     handleGrantToolPermission,
     handleInputFocusChange,
-    isInputFocused,
   } = useChatComposerState({
     selectedProject,
     selectedSession,
@@ -360,6 +359,7 @@ function ChatInterface({
           onWheel={handleScroll}
           onTouchMove={handleScroll}
           isLoadingSessionMessages={isLoadingSessionMessages}
+          isLoading={isLoading}
           chatMessages={chatMessages}
           selectedSession={selectedSession}
           currentSessionId={currentSessionId}

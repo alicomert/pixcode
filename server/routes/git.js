@@ -1,7 +1,9 @@
-import express from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import { promises as fs } from 'fs';
+
+import express from 'express';
+
 import { extractProjectDirectory } from '../projects.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
+
 import type { UseShellRuntimeOptions, UseShellRuntimeResult } from '../types/types';
 import { copyTextToClipboard } from '../../../utils/clipboard';
+
 import { useShellConnection } from './useShellConnection';
 import { useShellTerminal } from './useShellTerminal';
 

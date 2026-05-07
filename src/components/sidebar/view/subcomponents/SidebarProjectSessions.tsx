@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, Plus, Workflow } from '@/lib/icons';
 import type { TFunction } from 'i18next';
+
 import { Button } from '../../../../shared/view/ui';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import { authenticatedFetch } from '../../../../utils/api';
 import type { SessionWithProvider } from '../../types/types';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+
 import SidebarSessionItem from './SidebarSessionItem';
+
+import { ChevronDown, Plus, Workflow } from '@/lib/icons';
 
 type SidebarProjectSessionsProps = {
   project: Project;

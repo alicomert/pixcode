@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { copyTextToClipboard } from '../../../../utils/clipboard';
 
 const COPY_SUCCESS_TIMEOUT_MS = 2000;

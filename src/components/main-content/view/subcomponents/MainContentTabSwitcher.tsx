@@ -1,10 +1,12 @@
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, Workflow, type LucideIcon } from '@/lib/icons';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { Tooltip, PillBar, Pill } from '../../../../shared/view/ui';
 import type { AppTab } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 import PluginIcon from '../../../plugins/view/PluginIcon';
+
+import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, Workflow, type LucideIcon } from '@/lib/icons';
 
 type MainContentTabSwitcherProps = {
   activeTab: AppTab;

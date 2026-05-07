@@ -29,7 +29,7 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --primary: 158 64% 36%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -41,7 +41,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --ring: 158 64% 36%;
     /* Base radius — every Tailwind rounded-* step is derived from this in
        tailwind.config.js. Bumped from 0.5rem to 0.75rem for a softer
        ChatGPT/Claude-style curve across cards, buttons, and inputs. */
@@ -51,13 +51,13 @@
     --nav-glass-bg: 0 0% 100% / 0.7;
     --nav-glass-blur: 20px;
     --nav-glass-saturate: 1.8;
-    --nav-tab-glow: 221.2 83.2% 53.3% / 0.18;
-    --nav-tab-ring: 221.2 83.2% 53.3% / 0.10;
+    --nav-tab-glow: 158 64% 36% / 0.18;
+    --nav-tab-ring: 158 64% 36% / 0.10;
     --nav-float-shadow: 0 0% 0% / 0.06;
     --nav-float-ring: 214.3 31.8% 91.4% / 0.5;
     --nav-divider-color: 214.3 31.8% 91.4% / 0.5;
     --nav-input-bg: 210 40% 96.1% / 0.5;
-    --nav-input-focus-ring: 221.2 83.2% 53.3% / 0.22;
+    --nav-input-focus-ring: 158 64% 36% / 0.22;
 
     /* Safe area CSS variables */
     --safe-area-inset-top: env(safe-area-inset-top);
@@ -88,37 +88,37 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 217.2 91.2% 8%;
+    --background: 160 18% 6%;
+    --foreground: 150 20% 94%;
+    --card: 160 16% 8%;
     --card-foreground: 210 40% 98%;
-    --popover: 217.2 91.2% 8%;
+    --popover: 160 16% 8%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 151 65% 45%;
+    --primary-foreground: 160 18% 6%;
+    --secondary: 160 16% 15%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 160 16% 15%;
+    --muted-foreground: 150 10% 68%;
+    --accent: 160 16% 15%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 220 13% 46%;
-    --ring: 217.2 91.2% 59.8%;
+    --border: 160 14% 20%;
+    --input: 160 14% 24%;
+    --ring: 151 65% 45%;
 
     /* Nav design tokens — dark overrides */
-    --nav-glass-bg: 217.2 91.2% 8% / 0.55;
+    --nav-glass-bg: 160 16% 8% / 0.65;
     --nav-glass-blur: 24px;
     --nav-glass-saturate: 1.6;
-    --nav-tab-glow: 217.2 91.2% 59.8% / 0.25;
-    --nav-tab-ring: 217.2 91.2% 59.8% / 0.15;
+    --nav-tab-glow: 151 65% 45% / 0.25;
+    --nav-tab-ring: 151 65% 45% / 0.15;
     --nav-float-shadow: 0 0% 0% / 0.35;
-    --nav-float-ring: 217.2 32.6% 17.5% / 0.3;
-    --nav-divider-color: 217.2 32.6% 17.5% / 0.5;
-    --nav-input-bg: 217.2 32.6% 17.5% / 0.5;
-    --nav-input-focus-ring: 217.2 91.2% 59.8% / 0.25;
+    --nav-float-ring: 160 14% 20% / 0.35;
+    --nav-divider-color: 160 14% 20% / 0.5;
+    --nav-input-bg: 160 16% 15% / 0.5;
+    --nav-input-focus-ring: 151 65% 45% / 0.25;
   }
 }
 
@@ -613,8 +613,7 @@
 }
 
 /* Mobile optimizations and components */
-@layer components {
-  /* Mobile touch optimization and safe areas */
+/* Mobile touch optimization and safe areas */
   @media (max-width: 768px) {
     * {
       touch-action: manipulation;
@@ -646,26 +645,36 @@
     
     /* Better mobile touch targets */
     .mobile-touch-target {
-      @apply min-h-[44px] min-w-[44px];
+      min-height: 44px;
+      min-width: 44px;
     }
     
     /* Chat message improvements */
     .chat-message.user {
-      @apply justify-end;
+      justify-content: flex-end;
     }
     
     .chat-message.user > div {
-      @apply max-w-[85%];
+      max-width: 85%;
     }
     
     .chat-message.assistant > div,
     .chat-message.error > div {
-      @apply w-full sm:max-w-[95%];
+      width: 100%;
+    }
+
+    @media (min-width: 640px) {
+      .chat-message.assistant > div,
+      .chat-message.error > div {
+        max-width: 95%;
+      }
     }
     
     /* Session name truncation on mobile */
     .session-name-mobile {
-      @apply truncate;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       max-width: calc(100vw - 120px); /* Account for sidebar padding and buttons */
     }
     
@@ -687,22 +696,11 @@
       touch-action: pan-y;
     }
     
-    /* Fix hover states on mobile */
-    .group:active .group-hover\:opacity-100,
-    .group .group-hover\:opacity-100 {
-      opacity: 1 !important;
-    }
-    
     @media (hover: none) and (pointer: coarse) {
-      .group-hover\:opacity-100 {
-        opacity: 1 !important;
-      }
-      
-      .hover\:bg-gray-50:hover,
-      .hover\:bg-gray-100:hover,
-      .hover\:bg-red-200:hover,
-      .dark\:hover\:bg-gray-700:hover,
-      .dark\:hover\:bg-red-900\/50:hover {
+      button:hover,
+      [role="button"]:hover,
+      .cursor-pointer:hover,
+      a:hover {
         background-color: inherit;
       }
     }
@@ -710,18 +708,14 @@
   
   /* Touch device optimizations for all screen sizes */
   @media (hover: none) and (pointer: coarse) {
-    .touch\:opacity-100 {
-      opacity: 1 !important;
-    }
-    
     /* Completely disable hover states on touch devices */
     * {
-      -webkit-tap-highlight-color: transparent !important;
+      -webkit-tap-highlight-color: transparent;
     }
     
     /* Preserve checkbox visibility on touch devices */
     input[type="checkbox"] {
-      -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1) !important;
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
       opacity: 1 !important;
     }
     
@@ -729,11 +723,7 @@
     button:hover,
     [role="button"]:hover,
     .cursor-pointer:hover,
-    a:hover,
-    .hover\:bg-gray-50:hover,
-    .hover\:bg-gray-100:hover,
-    .hover\:text-gray-900:hover,
-    .hover\:opacity-100:hover {
+    a:hover {
       background-color: inherit !important;
       color: inherit !important;
       opacity: inherit !important;
@@ -747,8 +737,8 @@
     }
     
     /* Keep active states for immediate feedback */
-    .active\:scale-\[0\.98\]:active,
-    .active\:scale-95:active {
+    button:active,
+    [role="button"]:active {
       transform: scale(0.98) !important;
     }
   }
@@ -812,8 +802,6 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-}
-
 @layer components {
   .orchestration-markdown {
     color: hsl(var(--foreground));

@@ -1,5 +1,6 @@
-import express from 'express';
 import os from 'os';
+
+import express from 'express';
 
 import {
   getTunnelState,

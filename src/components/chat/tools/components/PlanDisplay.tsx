@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronsUpDown, FileText } from '@/lib/icons';
+
 
 import {
   Card,
@@ -16,6 +16,8 @@ import {
 import { usePermission } from '../../../../contexts/PermissionContext';
 
 import { MarkdownContent } from './ContentRenderers';
+
+import { ChevronsUpDown, FileText } from '@/lib/icons';
 
 interface PlanDisplayProps {
   title: string;

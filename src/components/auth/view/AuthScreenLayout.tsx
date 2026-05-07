@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
-import { MessageSquare } from '@/lib/icons';
+
 import { IS_PLATFORM } from '../../../constants/config';
+
+import { MessageSquare } from '@/lib/icons';
 
 type AuthScreenLayoutProps = {
   title: string;

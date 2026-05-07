@@ -9,10 +9,11 @@
  * model list) has a clean place to land without touching Gemini's code path.
  */
 import { spawn } from 'child_process';
-import crossSpawn from 'cross-spawn';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+
+import crossSpawn from 'cross-spawn';
 
 import sessionManager from './sessionManager.js';
 import QwenResponseHandler from './qwen-response-handler.js';

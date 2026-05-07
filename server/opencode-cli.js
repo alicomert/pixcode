@@ -20,10 +20,11 @@
  * server/index.js is uniform across all five spawn-based providers.
  */
 import { spawn } from 'child_process';
-import crossSpawn from 'cross-spawn';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
+
+import crossSpawn from 'cross-spawn';
 
 import sessionManager from './sessionManager.js';
 import OpencodeResponseHandler from './opencode-response-handler.js';
