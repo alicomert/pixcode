@@ -327,6 +327,12 @@ function startServer(runtimeDir) {
 
     if (wasUpdate) {
       try {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          loadSplash(mainWindow, {
+            title: 'Applying Pixcode update',
+            message: 'Installing the downloaded update and restarting the local server.',
+          });
+        }
         const runtime = ensureRuntimeDir();
         startServer(runtime);
         waitForServer(SERVER_PORT, 30_000).then((ok) => {
@@ -396,11 +402,16 @@ function loadLogoDataUri() {
   return null;
 }
 
-function splashHtml() {
+function splashHtml({
+  title = 'Checking for updates before launch',
+  message = `Setting up the local server on port ${SERVER_PORT}`,
+} = {}) {
   const logoUri = loadLogoDataUri();
   const logoMarkup = logoUri
     ? `<img src="${logoUri}" alt="Pixcode" />`
     : '<span class="fallback">P</span>';
+  const safeTitle = String(title).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const safeMessage = String(message).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<!doctype html><html><head><meta charset="utf-8"><title>Pixcode</title>
 <style>
   :root { color-scheme: dark light; }
@@ -444,8 +455,8 @@ function splashHtml() {
 </head><body>
 <div class="wrap">
   <div class="logo">${logoMarkup}</div>
-  <h1>Starting Pixcode…</h1>
-  <p>Setting up the local server on port ${SERVER_PORT}</p>
+  <h1>${safeTitle}</h1>
+  <p>${safeMessage}</p>
   <div class="spinner"></div>
 </div>
 </body></html>`;
@@ -531,8 +542,8 @@ function errorHtml(message, canRetry) {
 </body></html>`;
 }
 
-function loadSplash(win) {
-  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(splashHtml())).catch(() => {});
+function loadSplash(win, options) {
+  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(splashHtml(options))).catch(() => {});
 }
 function loadErrorScreen(win, message) {
   win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(errorHtml(message, true))).catch(() => {});

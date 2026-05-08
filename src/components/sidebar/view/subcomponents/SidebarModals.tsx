@@ -34,6 +34,7 @@ type SidebarModalsProps = {
   currentVersion: string;
   latestVersion: string | null;
   installMode: InstallMode;
+  isUpdateAvailable: boolean;
   t: TFunction;
 };
 
@@ -70,6 +71,7 @@ export default function SidebarModals({
   currentVersion,
   latestVersion,
   installMode,
+  isUpdateAvailable,
   t,
 }: SidebarModalsProps) {
   // Settings expects project identity/path fields to be present for dropdown labels and local-scope MCP config.
@@ -205,6 +207,7 @@ export default function SidebarModals({
         currentVersion={currentVersion}
         latestVersion={latestVersion}
         installMode={installMode}
+        isUpdateAvailable={isUpdateAvailable}
       />
     </>
   );

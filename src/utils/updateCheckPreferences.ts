@@ -1,4 +1,4 @@
-export type UpdateCheckFrequency = 'off' | '6h' | '12h' | '24h' | '7d';
+export type UpdateCheckFrequency = 'off' | '30m' | '6h' | '12h' | '24h' | '7d';
 
 export type UpdateCheckPreferences = {
   frequency: UpdateCheckFrequency;
@@ -12,6 +12,7 @@ export const UPDATE_CHECK_FREQUENCY_OPTIONS: Array<{
   label: string;
   intervalMs: number | null;
 }> = [
+  { value: '30m', label: 'Every 30 minutes', intervalMs: 30 * 60 * 1000 },
   { value: '24h', label: 'Daily', intervalMs: 24 * 60 * 60 * 1000 },
   { value: '12h', label: 'Every 12 hours', intervalMs: 12 * 60 * 60 * 1000 },
   { value: '6h', label: 'Every 6 hours', intervalMs: 6 * 60 * 60 * 1000 },
@@ -20,7 +21,7 @@ export const UPDATE_CHECK_FREQUENCY_OPTIONS: Array<{
 ];
 
 export const DEFAULT_UPDATE_CHECK_PREFERENCES: UpdateCheckPreferences = {
-  frequency: '24h',
+  frequency: '30m',
 };
 
 export function getUpdateCheckIntervalMs(preferences: UpdateCheckPreferences): number | null {

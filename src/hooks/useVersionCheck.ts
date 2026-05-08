@@ -40,6 +40,7 @@ const BUNDLED_UI_VERSION =
   typeof __PIXCODE_UI_VERSION__ === 'string' ? __PIXCODE_UI_VERSION__ : '0.0.0';
 
 export type VersionCheckStatus = 'idle' | 'checking' | 'success' | 'error';
+export const PIXCODE_UPDATE_AVAILABLE_EVENT = 'pixcode:update-available';
 
 type ReleaseCacheEntry = {
   fetchedAt: number | null;
@@ -59,6 +60,15 @@ type LatestReleaseResult = {
     published_at?: string;
     message?: string;
   };
+};
+
+export type VersionCheckResult = {
+  updateAvailable: boolean;
+  latestVersion: string | null;
+  releaseInfo: ReleaseInfo | null;
+  currentVersion: string;
+  checkedAt: number | null;
+  status: VersionCheckStatus;
 };
 
 const RATE_LIMIT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
@@ -127,7 +137,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
   // Stash the live `checkVersion` impl so the public `manualCheck`
   // callback fires the same code path the interval / focus listeners use,
   // without React having to re-create the callback on every state change.
-  const checkVersionRef = useRef<((options?: { force?: boolean }) => Promise<void>) | null>(null);
+  const checkVersionRef = useRef<((options?: { force?: boolean }) => Promise<VersionCheckResult>) | null>(null);
 
   const updatePreferences = useCallback((preferences: UpdateCheckPreferences) => {
     saveUpdateCheckPreferences(preferences);
@@ -187,48 +197,72 @@ export const useVersionCheck = (owner: string, repo: string) => {
     if (!currentVersion) return;
     let cancelled = false;
 
-    const applyReleaseSnapshot = (latest: string | null, info: ReleaseInfo | null, checkedAt: number | null) => {
+    const createResult = (
+      latest: string | null,
+      info: ReleaseInfo | null,
+      checkedAt: number | null,
+      status: VersionCheckStatus,
+    ): VersionCheckResult => ({
+      updateAvailable: Boolean(latest && compareVersions(latest, currentVersion) > 0),
+      latestVersion: latest,
+      releaseInfo: info,
+      currentVersion,
+      checkedAt,
+      status,
+    });
+
+    const emitUpdateAvailable = (result: VersionCheckResult) => {
+      if (!result.updateAvailable || !result.latestVersion || !result.releaseInfo) return;
+      window.dispatchEvent(new CustomEvent(PIXCODE_UPDATE_AVAILABLE_EVENT, { detail: result }));
+    };
+
+    const applyReleaseSnapshot = (
+      latest: string | null,
+      info: ReleaseInfo | null,
+      checkedAt: number | null,
+      status: VersionCheckStatus = 'success',
+    ) => {
       if (!latest || !info) {
         setUpdateAvailable(false);
         setLatestVersion(null);
         setReleaseInfo(null);
         setLastCheckedAt(checkedAt);
-        return;
+        return createResult(null, null, checkedAt, status);
       }
 
       setLatestVersion(latest);
       setUpdateAvailable(compareVersions(latest, currentVersion) > 0);
       setReleaseInfo(info);
       setLastCheckedAt(checkedAt);
+      const result = createResult(latest, info, checkedAt, status);
+      emitUpdateAvailable(result);
+      return result;
     };
 
-    const checkVersion = async ({ force = false }: { force?: boolean } = {}) => {
+    const checkVersion = async ({ force = false }: { force?: boolean } = {}): Promise<VersionCheckResult> => {
       const intervalMs = getUpdateCheckIntervalMs(updateCheckPreferences);
       const cached = readReleaseCache(owner, repo);
       const now = Date.now();
 
       if (!force && intervalMs === null) {
-        applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null);
         setCheckStatus('idle');
-        return;
+        return applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null, 'idle');
       }
 
       if (!force && cached?.fetchedAt && intervalMs !== null && now - cached.fetchedAt < intervalMs) {
-        applyReleaseSnapshot(cached.latestVersion, cached.releaseInfo, cached.fetchedAt);
         setCheckStatus('success');
-        return;
+        return applyReleaseSnapshot(cached.latestVersion, cached.releaseInfo, cached.fetchedAt, 'success');
       }
 
       if (!force && cached?.rateLimitedUntil && cached.rateLimitedUntil > now) {
-        applyReleaseSnapshot(cached.latestVersion, cached.releaseInfo, cached.fetchedAt);
         setCheckStatus('error');
-        return;
+        return applyReleaseSnapshot(cached.latestVersion, cached.releaseInfo, cached.fetchedAt, 'error');
       }
 
       try {
         setCheckStatus('checking');
         const response = await fetchLatestRelease(owner, repo);
-        if (cancelled) return;
+        if (cancelled) return createResult(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null, 'idle');
         const data = response.data;
 
         if (!response.ok) {
@@ -241,9 +275,8 @@ export const useVersionCheck = (owner: string, repo: string) => {
             });
           }
 
-          applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null);
           setCheckStatus('error');
-          return;
+          return applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null, 'error');
         }
 
         if (data.tag_name) {
@@ -282,11 +315,15 @@ export const useVersionCheck = (owner: string, repo: string) => {
           setReleaseInfo(nextReleaseInfo);
           setCheckStatus('success');
           setLastCheckedAt(now);
+          const result = createResult(latest, nextReleaseInfo, now, 'success');
+          emitUpdateAvailable(result);
+          return result;
         } else {
           setUpdateAvailable(false);
           setLatestVersion(null);
           setReleaseInfo(null);
           setCheckStatus('error');
+          return createResult(null, null, null, 'error');
         }
       } catch (error) {
         console.error('Version check failed:', error);
@@ -294,6 +331,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
         setLatestVersion(null);
         setReleaseInfo(null);
         setCheckStatus('error');
+        return createResult(null, null, null, 'error');
       }
     };
     checkVersionRef.current = checkVersion;
@@ -314,8 +352,9 @@ export const useVersionCheck = (owner: string, repo: string) => {
   // Expose a manual trigger so the About tab's "Check for Updates" button
   // can fire the same code path used by the interval / focus listeners.
   // Reads through a ref so the returned callback identity stays stable.
-  const manualCheck = useCallback(async () => {
-    if (checkVersionRef.current) await checkVersionRef.current({ force: true });
+  const manualCheck = useCallback(async (): Promise<VersionCheckResult | null> => {
+    if (checkVersionRef.current) return await checkVersionRef.current({ force: true });
+    return null;
   }, []);
 
   return {

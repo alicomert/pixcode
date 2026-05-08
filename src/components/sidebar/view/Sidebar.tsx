@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
-import { useVersionCheck } from '../../../hooks/useVersionCheck';
+import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck, type VersionCheckResult } from '../../../hooks/useVersionCheck';
 import { useUiPreferences, type HistoryViewMode } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
@@ -48,6 +48,8 @@ function Sidebar({
     'alicomert',
     'pixcode',
   );
+  const autoShownVersionRef = useRef<string | null>(null);
+  const [versionModalSnapshot, setVersionModalSnapshot] = useState<VersionCheckResult | null>(null);
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible, historyView } = preferences;
   const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
@@ -131,6 +133,33 @@ function Sidebar({
       window.removeEventListener('pixcode:create-project', handleCreateProjectRequest);
     };
   }, [setShowNewProject]);
+
+  useEffect(() => {
+    const handleUpdateAvailable = (event: Event) => {
+      const detail = (event as CustomEvent<VersionCheckResult>).detail;
+      setVersionModalSnapshot(detail ?? null);
+      setShowVersionModal(true);
+    };
+
+    window.addEventListener(PIXCODE_UPDATE_AVAILABLE_EVENT, handleUpdateAvailable);
+    return () => {
+      window.removeEventListener(PIXCODE_UPDATE_AVAILABLE_EVENT, handleUpdateAvailable);
+    };
+  }, [setShowVersionModal]);
+
+  useEffect(() => {
+    if (!latestVersion || !releaseInfo) return;
+    if (autoShownVersionRef.current === latestVersion) return;
+
+    const shouldShowReleaseNotes = !updateAvailable
+      && latestVersion === currentVersion;
+
+    if (updateAvailable || shouldShowReleaseNotes) {
+      autoShownVersionRef.current = latestVersion;
+      setVersionModalSnapshot(null);
+      setShowVersionModal(true);
+    }
+  }, [currentVersion, latestVersion, releaseInfo, setShowVersionModal, updateAvailable]);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -260,11 +289,15 @@ function Sidebar({
         onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
         onConfirmDeleteSession={confirmDeleteSession}
         showVersionModal={showVersionModal}
-        onCloseVersionModal={() => setShowVersionModal(false)}
-        releaseInfo={releaseInfo}
-        currentVersion={currentVersion}
-        latestVersion={latestVersion}
+        onCloseVersionModal={() => {
+          setShowVersionModal(false);
+          setVersionModalSnapshot(null);
+        }}
+        releaseInfo={versionModalSnapshot?.releaseInfo ?? releaseInfo}
+        currentVersion={versionModalSnapshot?.currentVersion ?? currentVersion}
+        latestVersion={versionModalSnapshot?.latestVersion ?? latestVersion}
         installMode={installMode}
+        isUpdateAvailable={versionModalSnapshot?.updateAvailable ?? updateAvailable}
         t={t}
       />
 

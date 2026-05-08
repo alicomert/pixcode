@@ -15,6 +15,7 @@ interface VersionUpgradeModalProps {
     currentVersion: string;
     latestVersion: string | null;
     installMode: InstallMode;
+    isUpdateAvailable?: boolean;
 }
 
 const RELOAD_COUNTDOWN_START = 30;
@@ -41,7 +42,8 @@ export function VersionUpgradeModal({
     releaseInfo,
     currentVersion,
     latestVersion,
-    installMode
+    installMode,
+    isUpdateAvailable = true,
 }: VersionUpgradeModalProps) {
     const { t } = useTranslation('common');
     const upgradeCommand = installMode === 'npm'
@@ -57,6 +59,7 @@ export function VersionUpgradeModal({
     const outputRef = useRef<HTMLDivElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
     useGsapEntrance(modalRef, 'modal');
+    const showUpdateActions = Boolean(isUpdateAvailable && latestVersion);
 
     // Auto-scroll the log pane as new output streams in.
     useEffect(() => {
@@ -342,9 +345,15 @@ export function VersionUpgradeModal({
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('versionUpdate.title')}</h2>
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                                {isUpdateAvailable
+                                    ? t('versionUpdate.title')
+                                    : t('versionUpdate.releaseNotesTitle', { defaultValue: 'Release Notes' })}
+                            </h2>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {releaseInfo?.title || t('versionUpdate.newVersionReady')}
+                                {releaseInfo?.title || (isUpdateAvailable
+                                    ? t('versionUpdate.newVersionReady')
+                                    : t('versionUpdate.releaseNotesSubtitle', { defaultValue: 'Latest Pixcode changes' }))}
                             </p>
                         </div>
                     </div>
@@ -366,8 +375,12 @@ export function VersionUpgradeModal({
                         <span className="font-mono text-sm text-gray-900 dark:text-white">{currentVersion}</span>
                     </div>
                     <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/20">
-                        <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{t('versionUpdate.latestVersion')}</span>
-                        <span className="font-mono text-sm text-blue-900 dark:text-blue-100">{latestVersion}</span>
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            {isUpdateAvailable
+                                ? t('versionUpdate.latestVersion')
+                                : t('versionUpdate.latestRelease', { defaultValue: 'Latest Release' })}
+                        </span>
+                        <span className="font-mono text-sm text-blue-900 dark:text-blue-100">{latestVersion || currentVersion}</span>
                     </div>
                 </div>
 
@@ -434,7 +447,7 @@ export function VersionUpgradeModal({
                 )}
 
                 {/* Upgrade Instructions */}
-                {!isUpdating && !updateOutput && (
+                {showUpdateActions && !isUpdating && !updateOutput && (
                     <div className="space-y-3">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('versionUpdate.manualUpgrade')}</h3>
                         <div className="rounded-lg border bg-gray-100 p-3 dark:bg-gray-800">
@@ -455,7 +468,9 @@ export function VersionUpgradeModal({
                         disabled={isBusy}
                         className="flex-1 rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                     >
-                        {updateOutput ? t('versionUpdate.buttons.close') : t('versionUpdate.buttons.later')}
+                        {updateOutput || !showUpdateActions
+                            ? t('versionUpdate.buttons.close')
+                            : t('versionUpdate.buttons.later')}
                     </button>
                     {(restartPhase === 'timeout' || restartPhase === 'error') && (
                         <button
@@ -465,7 +480,7 @@ export function VersionUpgradeModal({
                             Refresh page
                         </button>
                     )}
-                    {!updateOutput && (
+                    {showUpdateActions && !updateOutput && (
                         <>
                             <button
                                 onClick={() => copyTextToClipboard(upgradeCommand)}

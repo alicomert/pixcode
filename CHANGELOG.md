@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.36.3](https://github.com/alicomert/pixcode/compare/v1.36.2...v1.36.3) (2026-05-08)
+
+### Bug Fixes
+
+* **chat:** refresh the active session message list immediately when the session store receives fetched or streamed messages, fixing chats that only appeared after switching away and back.
+* **chat:** keep the session loading state from falling through to the empty "Continue your conversation" view when network data has already reached the local store.
+* **updates:** open the update modal when a background check or manual "Check for updates" action finds a newer release.
+* **updates:** default GitHub release checks to every 30 minutes and keep release notes visible on app open for the current release.
+* **desktop:** show explicit startup/update splash text while the desktop wrapper checks for updates or applies a downloaded runtime update.
+
+### Tests
+
+* **chat:** add a smoke regression check that fails if active session messages are read through a stale memoized store snapshot.
+* **updates:** add a smoke regression check for the 30-minute default, update modal trigger, release-notes-only modal mode, and desktop update splash copy.
+
 ## [1.36.2](https://github.com/alicomert/pixcode/compare/v1.36.1...v1.36.2) (2026-05-08)
 
 ### Bug Fixes

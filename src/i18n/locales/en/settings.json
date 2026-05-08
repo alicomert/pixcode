@@ -623,6 +623,25 @@
       "description": "Codex supports stdio-based MCP servers. You can add servers that extend Codex's capabilities with additional tools and resources."
     }
   },
+  "about": {
+    "updateCheckFrequency": "Update check frequency",
+    "updateCheckFrequencyHint": "Pixcode caches GitHub release checks locally so shared IPs do not hit GitHub rate limits.",
+    "updateCheckFrequencyOptions": {
+      "30m": "Every 30 minutes",
+      "6h": "Every 6 hours",
+      "12h": "Every 12 hours",
+      "24h": "Daily",
+      "7d": "Weekly",
+      "off": "Manual only"
+    },
+    "checkForUpdate": "Check for updates",
+    "checkingForUpdate": "Checking...",
+    "updateFound": "Update found",
+    "upToDate": "Up to date",
+    "lastChecked": "Last checked {{when}}",
+    "notCheckedYet": "Update check has not completed yet",
+    "checkFailed": "check failed or delayed by rate limit"
+  },
   "pluginSettings": {
     "title": "Plugins",
     "description": "Extend the interface with custom plugins. Install from git or drop a folder in ~/.pixcode/plugins/",

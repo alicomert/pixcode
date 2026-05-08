@@ -623,6 +623,25 @@
       "description": "Codex stdio tabanlı MCP sunucularını destekler. Codex'in yeteneklerini ek araçlar ve kaynaklarla genişleten sunucular ekleyebilirsin."
     }
   },
+  "about": {
+    "updateCheckFrequency": "Güncelleme kontrol sıklığı",
+    "updateCheckFrequencyHint": "Pixcode, ortak IP'lerde GitHub limitine takılmamak için sürüm kontrollerini yerelde önbelleğe alır.",
+    "updateCheckFrequencyOptions": {
+      "30m": "30 dakikada bir",
+      "6h": "6 saatte bir",
+      "12h": "12 saatte bir",
+      "24h": "Günlük",
+      "7d": "Haftalık",
+      "off": "Sadece manuel"
+    },
+    "checkForUpdate": "Güncellemeleri kontrol et",
+    "checkingForUpdate": "Kontrol ediliyor...",
+    "updateFound": "Güncelleme bulundu",
+    "upToDate": "Güncel",
+    "lastChecked": "Son kontrol {{when}}",
+    "notCheckedYet": "Güncelleme kontrolü henüz tamamlanmadı",
+    "checkFailed": "kontrol başarısız veya rate limit nedeniyle gecikti"
+  },
   "pluginSettings": {
     "title": "Eklentiler",
     "description": "Arayüzü özel eklentilerle genişlet. Git'ten yükle veya ~/.pixcode/plugins/ klasörüne bir dizin bırak.",

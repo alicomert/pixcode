@@ -11,6 +11,7 @@ import { normalizedToChatMessages } from './useChatMessages';
 
 const MESSAGES_PER_PAGE = 20;
 const INITIAL_VISIBLE_MESSAGES = 100;
+const EMPTY_STORE_MESSAGES: NormalizedMessage[] = [];
 
 type PendingViewSession = {
   sessionId: string | null;
@@ -175,10 +176,10 @@ export function useChatSessionState({
   }
   prevActiveSessionRef.current = activeSessionId;
 
-  const storeMessages = useMemo(
-    () => activeSessionId ? sessionStore.getMessages(activeSessionId) : [],
-    [activeSessionId, sessionStore],
-  );
+  // The session store notifies this hook with a render tick while the active
+  // session id stays the same. Reading on every render keeps fetched/streamed
+  // messages visible immediately instead of only after switching sessions.
+  const storeMessages = activeSessionId ? sessionStore.getMessages(activeSessionId) : EMPTY_STORE_MESSAGES;
 
   // Reset viewHiddenCount when store messages change
   const prevStoreLenRef = useRef(0);
