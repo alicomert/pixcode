@@ -412,6 +412,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const { t } = useTranslation();
   const pageRef = useRef<HTMLElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
+  const loadRunsInFlightRef = useRef(false);
   const [workflows, setWorkflows] = useState<BuiltInWorkflow[]>([]);
   const [orchestrationContext, setOrchestrationContext] = useState<OrchestrationContext>({});
   const [runs, setRuns] = useState<WorkflowRunSummary[]>([]);
@@ -480,6 +481,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
       : runs.find((run) => ['queued', 'running'].includes(run.status))),
     [runs, selectedRun],
   );
+  const runsRefreshIntervalMs = activeRun ? 5_000 : 30_000;
   useGsapEntrance(pageRef, 'fade-up');
 
   const adapterName = (adapterId: AdapterId) =>
@@ -570,17 +572,23 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   }, []);
 
   const loadRuns = useCallback(async () => {
-    const response = await authenticatedFetch(`/api/orchestration/workflows/runs?projectId=${encodeURIComponent(selectedProject.name)}`);
-    if (!response.ok) return;
-    const data = await response.json() as { runs?: WorkflowRunSummary[] };
-    const nextRuns = data.runs ?? [];
-    setRuns(nextRuns);
-    const requestedRunId = localStorage.getItem('pixcode.orchestration.selectedRunId') || undefined;
-    setRunId((current) => {
-      if (current && nextRuns.some((run) => run.id === current)) return current;
-      if (requestedRunId && nextRuns.some((run) => run.id === requestedRunId)) return requestedRunId;
-      return nextRuns[0]?.id;
-    });
+    if (loadRunsInFlightRef.current) return;
+    loadRunsInFlightRef.current = true;
+    try {
+      const response = await authenticatedFetch(`/api/orchestration/workflows/runs?projectId=${encodeURIComponent(selectedProject.name)}`);
+      if (!response.ok) return;
+      const data = await response.json() as { runs?: WorkflowRunSummary[] };
+      const nextRuns = data.runs ?? [];
+      setRuns(nextRuns);
+      const requestedRunId = localStorage.getItem('pixcode.orchestration.selectedRunId') || undefined;
+      setRunId((current) => {
+        if (current && nextRuns.some((run) => run.id === current)) return current;
+        if (requestedRunId && nextRuns.some((run) => run.id === requestedRunId)) return requestedRunId;
+        return nextRuns[0]?.id;
+      });
+    } finally {
+      loadRunsInFlightRef.current = false;
+    }
   }, [selectedProject.name]);
 
   useEffect(() => {
@@ -589,9 +597,9 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     void loadRuns();
     const timer = window.setInterval(() => {
       void loadRuns();
-    }, 3000);
+    }, runsRefreshIntervalMs);
     return () => window.clearInterval(timer);
-  }, [loadOrchestrationContext, loadRuns, loadWorkflows]);
+  }, [loadOrchestrationContext, loadRuns, loadWorkflows, runsRefreshIntervalMs]);
 
   useEffect(() => {
     localStorage.setItem(settingsStorageKey, JSON.stringify(settings));

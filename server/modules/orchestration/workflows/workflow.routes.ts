@@ -7,6 +7,32 @@ import { findPixcodeAppRoot } from '@/modules/orchestration/workflows/workspace-
 
 const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
 
+function isWindowsLikeProjectId(projectId: string): boolean {
+  return /^[A-Za-z]--/.test(projectId) || /^[A-Za-z]:[\\/]/.test(projectId);
+}
+
+function normalizeProjectId(projectId: string): string {
+  return projectId.trim().replace(/\\/g, '/').toLowerCase();
+}
+
+function projectIdsMatch(storedProjectId: unknown, requestedProjectId: string): boolean {
+  if (typeof storedProjectId !== 'string') return false;
+  if (storedProjectId === requestedProjectId) return true;
+
+  if (!isWindowsLikeProjectId(storedProjectId) && !isWindowsLikeProjectId(requestedProjectId)) {
+    return false;
+  }
+
+  return normalizeProjectId(storedProjectId) === normalizeProjectId(requestedProjectId);
+}
+
+function readLimit(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return Math.min(parsed, 100);
+}
+
 function readMetadata(body: unknown): Record<string, unknown> | undefined {
   if (!body || typeof body !== 'object') return undefined;
   const metadata = (body as Record<string, unknown>).metadata;
@@ -42,10 +68,11 @@ export function createWorkflowRouter(): Router {
 
   router.get('/workflows/runs', (req, res) => {
     const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+    const limit = readLimit(req.query.limit);
     const runs = projectId
-      ? workflowStore.listRuns().filter((run) => run.metadata?.projectId === projectId)
+      ? workflowStore.listRuns().filter((run) => projectIdsMatch(run.metadata?.projectId, projectId))
       : workflowStore.listRuns();
-    res.json({ runs });
+    res.json({ runs: limit ? runs.slice(0, limit) : runs });
   });
 
   router.get('/workflows/runs/:runId/events', (req, res) => {

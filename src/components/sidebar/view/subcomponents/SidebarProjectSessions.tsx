@@ -116,7 +116,7 @@ export default function SidebarProjectSessions({
     void loadRuns();
     const timer = window.setInterval(() => {
       void loadRuns();
-    }, 5000);
+    }, 15_000);
     return () => {
       canceled = true;
       window.clearInterval(timer);

@@ -50,6 +50,7 @@ type WorkflowRunPanelProps = {
 };
 
 const teamHistoryId = '__team_history__';
+const terminalRunStatuses = new Set(['completed', 'failed', 'canceled']);
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'completed') return 'default';
@@ -299,23 +300,35 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
       return undefined;
     }
 
+    let canceled = false;
+    let timer: number | undefined;
     const load = async () => {
       const response = await authenticatedFetch(`/api/orchestration/workflows/runs/${encodeURIComponent(runId)}`);
+      if (canceled) return;
       if (!response.ok) {
         setLoadError(t('orchestration.loadFailed'));
         return;
       }
       const nextRun = await response.json() as WorkflowRun;
+      if (canceled) return;
       setRun(nextRun);
       setLoadError(null);
       setSelectedNodeId((current) => current || teamHistoryId);
+
+      if (!terminalRunStatuses.has(nextRun.status)) {
+        timer = window.setTimeout(() => {
+          void load();
+        }, 2_000);
+      }
     };
 
     void load();
-    const timer = window.setInterval(() => {
-      void load();
-    }, 2000);
-    return () => window.clearInterval(timer);
+    return () => {
+      canceled = true;
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    };
   }, [runId, t]);
 
   const selectedNode = useMemo(

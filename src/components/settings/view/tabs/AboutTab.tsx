@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { IS_PLATFORM } from '../../../../constants/config';
 import { useVersionCheck } from '../../../../hooks/useVersionCheck';
+import { UPDATE_CHECK_FREQUENCY_OPTIONS, type UpdateCheckFrequency } from '../../../../utils/updateCheckPreferences';
 import PremiumFeatureCard from '../PremiumFeatureCard';
 
 import { CheckCircle, ExternalLink, Loader2, MessageSquare, RefreshCw, Star, Cloud, Users  } from '@/lib/icons';
@@ -52,6 +53,8 @@ export default function AboutTab() {
     checkStatus,
     lastCheckedAt,
     manualCheck,
+    updateCheckPreferences,
+    updatePreferences,
   } = useVersionCheck('alicomert', 'pixcode');
   const releasesUrl = releaseInfo?.htmlUrl || `${GITHUB_REPO_URL}/releases`;
   // Briefly show a "checked!" confirmation after a manual click — the
@@ -101,52 +104,81 @@ export default function AboutTab() {
       </div>
 
       {/* Manual update check + Star on GitHub */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onCheckClick}
-          disabled={checkStatus === 'checking'}
-          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-        >
-          {checkStatus === 'checking' ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : justChecked && !updateAvailable ? (
-            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          <span>
-            {checkStatus === 'checking'
-              ? t('about.checkingForUpdate', { defaultValue: 'Checking…' })
-              : justChecked
-                ? (updateAvailable
-                    ? t('about.updateFound', { defaultValue: 'Update found' })
-                    : t('about.upToDate', { defaultValue: 'Up to date' }))
-                : t('about.checkForUpdate', { defaultValue: 'Check for updates' })}
-          </span>
-        </button>
+      <section className="rounded-xl border border-border/60 bg-muted/20 p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="update-check-frequency" className="text-sm font-semibold text-foreground">
+              {t('about.updateCheckFrequency', { defaultValue: 'Update check frequency' })}
+            </label>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {t('about.updateCheckFrequencyHint', {
+                defaultValue: 'Pixcode caches GitHub release checks locally so shared IPs do not hit GitHub rate limits.',
+              })}
+            </p>
+            <select
+              id="update-check-frequency"
+              value={updateCheckPreferences.frequency}
+              onChange={(event) => updatePreferences({ frequency: event.target.value as UpdateCheckFrequency })}
+              className="mt-3 w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary md:max-w-xs"
+            >
+              {UPDATE_CHECK_FREQUENCY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(`about.updateCheckFrequencyOptions.${option.value}`, { defaultValue: option.label })}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <a
-          href={GITHUB_REPO_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-        >
-          <GitHubIcon className="h-4 w-4" />
-          <Star className="h-3.5 w-3.5" />
-          <span>Star on GitHub</span>
-        </a>
-      </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onCheckClick}
+              disabled={checkStatus === 'checking'}
+              className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+            >
+              {checkStatus === 'checking' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : justChecked && !updateAvailable ? (
+                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              <span>
+                {checkStatus === 'checking'
+                  ? t('about.checkingForUpdate', { defaultValue: 'Checking…' })
+                  : justChecked
+                    ? (updateAvailable
+                        ? t('about.updateFound', { defaultValue: 'Update found' })
+                        : t('about.upToDate', { defaultValue: 'Up to date' }))
+                    : t('about.checkForUpdate', { defaultValue: 'Check for updates' })}
+              </span>
+            </button>
 
-      {lastCheckedAt && (
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            >
+              <GitHubIcon className="h-4 w-4" />
+              <Star className="h-3.5 w-3.5" />
+              <span>Star on GitHub</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {(lastCheckedAt || checkStatus === 'error') && (
         <p className="-mt-3 text-[11px] text-muted-foreground/70">
-          {t('about.lastChecked', {
-            defaultValue: 'Last checked {{when}}',
-            when: formatRelativeTime(lastCheckedAt),
-          })}
+          {lastCheckedAt
+            ? t('about.lastChecked', {
+                defaultValue: 'Last checked {{when}}',
+                when: formatRelativeTime(lastCheckedAt),
+              })
+            : t('about.notCheckedYet', { defaultValue: 'Update check has not completed yet' })}
           {checkStatus === 'error' && (
             <span className="ml-2 text-red-500">
-              · {t('about.checkFailed', { defaultValue: 'check failed — try again' })}
+              · {t('about.checkFailed', { defaultValue: 'check failed or delayed by rate limit' })}
             </span>
           )}
         </p>

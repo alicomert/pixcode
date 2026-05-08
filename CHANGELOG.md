@@ -2,6 +2,15 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.36.1](https://github.com/alicomert/pixcode/compare/v1.36.0...v1.36.1) (2026-05-08)
+
+### Bug Fixes
+
+* **updates:** make GitHub release checks cache-aware and user configurable to avoid browser-side API rate limits.
+* **service-worker:** stop intercepting cross-origin release checks so GitHub failures are not reported as service-worker responses.
+* **startup:** gate plugin and TaskMaster startup requests behind authentication to prevent login/setup page request spam.
+* **orchestration:** reduce background run polling, dedupe in-flight run refreshes, and normalize Windows project ids.
+
 ## [1.36.0](https://github.com/alicomert/pixcode/compare/v1.35.5...v1.36.0) (2026-05-08)
 
 Pixcode 1.36.0 is a product-level release focused on control, visibility, orchestration, theming, automation, and public documentation. It turns the app from a multi-CLI chat surface into a more complete self-hosted AI coding-agent workspace.

@@ -51,6 +51,10 @@ type OrchestrationRun = {
   input?: string;
   status: string;
   startedAt: number;
+  metadata?: {
+    projectId?: string;
+    [key: string]: unknown;
+  };
   nodeRuns: Array<{ adapterId?: string; status: string }>;
 };
 
@@ -99,6 +103,9 @@ const adapterProvider = (adapterId?: string): LLMProvider | null => {
   return null;
 };
 
+const normalizeProjectRunId = (value?: string) =>
+  value?.trim().replace(/\\/g, '/').toLowerCase() ?? '';
+
 export default function SidebarFlatSessionList({
   projects,
   filteredProjects,
@@ -122,21 +129,37 @@ export default function SidebarFlatSessionList({
   t,
 }: SidebarFlatSessionListProps) {
   const [orchestrationRuns, setOrchestrationRuns] = useState<FlatOrchestrationRun[]>([]);
+  const projectByRunId = useMemo(() => {
+    const next = new Map<string, Project>();
+    for (const project of filteredProjects) {
+      next.set(project.name, project);
+      next.set(normalizeProjectRunId(project.name), project);
+    }
+    return next;
+  }, [filteredProjects]);
 
   useEffect(() => {
+    if (filteredProjects.length === 0) {
+      setOrchestrationRuns([]);
+      return undefined;
+    }
+
     let canceled = false;
     const loadRuns = async () => {
-      const results = await Promise.all(
-        filteredProjects.map(async (project) => {
-          const response = await authenticatedFetch(`/api/orchestration/workflows/runs?projectId=${encodeURIComponent(project.name)}`);
-          if (!response.ok) return [];
-          const data = await response.json() as { runs?: OrchestrationRun[] };
-          return (data.runs ?? []).slice(0, 3).map((run) => ({ run, project }));
-        }),
-      );
+      const response = await authenticatedFetch('/api/orchestration/workflows/runs?limit=40');
+      if (!response.ok) return;
+      const data = await response.json() as { runs?: OrchestrationRun[] };
+      const results = (data.runs ?? []).flatMap((run) => {
+        const projectId = run.metadata?.projectId;
+        const project = projectId
+          ? projectByRunId.get(projectId) ?? projectByRunId.get(normalizeProjectRunId(projectId))
+          : undefined;
+        return project ? [{ run, project }] : [];
+      });
+
       if (!canceled) {
         setOrchestrationRuns(
-          results.flat().sort((a, b) => b.run.startedAt - a.run.startedAt).slice(0, 8),
+          results.sort((a, b) => b.run.startedAt - a.run.startedAt).slice(0, 8),
         );
       }
     };
@@ -144,12 +167,12 @@ export default function SidebarFlatSessionList({
     void loadRuns();
     const timer = window.setInterval(() => {
       void loadRuns();
-    }, 10_000);
+    }, 30_000);
     return () => {
       canceled = true;
       window.clearInterval(timer);
     };
-  }, [filteredProjects]);
+  }, [filteredProjects.length, projectByRunId]);
 
   // Flatten sessions from all filtered projects, then group by time bucket.
   // Starred items float to the top of their bucket.

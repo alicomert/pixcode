@@ -15,23 +15,23 @@ export default function App() {
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
         <AuthProvider>
-          <WebSocketProvider>
-            <PluginsProvider>
-              <TasksSettingsProvider>
-                <TaskMasterProvider>
-                <ProtectedRoute>
-                  <Router basename={window.__ROUTER_BASENAME__ || ''}>
-                    <Routes>
-                      <Route path="/" element={<AppContent />} />
-                      <Route path="/session/:sessionId" element={<AppContent />} />
-                      <Route path="/orchestration" element={<AppContent />} />
-                    </Routes>
-                  </Router>
-                </ProtectedRoute>
-                </TaskMasterProvider>
-              </TasksSettingsProvider>
-            </PluginsProvider>
-          </WebSocketProvider>
+          <ProtectedRoute>
+            <WebSocketProvider>
+              <PluginsProvider>
+                <TasksSettingsProvider>
+                  <TaskMasterProvider>
+                    <Router basename={window.__ROUTER_BASENAME__ || ''}>
+                      <Routes>
+                        <Route path="/" element={<AppContent />} />
+                        <Route path="/session/:sessionId" element={<AppContent />} />
+                        <Route path="/orchestration" element={<AppContent />} />
+                      </Routes>
+                    </Router>
+                  </TaskMasterProvider>
+                </TasksSettingsProvider>
+              </PluginsProvider>
+            </WebSocketProvider>
+          </ProtectedRoute>
         </AuthProvider>
       </ThemeProvider>
     </I18nextProvider>

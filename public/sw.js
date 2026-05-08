@@ -18,6 +18,14 @@ self.addEventListener('install', event => {
 // Fetch event — network-first for everything except hashed assets
 self.addEventListener('fetch', event => {
   const url = event.request.url;
+  const requestUrl = new URL(url);
+
+  // Let the browser handle third-party APIs directly. This keeps GitHub
+  // release checks out of the service worker so a rate-limit response is
+  // not reported as "from service worker" in DevTools.
+  if (requestUrl.origin !== self.location.origin) {
+    return;
+  }
 
   // Never intercept API requests or WebSocket upgrades
   if (url.includes('/api/') || url.includes('/ws')) {

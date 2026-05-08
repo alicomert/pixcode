@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import { ReleaseInfo } from '../types/sharedTypes';
 import { notifyOnce } from '../utils/localNotifications';
+import {
+  getUpdateCheckIntervalMs,
+  readUpdateCheckPreferences,
+  saveUpdateCheckPreferences,
+  UPDATE_CHECK_SETTINGS_EVENT,
+  UPDATE_CHECK_PREFERENCES_STORAGE_KEY,
+  type UpdateCheckPreferences,
+} from '../utils/updateCheckPreferences';
 
 /**
  * Compare two semantic version strings
@@ -33,6 +41,75 @@ const BUNDLED_UI_VERSION =
 
 export type VersionCheckStatus = 'idle' | 'checking' | 'success' | 'error';
 
+type ReleaseCacheEntry = {
+  fetchedAt: number | null;
+  latestVersion: string | null;
+  releaseInfo: ReleaseInfo | null;
+  rateLimitedUntil?: number;
+};
+
+type LatestReleaseResult = {
+  status: number;
+  ok: boolean;
+  data: {
+    tag_name?: string;
+    name?: string;
+    body?: string;
+    html_url?: string;
+    published_at?: string;
+    message?: string;
+  };
+};
+
+const RATE_LIMIT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const releaseRequests = new Map<string, Promise<LatestReleaseResult>>();
+
+function releaseCacheKey(owner: string, repo: string) {
+  return `pixcode.updateCheck.cache.${owner}.${repo}`;
+}
+
+function readReleaseCache(owner: string, repo: string): ReleaseCacheEntry | null {
+  try {
+    const raw = localStorage.getItem(releaseCacheKey(owner, repo));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ReleaseCacheEntry>;
+    return {
+      fetchedAt: typeof parsed.fetchedAt === 'number' ? parsed.fetchedAt : null,
+      latestVersion: typeof parsed.latestVersion === 'string' ? parsed.latestVersion : null,
+      releaseInfo: parsed.releaseInfo ?? null,
+      rateLimitedUntil: typeof parsed.rateLimitedUntil === 'number' ? parsed.rateLimitedUntil : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeReleaseCache(owner: string, repo: string, cache: ReleaseCacheEntry) {
+  localStorage.setItem(releaseCacheKey(owner, repo), JSON.stringify(cache));
+}
+
+function fetchLatestRelease(owner: string, repo: string): Promise<LatestReleaseResult> {
+  const key = `${owner}/${repo}`;
+  const existing = releaseRequests.get(key);
+  if (existing) return existing;
+
+  const request = fetch(
+    `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+    { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } },
+  )
+    .then(async (response) => ({
+      status: response.status,
+      ok: response.ok,
+      data: await response.json().catch(() => ({})),
+    }))
+    .finally(() => {
+      releaseRequests.delete(key);
+    });
+
+  releaseRequests.set(key, request);
+  return request;
+}
+
 export const useVersionCheck = (owner: string, repo: string) => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
@@ -40,6 +117,9 @@ export const useVersionCheck = (owner: string, repo: string) => {
   const [installMode, setInstallMode] = useState<InstallMode>('git');
   const [checkStatus, setCheckStatus] = useState<VersionCheckStatus>('idle');
   const [lastCheckedAt, setLastCheckedAt] = useState<number | null>(null);
+  const [updateCheckPreferences, setUpdateCheckPreferencesState] = useState<UpdateCheckPreferences>(() => (
+    readUpdateCheckPreferences()
+  ));
   // Seed from the bundled version so the UI never starts out with a
   // blank "Current Version" field, even before /health responds.
   const [currentVersion, setCurrentVersion] = useState<string>(BUNDLED_UI_VERSION);
@@ -47,7 +127,28 @@ export const useVersionCheck = (owner: string, repo: string) => {
   // Stash the live `checkVersion` impl so the public `manualCheck`
   // callback fires the same code path the interval / focus listeners use,
   // without React having to re-create the callback on every state change.
-  const checkVersionRef = useRef<(() => Promise<void>) | null>(null);
+  const checkVersionRef = useRef<((options?: { force?: boolean }) => Promise<void>) | null>(null);
+
+  const updatePreferences = useCallback((preferences: UpdateCheckPreferences) => {
+    saveUpdateCheckPreferences(preferences);
+    setUpdateCheckPreferencesState(preferences);
+  }, []);
+
+  useEffect(() => {
+    const reloadPreferences = () => setUpdateCheckPreferencesState(readUpdateCheckPreferences());
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === UPDATE_CHECK_PREFERENCES_STORAGE_KEY) {
+        reloadPreferences();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener(UPDATE_CHECK_SETTINGS_EVENT, reloadPreferences);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(UPDATE_CHECK_SETTINGS_EVENT, reloadPreferences);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,27 +185,81 @@ export const useVersionCheck = (owner: string, repo: string) => {
 
   useEffect(() => {
     if (!currentVersion) return;
+    let cancelled = false;
 
-    const checkVersion = async () => {
+    const applyReleaseSnapshot = (latest: string | null, info: ReleaseInfo | null, checkedAt: number | null) => {
+      if (!latest || !info) {
+        setUpdateAvailable(false);
+        setLatestVersion(null);
+        setReleaseInfo(null);
+        setLastCheckedAt(checkedAt);
+        return;
+      }
+
+      setLatestVersion(latest);
+      setUpdateAvailable(compareVersions(latest, currentVersion) > 0);
+      setReleaseInfo(info);
+      setLastCheckedAt(checkedAt);
+    };
+
+    const checkVersion = async ({ force = false }: { force?: boolean } = {}) => {
+      const intervalMs = getUpdateCheckIntervalMs(updateCheckPreferences);
+      const cached = readReleaseCache(owner, repo);
+      const now = Date.now();
+
+      if (!force && intervalMs === null) {
+        applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null);
+        setCheckStatus('idle');
+        return;
+      }
+
+      if (!force && cached?.fetchedAt && intervalMs !== null && now - cached.fetchedAt < intervalMs) {
+        applyReleaseSnapshot(cached.latestVersion, cached.releaseInfo, cached.fetchedAt);
+        setCheckStatus('success');
+        return;
+      }
+
+      if (!force && cached?.rateLimitedUntil && cached.rateLimitedUntil > now) {
+        applyReleaseSnapshot(cached.latestVersion, cached.releaseInfo, cached.fetchedAt);
+        setCheckStatus('error');
+        return;
+      }
+
       try {
         setCheckStatus('checking');
-        // `cache: 'no-store'` is load-bearing here — without it, the browser
-        // (and any CDN in front of api.github.com) can serve a stale
-        // "releases/latest" response for the lifetime of the tab, which
-        // means a user on v1.33.5 wouldn't see v1.33.6 surface as an
-        // available update until the cache happened to expire. Adding a
-        // cache-bust query param too belt-and-suspenders against any
-        // intermediary that ignores Cache-Control on cross-origin fetches.
-        const bust = `?_=${Date.now()}`;
-        const response = await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/releases/latest${bust}`,
-          { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } },
-        );
-        const data = await response.json();
+        const response = await fetchLatestRelease(owner, repo);
+        if (cancelled) return;
+        const data = response.data;
+
+        if (!response.ok) {
+          if (response.status === 403) {
+            writeReleaseCache(owner, repo, {
+              fetchedAt: cached?.fetchedAt ?? null,
+              latestVersion: cached?.latestVersion ?? null,
+              releaseInfo: cached?.releaseInfo ?? null,
+              rateLimitedUntil: now + Math.max(intervalMs ?? 0, RATE_LIMIT_COOLDOWN_MS),
+            });
+          }
+
+          applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null);
+          setCheckStatus('error');
+          return;
+        }
 
         if (data.tag_name) {
           const latest = data.tag_name.replace(/^v/, '');
           const isUpdateAvailable = compareVersions(latest, currentVersion) > 0;
+          const nextReleaseInfo = {
+            title: data.name || data.tag_name,
+            body: data.body || '',
+            htmlUrl: data.html_url || `https://github.com/${owner}/${repo}/releases/latest`,
+            publishedAt: data.published_at || '',
+          };
+          writeReleaseCache(owner, repo, {
+            fetchedAt: now,
+            latestVersion: latest,
+            releaseInfo: nextReleaseInfo,
+          });
           setLatestVersion(latest);
           // Only flag an update when the published release is strictly
           // newer than what's running. An older latest (e.g. local 1.30.2
@@ -124,14 +279,9 @@ export const useVersionCheck = (owner: string, repo: string) => {
             });
           }
 
-          setReleaseInfo({
-            title: data.name || data.tag_name,
-            body: data.body || '',
-            htmlUrl: data.html_url || `https://github.com/${owner}/${repo}/releases/latest`,
-            publishedAt: data.published_at
-          });
+          setReleaseInfo(nextReleaseInfo);
           setCheckStatus('success');
-          setLastCheckedAt(Date.now());
+          setLastCheckedAt(now);
         } else {
           setUpdateAvailable(false);
           setLatestVersion(null);
@@ -149,32 +299,23 @@ export const useVersionCheck = (owner: string, repo: string) => {
     checkVersionRef.current = checkVersion;
 
     checkVersion();
-    // Re-check every 10 minutes (was 30). GitHub's unauthenticated rate
-    // limit is 60 req/h per IP — at 10 min we use 6 req/h, well inside
-    // the budget — and the lower interval means a fresh release surfaces
-    // as an update prompt within minutes rather than half an hour. We
-    // also re-check on focus AND on visibilitychange so a user
-    // alt-tabbing back gets the freshest answer regardless of which
-    // event their browser fires.
-    const interval = setInterval(checkVersion, 10 * 60 * 1000);
-    const onFocus = () => { checkVersion(); };
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') checkVersion();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisibilityChange);
+    const intervalMs = getUpdateCheckIntervalMs(updateCheckPreferences);
+    const interval = intervalMs === null ? null : window.setInterval(() => {
+      void checkVersion();
+    }, intervalMs);
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
+      cancelled = true;
+      if (interval !== null) {
+        window.clearInterval(interval);
+      }
     };
-  }, [owner, repo, currentVersion, installMode]);
+  }, [owner, repo, currentVersion, installMode, updateCheckPreferences]);
 
   // Expose a manual trigger so the About tab's "Check for Updates" button
   // can fire the same code path used by the interval / focus listeners.
   // Reads through a ref so the returned callback identity stays stable.
   const manualCheck = useCallback(async () => {
-    if (checkVersionRef.current) await checkVersionRef.current();
+    if (checkVersionRef.current) await checkVersionRef.current({ force: true });
   }, []);
 
   return {
@@ -186,5 +327,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
     checkStatus,
     lastCheckedAt,
     manualCheck,
+    updateCheckPreferences,
+    updatePreferences,
   };
 };
