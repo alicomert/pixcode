@@ -18,6 +18,21 @@ File names:
 
 First launch opens your default browser at `http://localhost:3001` and drops a tray icon. Right-click the tray for: Open Pixcode · Start at Login · Restart server · Quit.
 
+### macOS Gatekeeper fix
+
+macOS builds are unsigned until Pixcode is shipped with an Apple Developer ID. If macOS shows `Pixcode is damaged and can't be opened. You should move it to the Trash`, use the helper shipped inside the DMG:
+
+1. Drag `Pixcode.app` into `/Applications`.
+2. Double-click `Fix Gatekeeper.command` in the mounted DMG.
+3. The helper removes the quarantine flag from `/Applications/Pixcode.app` and launches Pixcode.
+
+Only use this for Pixcode downloaded from the official GitHub Releases page. Manual fallback:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Pixcode.app"
+open "/Applications/Pixcode.app"
+```
+
 ## How it works
 
 - A thin Electron main process boots the Pixcode server as a child (via `fork(.../pixcode/dist-server/server/cli.js, ['start', '--no-daemon'])`).

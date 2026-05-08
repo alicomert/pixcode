@@ -203,6 +203,21 @@ Download desktop builds from GitHub releases:
 
 Releases: <https://github.com/alicomert/pixcode/releases/latest>
 
+#### macOS Gatekeeper: "Pixcode is damaged"
+
+Current macOS desktop builds are unsigned. If macOS says `Pixcode is damaged and can't be opened. You should move it to the Trash`, first make sure the DMG came from the official Pixcode GitHub Releases page, then:
+
+1. Open the DMG and drag `Pixcode.app` into `/Applications`.
+2. Double-click `Fix Gatekeeper.command` inside the mounted DMG.
+3. Pixcode will remove the quarantine flag from `/Applications/Pixcode.app` and open normally.
+
+Manual fallback:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Pixcode.app"
+open "/Applications/Pixcode.app"
+```
+
 ### Linux daemon
 
 For a server/VDS setup:

@@ -202,6 +202,21 @@ GitHub releases üzerinden indir:
 
 Releases: <https://github.com/alicomert/pixcode/releases/latest>
 
+#### macOS Gatekeeper: "Pixcode hasar görmüş"
+
+Şu an macOS desktop build'leri Apple Developer ID ile imzalı/notarize değil. macOS `Pixcode hasar görmüş ve açılamıyor. Çöp kutusuna taşınsın mı?` benzeri bir uyarı gösterirse, önce DMG dosyasını resmi Pixcode GitHub Releases sayfasından indirdiğinden emin ol, sonra:
+
+1. DMG'yi aç ve `Pixcode.app` dosyasını `/Applications` içine sürükle.
+2. DMG içindeki `Fix Gatekeeper.command` dosyasına çift tıkla.
+3. Pixcode, `/Applications/Pixcode.app` üzerindeki quarantine bayrağını kaldırıp uygulamayı açar.
+
+Manuel çözüm:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Pixcode.app"
+open "/Applications/Pixcode.app"
+```
+
 ### Linux daemon
 
 VDS/sunucu kullanımı için:
