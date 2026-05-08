@@ -37,7 +37,7 @@ type TasksSettingsContextValue = {
 
 const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
 const SIDE_PANEL_MIN_WIDTH = 40;
-const SIDE_PANEL_MAX_WIDTH = 62;
+const SIDE_PANEL_MAX_WIDTH = 50;
 const SIDE_PANEL_DEFAULT_WIDTH = 46;
 
 function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' {
@@ -126,7 +126,8 @@ function MainContent({
   });
   const sidePanelMainTab: AppTab = mainSurfaceTab === 'orchestration' ? 'orchestration' : 'chat';
   const visiblePrimaryTab = activeSidePanelTab ? sidePanelMainTab : activeTab;
-  const showSidePanelWithChat = Boolean(showSidePanelSplit && !editingFile);
+  const showSidePanelWithChat = Boolean(showSidePanelSplit);
+  const dockEditorInsideFilesPanel = Boolean(activeSidePanelTab === 'files' && editingFile && !isMobile);
   const showChatColumn = visiblePrimaryTab === 'chat' && (!activeSidePanelTab || showSidePanelWithChat);
   const showOrchestrationColumn = visiblePrimaryTab === 'orchestration' && showSidePanelWithChat;
 
@@ -157,6 +158,36 @@ function MainContent({
 
   const renderSidePanel = (tab: 'files' | 'shell' | 'git') => {
     if (tab === 'files') {
+      if (dockEditorInsideFilesPanel) {
+        return (
+          <div className="flex h-full min-w-0 overflow-hidden">
+            {!editorExpanded && (
+              <div className="h-full min-w-[220px] max-w-[50%] flex-[0_0_46%] overflow-hidden border-r border-border/60">
+                <FileTree
+                  selectedProject={selectedProject}
+                  onFileOpen={handleFileOpen}
+                  changedFilePaths={changedFilePaths}
+                  focusedFilePath={focusedChangedFilePath}
+                />
+              </div>
+            )}
+            <EditorSidebar
+              editingFile={editingFile}
+              isMobile={isMobile}
+              editorExpanded={editorExpanded}
+              editorWidth={editorWidth}
+              hasManualWidth={hasManualWidth}
+              resizeHandleRef={resizeHandleRef}
+              onResizeStart={handleResizeStart}
+              onCloseEditor={handleCloseEditor}
+              onToggleEditorExpand={handleToggleEditorExpand}
+              projectPath={selectedProject?.path}
+              fillSpace
+            />
+          </div>
+        );
+      }
+
       return (
         <FileTree
           selectedProject={selectedProject}
@@ -536,19 +567,21 @@ function MainContent({
           )}
         </div>
 
-        <EditorSidebar
-          editingFile={editingFile}
-          isMobile={isMobile}
-          editorExpanded={editorExpanded}
-          editorWidth={editorWidth}
-          hasManualWidth={hasManualWidth}
-          resizeHandleRef={resizeHandleRef}
-          onResizeStart={handleResizeStart}
-          onCloseEditor={handleCloseEditor}
-          onToggleEditorExpand={handleToggleEditorExpand}
-          projectPath={selectedProject.path}
-          fillSpace={activeTab === 'files'}
-        />
+        {!dockEditorInsideFilesPanel && (
+          <EditorSidebar
+            editingFile={editingFile}
+            isMobile={isMobile}
+            editorExpanded={editorExpanded}
+            editorWidth={editorWidth}
+            hasManualWidth={hasManualWidth}
+            resizeHandleRef={resizeHandleRef}
+            onResizeStart={handleResizeStart}
+            onCloseEditor={handleCloseEditor}
+            onToggleEditorExpand={handleToggleEditorExpand}
+            projectPath={selectedProject.path}
+            fillSpace={activeTab === 'files'}
+          />
+        )}
       </div>
       <QuickSettingsPanel
         selectedProject={selectedProject}

@@ -196,6 +196,23 @@
       "enabled": "Açık",
       "disabled": "Kapalı"
     },
+    "control": {
+      "title": "Uzaktan Kontrol",
+      "description": "Telegram'ı ajanlar, orkestrasyon, sağlayıcı kurulumu ve çalışma durumları için tam Pixcode kontrol yüzeyi olarak kullan.",
+      "enabled": "Telegram kontrolünü etkinleştir",
+      "enabledDescription": "Açıkken eşleşmiş Telegram mesajları seçili projede ajan ve orkestrasyon işi başlatabilir.",
+      "progressMode": "İlerleme modu",
+      "progressModeDescription": "Telegram'ın ne kadar çalışma çıktısı göndereceğini seç.",
+      "progressModes": {
+        "final": "Sadece final cevap",
+        "steps": "Önemli adımlar ve final cevap",
+        "all": "Tüm görünür adım değişiklikleri"
+      },
+      "selectedProject": "Seçili proje",
+      "selectedProvider": "Seçili sağlayıcı",
+      "selectedModel": "Seçili model",
+      "selectedWorkflow": "Seçili workflow"
+    },
     "errors": {
       "invalidToken": "Telegram bu bot token'ını reddetti.",
       "networkError": "Telegram sunucularına ulaşılamadı."

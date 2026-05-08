@@ -33,6 +33,7 @@ router.get('/status', (req, res) => {
             language: link.language,
             notificationsEnabled: Boolean(link.notifications_enabled),
             bridgeEnabled: Boolean(link.bridge_enabled),
+            control: telegramLinksDb.getControlState(req.user.id),
             pairingCode: link.pairing_code,
             pairingExpiresAt: link.pairing_code_expires_at,
             verifiedAt: link.verified_at,
@@ -98,13 +99,27 @@ router.post('/pairing-code', (req, res) => {
 // PATCH /api/telegram/link — update language / toggles on the user's link
 router.patch('/link', (req, res) => {
   try {
-    const { language, notificationsEnabled, bridgeEnabled } = req.body || {};
+    const { language, notificationsEnabled, bridgeEnabled, controlEnabled, progressMode } = req.body || {};
     const payload = {};
     if (language !== undefined) payload.language = sanitizeLanguage(language);
     if (notificationsEnabled !== undefined) payload.notificationsEnabled = Boolean(notificationsEnabled);
     if (bridgeEnabled !== undefined) payload.bridgeEnabled = Boolean(bridgeEnabled);
     telegramLinksDb.updatePreferences(req.user.id, payload);
-    res.json({ success: true, link: telegramLinksDb.getByUserId(req.user.id) });
+
+    const controlPatch = {};
+    if (controlEnabled !== undefined) controlPatch.remoteControlEnabled = Boolean(controlEnabled);
+    if (progressMode !== undefined && ['final', 'steps', 'all'].includes(progressMode)) {
+      controlPatch.progressMode = progressMode;
+    }
+    if (Object.keys(controlPatch).length > 0) {
+      telegramLinksDb.updateControlState(req.user.id, controlPatch);
+    }
+
+    res.json({
+      success: true,
+      link: telegramLinksDb.getByUserId(req.user.id),
+      control: telegramLinksDb.getControlState(req.user.id),
+    });
   } catch (error) {
     console.error('telegram/link patch failed:', error);
     res.status(500).json({ error: 'Failed to update link' });

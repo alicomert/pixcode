@@ -2,6 +2,13 @@ import { EventEmitter } from 'node:events';
 
 import { telegramConfigDb, telegramLinksDb } from '../../database/db.js';
 
+import {
+  getTelegramControlCommand,
+  handleTelegramControlCallback,
+  handleTelegramControlMessage,
+  isTelegramControlCommand,
+  showMainMenu,
+} from './control-center.js';
 import { t } from './translations.js';
 // Swapped in v1.32: previously `node-telegram-bot-api` which carried the
 // deprecated `request`/`har-validator`/`uuid@3` chain. TelegramHttpBot is
@@ -20,6 +27,10 @@ const PAIRING_TTL_MS = 10 * 60 * 1000;
 let bot = null;
 let botInfo = null; // { id, username, first_name }
 let lastError = null;
+
+export const setTelegramBotForTesting = (nextBot) => {
+  bot = nextBot;
+};
 
 // Subscribers (notification-orchestrator, future session bridge) use this to
 // react to events without importing the bot module directly.
@@ -64,14 +75,14 @@ const parseMaybeCode = (text) => {
   return /^\d{6}$/.test(trimmed) ? trimmed : null;
 };
 
-const safeSend = async (chatId, text) => {
+const safeSend = async (chatId, text, extra = {}) => {
   if (!bot) return;
   try {
-    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra });
   } catch (err) {
     // Markdown parse errors from user input are common; retry plaintext.
     try {
-      await bot.sendMessage(chatId, text);
+      await bot.sendMessage(chatId, text, extra);
     } catch (fallbackErr) {
       console.warn('[telegram] sendMessage failed:', fallbackErr?.message || fallbackErr);
     }
@@ -98,19 +109,21 @@ const handlePairing = async (msg, code) => {
   telegramEvents.emit('paired', { userId: link.user_id, chatId: String(msg.chat.id), username: telegramUsername });
 
   await safeSend(msg.chat.id, t(language, 'pairing.success'));
+  await safeSend(msg.chat.id, t(language, 'control.onboarding'));
+  await showMainMenu({ bot, chatId: msg.chat.id, link: telegramLinksDb.getByUserId(link.user_id) });
 };
 
 const handleBridgeMessage = async (msg, existing) => {
   const language = existing.language || 'en';
+
+  const handled = await handleTelegramControlMessage({ bot, msg, link: existing, safeSend });
+  if (handled) return;
 
   if (!existing.bridge_enabled) {
     await safeSend(msg.chat.id, t(language, 'bridge.disabled'));
     return;
   }
 
-  // Fan out to subscribers (future: session-prompt bridge). We don't do the
-  // actual agent dispatch here to keep the bot service narrowly focused on
-  // Telegram I/O and let the rest of the server opt in.
   telegramEvents.emit('prompt', {
     userId: existing.user_id,
     chatId: String(msg.chat.id),
@@ -122,11 +135,43 @@ const handleBridgeMessage = async (msg, existing) => {
   await safeSend(msg.chat.id, t(language, 'bridge.queued'));
 };
 
+const handleCallbackQuery = async (query) => {
+  const chatId = query?.message?.chat?.id;
+  if (!chatId) return;
+  const existing = telegramLinksDb.getByChatId(String(chatId));
+  if (!existing) {
+    await bot?.answerCallbackQuery(query.id, { text: 'Pair Pixcode first.' }).catch(() => {});
+    return;
+  }
+  await handleTelegramControlCallback({ bot, query, link: existing, safeSend });
+};
+
 const handleMessage = async (msg) => {
   if (!msg?.chat?.id || !msg?.text) return;
 
   const existing = telegramLinksDb.getByChatId(String(msg.chat.id));
   if (existing) {
+    const language = existing.language || 'en';
+    const command = getTelegramControlCommand(msg.text);
+    if (command === '/start') {
+      await safeSend(msg.chat.id, t(language, 'control.onboarding'));
+      await showMainMenu({ bot, chatId: msg.chat.id, link: existing });
+      return;
+    }
+    if (command === '/help') {
+      await safeSend(msg.chat.id, t(language, 'control.help'));
+      return;
+    }
+    if (command === '/menu' || command === 'menu') {
+      await showMainMenu({ bot, chatId: msg.chat.id, link: existing });
+      return;
+    }
+
+    if (isTelegramControlCommand(msg.text)) {
+      await handleTelegramControlMessage({ bot, msg, link: existing });
+      return;
+    }
+
     // Paired user path: a 6-digit-only message is treated as noise (we keep
     // the already-paired binding); anything else is bridge traffic.
     const maybeCode = parseMaybeCode(msg.text);
@@ -156,6 +201,8 @@ const handleMessage = async (msg) => {
   // giriniz desin" requirement).
   await safeSend(msg.chat.id, t('en', 'pairing.stillNeeded'));
 };
+
+export const handleIncomingTelegramMessage = handleMessage;
 
 const wirePollingErrors = () => {
   if (!bot) return;
@@ -211,6 +258,11 @@ export const startBot = async ({ token, persist = true } = {}) => {
   bot.on('message', (msg) => {
     handleMessage(msg).catch((err) => {
       console.error('[telegram] handleMessage crashed:', err);
+    });
+  });
+  bot.on('callback_query', (query) => {
+    handleCallbackQuery(query).catch((err) => {
+      console.error('[telegram] handleCallbackQuery crashed:', err);
     });
   });
   wirePollingErrors();

@@ -217,6 +217,7 @@ function migrateSqliteIfPresent() {
             verified_at: tl.verified_at || null,
             notifications_enabled: tl.notifications_enabled !== 0,
             bridge_enabled: tl.bridge_enabled !== 0,
+            telegram_control: null,
             updated_at: tl.updated_at || nowIso(),
         });
     }
@@ -672,6 +673,40 @@ const appConfigDb = {
 // ---------------------------------------------------------------------------
 // Telegram — singleton config + per-user links
 // ---------------------------------------------------------------------------
+const DEFAULT_TELEGRAM_CONTROL_STATE = {
+    remoteControlEnabled: true,
+    progressMode: 'final',
+    selectedProjectName: null,
+    selectedProjectPath: null,
+    selectedProvider: 'opencode',
+    selectedModel: null,
+    selectedWorkflowId: null,
+    awaiting: null,
+};
+
+function normalizeTelegramControlState(value = {}) {
+    const raw = value && typeof value === 'object' ? value : {};
+    const selectedProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.selectedProvider)
+        ? raw.selectedProvider
+        : DEFAULT_TELEGRAM_CONTROL_STATE.selectedProvider;
+    const progressMode = ['final', 'steps', 'all'].includes(raw.progressMode)
+        ? raw.progressMode
+        : DEFAULT_TELEGRAM_CONTROL_STATE.progressMode;
+
+    return {
+        ...DEFAULT_TELEGRAM_CONTROL_STATE,
+        ...raw,
+        remoteControlEnabled: raw.remoteControlEnabled !== false,
+        progressMode,
+        selectedProvider,
+        selectedProjectName: typeof raw.selectedProjectName === 'string' ? raw.selectedProjectName : null,
+        selectedProjectPath: typeof raw.selectedProjectPath === 'string' ? raw.selectedProjectPath : null,
+        selectedModel: typeof raw.selectedModel === 'string' ? raw.selectedModel : null,
+        selectedWorkflowId: typeof raw.selectedWorkflowId === 'string' ? raw.selectedWorkflowId : null,
+        awaiting: raw.awaiting && typeof raw.awaiting === 'object' ? raw.awaiting : null,
+    };
+}
+
 const telegramConfigDb = {
     get: () => {
         const row = store.raw.telegram_config[0];
@@ -705,6 +740,7 @@ const telegramLinksDb = {
             verified_at: null,
             notifications_enabled: true,
             bridge_enabled: true,
+            telegram_control: normalizeTelegramControlState(),
             updated_at: nowIso(),
         });
     },
@@ -742,6 +778,7 @@ const telegramLinksDb = {
             language: row.language,
             notifications_enabled: row.notifications_enabled,
             bridge_enabled: row.bridge_enabled,
+            telegram_control: normalizeTelegramControlState(row.telegram_control),
         };
     },
     listVerified: () =>
@@ -752,6 +789,7 @@ const telegramLinksDb = {
             language: r.language,
             notifications_enabled: r.notifications_enabled,
             bridge_enabled: r.bridge_enabled,
+            telegram_control: normalizeTelegramControlState(r.telegram_control),
         })),
     updatePreferences: (userId, { language, notificationsEnabled, bridgeEnabled }) => {
         const patch = { updated_at: nowIso() };
@@ -760,6 +798,20 @@ const telegramLinksDb = {
         if (bridgeEnabled !== undefined) patch.bridge_enabled = Boolean(bridgeEnabled);
         if (Object.keys(patch).length === 1) return; // only updated_at → no real change
         store.updateWhere('telegram_links', (r) => r.user_id === userId, patch);
+    },
+    getControlState: (userId) => {
+        const row = store.findWhere('telegram_links', (r) => r.user_id === userId);
+        return normalizeTelegramControlState(row?.telegram_control);
+    },
+    updateControlState: (userId, patch) => {
+        const row = store.findWhere('telegram_links', (r) => r.user_id === userId);
+        const current = normalizeTelegramControlState(row?.telegram_control);
+        const next = normalizeTelegramControlState({ ...current, ...(patch || {}) });
+        store.updateWhere('telegram_links', (r) => r.user_id === userId, {
+            telegram_control: next,
+            updated_at: nowIso(),
+        });
+        return next;
     },
     unlink: (userId) => {
         store.deleteWhere('telegram_links', (r) => r.user_id === userId);

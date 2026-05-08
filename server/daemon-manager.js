@@ -95,15 +95,25 @@ function quoteSystemdArg(arg) {
     return `"${String(arg).replace(/(["\\$`])/g, '\\$1')}"`;
 }
 
-function resolveDaemonCliEntryPath(context = {}) {
+export function resolveDaemonCliEntryPath(context = {}) {
     const appRoot = context.appRoot || process.cwd();
     const explicitCliEntry = context.cliEntry ? path.resolve(context.cliEntry) : null;
     const argvCliEntry = process.argv[1] ? path.resolve(process.argv[1]) : null;
+    const distCliEntry = path.join(appRoot, 'dist-server', 'server', 'cli.js');
+    const sourceCliEntry = path.join(appRoot, 'server', 'cli.js');
+    const normalizeCliCandidate = (candidate) => {
+        if (!candidate) return null;
+        const resolved = path.resolve(candidate);
+        if (resolved === sourceCliEntry && fs.existsSync(distCliEntry)) {
+            return distCliEntry;
+        }
+        return resolved;
+    };
     const candidatePaths = [
-        explicitCliEntry,
-        argvCliEntry,
-        path.join(appRoot, 'dist-server', 'server', 'cli.js'),
-        path.join(appRoot, 'server', 'cli.js'),
+        normalizeCliCandidate(explicitCliEntry),
+        normalizeCliCandidate(argvCliEntry),
+        distCliEntry,
+        sourceCliEntry,
     ].filter(Boolean);
 
     const existingPath = candidatePaths.find(candidate => fs.existsSync(candidate));
@@ -111,7 +121,7 @@ function resolveDaemonCliEntryPath(context = {}) {
         return existingPath;
     }
 
-    return explicitCliEntry || argvCliEntry || path.join(appRoot, 'server', 'cli.js');
+    return normalizeCliCandidate(explicitCliEntry) || normalizeCliCandidate(argvCliEntry) || distCliEntry;
 }
 
 function hasPixcodeBinary() {
@@ -210,12 +220,7 @@ function parseDaemonArgs(args) {
 
 function buildDaemonExecStart({ appRoot, serverPort, databasePath, nodeExecPath, cliEntry }) {
     const nodeExec = nodeExecPath || process.execPath || 'node';
-    const cliCandidate = cliEntry
-        ? path.resolve(cliEntry)
-        : (process.argv[1] ? path.resolve(process.argv[1]) : path.join(appRoot, 'dist-server', 'server', 'cli.js'));
-    const resolvedCliEntry = fs.existsSync(cliCandidate)
-        ? cliCandidate
-        : path.join(appRoot, 'dist-server', 'server', 'cli.js');
+    const resolvedCliEntry = resolveDaemonCliEntryPath({ appRoot, cliEntry });
 
     const args = [nodeExec, resolvedCliEntry, 'start', '--port', String(serverPort)];
     if (databasePath) {

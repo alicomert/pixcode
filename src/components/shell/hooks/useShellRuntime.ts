@@ -129,7 +129,7 @@ export function useShellRuntime({
       return;
     }
 
-    disconnectFromShell();
+    disconnectFromShell(false);
     disposeTerminal();
   }, [disconnectFromShell, disposeTerminal, isRestarting]);
 
@@ -138,14 +138,14 @@ export function useShellRuntime({
       return;
     }
 
-    disconnectFromShell();
+    disconnectFromShell(false);
     disposeTerminal();
   }, [disconnectFromShell, disposeTerminal, selectedProject]);
 
   useEffect(() => {
     const currentSessionId = selectedSession?.id ?? null;
     if (lastSessionIdRef.current !== currentSessionId && isInitialized) {
-      disconnectFromShell();
+      disconnectFromShell(false);
     }
 
     lastSessionIdRef.current = currentSessionId;

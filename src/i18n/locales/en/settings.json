@@ -196,6 +196,23 @@
       "enabled": "Enabled",
       "disabled": "Disabled"
     },
+    "control": {
+      "title": "Remote Control",
+      "description": "Use Telegram as a full Pixcode control surface for agents, orchestration, provider setup, and run status.",
+      "enabled": "Enable Telegram control",
+      "enabledDescription": "When enabled, paired Telegram messages can start agent and orchestration work on the selected project.",
+      "progressMode": "Progress mode",
+      "progressModeDescription": "Choose how much run output Telegram should send back.",
+      "progressModes": {
+        "final": "Final answer only",
+        "steps": "Important steps and final answer",
+        "all": "All visible step changes"
+      },
+      "selectedProject": "Selected project",
+      "selectedProvider": "Selected provider",
+      "selectedModel": "Selected model",
+      "selectedWorkflow": "Selected workflow"
+    },
     "errors": {
       "invalidToken": "Telegram rejected this bot token.",
       "networkError": "Could not reach Telegram servers."

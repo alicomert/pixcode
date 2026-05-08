@@ -16,6 +16,8 @@ import SidebarModals from './subcomponents/SidebarModals';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
 import type { SidebarFlatSessionListProps } from './subcomponents/SidebarFlatSessionList';
 
+const VERSION_RELEASE_NOTES_SEEN_KEY = 'pixcode.version.releaseNotes.seenVersion';
+
 type TaskMasterSidebarContext = {
   setCurrentProject: (project: Project) => void;
   mcpServerStatus: MCPServerStatus;
@@ -151,11 +153,18 @@ function Sidebar({
     if (!latestVersion || !releaseInfo) return;
     if (autoShownVersionRef.current === latestVersion) return;
 
+    const seenReleaseNotesVersion = typeof window !== 'undefined'
+      ? window.localStorage.getItem(VERSION_RELEASE_NOTES_SEEN_KEY)
+      : null;
+    const hasSeenCurrentReleaseNotes = seenReleaseNotesVersion === latestVersion;
     const shouldShowReleaseNotes = !updateAvailable
       && latestVersion === currentVersion;
 
-    if (updateAvailable || shouldShowReleaseNotes) {
+    if (updateAvailable || (shouldShowReleaseNotes && !hasSeenCurrentReleaseNotes)) {
       autoShownVersionRef.current = latestVersion;
+      if (shouldShowReleaseNotes) {
+        window.localStorage.setItem(VERSION_RELEASE_NOTES_SEEN_KEY, latestVersion);
+      }
       setVersionModalSnapshot(null);
       setShowVersionModal(true);
     }

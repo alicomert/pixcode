@@ -20,6 +20,14 @@ type LinkState = {
   language: string;
   notificationsEnabled: boolean;
   bridgeEnabled: boolean;
+  control: {
+    remoteControlEnabled: boolean;
+    progressMode: 'final' | 'steps' | 'all';
+    selectedProjectName: string | null;
+    selectedProvider: string;
+    selectedModel: string | null;
+    selectedWorkflowId: string | null;
+  };
   pairingCode: string | null;
   pairingExpiresAt: string | null;
   verifiedAt: string | null;
@@ -143,7 +151,12 @@ export default function TelegramSettingsTab() {
     }
   };
 
-  const patchLink = async (payload: Partial<Pick<LinkState, 'language' | 'notificationsEnabled' | 'bridgeEnabled'>>) => {
+  const patchLink = async (
+    payload: Partial<Pick<LinkState, 'language' | 'notificationsEnabled' | 'bridgeEnabled'>> & {
+      controlEnabled?: boolean;
+      progressMode?: 'final' | 'steps' | 'all';
+    },
+  ) => {
     setError(null);
     try {
       const res = await authenticatedFetch('/api/telegram/link', {
@@ -162,6 +175,8 @@ export default function TelegramSettingsTab() {
   const link = status?.link;
   const isPaired = Boolean(link?.paired);
   const pairingCode = link?.pairingCode ?? null;
+  const controlEnabled = link?.control?.remoteControlEnabled ?? true;
+  const progressMode = link?.control?.progressMode ?? 'final';
 
   const pairingRemainingMs = useMemo(() => {
     if (!link?.pairingExpiresAt) return null;
@@ -346,6 +361,46 @@ export default function TelegramSettingsTab() {
                 className="h-4 w-4"
               />
             </label>
+          </div>
+        </Section>
+      )}
+
+      {isPaired && link && (
+        <Section title={t('telegram.control.title')} description={t('telegram.control.description') as string}>
+          <div className="space-y-3">
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background px-3 py-2.5">
+              <div>
+                <div className="text-sm font-medium text-foreground">{t('telegram.control.enabled')}</div>
+                <div className="text-xs text-muted-foreground">{t('telegram.control.enabledDescription')}</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={controlEnabled}
+                onChange={(e) => void patchLink({ controlEnabled: e.target.checked })}
+                className="h-4 w-4"
+              />
+            </label>
+
+            <label className="block rounded-lg border border-border/60 bg-background px-3 py-2.5">
+              <div className="text-sm font-medium text-foreground">{t('telegram.control.progressMode')}</div>
+              <div className="mb-2 text-xs text-muted-foreground">{t('telegram.control.progressModeDescription')}</div>
+              <select
+                value={progressMode}
+                onChange={(e) => void patchLink({ progressMode: e.target.value as 'final' | 'steps' | 'all' })}
+                className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+              >
+                <option value="final">{t('telegram.control.progressModes.final')}</option>
+                <option value="steps">{t('telegram.control.progressModes.steps')}</option>
+                <option value="all">{t('telegram.control.progressModes.all')}</option>
+              </select>
+            </label>
+
+            <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <div>{t('telegram.control.selectedProject')}: {link.control?.selectedProjectName || '-'}</div>
+              <div>{t('telegram.control.selectedProvider')}: {link.control?.selectedProvider || '-'}</div>
+              <div>{t('telegram.control.selectedModel')}: {link.control?.selectedModel || '-'}</div>
+              <div>{t('telegram.control.selectedWorkflow')}: {link.control?.selectedWorkflowId || '-'}</div>
+            </div>
           </div>
         </Section>
       )}

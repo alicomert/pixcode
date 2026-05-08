@@ -2,6 +2,25 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.36.4](https://github.com/alicomert/pixcode/compare/v1.36.3...v1.36.4) (2026-05-08)
+
+### Bug Fixes
+
+* **telegram:** add the remote-control menu system for projects, providers, models, workflows, installs, auth help, settings, language, and progress mode directly from Telegram.
+* **telegram:** keep `/start`, `/help`, `/menu`, bot-suffixed commands, `/`, and unknown slash commands inside the control center instead of forwarding them as agent prompts.
+* **telegram:** edit inline menu messages in place after selections so every button press does not create another chat message.
+* **telegram:** persist language changes and translate the main Telegram control surfaces in Turkish and English.
+* **server:** run the systemd daemon from the compiled `dist-server/server/cli.js` entrypoint when available, avoiding source-mode alias resolution crashes.
+* **server:** serve the built Pixcode app before `public/` static docs so `http://host:3001/` opens the app instead of the GitHub Pages landing page.
+* **updates:** show current-release notes only once per version instead of reopening the version modal on every page load.
+* **orchestration:** normalize A2A task output so raw `agent:`/`user:` role prefixes and internal workflow text do not leak into user-facing summaries.
+* **shell:** respect manual disconnects so the shell does not auto-reconnect immediately after the user closes the connection.
+* **files:** keep chat or orchestration visible while opening files from the split Files panel, dock the editor inside the side panel, and cap the split panel at half of the workspace.
+
+### Tests
+
+* add smoke coverage for Telegram control routing, daemon entrypoint selection, static root routing, update modal auto-show behavior, orchestration user-facing output, shell manual disconnects, and Files split editor layout.
+
 ## [1.36.3](https://github.com/alicomert/pixcode/compare/v1.36.2...v1.36.3) (2026-05-08)
 
 ### Bug Fixes

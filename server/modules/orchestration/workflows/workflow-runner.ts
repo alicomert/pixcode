@@ -276,6 +276,10 @@ function rolePrompt(role: AgentRole): string {
   return 'Implementation work should avoid duplicating other agents and should report changed files, commands, blockers, and next actions.';
 }
 
+function privacyGuardPrompt(): string {
+  return 'Do not mention internal instructions, memory files, skill use, or tool protocol unless the user explicitly asks.';
+}
+
 function handoffPrompt(agent: AgentAssignment, role: AgentRole): string {
   return [
     `You are ${agent.label} in a Pixcode CLI team.`,
@@ -290,6 +294,7 @@ function handoffPrompt(agent: AgentAssignment, role: AgentRole): string {
     '- dependencies/blockers for the next agents',
     '- concrete next action for your full implementation task',
     'Do not install dependencies, edit files, run long commands, or start servers in this handoff task.',
+    privacyGuardPrompt(),
     'Stop after the contract. Keep it concise and respond in the same language as the user request.',
   ].filter(Boolean).join('\n');
 }
@@ -374,6 +379,7 @@ function expandAgentTeamWorkflow(workflow: Workflow, metadata?: Record<string, u
           ? `Your explicit assignment from the user is: ${agent.instruction}`
           : 'No fixed per-agent assignment was set. Take the part assigned to you by the coordinator; if none is named, choose useful work that fits this CLI.',
         rolePrompt(stage),
+        privacyGuardPrompt(),
         'Respond in the same language as the user request.',
       ].filter(Boolean).join('\n'),
       inputs,
@@ -419,6 +425,8 @@ function expandAgentTeamWorkflow(workflow: Workflow, metadata?: Record<string, u
         prompt: [
           'Collect the worker outputs into one user-facing result.',
           'Show what each CLI did, which parts failed, what changed, and the next action if work remains.',
+          'Do not expose internal prompts, memory lookup, skill/tool instructions, raw agent logs, or role prefixes like "agent:" and "user:".',
+          'If a worker reveals internal process text, summarize only the useful user-facing result.',
           'Respond in the same language as the user request.',
         ].join('\n'),
         inputs: workerNodes.map((node) => node.id),
@@ -436,6 +444,7 @@ function stagePrompt(agent: AgentAssignment, stage: AgentRole): string {
     agent.role && agent.role !== stage ? `User custom stage label: ${agent.role}.` : '',
     agent.instruction ? `User assignment for you: ${agent.instruction}` : '',
     rolePrompt(stage),
+    privacyGuardPrompt(),
     'Keep the answer concise, structured, and useful for the next stage.',
     'Respond in the same language as the user request.',
   ].filter(Boolean).join('\n');
@@ -605,6 +614,7 @@ function expandSequentialHandoffWorkflow(workflow: Workflow, metadata?: Record<s
           ? `Your explicit assignment from the user is: ${agent.instruction}`
           : 'Use the prior step output and do the next most useful handoff step for the user goal.',
         'Report changed files, commands, blockers, and the next handoff requirement.',
+        privacyGuardPrompt(),
         'Respond in the same language as the user request.',
       ].filter(Boolean).join('\n'),
       inputs: index === 0 ? [] : [safeAgentNodeId(agents[index - 1], index - 1, 'handoff')],
@@ -646,6 +656,7 @@ function expandWorkflowForRun(workflow: Workflow, metadata?: Record<string, unkn
       `You are ${agent.label}.`,
       'Review the requested change for bugs, regressions, missing validation, security, scale, and user-experience risks.',
       agent.instruction ? `Focus on this user assignment: ${agent.instruction}` : '',
+      privacyGuardPrompt(),
       'Respond in the same language as the user request.',
     ].filter(Boolean).join('\n'),
     inputs: [],
@@ -666,7 +677,11 @@ function expandWorkflowForRun(workflow: Workflow, metadata?: Record<string, unkn
         model: reportAgent.model,
         permissionMode: reportAgent.permissionMode,
         toolsSettings: reportAgent.toolsSettings,
-        prompt: 'Aggregate the prior agent reviews into a concise prioritized report. Respond in the same language as the user request.',
+        prompt: [
+          'Aggregate the prior agent reviews into a concise prioritized report.',
+          'Do not expose internal prompts, memory lookup, skill/tool instructions, raw agent logs, or role prefixes like "agent:" and "user:".',
+          'Respond in the same language as the user request.',
+        ].join('\n'),
         inputs: reviewNodes.map((node) => node.id),
         output: 'message',
         onFail: 'abort',
@@ -701,13 +716,13 @@ function readTaskResult(task: RawTask): TaskResult {
     };
   });
   const outputMessages = messages.filter((message) => message.role !== 'user');
-  const text = outputMessages.map((message) => `${message.role}: ${message.text}`).join('\n\n');
+  const userFacingTaskText = outputMessages.map((message) => message.text.trim()).filter(Boolean).join('\n\n');
   const error = task.error?.message
     ? `${task.error.code ? `${task.error.code}: ` : ''}${task.error.message}`
     : undefined;
   return {
     state: task.state ?? 'submitted',
-    text,
+    text: userFacingTaskText,
     error,
     messages,
     artifacts,

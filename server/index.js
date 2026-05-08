@@ -413,11 +413,9 @@ app.use('/api/telegram', authenticateToken, telegramRoutes);
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', agentRoutes);
 
-// Serve public files (like api-docs.html)
-app.use(express.static(path.join(APP_ROOT, 'public')));
-
-// Static files served after API routes
-// Add cache control: HTML files should not be cached, but assets can be cached
+// Static app files served after API routes. Keep dist before public so
+// / and /index.html always resolve to the Pixcode app, not the GitHub Pages
+// landing page that also lives in public/index.html.
 app.use(express.static(path.join(APP_ROOT, 'dist'), {
     setHeaders: (res, filePath) => {
         if (filePath.endsWith('.html')) {
@@ -430,6 +428,12 @@ app.use(express.static(path.join(APP_ROOT, 'dist'), {
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         }
     }
+}));
+
+// Serve extra public files (api-docs.html, llms.txt, landing pages) without
+// letting public/index.html shadow the production app root.
+app.use(express.static(path.join(APP_ROOT, 'public'), {
+    index: false,
 }));
 
 // API Routes (protected)

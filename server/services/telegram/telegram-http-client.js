@@ -6,10 +6,12 @@ import { EventEmitter } from 'node:events';
  * Replaces `node-telegram-bot-api` which pulled in the deprecated
  * `request` / `har-validator` / `uuid@3` chain (~30 transitive packages,
  * npm install warnings on every fresh box). The Bot API itself is just
- * HTTP, and we only use two endpoints (getUpdates polling + sendMessage),
+ * HTTP, and we only use a few endpoints (getUpdates polling + sendMessage +
+ * callback answers + message edits),
  * so 100 lines of fetch is all that's needed. Exposes the same surface
- * the bot.js consumer relied on: `getMe()`, `sendMessage()`, `on('message'|'polling_error')`,
- * `stopPolling()`.
+ * the bot.js consumer relied on: `getMe()`, `sendMessage()`,
+ * `editMessageText()`, `answerCallbackQuery()`,
+ * `on('message'|'callback_query'|'polling_error')`, `stopPolling()`.
  *
  * No third-party deps — uses Node 22's built-in `fetch`.
  */
@@ -76,6 +78,20 @@ export class TelegramHttpBot extends EventEmitter {
     });
   }
 
+  async editMessageText(text, extra = {}) {
+    return callApi(this._token, 'editMessageText', {
+      text,
+      ...extra,
+    });
+  }
+
+  async answerCallbackQuery(callbackQueryId, extra = {}) {
+    return callApi(this._token, 'answerCallbackQuery', {
+      callback_query_id: callbackQueryId,
+      ...extra,
+    });
+  }
+
   async stopPolling(_opts = {}) {
     this._polling = false;
     try { this._abortController?.abort(); } catch { /* ignore */ }
@@ -99,7 +115,7 @@ export class TelegramHttpBot extends EventEmitter {
             {
               offset: this._offset,
               timeout: this._pollTimeoutSec,
-              allowed_updates: ['message'],
+              allowed_updates: ['message', 'callback_query'],
             },
             { signal: this._abortController.signal },
           );
@@ -110,6 +126,11 @@ export class TelegramHttpBot extends EventEmitter {
             if (update.message) {
               try { this.emit('message', update.message); } catch (err) {
                 // Don't let a listener exception break the poll loop.
+                this.emit('polling_error', err);
+              }
+            }
+            if (update.callback_query) {
+              try { this.emit('callback_query', update.callback_query); } catch (err) {
                 this.emit('polling_error', err);
               }
             }
