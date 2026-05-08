@@ -71,6 +71,7 @@ export type MainContentHeaderProps = {
   canUseSidePanelSplit?: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
+  onCloseSidePanel?: () => void;
 };
 
 export type MainContentStateViewProps = {

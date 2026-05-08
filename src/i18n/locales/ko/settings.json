@@ -55,7 +55,8 @@
       "appearance": "외관",
       "toolDisplay": "도구 표시",
       "viewOptions": "보기 옵션",
-      "inputSettings": "입력 설정"
+      "inputSettings": "입력 설정",
+      "changeAwareness": "제어 센터"
     },
     "darkMode": "다크 모드",
     "autoExpandTools": "도구 자동 펼치기",
@@ -64,6 +65,26 @@
     "autoScrollToBottom": "자동 스크롤",
     "sendByCtrlEnter": "Ctrl+Enter로 전송",
     "sendByCtrlEnterDescription": "활성화하면 Enter 대신 Ctrl+Enter로 메시지를 전송합니다. IME 사용자가 실수로 전송하는 것을 방지하는 데 유용합니다.",
+    "changeAwareness": "제어 센터",
+    "changedFiles": {
+      "title": "변경된 파일",
+      "description": "로컬 파일 변경을 추적하고 새 변경이 생기면 파일 패널을 엽니다.",
+      "noProject": "로컬 변경을 추적할 프로젝트를 선택하세요.",
+      "refresh": "변경된 파일 새로고침",
+      "empty": "로컬 변경이 없습니다",
+      "disabled": "로컬 변경을 보려면 제어 센터를 켜세요.",
+      "more": "+{{count}}개 파일 더",
+      "lastChecked": "{{value}} 확인",
+      "guideTitle": "오른쪽 패널 가이드",
+      "guideFiles": "변경된 파일은 파일 패널에서 초록색으로 빛납니다.",
+      "guidePanel": "새 변경은 분할 패널을 자동으로 엽니다.",
+      "status": {
+        "M": "M",
+        "A": "A",
+        "D": "D",
+        "U": "U"
+      }
+    },
     "dragHandle": {
       "dragging": "드래그 핸들",
       "closePanel": "설정 패널 닫기",

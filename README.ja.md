@@ -1,240 +1,164 @@
 <div align="center">
-  <img src="public/logo.svg" alt="Pixcode" width="64" height="64">
-  <h1>Cloud CLI（別名 Claude Code UI）</h1>
-  <p><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>、<a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>、<a href="https://developers.openai.com/codex">Codex</a>、<a href="https://geminicli.com/">Gemini-CLI</a> のためのデスクトップ／モバイル UI。<br>ローカルでもリモートでも使え、アクティブなプロジェクトとセッションをどこからでも閲覧できます。</p>
+  <img src="public/logo.png" alt="Pixcode logo" width="96" height="96" />
+  <h1>Pixcode</h1>
+  <p><strong>AI coding agent のための self-hosted control room。</strong></p>
+  <p>
+    Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code、OpenCode を 1 つの Web UI で操作します。Chat、Shell、Files、Git、Orchestration、API keys、Plugins、Notifications、Telegram、Desktop/Server deployment をまとめて扱えます。
+  </p>
+  <p>
+    <a href="README.md">English</a> ·
+    <a href="README.tr.md">Türkçe</a> ·
+    <a href="README.de.md">Deutsch</a> ·
+    <a href="README.ru.md">Русский</a> ·
+    <a href="README.ko.md">한국어</a> ·
+    <a href="README.zh-CN.md">简体中文</a>
+  </p>
 </div>
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode">Pixcode</a> · <a href="https://github.com/alicomert/pixcode">ドキュメント</a> · <a href="https://discord.gg/buxwujPNRE">Discord</a> · <a href="https://github.com/alicomert/pixcode/issues">バグ報告</a> · <a href="CONTRIBUTING.md">コントリビュート</a>
-</p>
+## Pixcode とは
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode"><img src="https://img.shields.io/badge/☁️_Pixcode_Cloud-Try_Now-0066FF?style=for-the-badge" alt="Pixcode"></a>
-  <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord コミュニティに参加"></a>
-</p>
+Pixcode は、ローカル PC、ワークステーション、Linux サーバーをブラウザベースの AI development cockpit にします。複数の terminal、CLI log、file explorer、Git tool、provider settings を行き来せず、coding-agent workflow を 1 つの local web app に集約します。
 
-<div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">中文</a> · <b>日本語</b> · <a href="./README.tr.md">Türkçe</a> · <a href="./README.it.md">Italiano</a></i></div>
+主な利用形態:
 
----
+- **Local workstation**: 既存の CLI をそのまま使い、より見やすい UI で操作。
+- **Always-on server**: Linux daemon として起動し、laptop、tablet、phone から接続。
+- **Desktop app**: GitHub Releases の Windows `.exe`、macOS `.dmg`、Linux build を利用。
 
-## スクリーンショット
+Pixcode は hosted cloud IDE ではありません。Projects、credentials、CLI sessions、local files、Git state、MCP config は自分の machine 側に残ります。
 
-<div align="center">
+## Screenshots
 
-<table>
-<tr>
-<td align="center">
-<h3>デスクトップビュー</h3>
-<img src="public/screenshots/desktop-main.png" alt="デスクトップインターフェース" width="400">
-<br>
-<em>プロジェクト概要とチャットを表示するメイン画面</em>
-</td>
-<td align="center">
-<h3>モバイル体験</h3>
-<img src="public/screenshots/mobile-chat.png" alt="モバイルインターフェース" width="250">
-<br>
-<em>タッチ操作に対応したレスポンシブなモバイルデザイン</em>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<h3>CLI 選択</h3>
-<img src="public/screenshots/cli-selection.png" alt="CLI 選択" width="400">
-<br>
-<em>Claude Code、Gemini、Cursor CLI、Codex から選択</em>
-</td>
-</tr>
-</table>
+| Workspace | Mobile chat |
+| --- | --- |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
 
+| CLI selection | Tools and MCP |
+| --- | --- |
+| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
 
+## Features
 
-</div>
+### Multiple CLI providers
 
-## 機能
+- Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code、OpenCode。
+- Provider auth、API key credentials、OAuth paste、install status、model catalog、CLI version status を Settings で管理。
+- Native CLI を置き換えるのではなく、session management、WebSocket streaming、notifications、file context、project controls を追加します。
+- CLI が thinking、tool execution、approval waiting、output streaming のどれなのか UI で分かります。
 
-- **レスポンシブデザイン** - デスクトップ／タブレット／モバイルでシームレスに動作し、モバイルからも Agents を利用可能
-- **インタラクティブチャット UI** - Agents とスムーズにやり取りできる内蔵チャット UI
-- **統合シェルターミナル** - 内蔵シェル機能で Agents の CLI に直接アクセス
-- **ファイルエクスプローラー** - シンタックスハイライトとライブ編集に対応したインタラクティブなファイルツリー
-- **Git エクスプローラー** - 変更の表示、ステージ、コミット。ブランチ切り替えも可能
-- **セッション管理** - 会話の再開、複数セッションの管理、履歴の追跡
-- **プラグインシステム** - カスタムプラグインで Pixcode を拡張 — 新しいタブ、バックエンドサービス、連携を追加できます。[自分で構築する →](https://github.com/alicomert/pixcode)
+### Chat, files, shell, source control
 
-## クイックスタート
+- Project-aware chat sessions。
+- Prompt composer は chat/project screen の下部に固定。
+- Shell panel は desktop で split または full に切り替え可能。
+- File browser は edit、upload、rename、delete、detailed view をサポート。
+- Source Control は Git status、diff、branch、commit、changed files を表示。
+- Split panels には icon controls、close button、mobile-friendly responsive layout があります。
 
-### Pixcode（推奨）
+### Command Center for changed files
 
-最速で始める方法 — ローカルのセットアップは不要です。Web、モバイルアプリ、API、またはお気に入りの IDE からアクセスできる、フルマネージドでコンテナ化された開発環境を利用できます。
+Pixcode は local working tree の変更も追跡します。Quick Settings の Command Center は changed files を即座に表示し、新しい変更を highlight して、該当 file/line に移動できます。AI agent が何を変更したかを chat/orchestration view を閉じずに確認できます。
 
-**[Pixcode を始める](https://github.com/alicomert/pixcode)**
+### Multi-agent orchestration
 
-### セルフホスト（オープンソース）
+Orchestration は 1 つの goal に対して複数の CLI agents を coordinating します。
 
-#### npm
+- **Agent Team**: frontend、backend、review、docs、custom roles に分割。
+- **Multi-model Review**: 複数 provider/model で同じ変更を review。
+- **Sequential Handoff**: step-by-step に作業を受け渡し。
+- **Decision Debate**: 実装前に approach を比較。
 
-**npx** で今すぐ Pixcode を試せます（**Node.js** v22+ が必要）：
+Controls:
+
+- agents を run ごとに enable/disable、
+- 同じ provider を複数 worker として使う、
+- agent ごとに role、stage、label、instruction を設定、
+- agent ごとに model を選択、OpenCode model も対象、
+- failed step の fallback CLI agent を選択、
+- workflow DAG preview、
+- event streaming と cancel、
+- resizable orchestration panes。
+
+### API, Telegram, notifications
+
+Pixcode frontend は REST/WebSocket API を使っています。External automation も API keys で同じ control plane を使えます。新しい keys は `px_` で始まり、古い `ck_` keys も互換性のため受け付けます。
+
+```bash
+curl http://localhost:3001/api/projects \
+  -H "Authorization: Bearer px_your_key_here"
+```
+
+- `POST /api/agent` for one-shot agent runs。
+- `/api/orchestration/workflows/*` for preview, start, stream, cancel。
+- Browser push notifications。
+- Telegram pairing, task notifications, optional prompt bridge。
+
+OpenAPI: [`public/openapi.yaml`](public/openapi.yaml)
+
+### Themes, plugins, MCP
+
+- Dark/light mode。
+- Emerald、VS Code-like などの accent palettes。
+- Custom light/dark accent colors。
+- Token-based styling for buttons, focus rings, navigation, active states。
+- MCP server management。
+- Plugin system with frontend tabs and optional backend services。
+
+## Installation
+
+Node.js 22+ が必要です。
 
 ```bash
 npx @pixelbyte-software/pixcode
 ```
 
-または、普段使いするなら **グローバル** にインストール：
+Global install:
 
 ```bash
 npm install -g @pixelbyte-software/pixcode
 pixcode
 ```
 
-`http://localhost:3001` を開いてください — 既存のセッションは自動的に検出されます。
+Open:
 
-より詳細な設定オプション、PM2、リモートサーバー設定などについては **[ドキュメントはこちら →](https://github.com/alicomert/pixcode)** を参照してください。
-
-#### Docker Sandboxes（実験的）
-
-ハイパーバイザーレベルの分離でエージェントをサンドボックスで実行します。デフォルトでは Claude Code が起動します。[`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/) が必要です。
-
-```
-npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
+```text
+http://localhost:3001
 ```
 
-Claude Code、Codex、Gemini CLI に対応。詳細は[サンドボックスのドキュメント](docker/)をご覧ください。
+Desktop installers are available in GitHub Releases: Windows `.exe`, macOS `.dmg`, Linux AppImage/packages.
 
----
+## Linux daemon
 
-## どちらの選択肢が適していますか？
+```bash
+pixcode daemon install --mode auto --port 3001
+pixcode daemon status --mode auto
+pixcode daemon logs --mode auto
+pixcode daemon restart --mode auto
+```
 
-Pixcode は、Pixcode を支えるオープンソースの UI レイヤーです。自分のマシンにセルフホストすることも、フルマネージドのクラウド環境、チーム機能、より深い統合を備えた Pixcode を使うこともできます。
+Foreground:
 
-| | Pixcode（セルフホスト） | Pixcode |
-|---|---|---|
-| **対象ユーザー** | 自分のマシン上でローカルの agent セッションに対してフル UI を使いたい開発者 | クラウド上で動く agents をどこからでも利用したいチーム／開発者 |
-| **アクセス方法** | ブラウザ（`[yourip]:port`） | ブラウザ、任意の IDE、REST API、n8n |
-| **セットアップ** | `npx @pixelbyte-software/pixcode` | セットアップ不要 |
-| **マシンの稼働継続** | はい | いいえ |
-| **モバイルアクセス** | 同一ネットワーク内の任意のブラウザ | 任意のデバイス（ネイティブアプリも準備中） |
-| **利用可能なセッション** | `~/.claude` から全セッションを自動検出 | クラウド環境内の全セッション |
-| **対応エージェント** | Claude Code、Cursor CLI、Codex、Gemini CLI | Claude Code、Cursor CLI、Codex、Gemini CLI |
-| **ファイルエクスプローラとGit** | はい（UI に内蔵） | はい（UI に内蔵） |
-| **MCP設定** | UI で管理し、ローカルの `~/.claude` 設定と同期 | UI で管理 |
-| **IDEアクセス** | ローカル IDE | クラウド環境に接続された任意の IDE |
-| **REST API** | はい | はい |
-| **n8n ノード** | いいえ | はい |
-| **チーム共有** | いいえ | はい |
-| **料金プラン** | 無料（オープンソース） | 月 $7〜 |
+```bash
+pixcode --no-daemon
+```
 
-> どちらの選択肢でも、AI のサブスクリプション（Claude、Cursor など）はご自身のものを使用します — Pixcode が提供するのは環境であり、AI そのものではありません。
+## Development
 
----
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm run build
+```
 
-## セキュリティとツール設定
+Notes:
 
-**🔒 重要なお知らせ** すべての Claude Code ツールは **デフォルトで無効** です。これにより、潜在的に有害な操作が自動的に実行されることを防ぎます。
+- `npm run dev` uses the daemon manager on Linux.
+- Use `npm run client` only for Vite frontend development.
+- Normal runtime uses port `3001`; `5173` is for separate Vite dev.
 
-### ツールの有効化
+## Links
 
-1. **ツール設定を開く** - サイドバーの歯車アイコンをクリック
-2. **必要なツールだけを選んで有効化** - 本当に使うものだけをオンにする
-3. **設定を適用** - 設定内容はローカルに保存されます
-
-<div align="center">
-
-![ツール設定モーダル](public/screenshots/tools-modal.png)
-*Tools 設定画面 - 必要なものだけを有効にしてください*
-
-</div>
-
-**推奨アプローチ**: まずは基本ツールだけを有効にし、必要に応じて追加してください。これらの設定は後からいつでも調整できます。
-
----
-
-## プラグイン
-
-Pixcode にはプラグインシステムがあり、独自のフロントエンド UI と（必要に応じて）Node.js バックエンドを持つカスタムタブを追加できます。プラグインは **Settings > Plugins** から git リポジトリを直接指定してインストールするか、自作できます。
-
-### 利用可能なプラグイン
-
-| プラグイン | 説明 |
-|---|---|
-| **[Project Stats](https://github.com/alicomert/pixcode)** | 現在のプロジェクトについて、ファイル数、コード行数、ファイル種別の内訳、最大ファイル、最近変更されたファイルを表示 |
-
-### 自作する
-
-**[Plugin Starter Template →](https://github.com/alicomert/pixcode)** — このリポジトリを fork して独自プラグインを作れます。フロントエンド描画、ライブコンテキスト更新、バックエンドサーバーへの RPC 通信を含む動作例が入っています。
-
-**[プラグインのドキュメント →](https://github.com/alicomert/pixcode)** — プラグイン API、manifest 形式、セキュリティモデルなどの完全ガイド。
-
----
-## FAQ
-
-<details>
-<summary>Claude Code Remote Control とはどう違いますか？</summary>
-
-Claude Code Remote Control は、ローカル端末で既に動作しているセッションへメッセージを送れる仕組みです。マシンを起動したままにし、端末も開いたままにする必要があり、ネットワーク接続がない状態が約 10 分続くとセッションがタイムアウトします。
-
-Pixcode と Pixcode は、Claude Code の横に別物として存在するのではなく、Claude Code を拡張します — MCP サーバー、権限、設定、セッションは Claude Code がネイティブに使うものと完全に同一です。複製したり、別系統で管理したりしません。
-
-- **すべてのセッションにアクセス** — Pixcode は `~/.claude` フォルダのすべてのセッションを自動検出します。Remote Control は、Claude モバイルアプリで利用可能にするため、1つのアクティブセッションだけを公開します。
-- **設定はあなたの設定** — Pixcode で変更した MCP サーバー、ツール権限、プロジェクト構成は、Claude Code の設定に直接書き込まれて即座に反映され、その逆（Claude Code での変更が UI に反映）も同様です。
-- **対応エージェントがさらに充実** — Claude Code に加えて Cursor CLI、Codex、Gemini CLI にも対応しています。
-- **チャット窓だけではない完全な UI** — ファイルエクスプローラー、Git 統合、MCP 管理、シェル端末などがすべて組み込まれています。
-- **Pixcode はクラウド上で稼働** — ノートパソコンを閉じてもエージェントは動き続けます。監視が要る端末も、スリープ防止も不要です。
-
-</details>
-
-<details>
-<summary>AI のサブスクリプションは別途支払いが必要ですか？</summary>
-
-はい。Pixcode は環境を提供するものであり、AI は含まれません。Claude、Cursor、Codex、または Gemini のサブスクリプションはご自身でご用意ください。Pixcode のホスティング環境はそれに加えて月額 $7 から提供されます。
-
-</details>
-
-<details>
-<summary>Pixcode をスマホで使えますか？</summary>
-
-はい。セルフホストの場合は、自身のマシンでサーバーを起動し、ネットワーク内のブラウザで `[yourip]:port` を開いてください。Pixcode を使う場合は、任意のデバイスからアクセスできます。VPN もポートフォワーディングも不要で、セットアップも不要です。ネイティブアプリも開発中です。
-
-</details>
-
-<details>
-<summary>UI で加えた変更はローカルの Claude Code 設定に影響しますか？</summary>
-
-はい、セルフホストの場合です。Pixcode は Claude Code がネイティブに使う `~/.claude` 設定を読み書きします。UI から追加した MCP サーバーは即座に Claude Code に反映され、その逆も同様です。
-
-</details>
-
----
-
-## コミュニティとサポート
-
-- **[ドキュメント](https://github.com/alicomert/pixcode)** — インストール、設定、機能、トラブルシューティング
-- **[Discord](https://discord.gg/buxwujPNRE)** — ヘルプを得たり、ユーザー同士で交流したりできます
-- **[GitHub Issues](https://github.com/alicomert/pixcode/issues)** — バグ報告と機能要望
-- **[コントリビューションガイド](CONTRIBUTING.md)** — プロジェクトへの貢献方法
-
-## ライセンス
-
-GNU General Public License v3.0 - 詳細は [LICENSE](LICENSE) ファイルを参照してください。
-
-このプロジェクトはオープンソースであり、GPL v3 ライセンスの下で無料で使用、修正、再配布できます。
-
-## 謝辞
-
-### 使用技術
-
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** - Anthropic の公式 CLI
-- **[Cursor CLI](https://docs.cursor.com/en/cli/overview)** - Cursor の公式 CLI
-- **[Codex](https://developers.openai.com/codex)** - OpenAI Codex
-- **[Gemini-CLI](https://geminicli.com/)** - Google Gemini CLI
-- **[React](https://react.dev/)** - ユーザーインターフェースライブラリ
-- **[Vite](https://vitejs.dev/)** - 高速ビルドツールと開発サーバー
-- **[Tailwind CSS](https://tailwindcss.com/)** - ユーティリティファーストの CSS フレームワーク
-- **[CodeMirror](https://codemirror.net/)** - 高度なコードエディタ
-- **[TaskMaster AI](https://github.com/eyaltoledano/claude-task-master)** *(オプション)* - AI を活用したプロジェクト管理とタスク計画
-
-## スポンサー
-- [Siteboon - AI を活用したウェブサイトビルダー](https://siteboon.ai)
----
-
-<div align="center">
-  <strong>Claude Code、Cursor、Codex コミュニティのために心を込めて作りました。</strong>
-</div>
+- npm: <https://www.npmjs.com/package/@pixelbyte-software/pixcode>
+- GitHub: <https://github.com/alicomert/pixcode>
+- Releases: <https://github.com/alicomert/pixcode/releases/latest>

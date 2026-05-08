@@ -39,6 +39,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     setCodexPermissionMode,
     providerAuthStatus,
     checkProviderAuthStatus,
+    refreshProviderAuthStatuses,
     geminiPermissionMode,
     setGeminiPermissionMode,
     qwenPermissionMode,
@@ -59,6 +60,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     permission: pushPermission,
     isSubscribed: isPushSubscribed,
     isLoading: isPushLoading,
+    error: pushError,
     subscribe: pushSubscribe,
     unsubscribe: pushUnsubscribe,
   } = useWebPush();
@@ -134,7 +136,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 <AgentsSettingsTab
                   providerAuthStatus={providerAuthStatus}
                   onProviderLogin={openLoginForProvider}
-                  onRefreshProviderAuth={checkProviderAuthStatus}
+                  onRefreshProviderAuth={(provider) => checkProviderAuthStatus(provider, { force: true })}
+                  onRefreshAllProviderAuth={() => refreshProviderAuthStatuses(undefined, { force: true })}
                   claudePermissions={claudePermissions}
                   onClaudePermissionsChange={setClaudePermissions}
                   cursorPermissions={cursorPermissions}
@@ -160,6 +163,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 pushPermission={pushPermission}
                 isPushSubscribed={isPushSubscribed}
                 isPushLoading={isPushLoading}
+                pushError={pushError}
                 onEnablePush={handleEnablePush}
                 onDisablePush={handleDisablePush}
               />

@@ -25,6 +25,7 @@ export type AgentsSettingsTabProps = {
   /** Re-check auth/install state for a specific provider (used by
    *  AccountContent to refresh immediately after a successful install). */
   onRefreshProviderAuth?: (provider: AgentProvider) => Promise<void>;
+  onRefreshAllProviderAuth?: () => Promise<void>;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
   cursorPermissions: CursorPermissionsState;

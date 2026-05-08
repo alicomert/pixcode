@@ -1,9 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
+import { notifyOnce } from '../../../utils/localNotifications';
 import type { LLMProvider } from '../../../types/app';
 import {
   CLI_PROVIDERS,
+  PROVIDER_DISPLAY_NAMES,
   PROVIDER_AUTH_STATUS_ENDPOINTS,
   createInitialProviderAuthStatusMap,
 } from '../types';
@@ -18,6 +20,12 @@ type ProviderAuthStatusPayload = {
   email?: string | null;
   method?: string | null;
   error?: string | null;
+  checkedAt?: string | null;
+  installedVersion?: string | null;
+  latestVersion?: string | null;
+  updateAvailable?: boolean;
+  versionCheckSkipped?: string | null;
+  fromCache?: boolean;
 };
 
 type ProviderAuthStatusApiResponse = {
@@ -27,6 +35,10 @@ type ProviderAuthStatusApiResponse = {
 
 const FALLBACK_STATUS_ERROR = 'Failed to check authentication status';
 const FALLBACK_UNKNOWN_ERROR = 'Unknown error';
+const STATUS_CACHE_KEY = 'pixcode.providerAuthStatus.cache.v2';
+const STATUS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const BACKGROUND_STATUS_CHECK_MS = 60 * 60 * 1000;
+let lastBackgroundRefreshAt = 0;
 
 const toErrorMessage = (error: unknown): string => (
   error instanceof Error ? error.message : FALLBACK_UNKNOWN_ERROR
@@ -42,7 +54,78 @@ const toProviderAuthStatus = (
   method: payload.method ?? null,
   error: payload.error ?? fallbackError,
   loading: false,
+  checkedAt: payload.checkedAt ?? new Date().toISOString(),
+  installedVersion: payload.installedVersion ?? null,
+  latestVersion: payload.latestVersion ?? null,
+  updateAvailable: Boolean(payload.updateAvailable),
+  versionCheckSkipped: payload.versionCheckSkipped ?? null,
+  fromCache: Boolean(payload.fromCache),
 });
+
+type CachedProviderAuthStatus = {
+  savedAt: number;
+  statuses: ProviderAuthStatusMap;
+};
+
+function readCachedStatuses(): CachedProviderAuthStatus | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STATUS_CACHE_KEY) ?? 'null') as CachedProviderAuthStatus | null;
+    if (!parsed || typeof parsed.savedAt !== 'number' || !parsed.statuses) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedStatuses(statuses: ProviderAuthStatusMap) {
+  try {
+    localStorage.setItem(STATUS_CACHE_KEY, JSON.stringify({
+      savedAt: Date.now(),
+      statuses,
+    }));
+  } catch {
+    // localStorage can be disabled or full; status checks still work in memory.
+  }
+}
+
+function createInitialStatusMap(initialLoading: boolean): ProviderAuthStatusMap {
+  const cached = readCachedStatuses();
+  const fallbackStatuses = createInitialProviderAuthStatusMap(false);
+  if (cached && Date.now() - cached.savedAt < STATUS_CACHE_TTL_MS) {
+    return Object.fromEntries(
+      CLI_PROVIDERS.map((provider) => [
+        provider,
+        {
+          ...fallbackStatuses[provider],
+          ...cached.statuses[provider],
+          loading: false,
+          fromCache: true,
+        } satisfies ProviderAuthStatus,
+      ]),
+    ) as ProviderAuthStatusMap;
+  }
+  return createInitialProviderAuthStatusMap(initialLoading);
+}
+
+function notifyProviderCliUpdate(provider: LLMProvider, status: ProviderAuthStatus) {
+  if (!status.updateAvailable || !status.latestVersion) {
+    return;
+  }
+
+  const providerName = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
+  const installed = status.installedVersion ? ` ${status.installedVersion}` : '';
+  void notifyOnce({
+    key: `cli-update:${provider}:${status.latestVersion}`,
+    title: `${providerName} update available`,
+    body: `${providerName}${installed} can update to ${status.latestVersion}.`,
+    tag: `pixcode-cli-update:${provider}`,
+    data: {
+      type: 'cli-update',
+      provider,
+      latestVersion: status.latestVersion,
+    },
+  });
+}
 
 type UseProviderAuthStatusOptions = {
   initialLoading?: boolean;
@@ -52,7 +135,7 @@ export function useProviderAuthStatus(
   { initialLoading = true }: UseProviderAuthStatusOptions = {},
 ) {
   const [providerAuthStatus, setProviderAuthStatus] = useState<ProviderAuthStatusMap>(() => (
-    createInitialProviderAuthStatusMap(initialLoading)
+    createInitialStatusMap(initialLoading)
   ));
 
   const setProviderLoading = useCallback((provider: LLMProvider) => {
@@ -73,7 +156,16 @@ export function useProviderAuthStatus(
     }));
   }, []);
 
-  const checkProviderAuthStatus = useCallback(async (provider: LLMProvider) => {
+  const checkProviderAuthStatus = useCallback(async (provider: LLMProvider, options: { force?: boolean } = {}) => {
+    const cached = readCachedStatuses();
+    const cachedStatus = cached?.statuses?.[provider];
+    if (!options.force && cached && cachedStatus && Date.now() - cached.savedAt < STATUS_CACHE_TTL_MS) {
+      const nextStatus = { ...cachedStatus, loading: false, fromCache: true };
+      setProviderStatus(provider, nextStatus);
+      notifyProviderCliUpdate(provider, nextStatus);
+      return;
+    }
+
     setProviderLoading(provider);
 
     try {
@@ -82,7 +174,10 @@ export function useProviderAuthStatus(
       // "installed: false" response from memory for a few seconds and the
       // card appears frozen as locked even though the backend now reports
       // the provider as ready.
-      const response = await authenticatedFetch(PROVIDER_AUTH_STATUS_ENDPOINTS[provider], {
+      const endpoint = options.force
+        ? `${PROVIDER_AUTH_STATUS_ENDPOINTS[provider]}?refresh=1`
+        : PROVIDER_AUTH_STATUS_ENDPOINTS[provider];
+      const response = await authenticatedFetch(endpoint, {
         cache: 'no-store',
       });
 
@@ -99,7 +194,13 @@ export function useProviderAuthStatus(
       }
 
       const payload = (await response.json()) as ProviderAuthStatusApiResponse;
-      setProviderStatus(provider, toProviderAuthStatus(payload.data));
+      const nextStatus = toProviderAuthStatus(payload.data);
+      notifyProviderCliUpdate(provider, nextStatus);
+      setProviderAuthStatus((previous) => {
+        const next = { ...previous, [provider]: nextStatus };
+        writeCachedStatuses(next);
+        return next;
+      });
     } catch (caughtError) {
       console.error(`Error checking ${provider} auth status:`, caughtError);
       setProviderStatus(provider, {
@@ -113,9 +214,31 @@ export function useProviderAuthStatus(
     }
   }, [setProviderLoading, setProviderStatus]);
 
-  const refreshProviderAuthStatuses = useCallback(async (providers: LLMProvider[] = CLI_PROVIDERS) => {
-    await Promise.all(providers.map((provider) => checkProviderAuthStatus(provider)));
+  const refreshProviderAuthStatuses = useCallback(async (
+    providers: LLMProvider[] = CLI_PROVIDERS,
+    options: { force?: boolean } = {},
+  ) => {
+    await Promise.all(providers.map((provider) => checkProviderAuthStatus(provider, options)));
   }, [checkProviderAuthStatus]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      if (now - lastBackgroundRefreshAt < STATUS_CACHE_TTL_MS) {
+        return;
+      }
+
+      const cached = readCachedStatuses();
+      if (cached && now - cached.savedAt < STATUS_CACHE_TTL_MS) {
+        return;
+      }
+
+      lastBackgroundRefreshAt = now;
+      void refreshProviderAuthStatuses();
+    }, BACKGROUND_STATUS_CHECK_MS);
+
+    return () => window.clearInterval(timer);
+  }, [refreshProviderAuthStatuses]);
 
   return {
     providerAuthStatus,

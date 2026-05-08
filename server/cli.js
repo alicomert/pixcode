@@ -18,9 +18,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import net from 'node:net';
+import { spawn } from 'node:child_process';
 
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import { buildDaemonCliCommand, handleDaemonCommand, hasInstalledDaemonUnit } from './daemon-manager.js';
+import { runStartupAutoUpdate, startupUpdateReexecEnv } from './services/startup-update.js';
 
 const __dirname = getModuleDir(import.meta.url);
 // The CLI is compiled into dist-server/server, but it still needs to read the top-level
@@ -62,6 +64,7 @@ const c = {
 // Load package.json for version info
 const packageJsonPath = path.join(APP_ROOT, 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
 // Match the runtime fallback in load-env.js so "pixcode status" reports the same default
 // database location that the backend will actually use when no DATABASE_PATH is configured.
 const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.pixcode', 'auth.db');
@@ -640,11 +643,60 @@ async function sandboxCommand(args) {
 
 // Start the server
 async function startServer() {
-    // Check for updates silently on startup
-    checkForUpdates(true);
-
     // Import and run the server
     await import('./index.js');
+}
+
+async function reexecAfterStartupUpdate() {
+    await new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, process.argv.slice(1), {
+            cwd: process.cwd(),
+            env: startupUpdateReexecEnv(),
+            stdio: 'inherit',
+            windowsHide: false,
+        });
+        child.on('error', reject);
+        child.on('close', (code, signal) => {
+            if (signal) {
+                process.kill(process.pid, signal);
+                return;
+            }
+            process.exit(code ?? 0);
+        });
+    });
+}
+
+async function runStartupUpdateGate() {
+    const result = await runStartupAutoUpdate({
+        appRoot: APP_ROOT,
+        currentVersion: packageJson.version,
+        installMode,
+        color: c,
+    });
+
+    if (result.failed) {
+        console.log(`${c.warn('[WARN]')} Startup update check failed: ${result.error}`);
+        console.log(`${c.tip('[TIP]')} Continuing with the current version (${packageJson.version}).`);
+        return false;
+    }
+
+    if (result.skipped && result.reason && process.env.PIXCODE_DEBUG_STARTUP_UPDATE === '1') {
+        console.log(`${c.dim('[INFO]')} Startup update skipped: ${result.reason}`);
+    }
+
+    if (!result.updated) {
+        return false;
+    }
+
+    console.log(`${c.ok('[OK]')} Startup update applied${result.version ? ` (${result.version})` : ''}.`);
+    if (result.restartMode === 'exit42') {
+        console.log(`${c.info('[INFO]')} Restarting through the desktop wrapper before opening the port...`);
+        process.exit(42);
+    }
+
+    console.log(`${c.info('[INFO]')} Restarting Pixcode on the updated code before opening the port...`);
+    await reexecAfterStartupUpdate();
+    return true;
 }
 
 async function isPortOpen(port, timeoutMs = 800) {
@@ -888,6 +940,9 @@ async function main() {
 
     switch (command) {
         case 'start':
+            if (await runStartupUpdateGate()) {
+                break;
+            }
             if (await maybeAutoDaemonStart(options)) {
                 break;
             }

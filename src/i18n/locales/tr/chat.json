@@ -146,10 +146,6 @@
     "attachImages": "Resim ekle",
     "send": "Gönder",
     "stop": "Durdur",
-    "hintText": {
-      "ctrlEnter": "Göndermek için Ctrl+Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
-      "enter": "Göndermek için Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /"
-    },
     "clickToChangeMode": "İzin modunu değiştirmek için tıkla (veya girdide Tab tuşuna bas)",
     "showAllCommands": "Tüm komutları göster",
     "clearInput": "Girdiyi temizle",

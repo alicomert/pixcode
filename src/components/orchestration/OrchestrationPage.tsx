@@ -1,9 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 
 import SessionProviderLogo from '../llm-logo-provider/SessionProviderLogo';
 import { Badge, Button } from '../../shared/view/ui';
+import { useGsapEntrance } from '../../lib/animations';
 import { authenticatedFetch } from '../../utils/api';
+import { CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS, OPENCODE_MODELS, QWEN_MODELS } from '../../../shared/modelConstants';
 
 import WorkflowRunPanel from './workflows/WorkflowRunPanel';
 
@@ -58,11 +69,13 @@ type OrchestrationAgent = {
   enabled: boolean;
   instruction: string;
   role?: AgentRole;
+  model?: string;
 };
 
 type OrchestrationSettings = {
   agents: OrchestrationAgent[];
   maxParallelAgents: number;
+  fallbackAgentInstanceId?: string;
 };
 
 type StoredSettings = Partial<OrchestrationSettings> & {
@@ -74,6 +87,7 @@ type OrchestrationPageProps = {
 };
 
 type AgentRole = string;
+type ModelOption = { value: string; label: string; free?: boolean };
 
 const knownAgentRoles = [
   'auto',
@@ -93,6 +107,13 @@ const customRoleValue = 'custom';
 const settingsStorageKey = 'pixcode.orchestration.settings';
 const workspaceTargetStorageKey = 'pixcode.orchestration.workspaceTarget';
 const customWorkspacePathStorageKey = 'pixcode.orchestration.customWorkspacePath';
+const promptHistoryStorageKey = 'pixcode.orchestration.promptHistory';
+const promptHistoryLimit = 2;
+const paneWidthStorageKey = 'pixcode.orchestration.leftPaneWidth';
+const defaultLeftPaneWidth = 360;
+const minLeftPaneWidth = 300;
+const maxLeftPaneWidth = 560;
+const minRightPaneWidth = 460;
 
 const adapterLabels: Record<AdapterId, { provider: ProviderId }> = {
   'claude-code': { provider: 'claude' },
@@ -130,6 +151,22 @@ const adapterRuntimeConfig: Record<AdapterId, { modelKey: string; settingsKey: s
   },
 };
 
+const adapterModelOptions: Partial<Record<AdapterId, ModelOption[]>> = {
+  cursor: CURSOR_MODELS.OPTIONS,
+  codex: CODEX_MODELS.OPTIONS,
+  gemini: GEMINI_MODELS.OPTIONS,
+  qwen: QWEN_MODELS.OPTIONS,
+  opencode: OPENCODE_MODELS.OPTIONS,
+};
+
+const adapterModelDefaults: Partial<Record<AdapterId, string>> = {
+  cursor: CURSOR_MODELS.DEFAULT,
+  codex: CODEX_MODELS.DEFAULT,
+  gemini: GEMINI_MODELS.DEFAULT,
+  qwen: QWEN_MODELS.DEFAULT,
+  opencode: OPENCODE_MODELS.DEFAULT,
+};
+
 const fallbackWorkflows: BuiltInWorkflow[] = [
   {
     id: 'agent_team',
@@ -157,12 +194,25 @@ function isAdapterId(value: unknown): value is AdapterId {
   return typeof value === 'string' && (allAdapterIds as readonly string[]).includes(value);
 }
 
+function modelOptionsForAdapter(adapterId: AdapterId): ModelOption[] {
+  return adapterModelOptions[adapterId] ?? [];
+}
+
+function defaultModelForAdapter(adapterId: AdapterId): string | undefined {
+  if (adapterId === 'claude-code') {
+    return undefined;
+  }
+
+  return readStorageString(adapterRuntimeConfig[adapterId].modelKey) ?? adapterModelDefaults[adapterId];
+}
+
 function createDefaultAgents(enabledAdapters: AdapterId[] = [...allAdapterIds]): OrchestrationAgent[] {
   return allAdapterIds.map((adapterId, index) => ({
     instanceId: `${adapterId}-${index + 1}`,
     adapterId,
     enabled: enabledAdapters.includes(adapterId),
     instruction: '',
+    model: defaultModelForAdapter(adapterId),
   }));
 }
 
@@ -174,6 +224,7 @@ function createAgent(adapterId: AdapterId): OrchestrationAgent {
     enabled: true,
     instruction: '',
     role: 'auto',
+    model: defaultModelForAdapter(adapterId),
   };
 }
 
@@ -199,6 +250,47 @@ function readWorkspaceTargetMode(): WorkspaceTargetMode {
   return isWorkspaceTargetMode(stored) ? stored : 'selected_project';
 }
 
+function readPromptHistory(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(promptHistoryStorageKey) ?? '[]') as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .map((value) => value.trim())
+      .slice(0, promptHistoryLimit);
+  } catch {
+    return [];
+  }
+}
+
+function storePromptHistory(prompt: string): string[] {
+  const trimmedPrompt = prompt.trim();
+  if (!trimmedPrompt) return readPromptHistory();
+  const next = [
+    trimmedPrompt,
+    ...readPromptHistory().filter((item) => item !== trimmedPrompt),
+  ].slice(0, promptHistoryLimit);
+  localStorage.setItem(promptHistoryStorageKey, JSON.stringify(next));
+  return next;
+}
+
+function clampPaneWidth(value: number, containerWidth?: number): number {
+  const maxByContainer = containerWidth
+    ? Math.max(minLeftPaneWidth, containerWidth - minRightPaneWidth)
+    : maxLeftPaneWidth;
+  return Math.round(Math.max(
+    minLeftPaneWidth,
+    Math.min(value, maxLeftPaneWidth, maxByContainer),
+  ));
+}
+
+function readLeftPaneWidth(): number {
+  const stored = Number(localStorage.getItem(paneWidthStorageKey));
+  return Number.isFinite(stored) && stored > 0
+    ? clampPaneWidth(stored)
+    : defaultLeftPaneWidth;
+}
+
 function normalizeAgent(value: unknown, index: number): OrchestrationAgent | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
@@ -211,6 +303,9 @@ function normalizeAgent(value: unknown, index: number): OrchestrationAgent | nul
     enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
     instruction: typeof record.instruction === 'string' ? record.instruction : '',
     role: normalizeAgentRole(record.role),
+    model: typeof record.model === 'string' && record.model.trim()
+      ? record.model.trim()
+      : defaultModelForAdapter(record.adapterId),
   };
 }
 
@@ -229,6 +324,9 @@ function readSettings(): OrchestrationSettings {
         typeof parsed?.maxParallelAgents === 'number' && Number.isFinite(parsed.maxParallelAgents)
           ? Math.max(1, Math.min(12, Math.round(parsed.maxParallelAgents)))
           : 3,
+      fallbackAgentInstanceId: typeof parsed?.fallbackAgentInstanceId === 'string'
+        ? parsed.fallbackAgentInstanceId
+        : undefined,
     };
   } catch {
     return {
@@ -312,12 +410,15 @@ function roleOptionsForWorkflow(workflowId: string): AgentRole[] {
 
 export default function OrchestrationPage({ selectedProject }: OrchestrationPageProps) {
   const { t } = useTranslation();
+  const pageRef = useRef<HTMLElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const [workflows, setWorkflows] = useState<BuiltInWorkflow[]>([]);
   const [orchestrationContext, setOrchestrationContext] = useState<OrchestrationContext>({});
   const [runs, setRuns] = useState<WorkflowRunSummary[]>([]);
   const [runId, setRunId] = useState<string | undefined>();
   const [workflowId, setWorkflowId] = useState('agent_team');
   const [goal, setGoal] = useState('');
+  const [promptHistory, setPromptHistory] = useState<string[]>(readPromptHistory);
   const [settings, setSettings] = useState<OrchestrationSettings>(readSettings);
   const [workspaceTargetMode, setWorkspaceTargetMode] = useState<WorkspaceTargetMode>(readWorkspaceTargetMode);
   const [customWorkspacePath, setCustomWorkspacePath] = useState(
@@ -326,6 +427,8 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const [editingAssignmentId, setEditingAssignmentId] = useState<string | null>(null);
   const [assignmentDraft, setAssignmentDraft] = useState('');
   const [preparedPrompt, setPreparedPrompt] = useState<string | null>(null);
+  const [leftPaneWidth, setLeftPaneWidth] = useState(readLeftPaneWidth);
+  const [isResizingPanes, setIsResizingPanes] = useState(false);
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -344,6 +447,10 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const enabledAgents = useMemo(
     () => settings.agents.filter((agent) => agent.enabled),
     [settings.agents],
+  );
+  const fallbackAgent = useMemo(
+    () => enabledAgents.find((agent) => agent.instanceId === settings.fallbackAgentInstanceId),
+    [enabledAgents, settings.fallbackAgentInstanceId],
   );
   const enabledAdapterIds = useMemo(
     () => [...new Set(enabledAgents.map((agent) => agent.adapterId))],
@@ -373,6 +480,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
       : runs.find((run) => ['queued', 'running'].includes(run.status))),
     [runs, selectedRun],
   );
+  useGsapEntrance(pageRef, 'fade-up');
 
   const adapterName = (adapterId: AdapterId) =>
     t(`orchestration.adapters.${adapterId}.label`);
@@ -403,6 +511,9 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     setSettings((prev) => ({
       ...prev,
       agents: prev.agents.filter((agent) => agent.instanceId !== instanceId),
+      fallbackAgentInstanceId: prev.fallbackAgentInstanceId === instanceId
+        ? undefined
+        : prev.fallbackAgentInstanceId,
     }));
     if (editingAssignmentId === instanceId) {
       setEditingAssignmentId(null);
@@ -494,6 +605,82 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     localStorage.setItem(customWorkspacePathStorageKey, customWorkspacePath);
   }, [customWorkspacePath]);
 
+  useEffect(() => {
+    localStorage.setItem(paneWidthStorageKey, String(leftPaneWidth));
+  }, [leftPaneWidth]);
+
+  useEffect(() => {
+    const resize = () => {
+      const containerWidth = layoutRef.current?.getBoundingClientRect().width;
+      setLeftPaneWidth((previous) => clampPaneWidth(previous, containerWidth));
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+
+  const adjustPaneWidth = useCallback((delta: number) => {
+    const containerWidth = layoutRef.current?.getBoundingClientRect().width;
+    setLeftPaneWidth((previous) => clampPaneWidth(previous + delta, containerWidth));
+  }, []);
+
+  const startPaneResize = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return;
+
+    const container = layoutRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    if (rect.width < minLeftPaneWidth + minRightPaneWidth) return;
+
+    event.preventDefault();
+    setIsResizingPanes(true);
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMove = (moveEvent: PointerEvent) => {
+      setLeftPaneWidth(clampPaneWidth(moveEvent.clientX - rect.left, rect.width));
+    };
+
+    const stopResize = () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      setIsResizingPanes(false);
+      window.removeEventListener('pointermove', handleMove);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', stopResize, { once: true });
+    window.addEventListener('pointercancel', stopResize, { once: true });
+  }, []);
+
+  const handlePaneResizeKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      adjustPaneWidth(-24);
+      return;
+    }
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      adjustPaneWidth(24);
+      return;
+    }
+    if (event.key === 'Home') {
+      event.preventDefault();
+      setLeftPaneWidth(minLeftPaneWidth);
+      return;
+    }
+    if (event.key === 'End') {
+      event.preventDefault();
+      const containerWidth = layoutRef.current?.getBoundingClientRect().width;
+      setLeftPaneWidth(clampPaneWidth(maxLeftPaneWidth, containerWidth));
+    }
+  }, [adjustPaneWidth]);
+
   const start = async () => {
     const trimmedGoal = goal.trim();
     if (!workflowId || !trimmedGoal || starting) return;
@@ -509,15 +696,19 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     setStarting(true);
     setError(null);
     try {
-      const agents = enabledAgents.map((agent) => ({
-        instanceId: agent.instanceId,
-        adapterId: agent.adapterId,
-        enabled: true,
-        label: agentLabel(agent),
-        role: agent.role && agent.role !== 'auto' && agent.role !== customRoleValue ? agent.role : undefined,
-        instruction: agent.instruction.trim(),
-        ...readAgentRuntimeOptions(agent.adapterId),
-      }));
+      const agents = enabledAgents.map((agent) => {
+        const runtimeOptions = readAgentRuntimeOptions(agent.adapterId);
+        return {
+          instanceId: agent.instanceId,
+          adapterId: agent.adapterId,
+          enabled: true,
+          label: agentLabel(agent),
+          role: agent.role && agent.role !== 'auto' && agent.role !== customRoleValue ? agent.role : undefined,
+          instruction: agent.instruction.trim(),
+          ...runtimeOptions,
+          model: agent.model?.trim() || runtimeOptions.model,
+        };
+      });
       const response = await authenticatedFetch(`/api/orchestration/workflows/${encodeURIComponent(workflowId)}/runs`, {
         method: 'POST',
         body: JSON.stringify({
@@ -540,6 +731,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
             enabledAdapters: enabledAdapterIds,
             settings: {
               maxParallelAgents: settings.maxParallelAgents,
+              fallbackAgentInstanceId: fallbackAgent?.instanceId,
               isolation: 'host',
               keepWorkspace: true,
               baseRef: 'HEAD',
@@ -554,6 +746,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
       setRunId(body.id);
       setRuns((previous) => [body as WorkflowRunSummary, ...previous.filter((run) => run.id !== body.id)]);
       localStorage.setItem('pixcode.orchestration.selectedRunId', body.id);
+      setPromptHistory(storePromptHistory(trimmedGoal));
       await loadRuns();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -609,7 +802,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   };
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+    <main ref={pageRef} className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {preparedPrompt !== null ? (
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 p-3 backdrop-blur-sm sm:items-center sm:justify-center">
           <div className="w-full max-w-2xl rounded-xl border border-border bg-background shadow-2xl">
@@ -653,8 +846,14 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(360px,520px)_1fr] xl:grid-cols-[minmax(480px,620px)_1fr]">
-        <aside className="min-h-0 overflow-auto border-b border-border lg:border-b-0 lg:border-r">
+      <div
+        ref={layoutRef}
+        className={`grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-[minmax(300px,var(--orchestration-left-pane))_10px_minmax(0,1fr)] ${
+          isResizingPanes ? '' : 'transition-[grid-template-columns] duration-300 ease-out'
+        }`}
+        style={{ '--orchestration-left-pane': `${leftPaneWidth}px` } as CSSProperties}
+      >
+        <aside className="min-h-0 overflow-auto border-b border-border lg:border-b-0">
           <section className="border-b border-border p-3 md:p-5">
             <label data-orchestration-goal className="block text-xs font-medium text-muted-foreground">{t('orchestration.goal')}</label>
             <textarea
@@ -663,17 +862,23 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
               placeholder={t('orchestration.goalPlaceholder')}
               className="mt-2 min-h-24 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring md:min-h-32"
             />
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">{t('orchestration.quickPrompts.label')}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setGoal(t('orchestration.quickPrompts.liveTrading.prompt'))}
-              >
-                {t('orchestration.quickPrompts.liveTrading.label')}
-              </Button>
-            </div>
+            {promptHistory.length > 0 ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {promptHistory.map((prompt) => (
+                  <Button
+                    key={prompt}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="max-w-full justify-start truncate text-xs"
+                    onClick={() => setGoal(prompt)}
+                    title={prompt}
+                  >
+                    <span className="truncate">{prompt}</span>
+                  </Button>
+                ))}
+              </div>
+            ) : null}
 
             <div className="mt-3 grid gap-3">
               <label className="space-y-1">
@@ -786,6 +991,32 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                   className="h-9 w-24 rounded-md border border-input bg-background px-3 text-sm"
                 />
               </label>
+              <label className="min-w-[220px] flex-1 space-y-1">
+                <span className="block text-xs font-medium text-muted-foreground">
+                  {t('orchestration.fallbackAgent', 'Fallback CLI')}
+                </span>
+                <select
+                  value={fallbackAgent?.instanceId ?? ''}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setSettings((prev) => ({
+                      ...prev,
+                      fallbackAgentInstanceId: value || undefined,
+                    }));
+                  }}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">{t('orchestration.noFallbackAgent', 'No automatic fallback')}</option>
+                  {enabledAgents.map((agent) => (
+                    <option key={agent.instanceId} value={agent.instanceId}>
+                      {agentLabel(agent)}
+                    </option>
+                  ))}
+                </select>
+                <span className="block text-[11px] leading-4 text-muted-foreground">
+                  {t('orchestration.fallbackAgentHint', 'If a CLI step fails, Pixcode retries that step with this backup agent.')}
+                </span>
+              </label>
               <div className="flex flex-wrap gap-2">
                 {allAdapterIds.map((adapterId) => (
                   <Button
@@ -808,6 +1039,8 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                 const adapter = adapterLabels[agent.adapterId];
                 const label = agentLabel(agent);
                 const runtimeOptions = readAgentRuntimeOptions(agent.adapterId);
+                const modelOptions = modelOptionsForAdapter(agent.adapterId);
+                const activeModel = agent.model || runtimeOptions.model || defaultModelForAdapter(agent.adapterId) || '';
                 return (
                   <div
                     key={agent.instanceId}
@@ -836,7 +1069,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                       <div className="min-w-[140px] flex-1">
                         <div className="truncate text-sm font-medium">{label}</div>
                         <div className="truncate text-xs text-muted-foreground">
-                          {adapterName(agent.adapterId)} · {runtimeOptions.model || t('orchestration.cliSettings')}
+                          {adapterName(agent.adapterId)} · {activeModel || t('orchestration.cliSettings')}
                         </div>
                       </div>
                       <Badge variant={agent.enabled ? 'default' : 'outline'}>
@@ -918,6 +1151,24 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                         })}
                       </div>
                     </div>
+                    {modelOptions.length > 0 ? (
+                      <label className="mt-3 block space-y-1">
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          {t('orchestration.agentModel', 'Model')}
+                        </span>
+                        <select
+                          value={activeModel}
+                          onChange={(event) => updateAgent(agent.instanceId, { model: event.target.value })}
+                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
+                        >
+                          {modelOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
                     <div className="mt-3 rounded-md border border-border/70 bg-background/60 px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
                         <button
@@ -1027,7 +1278,18 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
           </section>
         </aside>
 
-        <section className="min-h-0 overflow-hidden">
+        <button
+          type="button"
+          className="group hidden min-h-0 cursor-col-resize items-stretch justify-center border-x border-border/60 bg-muted/25 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:flex"
+          aria-label={t('orchestration.resizePanels', { defaultValue: 'Resize orchestration panels' })}
+          title={t('orchestration.resizePanels', { defaultValue: 'Resize orchestration panels' })}
+          onPointerDown={startPaneResize}
+          onKeyDown={handlePaneResizeKeyDown}
+        >
+          <span className="my-4 w-px rounded-full bg-border transition-colors group-hover:bg-foreground/50" />
+        </button>
+
+        <section className="min-h-0 min-w-0 overflow-hidden">
           <WorkflowRunPanel runId={runId} onPrepareTeamFromSummary={prepareTeamFromSummary} />
         </section>
       </div>

@@ -55,7 +55,8 @@
       "appearance": "外观",
       "toolDisplay": "工具显示",
       "viewOptions": "视图选项",
-      "inputSettings": "输入设置"
+      "inputSettings": "输入设置",
+      "changeAwareness": "掌控中心"
     },
     "darkMode": "深色模式",
     "autoExpandTools": "自动展开工具",
@@ -64,6 +65,26 @@
     "autoScrollToBottom": "自动滚动到底部",
     "sendByCtrlEnter": "使用 Ctrl+Enter 发送",
     "sendByCtrlEnterDescription": "启用后，按 Ctrl+Enter 发送消息，而不是仅按 Enter。这对于使用输入法的用户可以避免意外发送。",
+    "changeAwareness": "掌控中心",
+    "changedFiles": {
+      "title": "已更改文件",
+      "description": "跟踪本地文件更改，并在出现新更改时打开文件面板。",
+      "noProject": "选择一个项目以跟踪本地更改。",
+      "refresh": "刷新已更改文件",
+      "empty": "未检测到本地更改",
+      "disabled": "启用掌控中心以监控本地更改。",
+      "more": "还有 {{count}} 个文件",
+      "lastChecked": "检查于 {{value}}",
+      "guideTitle": "右侧面板指南",
+      "guideFiles": "已更改文件会在文件面板中以绿色高亮。",
+      "guidePanel": "新更改会自动打开分屏面板。",
+      "status": {
+        "M": "M",
+        "A": "A",
+        "D": "D",
+        "U": "U"
+      }
+    },
     "dragHandle": {
       "dragging": "正在拖拽手柄",
       "closePanel": "关闭设置面板",

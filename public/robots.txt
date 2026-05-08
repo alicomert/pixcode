@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://alicomert.github.io/pixcode/sitemap.xml

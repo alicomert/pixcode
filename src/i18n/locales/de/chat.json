@@ -128,10 +128,6 @@
     "attachImages": "Bilder anhängen",
     "send": "Senden",
     "stop": "Stoppen",
-    "hintText": {
-      "ctrlEnter": "Strg+Enter zum Senden • Shift+Enter für neue Zeile • Tab zum Moduswechsel • / für Slash-Befehle",
-      "enter": "Enter zum Senden • Shift+Enter für neue Zeile • Tab zum Moduswechsel • / für Slash-Befehle"
-    },
     "clickToChangeMode": "Klicken, um den Berechtigungsmodus zu ändern (oder Tab in der Eingabe drücken)",
     "showAllCommands": "Alle Befehle anzeigen",
     "clearInput": "Eingabe leeren",

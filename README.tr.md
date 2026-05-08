@@ -1,250 +1,280 @@
 <div align="center">
-  <img src="public/logo.svg" alt="Pixcode" width="64" height="64">
-  <h1>Cloud CLI (Claude Code UI olarak da bilinir)</h1>
-  <p><a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>, <a href="https://developers.openai.com/codex">Codex</a> ve <a href="https://geminicli.com/">Gemini-CLI</a> için masaüstü ve mobil arayüz.<br>Yerel ya da uzaktan kullanarak aktif projelerine ve oturumlarına her yerden erişebilirsin.</p>
+  <img src="public/logo.png" alt="Pixcode logo" width="96" height="96" />
+  <h1>Pixcode</h1>
+  <p><strong>AI coding agent'ları için self-hosted kontrol odası.</strong></p>
+  <p>
+    Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code ve OpenCode'u tek web arayüzünden yönet. Chat, shell, dosyalar, git, orkestrasyon, API key, plugin, bildirim, Telegram ve desktop/server kurulumları aynı sistemde.
+  </p>
+  <p>
+    <a href="https://www.npmjs.com/package/@pixelbyte-software/pixcode"><img src="https://img.shields.io/npm/v/@pixelbyte-software/pixcode?style=for-the-badge&color=10b981" alt="npm version" /></a>
+    <a href="https://github.com/alicomert/pixcode/releases/latest"><img src="https://img.shields.io/github/v/release/alicomert/pixcode?style=for-the-badge&color=0ea5e9" alt="latest release" /></a>
+    <img src="https://img.shields.io/badge/Node.js-22%2B-3c873a?style=for-the-badge" alt="Node.js 22+" />
+    <img src="https://img.shields.io/badge/Desktop-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=for-the-badge" alt="desktop platforms" />
+  </p>
+  <p>
+    <a href="README.md">English</a> ·
+    <a href="README.de.md">Deutsch</a> ·
+    <a href="README.ru.md">Русский</a> ·
+    <a href="README.ja.md">日本語</a> ·
+    <a href="README.ko.md">한국어</a> ·
+    <a href="README.zh-CN.md">简体中文</a>
+  </p>
 </div>
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode">Pixcode Cloud</a> · <a href="https://github.com/alicomert/pixcode">Dokümantasyon</a> · <a href="https://discord.gg/buxwujPNRE">Discord</a> · <a href="https://github.com/alicomert/pixcode/issues">Sorun Bildir</a> · <a href="CONTRIBUTING.md">Katkıda Bulun</a>
-</p>
+## Pixcode Nedir?
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode"><img src="https://img.shields.io/badge/☁️_Pixcode_Cloud-Hemen_Dene-0066FF?style=for-the-badge" alt="Pixcode Cloud"></a>
-  <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Toplulu%C4%9Fa%20Kat%C4%B1l-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord'a Katıl"></a>
-</p>
+Pixcode kendi bilgisayarını, VDS'ini veya workstation'ını tarayıcıdan yönetilen bir AI geliştirme kokpitine çevirir. Terminal, desktop uygulama, CLI logları, dosya gezgini, Git ekranı ve provider ayarları arasında dağılmak yerine bütün coding-agent akışını tek arayüzde toplar.
 
-<div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">中文</a> · <a href="./README.ja.md">日本語</a> · <b>Türkçe</b> · <a href="./README.it.md">Italiano</a></i></div>
+Üç kullanım için tasarlandı:
 
----
+- **Kendi bilgisayarında**: Claude, Codex, Cursor, Gemini, Qwen veya OpenCode CLI'larını daha güçlü bir web arayüzüyle kullan.
+- **Sürekli açık sunucuda**: Linux/VDS üzerinde daemon olarak çalıştır, telefondan, tabletten veya başka tarayıcıdan bağlan.
+- **Desktop uygulama olarak**: Windows `.exe`, macOS `.dmg` ve Linux build'leriyle paketli kullanım al.
+
+Pixcode hosted cloud IDE değildir. Projelerin, credential'ların, CLI session'ların, local dosyaların, Git durumun ve MCP config'in senin makinenin üzerinde kalır.
 
 ## Ekran Görüntüleri
 
-<div align="center">
+| Workspace kontrol odası | Mobil chat |
+| --- | --- |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
 
-<table>
-<tr>
-<td align="center">
-<h3>Masaüstü Görünümü</h3>
-<img src="public/screenshots/desktop-main.png" alt="Masaüstü Arayüzü" width="400">
-<br>
-<em>Proje genel bakışı ve sohbeti gösteren ana arayüz</em>
-</td>
-<td align="center">
-<h3>Mobil Deneyim</h3>
-<img src="public/screenshots/mobile-chat.png" alt="Mobil Arayüz" width="250">
-<br>
-<em>Dokunma gezinmesiyle duyarlı mobil tasarım</em>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<h3>CLI Seçimi</h3>
-<img src="public/screenshots/cli-selection.png" alt="CLI Seçimi" width="400">
-<br>
-<em>Claude Code, Gemini, Cursor CLI ve Codex arasında seçim yap</em>
-</td>
-</tr>
-</table>
+| CLI seçimi | Tool ve MCP ekranı |
+| --- | --- |
+| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
 
+## Öne Çıkanlar
 
+### Kullandığın CLI'lar tek ekranda
 
-</div>
+- Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code ve OpenCode aynı proje ekranında.
+- Provider auth, API key credential, OAuth paste, kurulum kontrolü, model listesi ve CLI version durumu Settings altında.
+- Provider'ın kendi CLI mantığı korunur; Pixcode üstüne session yönetimi, WebSocket, bildirim, dosya bağlamı ve proje kontrolleri ekler.
+- CLI düşünürken, tool çalıştırırken, approval beklerken veya çıktı üretirken işlem durumu görünür. Kullanıcı boş ekrana bakmaz.
 
-## Özellikler
+### Chat gibi ama geliştirme ortamı gibi
 
-- **Duyarlı Tasarım** — Masaüstü, tablet ve mobilde sorunsuz çalışır; böylece ajanlarını telefondan da kullanabilirsin
-- **Etkileşimli Sohbet Arayüzü** — Ajanlarla akıcı iletişim için dahili sohbet arayüzü
-- **Entegre Shell Terminali** — Yerleşik shell özelliği üzerinden ajan CLI'larına doğrudan erişim
-- **Dosya Gezgini** — Sözdizimi vurgulama ve canlı düzenleme ile etkileşimli dosya ağacı
-- **Git Gezgini** — Değişikliklerini görüntüle, staging'e ekle ve commit'le. Dallar arası geçiş de yapabilirsin
-- **Oturum Yönetimi** — Konuşmalara devam et, birden fazla oturumu yönet ve geçmişi takip et
-- **Eklenti Sistemi** — Pixcode'ı özel eklentilerle genişlet: yeni sekmeler, arka uç servisleri ve entegrasyonlar ekle. [Kendi eklentini yaz →](https://github.com/alicomert/pixcode)
-- **TaskMaster AI Entegrasyonu** *(İsteğe Bağlı)* — AI destekli görev planlama, PRD ayrıştırma ve iş akışı otomasyonu ile gelişmiş proje yönetimi
-- **Model Uyumluluğu** — Claude, GPT ve Gemini model aileleriyle çalışır (desteklenen tüm modeller için [`shared/modelConstants.js`](shared/modelConstants.js) dosyasına bak)
+- Proje bağlı konuşmalar ve session geçmişi.
+- Chat ve seçili proje ekranında en alta sabit prompt composer.
+- Default/plan/run modları ve akışa göre mod kalıcılığı.
+- Slash command desteği ve provider'a özel tool görüntüleme.
+- Uzun süren işlerde tarayıcı ve Telegram bildirimleri.
 
+### Files, Shell ve Source Control
 
-## Hızlı Başlangıç
+- Dosya gezme, düzenleme, upload, rename, delete ve detailed view.
+- Shell paneli ana ekranı kapatmadan yarım ekranda açılabilir; tekrar büyütülerek tam panel yapılabilir.
+- Source Control panelinde Git status, diff, branch, commit ve değişen dosyalar.
+- Split panellerde sadece ikonlu kontroller, kapatma butonu ve desktop için yarım/tam davranışı.
+- Mobilde masaüstü split davranışı zorlanmaz; ekran boyutuna uygun panel mantığı kullanılır.
+- Files paneli daraldığında yazı ve metadata daha kontrollü davranır.
 
-### Pixcode Cloud (Önerilen)
+### Hakimiyet: değişen dosyalar anında görünür
 
-Başlamanın en hızlı yolu — yerel kurulum yok. Web, mobil uygulama, API veya favori IDE'nden erişilebilen, tam yönetilen, konteyner tabanlı bir geliştirme ortamına sahip ol.
+Pixcode sadece GitHub'dan gelen güncellemeyi beklemez; local working tree değişikliklerini de takip eder. Quick Settings içindeki **Hakimiyet** modu değişen dosyaları anlık listeler, yeşil belirteçle öne çıkarır ve tıklayınca direkt ilgili dosya/satıra götürür.
 
-**[Pixcode Cloud ile başla](https://github.com/alicomert/pixcode)**
+Amaç kontrol hissi: AI agent dosya değiştirirken kullanıcı hangi dosyanın oynadığını görür, sağ panelde açar ve ana chat/orkestrasyon ekranını kaybetmez.
 
+### Çok ajanlı orkestrasyon
 
-### Kendin Barındır (Açık Kaynak)
+Orkestrasyon sadece "tek prompt, tek bot" değildir. Pixcode aynı hedef için birden fazla CLI agent'ını organize edebilir.
 
-#### npm
+Hazır çalışma tipleri:
 
-Pixcode'yi **npx** ile anında dene (**Node.js** v22+ gerekir):
+- **Agent Team**: frontend, backend, review, docs veya özel rollere göre görev dağıtımı.
+- **Multi-model Review**: aynı değişikliği farklı provider/model ile inceletme.
+- **Sequential Handoff**: birbirine bağlı işleri sırayla devretme.
+- **Decision Debate**: uygulamadan önce yaklaşım karşılaştırma.
 
+Orkestrasyon içinde:
+
+- ajanları aç/kapat,
+- aynı provider'dan birden fazla worker oluştur,
+- role, stage, label ve instruction ver,
+- her ajan için model seç,
+- hata alırsa kullanılacak yedek CLI agent'ı belirle,
+- workflow DAG'ini çalıştırmadan önce preview et,
+- run event'lerini stream et ve aktif run'ı iptal et,
+- sağ/sol panelleri sürükleyerek genişlet.
+
+### API odaklı yapı
+
+Pixcode frontend'i zaten backend ile REST ve WebSocket üzerinden konuşur. Harici otomasyonlar da aynı kontrol düzlemini Pixcode API key ile kullanabilir.
+
+Yeni API key'ler `px_` ile başlar:
+
+```bash
+curl http://localhost:3001/api/projects \
+  -H "Authorization: Bearer px_your_key_here"
 ```
+
+Tek seferlik agent işi:
+
+```bash
+curl http://localhost:3001/api/agent \
+  -H "Authorization: Bearer px_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "codex",
+    "projectPath": "/home/me/project",
+    "message": "Mevcut diff'i incele ve riskli değişiklikleri listele.",
+    "stream": false
+  }'
+```
+
+Orkestrasyon preview:
+
+```bash
+curl http://localhost:3001/api/orchestration/workflows/agent_team/preview \
+  -H "Authorization: Bearer px_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {
+      "agents": [
+        { "adapterId": "codex", "label": "Backend", "role": "backend" },
+        { "adapterId": "opencode", "label": "Reviewer", "role": "review" }
+      ]
+    }
+  }'
+```
+
+Eski kurulumlardaki `ck_` key'ler çalışmaya devam eder. Güncel standart `px_`.
+
+OpenAPI referansı: [`public/openapi.yaml`](public/openapi.yaml)
+
+### Tema ve görünüm
+
+Pixcode artık tek mavi/lacivert görünümle sınırlı değil.
+
+- Koyu ve açık mod.
+- Zümrüt, VS Code benzeri ve farklı accent paletleri.
+- Açık mod ve koyu mod için özel renk seçimi.
+- Buton, focus ring, navigation, aktif durum ve önemli kontrollerde token tabanlı renk sistemi.
+- Ayarlardan tema değişir; build almaya gerek yok.
+
+Amaç UI'ın gerektiğinde command-line/development tool hissine yaklaşması, ama mobil ve desktop'ta okunabilir kalması.
+
+### Bildirimler ve Telegram bridge
+
+- Uzun süren CLI session'ları için browser push notification.
+- Kısa süreli kodla Telegram eşleştirme.
+- Tamamlandı, hata aldı veya kullanıcı aksiyonu gerekiyor bildirimleri.
+- İsteğe bağlı bridge ile Telegram mesajlarını Pixcode instance'ına prompt olarak yönlendirme.
+- Bildirim tercihleri kullanıcı bazlı saklanır.
+
+### Plugin ve MCP
+
+- Desteklenen provider'lar için MCP server yönetimi.
+- Provider'a özel MCP/session/auth ekranları.
+- Frontend tab ve opsiyonel backend servisleriyle plugin sistemi.
+- API key, base URL, model katalogları ve provider kurulum durumları için local ayarlar.
+
+## Kurulum
+
+### npx ile çalıştır
+
+Node.js 22 veya üstü gerekir.
+
+```bash
 npx @pixelbyte-software/pixcode
 ```
 
-Veya düzenli kullanım için **genel olarak** kur:
+Sonra aç:
 
+```text
+http://localhost:3001
 ```
+
+### Global kurulum
+
+```bash
 npm install -g @pixelbyte-software/pixcode
 pixcode
 ```
 
-`http://localhost:3001` adresini aç — mevcut tüm oturumların otomatik olarak keşfedilir.
+### Desktop installer
 
-Tam yapılandırma seçenekleri, PM2, uzak sunucu kurulumu ve daha fazlası için **[dokümantasyonu ziyaret et →](https://github.com/alicomert/pixcode)**.
+GitHub releases üzerinden indir:
 
-#### Docker Sandbox'lar (Deneysel)
+- Windows: `.exe`
+- macOS: `.dmg`
+- Linux: AppImage veya release asset'inde yayınlanan paket
 
-Ajanları hipervizör seviyesinde izolasyonlu sandbox'larda çalıştır. Varsayılan olarak Claude Code başlar. [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/) gerekir.
+Releases: <https://github.com/alicomert/pixcode/releases/latest>
 
+### Linux daemon
+
+VDS/sunucu kullanımı için:
+
+```bash
+pixcode daemon install --mode auto --port 3001
+pixcode daemon status --mode auto
+pixcode daemon logs --mode auto
+pixcode daemon restart --mode auto
 ```
-npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
+
+Foreground mod:
+
+```bash
+pixcode --no-daemon
 ```
 
-Claude Code, Codex ve Gemini CLI destekler. Kurulum ve gelişmiş seçenekler için [sandbox dokümantasyonuna](docker/) bak.
+### Portlar
 
+- Backend ve paketlenmiş frontend: `SERVER_PORT`, varsayılan `3001`.
+- Sadece Vite frontend geliştirme: `VITE_PORT`, varsayılan `5173`.
 
----
+Normal kurulumda tek port düşün: `3001`. `5173` sadece frontend'i ayrı Vite dev server ile geliştirirken kullanılır.
 
-## Hangi seçenek sana uygun?
+## İlk Açılışta
 
-Pixcode, Pixcode Cloud'u güçlendiren açık kaynak arayüz katmanıdır. Kendi makinende barındırabilir, izolasyon için Docker sandbox'ta çalıştırabilir veya tam yönetilen ortam için Pixcode Cloud kullanabilirsin.
+1. Pixcode'u aç ve local kullanıcı oluştur/giriş yap.
+2. Yönetmek istediğin proje klasörlerini ekle.
+3. Kullanacağın CLI provider'larını bağla.
+4. Settings altında provider install/auth/model durumlarını kontrol et.
+5. Otomasyon, CI, Telegram veya harici araçlar için gerekiyorsa `px_` API key üret.
+6. Appearance altından tema paletini seç.
+7. Uzun işlerde haber almak istiyorsan bildirimleri aç.
 
-| | Kendin Barındır (npm) | Kendin Barındır (Docker Sandbox) *(Deneysel)* | Pixcode Cloud |
-|---|---|---|---|
-| **En iyi şunun için** | Kendi makinende yerel ajan oturumları | Web/mobil IDE ile izole ajanlar | Ajanlarını bulutta isteyen ekipler |
-| **Nasıl erişilir** | `[yourip]:port` üzerinden tarayıcıda | `localhost:port` üzerinden tarayıcıda | Tarayıcı, herhangi bir IDE, REST API, n8n |
-| **Kurulum** | `npx @pixelbyte-software/pixcode` | `npx @pixelbyte-software/pixcode@latest sandbox ~/project` | Kurulum gerekmez |
-| **İzolasyon** | Kendi host'unda çalışır | Hipervizör seviyesi sandbox (microVM) | Tam bulut izolasyonu |
-| **Makinenin açık kalması gerek** | Evet | Evet | Hayır |
-| **Mobil erişim** | Ağındaki herhangi bir tarayıcı | Ağındaki herhangi bir tarayıcı | Herhangi bir cihaz, native uygulama yolda |
-| **Desteklenen ajanlar** | Claude Code, Cursor CLI, Codex, Gemini CLI | Claude Code, Codex, Gemini CLI | Claude Code, Cursor CLI, Codex, Gemini CLI |
-| **Dosya gezgini ve Git** | Evet | Evet | Evet |
-| **MCP yapılandırması** | `~/.claude` ile senkron | UI üzerinden yönetilir | UI üzerinden yönetilir |
-| **REST API** | Evet | Evet | Evet |
-| **Ekip paylaşımı** | Hayır | Hayır | Evet |
-| **Platform maliyeti** | Ücretsiz, açık kaynak | Ücretsiz, açık kaynak | Aylık 7 $'dan başlar |
+## Geliştirme
 
-> Tüm seçenekler kendi AI aboneliklerini (Claude, Cursor, vb.) kullanır — Pixcode AI'ı değil, ortamı sağlar.
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm run build
+```
 
----
+Önemli notlar:
 
-## Güvenlik ve Araç Yapılandırması
+- `npm run dev` Linux'ta daemon manager kullanır.
+- Foreground geliştirme için `npm run client` ve `npm run server` ayrı çalıştırılabilir veya `pixcode --no-daemon` kullanılabilir.
+- `npm run server` built output'u `dist-server/` içinden çalıştırır; backend değişikliğinden sonra rebuild gerekir.
+- Şu anda unit test script'i yok. Doğrulama için typecheck, lint, build ve manuel provider/API kontrolleri kullanılır.
 
-**🔒 Önemli Uyarı**: Tüm Claude Code araçları **varsayılan olarak devre dışıdır**. Bu, potansiyel olarak zararlı işlemlerin otomatik çalışmasını önler.
+## Repo Haritası
 
-### Araçları Etkinleştirme
+- `src/` - React + Vite frontend.
+- `server/` - Express, WebSocket, CLI adapter'ları, route'lar, auth, daemon, bildirim.
+- `server/modules/orchestration/` - multi-agent workflow engine ve A2A adapter'ları.
+- `server/modules/providers/` - provider auth, MCP, session, model ve install endpoint'leri.
+- `shared/` - frontend/backend ortak contract'lar.
+- `public/openapi.yaml` - uygulamayla gelen API referansı.
+- `public/screenshots/` - README ve tanıtım görselleri.
 
-Claude Code'un tam işlevselliğinden yararlanmak için araçları manuel olarak etkinleştirmen gerekir:
+## Güvenlik Mantığı
 
-1. **Araç Ayarlarını Aç** — Kenar çubuğundaki dişli simgesine tıkla
-2. **Seçerek Etkinleştir** — Yalnızca ihtiyacın olan araçları aç
-3. **Ayarları Uygula** — Tercihlerin yerel olarak kaydedilir
+- Pixcode self-hosted çalışır. Bunu makinen için bir local kontrol düzlemi gibi düşün.
+- Ağa açacaksan güçlü kullanıcı şifresi kullan.
+- Public server'da reverse proxy/VPN arkasına almak daha sağlıklıdır.
+- API key'ler otomasyon içindir; ifşa olursa rotate et.
+- Provider secret'ları API ve UI cevaplarında mümkün olduğunca maskelenir.
 
-<div align="center">
+## Linkler
 
-![Araç Ayarları Modalı](public/screenshots/tools-modal.png)
-*Araç Ayarları arayüzü — yalnızca ihtiyacın olanı etkinleştir*
-
-</div>
-
-**Önerilen yaklaşım**: Temel araçlarla başla ve gerektikçe daha fazlasını ekle. Bu ayarları sonra her zaman değiştirebilirsin.
-
----
-
-## Eklentiler
-
-Pixcode, kendi frontend UI'sı ve isteğe bağlı Node.js arka ucu olan özel sekmeler eklemeni sağlayan bir eklenti sistemine sahiptir. Git depolarından eklentileri doğrudan **Ayarlar > Eklentiler**'den yükleyebilir veya kendi eklentini yazabilirsin.
-
-### Mevcut Eklentiler
-
-| Eklenti | Açıklama |
-|---|---|
-| **[Project Stats](https://github.com/alicomert/pixcode)** | Mevcut projen için dosya sayıları, kod satırları, dosya türü dağılımı, en büyük dosyalar ve son değiştirilen dosyaları gösterir |
-| **[Web Terminal](https://github.com/alicomert/pixcode)** | Çoklu sekme destekli tam xterm.js terminali |
-
-### Kendi Eklentini Yaz
-
-**[Plugin Starter Şablonu →](https://github.com/alicomert/pixcode)** — kendi eklentini oluşturmak için bu repo'yu fork'la. Frontend render, canlı bağlam güncellemeleri ve arka uç sunucusuyla RPC iletişimi içeren çalışan bir örnek içerir.
-
-**[Plugin Dokümantasyonu →](https://github.com/alicomert/pixcode/plugin-overview)** — plugin API'sı, manifest formatı, güvenlik modeli ve daha fazlası için tam rehber.
-
----
-## Sık Sorulan Sorular
-
-<details>
-<summary>Bu Claude Code Remote Control'dan nasıl farklı?</summary>
-
-Claude Code Remote Control, yerel terminalinde zaten çalışan bir oturuma mesaj göndermeni sağlar. Makinen açık kalmak zorunda, terminalin açık kalmak zorunda ve ağ bağlantısı olmadan yaklaşık 10 dakika sonra oturumlar zaman aşımına uğrar.
-
-Pixcode ve Pixcode Cloud, Claude Code'un yanında değil içinde çalışır — MCP sunucuların, izinlerin, ayarların ve oturumların, Claude Code'un yerel olarak kullandığının birebir aynısıdır. Hiçbir şey çoğaltılmaz veya ayrı yönetilmez.
-
-Pratikte bu ne demek:
-
-- **Tek oturum değil, tüm oturumların** — Pixcode, `~/.claude` klasöründeki her oturumu otomatik keşfeder. Remote Control yalnızca tek aktif oturumu Claude mobil uygulamasına açar.
-- **Ayarların sana ait** — UI'da değiştirdiğin MCP sunucuları, araç izinleri ve proje yapılandırması doğrudan Claude Code yapılandırmana yazılır ve anında etkili olur; tersi de geçerli.
-- **Daha fazla ajanla çalışır** — Sadece Claude Code değil; Cursor CLI, Codex ve Gemini CLI de.
-- **Sadece sohbet penceresi değil, tam UI** — dosya gezgini, Git entegrasyonu, MCP yönetimi ve shell terminali hepsi yerleşik.
-- **Pixcode Cloud bulutta çalışır** — laptop'unu kapat, ajan çalışmaya devam eder. Beklemen gereken terminal yok, uyanık tutman gereken makine yok.
-
-</details>
-
-<details>
-<summary>AI aboneliği için ayrıca ödeme yapmam gerekiyor mu?</summary>
-
-Evet. Pixcode AI'yi değil, ortamı sağlar. Kendi Claude, Cursor, Codex veya Gemini aboneliğini getirirsin. Pixcode Cloud, barındırılan ortam için aylık 7 $'dan başlar — bunun üzerine eklenir.
-
-</details>
-
-<details>
-<summary>Pixcode'yi telefonumda kullanabilir miyim?</summary>
-
-Evet. Kendin barındırdığında, sunucuyu makinende çalıştır ve ağındaki herhangi bir tarayıcıda `[yourip]:port` adresini aç. Pixcode Cloud için, herhangi bir cihazdan aç — VPN yok, port yönlendirme yok, kurulum yok. Native bir uygulama da hazırlanıyor.
-
-</details>
-
-<details>
-<summary>UI'da yaptığım değişiklikler yerel Claude Code kurulumumu etkiler mi?</summary>
-
-Evet, kendin barındırdığında. Pixcode, Claude Code'un yerel olarak kullandığı aynı `~/.claude` yapılandırmasından okur ve ona yazar. UI üzerinden eklediğin MCP sunucuları Claude Code'da anında görünür; tersi de geçerli.
-
-</details>
-
----
-
-## Topluluk ve Destek
-
-- **[Dokümantasyon](https://github.com/alicomert/pixcode)** — kurulum, yapılandırma, özellikler ve sorun giderme
-- **[Discord](https://discord.gg/buxwujPNRE)** — yardım al ve diğer kullanıcılarla tanış
-- **[GitHub Issues](https://github.com/alicomert/pixcode/issues)** — hata raporları ve özellik istekleri
-- **[Katkı Rehberi](CONTRIBUTING.md)** — projeye nasıl katkıda bulunulur
-
-## Lisans
-
-GNU Affero General Public License v3.0 veya sonrası (AGPL-3.0-or-later) — tam metin ve Bölüm 7 altındaki ek şartlar için [LICENSE](LICENSE) dosyasına bak.
-
-Bu proje açık kaynaklıdır ve AGPL-3.0-or-later lisansı altında özgürce kullanılabilir, değiştirilebilir ve dağıtılabilir. Bu yazılımı değiştirir ve bir ağ servisi olarak çalıştırırsan, değiştirilmiş kaynak kodunu o servisin kullanıcılarına sunmak zorundasın.
-
-Pixcode — (https://github.com/alicomert/pixcode).
-
-## Teşekkürler
-
-### Kullanılan Teknolojiler
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — Anthropic'in resmi CLI'ı
-- **[Cursor CLI](https://docs.cursor.com/en/cli/overview)** — Cursor'un resmi CLI'ı
-- **[Codex](https://developers.openai.com/codex)** — OpenAI Codex
-- **[Gemini-CLI](https://geminicli.com/)** — Google Gemini CLI
-- **[React](https://react.dev/)** — Kullanıcı arayüzü kütüphanesi
-- **[Vite](https://vitejs.dev/)** — Hızlı derleme aracı ve geliştirme sunucusu
-- **[Tailwind CSS](https://tailwindcss.com/)** — Utility-first CSS framework
-- **[CodeMirror](https://codemirror.net/)** — Gelişmiş kod editörü
-- **[TaskMaster AI](https://github.com/eyaltoledano/claude-task-master)** *(İsteğe Bağlı)* — AI destekli proje yönetimi ve görev planlama
-
-
-### Sponsorlar
-- [Siteboon — AI destekli web sitesi oluşturucu](https://siteboon.ai)
----
-
-<div align="center">
-  <strong>Claude Code, Cursor ve Codex topluluğu için özenle yapıldı.</strong>
-</div>
+- npm: <https://www.npmjs.com/package/@pixelbyte-software/pixcode>
+- GitHub: <https://github.com/alicomert/pixcode>
+- Releases: <https://github.com/alicomert/pixcode/releases/latest>
+- API docs: [`public/openapi.yaml`](public/openapi.yaml)
+- Static docs: [`public/docs.html`](public/docs.html), [`public/features.html`](public/features.html), [`public/orchestration.html`](public/orchestration.html), [`public/api-automation.html`](public/api-automation.html)
+- AI discovery: [`public/llms.txt`](public/llms.txt), [`public/llms-full.txt`](public/llms-full.txt)

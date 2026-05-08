@@ -84,3 +84,87 @@ export function formatUsageLimitText(text: string) {
     return text;
   }
 }
+
+export function formatProviderErrorText(text: string, provider?: string) {
+  if (!text || typeof text !== 'string') return text;
+
+  const lower = text.toLowerCase();
+  const label = provider
+    ? provider.charAt(0).toUpperCase() + provider.slice(1)
+    : 'The selected CLI';
+
+  const reason = (() => {
+    if (
+      lower.includes('insufficient_quota')
+      || lower.includes('insufficient quota')
+      || lower.includes('quota exceeded')
+      || lower.includes('credit balance')
+      || lower.includes('balance')
+      || lower.includes('billing')
+      || lower.includes('payment required')
+      || lower.includes('402')
+    ) {
+      return 'account balance or quota';
+    }
+
+    if (
+      lower.includes('rate limit')
+      || lower.includes('too many requests')
+      || lower.includes('429')
+      || lower.includes('usage limit')
+    ) {
+      return 'rate limit';
+    }
+
+    if (
+      lower.includes('unauthorized')
+      || lower.includes('forbidden')
+      || lower.includes('invalid api key')
+      || lower.includes('api key')
+      || lower.includes('oauth')
+      || lower.includes('login')
+      || lower.includes('401')
+      || lower.includes('403')
+    ) {
+      return 'authentication';
+    }
+
+    if (
+      lower.includes('not installed')
+      || lower.includes('command not found')
+      || lower.includes('enoent')
+      || lower.includes('spawn')
+    ) {
+      return 'installation';
+    }
+
+    if (
+      lower.includes('timeout')
+      || lower.includes('timed out')
+    ) {
+      return 'timeout';
+    }
+
+    return null;
+  })();
+
+  if (!reason) return formatUsageLimitText(text);
+
+  const action = reason === 'account balance or quota'
+    ? 'Add credits or switch to another provider/model, then retry.'
+    : reason === 'rate limit'
+      ? 'Wait for the limit to reset or switch to another provider/model, then retry.'
+      : reason === 'authentication'
+        ? 'Re-authenticate this CLI from provider settings, then retry.'
+        : reason === 'installation'
+          ? 'Install or repair the CLI binary, refresh provider status, then retry.'
+          : 'The CLI did not respond in time. Retry with a shorter prompt or another provider.';
+
+  return [
+    `${label} could not answer because of a ${reason} issue.`,
+    '',
+    action,
+    '',
+    `Raw error: ${text}`,
+  ].join('\n');
+}

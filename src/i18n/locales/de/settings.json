@@ -55,7 +55,8 @@
       "appearance": "Darstellung",
       "toolDisplay": "Werkzeuganzeige",
       "viewOptions": "Anzeigeoptionen",
-      "inputSettings": "Eingabeeinstellungen"
+      "inputSettings": "Eingabeeinstellungen",
+      "changeAwareness": "Kontrollzentrum"
     },
     "darkMode": "Darkmode",
     "autoExpandTools": "Werkzeuge automatisch erweitern",
@@ -64,6 +65,26 @@
     "autoScrollToBottom": "Automatisch nach unten scrollen",
     "sendByCtrlEnter": "Mit Strg+Enter senden",
     "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Strg+Enter die Nachricht anstelle von Enter. Dies ist nützlich für IME-Benutzer:innen, um versehentliches Senden zu vermeiden.",
+    "changeAwareness": "Kontrollzentrum",
+    "changedFiles": {
+      "title": "Geänderte Dateien",
+      "description": "Verfolgt lokale Dateiänderungen und öffnet bei neuen Änderungen den Dateienbereich.",
+      "noProject": "Wähle ein Projekt aus, um lokale Änderungen zu verfolgen.",
+      "refresh": "Geänderte Dateien aktualisieren",
+      "empty": "Keine lokalen Änderungen erkannt",
+      "disabled": "Aktiviere das Kontrollzentrum, um lokale Änderungen zu beobachten.",
+      "more": "+{{count}} weitere Dateien",
+      "lastChecked": "Geprüft {{value}}",
+      "guideTitle": "Rechter Bereich",
+      "guideFiles": "Geänderte Dateien leuchten im Dateienbereich grün.",
+      "guidePanel": "Neue Änderungen öffnen automatisch die geteilte Ansicht.",
+      "status": {
+        "M": "M",
+        "A": "A",
+        "D": "D",
+        "U": "U"
+      }
+    },
     "dragHandle": {
       "dragging": "Handle wird gezogen",
       "closePanel": "Einstellungspanel schließen",

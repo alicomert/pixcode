@@ -217,6 +217,7 @@
       "response": "Yanıt",
       "decision": "Karar",
       "report": "Rapor",
+      "fallback": "Yedek",
       "final_report": "Final raporu"
     },
     "workflows": {
@@ -266,7 +267,11 @@
     "activeCount": "{{active}}/{{total}} aktif",
     "teamHint": "Her satır bir CLI çalışanıdır. Birden fazla Claude, Codex, Cursor, Gemini, Qwen veya OpenCode ekleyebilir, her birine ayrı görev yazabilirsin.",
     "parallelLimit": "Paralel sınır",
+    "fallbackAgent": "Yedek CLI",
+    "noFallbackAgent": "Otomatik yedek yok",
+    "fallbackAgentHint": "Bir CLI adımı hata verirse Pixcode aynı adımı bu yedek ajanla yeniden dener.",
     "agentRole": "Safha",
+    "agentModel": "Model",
     "agentRoles": {
       "auto": "Otomatik",
       "backend": "Backend",

@@ -11,7 +11,7 @@ import { copyTextToClipboard } from '../../../../../../../utils/clipboard';
 import { authenticatedFetch } from '../../../../../../../utils/api';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
 
-import { Check, Copy, LogIn, Download, ExternalLink, Loader2, X } from '@/lib/icons';
+import { Check, Copy, LogIn, Download, ExternalLink, Loader2, RefreshCw, X } from '@/lib/icons';
 
 // Providers whose CLI can be installed by Pixcode itself (npm global). Cursor
 // ships via a bash script we don't want to pipe through our server; its
@@ -243,6 +243,12 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
 
   const displayName = PROVIDER_DISPLAY_NAMES[agent] ?? config.name;
   const installCommand = PROVIDER_INSTALL_COMMANDS[agent];
+  const checkedAtLabel = authStatus.checkedAt
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(authStatus.checkedAt))
+    : null;
 
   // Surface a clear "CLI not installed" state before we try to render the
   // login/reauth controls — those are meaningless if the binary isn't
@@ -435,6 +441,77 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                   {t('agents.authStatus.disconnected')}
                 </Badge>
               )}
+            </div>
+          </div>
+
+          <div className="border-t border-border/50 pt-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className={`font-medium ${config.textClass}`}>
+                  {t('agents.cliVersion.title', { defaultValue: 'CLI version' })}
+                </div>
+                <div className={`text-sm ${config.subtextClass}`}>
+                  {authStatus.installedVersion
+                    ? t('agents.cliVersion.installed', {
+                        version: authStatus.installedVersion,
+                        defaultValue: 'Installed: {{version}}',
+                      })
+                    : t('agents.cliVersion.unknownInstalled', { defaultValue: 'Installed version unknown' })}
+                  {authStatus.latestVersion && (
+                    <span>
+                      {' · '}
+                      {t('agents.cliVersion.latest', {
+                        version: authStatus.latestVersion,
+                        defaultValue: 'Latest: {{version}}',
+                      })}
+                    </span>
+                  )}
+                </div>
+                {checkedAtLabel && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t('agents.cliVersion.checkedAt', {
+                      value: checkedAtLabel,
+                      defaultValue: 'Checked: {{value}}',
+                    })}
+                    {authStatus.fromCache && (
+                      <span>
+                        {' · '}
+                        {t('agents.cliVersion.cached', { defaultValue: 'cached' })}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {authStatus.versionCheckSkipped && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t(`agents.cliVersion.skipped.${authStatus.versionCheckSkipped}`, {
+                      defaultValue: authStatus.versionCheckSkipped.replace(/_/g, ' '),
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {authStatus.updateAvailable && (
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                    {t('agents.cliVersion.updateAvailable', { defaultValue: 'Update available' })}
+                  </Badge>
+                )}
+                {onRefreshAuth && (
+                  <Button
+                    type="button"
+                    onClick={() => void onRefreshAuth()}
+                    disabled={authStatus.loading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {authStatus.loading ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    {t('agents.cliVersion.refresh', { defaultValue: 'Refresh' })}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 

@@ -8,6 +8,7 @@ type UiPreferences = {
   showThinking: boolean;
   autoScrollToBottom: boolean;
   sendByCtrlEnter: boolean;
+  changeAwareness: boolean;
   sidebarVisible: boolean;
   historyView: HistoryViewMode;
 };
@@ -41,6 +42,7 @@ const DEFAULTS: UiPreferences = {
   showThinking: true,
   autoScrollToBottom: true,
   sendByCtrlEnter: false,
+  changeAwareness: false,
   sidebarVisible: true,
   historyView: 'flat',
 };

@@ -10,6 +10,12 @@ export type ProviderAuthStatus = {
   method: string | null;
   error: string | null;
   loading: boolean;
+  checkedAt?: string | null;
+  installedVersion?: string | null;
+  latestVersion?: string | null;
+  updateAvailable?: boolean;
+  versionCheckSkipped?: string | null;
+  fromCache?: boolean;
 };
 
 /**
@@ -51,10 +57,10 @@ export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
 };
 
 export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusMap => ({
-  claude: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
-  cursor: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
-  codex: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
-  gemini: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
-  qwen: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
-  opencode: { authenticated: false, installed: null, email: null, method: null, error: null, loading },
+  claude: { authenticated: false, installed: null, email: null, method: null, error: null, loading, checkedAt: null },
+  cursor: { authenticated: false, installed: null, email: null, method: null, error: null, loading, checkedAt: null },
+  codex: { authenticated: false, installed: null, email: null, method: null, error: null, loading, checkedAt: null },
+  gemini: { authenticated: false, installed: null, email: null, method: null, error: null, loading, checkedAt: null },
+  qwen: { authenticated: false, installed: null, email: null, method: null, error: null, loading, checkedAt: null },
+  opencode: { authenticated: false, installed: null, email: null, method: null, error: null, loading, checkedAt: null },
 });

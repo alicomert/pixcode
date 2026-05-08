@@ -160,7 +160,6 @@ export default function ChatComposer({
   onInputFocusChange,
   placeholder,
   isTextareaExpanded,
-  sendByCtrlEnter,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const textareaRect = textareaRef.current?.getBoundingClientRect();
@@ -407,17 +406,10 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="flex items-center gap-2">
-            <div
-              className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
-                input.trim() ? 'opacity-0' : 'opacity-100'
-              }`}
-            >
-              {sendByCtrlEnter ? t('input.hintText.ctrlEnter') : t('input.hintText.enter')}
-            </div>
+          <div className="flex min-w-10 shrink-0 items-center gap-2">
             <PromptInputSubmit
               disabled={!input.trim() || isLoading}
-              className="h-10 w-10 sm:h-10 sm:w-10"
+              className="h-10 w-10 min-w-10 flex-none shrink-0 sm:h-10 sm:w-10 sm:min-w-10"
               onMouseDown={(event) => {
                 event.preventDefault();
                 onSubmit(event as unknown as MouseEvent<HTMLButtonElement>);

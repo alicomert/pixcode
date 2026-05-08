@@ -30,7 +30,7 @@ export default function AgentCategoryTabsSection({
           >
             {category === 'account' && t('tabs.account')}
             {category === 'permissions' && t('tabs.permissions')}
-            {category === 'mcp' && t('tabs.mcpServers')}
+            {category === 'mcp' && t('tabs.pluginsMcp', { defaultValue: 'Plugins / MCP' })}
             {category === 'config' && t('tabs.configuration', { defaultValue: 'Configuration' })}
           </button>
         ))}

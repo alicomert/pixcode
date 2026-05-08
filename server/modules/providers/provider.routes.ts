@@ -14,6 +14,8 @@ import {
  
 // @ts-ignore — plain-JS service
 import { getProviderModels, clearProviderModelCache } from '@/services/provider-models.js';
+// @ts-ignore — plain-JS service
+import { getProviderCliVersionStatus } from '@/services/provider-cli-versions.js';
  
 // @ts-ignore — plain-JS service
 import {
@@ -262,8 +264,13 @@ router.get(
   '/:provider/auth/status',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
+    const forceRefresh = String(req.query.refresh || '').toLowerCase() === '1';
     const status = await providerAuthService.getProviderAuthStatus(provider);
-    res.json(createApiSuccessResponse(status));
+    const cliVersion = await getProviderCliVersionStatus(provider, {
+      installed: status.installed,
+      forceRefresh,
+    });
+    res.json(createApiSuccessResponse({ ...status, ...cliVersion }));
   }),
 );
 

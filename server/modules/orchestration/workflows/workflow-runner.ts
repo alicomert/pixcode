@@ -896,6 +896,124 @@ class WorkflowRunner {
     }
   }
 
+  private fallbackAgentFor(run: WorkflowRun, node: WorkflowNode): AgentAssignment | undefined {
+    if (node.stage === 'fallback' || node.id.startsWith('fallback_')) {
+      return undefined;
+    }
+
+    const settings = getMetadataRecord(run.metadata, 'settings');
+    const fallbackAgentInstanceId = readString(settings.fallbackAgentInstanceId);
+    if (!fallbackAgentInstanceId || fallbackAgentInstanceId === node.agentInstanceId) {
+      return undefined;
+    }
+
+    return readAgentAssignments(run.metadata).find((agent) => agent.instanceId === fallbackAgentInstanceId);
+  }
+
+  private createFallbackNode(node: WorkflowNode, fallbackAgent: AgentAssignment, reason: string): WorkflowNode {
+    const fallbackSuffix = safeNodeId(fallbackAgent.instanceId, 'fallback');
+    return {
+      ...node,
+      id: `fallback_${node.id}_${fallbackSuffix}`,
+      adapterId: fallbackAgent.adapterId,
+      agentInstanceId: fallbackAgent.instanceId,
+      agentLabel: `${fallbackAgent.label} Fallback`,
+      assignment: `Fallback for ${node.agentLabel || node.id}`,
+      stage: 'fallback',
+      model: fallbackAgent.model,
+      permissionMode: fallbackAgent.permissionMode,
+      toolsSettings: fallbackAgent.toolsSettings,
+      prompt: [
+        'The previous CLI agent failed on this orchestration step.',
+        `Failed step: ${node.agentLabel || node.id}`,
+        `Failure: ${reason}`,
+        'Take over the same assignment as the backup CLI. Use the original goal and upstream context.',
+        'Do not repeat unrelated work; complete the failed step and report what you did.',
+        node.prompt,
+      ].join('\n'),
+      onFail: 'continue',
+    };
+  }
+
+  private async runFallbackAfterFailure(
+    node: WorkflowNode,
+    workflow: Workflow,
+    run: WorkflowRun,
+    outputs: Map<string, string>,
+    started: Set<string>,
+    completed: Set<string>,
+    reason: string,
+  ): Promise<boolean> {
+    const fallbackAgent = this.fallbackAgentFor(run, node);
+    if (!fallbackAgent) {
+      return false;
+    }
+    if (workflow.nodes.length + 1 > 64) {
+      run.metadata = {
+        ...run.metadata,
+        fallbackSkipped: `Workflow node limit reached after ${node.id}.`,
+      };
+      workflowStore.setRun(run);
+      return false;
+    }
+
+    let fallbackNode = this.createFallbackNode(node, fallbackAgent, reason);
+    let collision = 1;
+    while (workflow.nodes.some((candidate) => candidate.id === fallbackNode.id)) {
+      collision += 1;
+      fallbackNode = {
+        ...fallbackNode,
+        id: `${fallbackNode.id}_${collision}`,
+      };
+    }
+
+    const nodeIndex = workflow.nodes.findIndex((candidate) => candidate.id === node.id);
+    const runIndex = run.nodeRuns.findIndex((candidate) => candidate.nodeId === node.id);
+    if (nodeIndex >= 0) {
+      workflow.nodes.splice(nodeIndex + 1, 0, fallbackNode);
+    } else {
+      workflow.nodes.push(fallbackNode);
+    }
+    if (runIndex >= 0) {
+      run.nodeRuns.splice(runIndex + 1, 0, nodeRunFromNode(fallbackNode));
+    } else {
+      run.nodeRuns.push(nodeRunFromNode(fallbackNode));
+    }
+
+    const fallbackEvents = Array.isArray(run.metadata?.fallbackEvents)
+      ? run.metadata.fallbackEvents
+      : [];
+    run.metadata = {
+      ...run.metadata,
+      fallbackEvents: [
+        ...fallbackEvents,
+        {
+          nodeId: node.id,
+          fallbackNodeId: fallbackNode.id,
+          fallbackAgentInstanceId: fallbackAgent.instanceId,
+          reason,
+          startedAt: Date.now(),
+        },
+      ],
+    };
+    workflowStore.setRun(run);
+
+    await this.executeNode(fallbackNode, workflow, run, outputs, started, completed);
+
+    const fallbackRun = run.nodeRuns.find((candidate) => candidate.nodeId === fallbackNode.id);
+    if (fallbackRun?.status !== 'completed') {
+      return false;
+    }
+
+    const fallbackOutput = outputs.get(fallbackNode.id) || fallbackRun.outputText;
+    if (fallbackOutput) {
+      outputs.set(node.id, compactOutputForContext(fallbackOutput));
+    }
+    completed.add(node.id);
+    workflowStore.setRun(run);
+    return true;
+  }
+
   private maybeAddRepairCycle(
     node: WorkflowNode,
     workflow: Workflow,
@@ -1087,40 +1205,56 @@ class WorkflowRunner {
     const isolation = readIsolation(settings.isolation) ?? node.isolation ?? 'host';
     const keepAfterCompletion = readBoolean(settings.keepWorkspace) ?? true;
     const baseRef = readString(settings.baseRef) ?? 'HEAD';
-    const submit = await fetch(`${localA2ABaseUrl()}/tasks`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        adapterId: node.adapterId,
-        contextId: run.contextId,
-        message: {
-          messageId: newId('msg'),
-          role: 'user',
-          parts: [{ kind: 'text', text: prompt }],
-        },
-        metadata: {
-          workflowRunId: run.id,
-          workflowNodeId: node.id,
-          agentInstanceId: node.agentInstanceId,
-          agentLabel: node.agentLabel,
-          assignment: node.assignment,
-          model: node.model,
-          permissionMode: node.permissionMode,
-          toolsSettings: node.toolsSettings,
-          projectPath,
-          workspaceTarget: workspaceTargetMetadata(workspaceTarget),
-          workspace: {
-            kind: isolation,
-            projectPath,
-            baseRef,
-            keepAfterCompletion,
+    let body: { id?: string; error?: { message?: string } };
+    try {
+      const submit = await fetch(`${localA2ABaseUrl()}/tasks`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          adapterId: node.adapterId,
+          contextId: run.contextId,
+          message: {
+            messageId: newId('msg'),
+            role: 'user',
+            parts: [{ kind: 'text', text: prompt }],
           },
-        },
-      }),
-    });
-    const body = await submit.json() as { id?: string; error?: { message?: string } };
-    if (!submit.ok || !body.id) {
-      throw new Error(body.error?.message ?? `Workflow node ${node.id} submit failed.`);
+          metadata: {
+            workflowRunId: run.id,
+            workflowNodeId: node.id,
+            agentInstanceId: node.agentInstanceId,
+            agentLabel: node.agentLabel,
+            assignment: node.assignment,
+            model: node.model,
+            permissionMode: node.permissionMode,
+            toolsSettings: node.toolsSettings,
+            projectPath,
+            workspaceTarget: workspaceTargetMetadata(workspaceTarget),
+            workspace: {
+              kind: isolation,
+              projectPath,
+              baseRef,
+              keepAfterCompletion,
+            },
+          },
+        }),
+      });
+      body = await submit.json() as { id?: string; error?: { message?: string } };
+      if (!submit.ok || !body.id) {
+        throw new Error(body.error?.message ?? `Workflow node ${node.id} submit failed.`);
+      }
+    } catch (error) {
+      nodeRun.finishedAt = Date.now();
+      nodeRun.status = 'failed';
+      nodeRun.error = error instanceof Error ? error.message : String(error);
+      workflowStore.setRun(run);
+      if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
+        return;
+      }
+      if (node.onFail === 'continue') {
+        completed.add(node.id);
+        return;
+      }
+      throw error;
     }
     nodeRun.a2aTaskId = body.id;
     workflowStore.setRun(run);
@@ -1160,6 +1294,9 @@ class WorkflowRunner {
         outputs.set(node.id, compactOutputForContext(nodeRun.outputText));
       }
       workflowStore.setRun(run);
+      if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
+        return;
+      }
       if (node.onFail === 'continue') {
         completed.add(node.id);
         return;
@@ -1192,6 +1329,9 @@ class WorkflowRunner {
     nodeRun.status = 'failed';
     nodeRun.error = result.error ?? `A2A task ended with ${result.state}`;
     workflowStore.setRun(run);
+    if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
+      return;
+    }
     if (node.onFail === 'continue') {
       if (nodeRun.outputText) {
         outputs.set(node.id, compactOutputForContext(nodeRun.outputText));

@@ -15,6 +15,7 @@ import {
   GitBranch,
   ClipboardCheck,
   Workflow,
+  X,
   type LucideIcon,
 } from '@/lib/icons';
 
@@ -26,6 +27,7 @@ type MainContentTabSwitcherProps = {
   sidePanelMode?: 'split' | 'full';
   canUseSidePanelSplit?: boolean;
   isMobile?: boolean;
+  onCloseSidePanel?: () => void;
 };
 
 type BuiltInTab = {
@@ -70,6 +72,7 @@ export default function MainContentTabSwitcher({
   sidePanelMode = 'split',
   canUseSidePanelSplit = true,
   isMobile = false,
+  onCloseSidePanel,
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -101,47 +104,64 @@ export default function MainContentTabSwitcher({
           && sidePanelTabs.has(tab.id),
         );
         const isSplitMode = sidePanelMode === 'split';
+        const layoutLabel = isSplitMode ? 'Split' : 'Full';
         const tooltipLabel = showLayoutIndicator
-          ? `${displayLabel} · ${isSplitMode ? 'Split view' : 'Full view'}`
+          ? `${displayLabel} · ${layoutLabel} view`
           : displayLabel;
 
         return (
-          <Tooltip key={tab.id} content={tooltipLabel} position="bottom">
-            <Pill
-              isActive={isActive}
-              onClick={() => setActiveTab(tab.id)}
-              className="px-2.5 py-[5px]"
-            >
-              {tab.kind === 'builtin' ? (
-                <tab.icon className="h-3.5 w-3.5" />
-              ) : (
-                <PluginIcon
-                  pluginName={tab.pluginName}
-                  iconFile={tab.iconFile}
-                  className="flex h-3.5 w-3.5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
-                />
-              )}
-              <span className="hidden lg:inline">{displayLabel}</span>
-              {showLayoutIndicator && (
-                <span
-                  className={`ml-0.5 inline-flex h-4 items-center gap-1 rounded border px-1 text-[10px] font-semibold leading-none ${
-                    isSplitMode
-                      ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-600 dark:text-emerald-300'
-                      : 'border-zinc-400/40 bg-zinc-500/10 text-zinc-600 dark:text-zinc-300'
-                  }`}
-                >
-                  {isSplitMode ? (
-                    <Columns className="h-3 w-3" />
-                  ) : (
-                    <Maximize2 className="h-3 w-3" />
-                  )}
-                  <span className="hidden xl:inline">
-                    {isSplitMode ? 'Split' : 'Full'}
+          <div key={tab.id} className="relative inline-flex items-center">
+            <Tooltip content={tooltipLabel} position="bottom">
+              <Pill
+                isActive={isActive}
+                onClick={() => setActiveTab(tab.id)}
+                className={showLayoutIndicator ? 'px-2 py-[5px] pr-7' : 'px-2.5 py-[5px]'}
+              >
+                {tab.kind === 'builtin' ? (
+                  <tab.icon className="h-3.5 w-3.5" />
+                ) : (
+                  <PluginIcon
+                    pluginName={tab.pluginName}
+                    iconFile={tab.iconFile}
+                    className="flex h-3.5 w-3.5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
+                  />
+                )}
+                <span className="hidden lg:inline">{displayLabel}</span>
+                {showLayoutIndicator && (
+                  <span
+                    className={`ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded border ${
+                      isSplitMode
+                        ? 'border-foreground/20 bg-foreground/5 text-foreground/70'
+                        : 'border-border bg-muted/60 text-muted-foreground'
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {isSplitMode ? (
+                      <Columns className="h-3 w-3" />
+                    ) : (
+                      <Maximize2 className="h-3 w-3" />
+                    )}
                   </span>
-                </span>
-              )}
-            </Pill>
-          </Tooltip>
+                )}
+              </Pill>
+            </Tooltip>
+            {showLayoutIndicator && onCloseSidePanel && (
+              <Tooltip content={t('tabs.closeSidePanel', 'Close side panel')} position="bottom">
+                <button
+                  type="button"
+                  className="absolute right-1 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCloseSidePanel();
+                  }}
+                  aria-label={t('tabs.closeSidePanel', 'Close side panel')}
+                  title={t('tabs.closeSidePanel', 'Close side panel')}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Tooltip>
+            )}
+          </div>
         );
       })}
     </PillBar>

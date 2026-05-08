@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge, Button } from '../../../shared/view/ui';
+import { useGsapCrossfade } from '../../../lib/animations';
 import { authenticatedFetch } from '../../../utils/api';
 import { Markdown } from '../../chat/view/subcomponents/Markdown';
 
@@ -58,20 +59,20 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 }
 
 function statusAccentClass(status: string): string {
-  if (status === 'completed') return 'border-l-emerald-500 bg-emerald-500/5';
-  if (status === 'failed') return 'border-l-red-500 bg-red-500/5';
-  if (status === 'canceled') return 'border-l-zinc-400 bg-zinc-500/5';
-  if (status === 'running') return 'border-l-sky-500 bg-sky-500/10';
-  if (status === 'queued') return 'border-l-amber-500 bg-amber-500/5';
-  return 'border-l-border bg-muted/20';
+  if (status === 'failed') return 'border-l-destructive/70 bg-destructive/5';
+  if (status === 'canceled') return 'border-l-muted-foreground/50 bg-muted/30';
+  if (status === 'running') return 'border-l-foreground/60 bg-muted/40';
+  if (status === 'queued') return 'border-l-muted-foreground/40 bg-muted/25';
+  if (status === 'completed') return 'border-l-muted-foreground/60 bg-muted/20';
+  return 'border-l-border bg-background';
 }
 
 function statusDotClass(status: string): string {
-  if (status === 'completed') return 'bg-emerald-500';
-  if (status === 'failed') return 'bg-red-500';
-  if (status === 'canceled') return 'bg-zinc-400';
-  if (status === 'running') return 'animate-pulse bg-sky-500';
-  if (status === 'queued') return 'bg-amber-500';
+  if (status === 'failed') return 'bg-destructive';
+  if (status === 'canceled') return 'bg-muted-foreground/50';
+  if (status === 'running') return 'animate-pulse bg-foreground';
+  if (status === 'queued') return 'bg-muted-foreground/70';
+  if (status === 'completed') return 'bg-muted-foreground';
   return 'bg-muted-foreground';
 }
 
@@ -285,6 +286,7 @@ function WorkflowTeamHistory({
 
 export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: WorkflowRunPanelProps) {
   const { t } = useTranslation();
+  const contentRef = useRef<HTMLDivElement>(null);
   const [run, setRun] = useState<WorkflowRun | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(teamHistoryId);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -324,6 +326,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
   );
 
   const isActiveRun = run?.status === 'queued' || run?.status === 'running';
+  useGsapCrossfade(contentRef, selectedNodeId);
 
   const cancelRun = async () => {
     if (!runId || canceling) return;
@@ -470,7 +473,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
           </div>
         </nav>
 
-        <div className="min-h-0 overflow-auto p-4 md:p-5">
+        <div ref={contentRef} className="min-h-0 overflow-auto p-4 md:p-5">
           {selectedNodeId === teamHistoryId ? (
             <WorkflowTeamHistory run={run} onPrepareTeamFromSummary={onPrepareTeamFromSummary} />
           ) : selectedNode ? (

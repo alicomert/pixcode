@@ -6,6 +6,7 @@ type WebPushState = {
   permission: NotificationPermission | 'unsupported';
   isSubscribed: boolean;
   isLoading: boolean;
+  error: string | null;
   subscribe: () => Promise<void>;
   unsubscribe: () => Promise<void>;
 };
@@ -30,6 +31,7 @@ export function useWebPush(): WebPushState {
   });
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Check existing subscription on mount
   useEffect(() => {
@@ -47,6 +49,7 @@ export function useWebPush(): WebPushState {
   const subscribe = useCallback(async () => {
     if (permission === 'unsupported') return;
     setIsLoading(true);
+    setError(null);
 
     try {
       const perm = await Notification.requestPermission();
@@ -54,26 +57,33 @@ export function useWebPush(): WebPushState {
       if (perm !== 'granted') return;
 
       const keyRes = await authenticatedFetch('/api/settings/push/vapid-public-key');
+      if (!keyRes.ok) throw new Error(`VAPID key request failed (${keyRes.status})`);
       const { publicKey } = await keyRes.json();
+      if (typeof publicKey !== 'string' || !publicKey) throw new Error('Missing VAPID public key');
 
       const registration = await navigator.serviceWorker.ready;
+      await registration.update().catch(() => undefined);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey).buffer as ArrayBuffer,
       });
 
       const subJson = subscription.toJSON();
-      await authenticatedFetch('/api/settings/push/subscribe', {
+      const subscribeResponse = await authenticatedFetch('/api/settings/push/subscribe', {
         method: 'POST',
         body: JSON.stringify({
           endpoint: subJson.endpoint,
           keys: subJson.keys,
         }),
       });
+      if (!subscribeResponse.ok) {
+        throw new Error(`Push subscription save failed (${subscribeResponse.status})`);
+      }
 
       setIsSubscribed(true);
     } catch (err) {
       console.error('Push subscribe failed:', err);
+      setError(err instanceof Error ? err.message : 'Push subscribe failed');
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +91,7 @@ export function useWebPush(): WebPushState {
 
   const unsubscribe = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
@@ -95,10 +106,11 @@ export function useWebPush(): WebPushState {
       setIsSubscribed(false);
     } catch (err) {
       console.error('Push unsubscribe failed:', err);
+      setError(err instanceof Error ? err.message : 'Push unsubscribe failed');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  return { permission, isSubscribed, isLoading, subscribe, unsubscribe };
+  return { permission, isSubscribed, isLoading, error, subscribe, unsubscribe };
 }

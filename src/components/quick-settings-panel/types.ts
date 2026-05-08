@@ -7,7 +7,8 @@ export type PreferenceToggleKey =
   | 'showRawParameters'
   | 'showThinking'
   | 'autoScrollToBottom'
-  | 'sendByCtrlEnter';
+  | 'sendByCtrlEnter'
+  | 'changeAwareness';
 
 export type QuickSettingsPreferences = Record<PreferenceToggleKey, boolean>;
 

@@ -4,6 +4,7 @@
     "account": "Account",
     "permissions": "Permissions",
     "mcpServers": "MCP Servers",
+    "pluginsMcp": "Plugins / MCP",
     "configuration": "Configuration",
     "appearance": "Appearance"
   },
@@ -56,7 +57,8 @@
       "appearance": "Appearance",
       "toolDisplay": "Tool Display",
       "viewOptions": "View Options",
-      "inputSettings": "Input Settings"
+      "inputSettings": "Input Settings",
+      "changeAwareness": "Command Center"
     },
     "darkMode": "Dark Mode",
     "autoExpandTools": "Auto-expand tools",
@@ -65,6 +67,26 @@
     "autoScrollToBottom": "Auto-scroll to bottom",
     "sendByCtrlEnter": "Send by Ctrl+Enter",
     "sendByCtrlEnterDescription": "When enabled, pressing Ctrl+Enter will send the message instead of just Enter. This is useful for IME users to avoid accidental sends.",
+    "changeAwareness": "Command Center",
+    "changedFiles": {
+      "title": "Changed files",
+      "description": "Tracks local file changes and opens the Files panel when a new change appears.",
+      "noProject": "Select a project to track local changes.",
+      "refresh": "Refresh changed files",
+      "empty": "No local changes detected",
+      "disabled": "Enable Command Center to watch local changes.",
+      "more": "+{{count}} more files",
+      "lastChecked": "Checked {{value}}",
+      "guideTitle": "Right panel guide",
+      "guideFiles": "Changed files glow green in Files.",
+      "guidePanel": "New changes open the split panel automatically.",
+      "status": {
+        "M": "M",
+        "A": "A",
+        "D": "D",
+        "U": "U"
+      }
+    },
     "dragHandle": {
       "dragging": "Dragging handle",
       "closePanel": "Close settings panel",
@@ -195,13 +217,27 @@
       "title": "Event Types",
       "actionRequired": "Action required",
       "stop": "Run stopped",
-      "error": "Run failed"
+      "error": "Run failed",
+      "updates": "App and CLI updates"
     }
   },
   "appearanceSettings": {
     "darkMode": {
       "label": "Dark Mode",
       "description": "Toggle between light and dark themes"
+    },
+    "colorTheme": {
+      "title": "Color theme",
+      "palette": {
+        "label": "Accent palette",
+        "description": "Choose the product accent used by buttons, focus rings, navigation, and active states."
+      },
+      "custom": {
+        "label": "Custom light/dark colors",
+        "description": "Pick separate accent colors for light and dark mode. Select Custom above to use them.",
+        "light": "Light",
+        "dark": "Dark"
+      }
     },
     "projectSorting": {
       "label": "Project Sorting",
@@ -382,6 +418,13 @@
     }
   },
   "agents": {
+    "status": {
+      "title": "CLI status",
+      "notChecked": "Not checked yet",
+      "lastChecked": "Last checked: {{value}}",
+      "updatesFound": "{{count}} update available",
+      "refresh": "Refresh CLI status"
+    },
     "config": {
       "blurb": "View or edit the files the {{name}} CLI reads on startup. Saves write directly to your home directory.",
       "refresh": "Refresh",
@@ -392,6 +435,22 @@
       "notCreated": "new",
       "readonly": "read-only",
       "noFiles": "No config files are registered for this agent yet."
+    },
+    "cliVersion": {
+      "title": "CLI version",
+      "installed": "Installed: {{version}}",
+      "unknownInstalled": "Installed version unknown",
+      "latest": "Latest: {{version}}",
+      "checkedAt": "Checked: {{value}}",
+      "cached": "cached",
+      "updateAvailable": "Update available",
+      "refresh": "Refresh",
+      "skipped": {
+        "external_installer": "External installer",
+        "installed_version_unavailable": "Installed version unavailable",
+        "latest_version_unavailable": "Latest version unavailable",
+        "not_installed": "Not installed"
+      }
     },
     "authStatus": {
       "checking": "Checking...",

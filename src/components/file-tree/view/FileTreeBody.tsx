@@ -33,6 +33,9 @@ type FileTreeBodyProps = {
   handleCancelRename?: () => void;
   renameInputRef?: RefObject<HTMLInputElement>;
   operationLoading?: boolean;
+  changedFilePaths?: Set<string>;
+  focusedFilePath?: string | null;
+  isNarrow?: boolean;
 };
 
 export default function FileTreeBody({
@@ -59,6 +62,9 @@ export default function FileTreeBody({
   handleCancelRename,
   renameInputRef,
   operationLoading,
+  changedFilePaths,
+  focusedFilePath,
+  isNarrow,
 }: FileTreeBodyProps) {
   const { t } = useTranslation();
 
@@ -99,6 +105,9 @@ export default function FileTreeBody({
           handleCancelRename={handleCancelRename}
           renameInputRef={renameInputRef}
           operationLoading={operationLoading}
+          changedFilePaths={changedFilePaths}
+          focusedFilePath={focusedFilePath}
+          isNarrow={isNarrow}
         />
       )}
     </>

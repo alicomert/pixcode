@@ -2,6 +2,34 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.36.0](https://github.com/alicomert/pixcode/compare/v1.35.5...v1.36.0) (2026-05-08)
+
+Pixcode 1.36.0 is a product-level release focused on control, visibility, orchestration, theming, automation, and public documentation. It turns the app from a multi-CLI chat surface into a more complete self-hosted AI coding-agent workspace.
+
+### New Features
+
+* **Changed-files Command Center:** add the Hakimiyet/Command Center workflow for local working-tree visibility, so users can see newly edited files while an agent is working and jump back into the related file context.
+* **Theme system:** add application-wide accent palettes, including emerald, VS Code-style colors, and custom light/dark accent colors driven by shared theme tokens.
+* **Orchestration controls:** add fallback CLI-agent selection and per-agent model selection so failed or weak workflow steps can be routed through a chosen backup provider/model.
+* **Provider status:** add provider CLI version status caching, daily background checks, manual refresh actions, and update notices in the provider settings surface.
+* **Startup recovery path:** add startup update-check plumbing before the normal server boot path, improving recovery when an installed build needs to pull a fixed version.
+* **Static documentation site:** add SEO-focused static pages, full system documentation, feature pages, orchestration/API pages, `llms.txt`, `llms-full.txt`, `robots.txt`, and `sitemap.xml`.
+* **API key prefix:** switch newly generated Pixcode API keys to the `px_` prefix while preserving legacy `ck_` compatibility for existing installs.
+
+### Improvements
+
+* **Chat workspace:** refine prompt composer behavior, CLI activity feedback, duplicate-response handling, and provider empty-state copy.
+* **Panel UX:** polish desktop split/full panel behavior for Files, Shell, Source Control, and orchestration panes with clearer close/sizing controls.
+* **Responsive orchestration:** improve mobile and tablet orchestration layouts, panel sizing, and run output readability.
+* **Files view:** tune narrow file-tree layout, detailed columns, changed-file highlighting, and panel-safe file opening behavior.
+* **Notifications:** strengthen browser push and Telegram notification plumbing for long-running provider sessions.
+* **Documentation quality:** replace stale inherited README content with current Pixcode positioning, screenshots, installation details, orchestration coverage, API examples, themes, Telegram, MCP, plugins, and security guidance.
+* **Discovery metadata:** refresh npm package description/keywords and public API documentation so package search, GitHub readers, search engines, and AI assistants can understand the project.
+
+### Release Notes
+
+* Full release notes for GitHub are available in [`RELEASE_NOTES_v1.36.0.md`](RELEASE_NOTES_v1.36.0.md).
+
 ## [1.35.5](https://github.com/alicomert/pixcode/compare/v1.35.4...v1.35.5) (2026-05-07)
 
 ### Bug Fixes

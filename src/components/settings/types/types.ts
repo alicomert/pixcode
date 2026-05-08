@@ -52,6 +52,7 @@ export type NotificationPreferencesState = {
     actionRequired: boolean;
     stop: boolean;
     error: boolean;
+    updates: boolean;
   };
 };
 

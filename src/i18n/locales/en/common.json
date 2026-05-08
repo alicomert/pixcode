@@ -217,6 +217,7 @@
       "response": "Response",
       "decision": "Decision",
       "report": "Report",
+      "fallback": "Fallback",
       "final_report": "Final report"
     },
     "workflows": {
@@ -266,7 +267,11 @@
     "activeCount": "{{active}}/{{total}} active",
     "teamHint": "Each row is one CLI worker. You can create multiple Claude, Codex, Cursor, Gemini, Qwen, or OpenCode workers and give each a different assignment.",
     "parallelLimit": "Parallel limit",
+    "fallbackAgent": "Fallback CLI",
+    "noFallbackAgent": "No automatic fallback",
+    "fallbackAgentHint": "If a CLI step fails, Pixcode retries that step with this backup agent.",
     "agentRole": "Stage",
+    "agentModel": "Model",
     "agentRoles": {
       "auto": "Auto",
       "backend": "Backend",

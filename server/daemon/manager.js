@@ -394,7 +394,6 @@ export function startDaemon({ nodePath, cliEntryPath, serverPort, databasePath }
       windowsHide: true,
       env: {
         ...process.env,
-        PIXCODE_SKIP_UPDATE_CHECK: '1',
         SERVER_PORT: String(resolvedPort),
         ...(resolvedDatabasePath ? { DATABASE_PATH: resolvedDatabasePath } : {})
       }

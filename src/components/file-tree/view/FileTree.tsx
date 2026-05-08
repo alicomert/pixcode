@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
@@ -26,14 +26,87 @@ import { AlertTriangle, Check, X, Loader2, Folder, Upload } from '@/lib/icons';
 type FileTreeProps = {
   selectedProject: Project | null;
   onFileOpen?: (filePath: string) => void;
+  changedFilePaths?: string[];
+  focusedFilePath?: string | null;
 };
 
-export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps) {
+const getParentDirectoryPaths = (filePath: string): string[] => {
+  const parts = filePath.split('/').filter(Boolean);
+  if (parts.length <= 1) {
+    return [];
+  }
+
+  return parts.slice(0, -1).reduce<string[]>((acc, part) => {
+    acc.push(acc.length > 0 ? `${acc[acc.length - 1]}/${part}` : part);
+    return acc;
+  }, []);
+};
+
+const escapeSelectorValue = (value: string): string => {
+  if (typeof CSS !== 'undefined' && CSS.escape) {
+    return CSS.escape(value);
+  }
+
+  return value.replace(/["\\]/g, '\\$&');
+};
+
+const normalizeTreePath = (value: string | undefined | null): string => String(value || '')
+  .replace(/\\/g, '/')
+  .replace(/\/+$/, '')
+  .trim();
+
+const isAbsoluteTreePath = (value: string): boolean => value.startsWith('/') || /^[a-zA-Z]:\//.test(value);
+
+const resolveProjectTreePath = (filePath: string | null | undefined, projectRootPath: string): string | null => {
+  const normalizedPath = normalizeTreePath(filePath);
+  if (!normalizedPath) {
+    return null;
+  }
+
+  if (!projectRootPath || isAbsoluteTreePath(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  return `${projectRootPath}/${normalizedPath.replace(/^\/+/, '')}`;
+};
+
+export default function FileTree({
+  selectedProject,
+  onFileOpen,
+  changedFilePaths = [],
+  focusedFilePath = null,
+}: FileTreeProps) {
   const { t } = useTranslation();
   const [selectedImage, setSelectedImage] = useState<FileTreeImageSelection | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const newItemInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
+  const projectRootPath = useMemo(
+    () => normalizeTreePath(selectedProject?.path || selectedProject?.fullPath),
+    [selectedProject?.fullPath, selectedProject?.path],
+  );
+  const changedFilePathSet = useMemo(() => {
+    const paths = new Set<string>();
+
+    changedFilePaths.forEach((filePath) => {
+      const normalizedPath = normalizeTreePath(filePath);
+      const projectResolvedPath = resolveProjectTreePath(filePath, projectRootPath);
+
+      if (normalizedPath) {
+        paths.add(normalizedPath);
+      }
+      if (projectResolvedPath) {
+        paths.add(projectResolvedPath);
+      }
+    });
+
+    return paths;
+  }, [changedFilePaths, projectRootPath]);
+  const focusedTreeFilePath = useMemo(
+    () => resolveProjectTreePath(focusedFilePath, projectRootPath),
+    [focusedFilePath, projectRootPath],
+  );
 
   // Show toast notification
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -70,6 +143,22 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
     showToast,
   });
 
+  useEffect(() => {
+    const element = upload.treeRef.current;
+    if (!element) {
+      return undefined;
+    }
+
+    const updateNarrowState = () => {
+      setIsNarrow(element.clientWidth < 520);
+    };
+
+    updateNarrowState();
+    const resizeObserver = new ResizeObserver(updateNarrowState);
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, [upload.treeRef]);
+
   // Focus input when creating new item
   useEffect(() => {
     if (operations.isCreating && newItemInputRef.current) {
@@ -85,6 +174,23 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
       renameInputRef.current.select();
     }
   }, [operations.renamingItem]);
+
+  useEffect(() => {
+    if (!focusedTreeFilePath) {
+      return undefined;
+    }
+
+    expandDirectories(getParentDirectoryPaths(focusedTreeFilePath));
+    const timeout = window.setTimeout(() => {
+      const selector = `[data-file-path="${escapeSelectorValue(focusedTreeFilePath)}"]`;
+      upload.treeRef.current?.querySelector(selector)?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth',
+      });
+    }, 80);
+
+    return () => window.clearTimeout(timeout);
+  }, [expandDirectories, files, focusedTreeFilePath, upload.treeRef]);
 
   const renderFileIcon = useCallback((filename: string) => {
     const { icon: Icon, color } = getFileIconData(filename);
@@ -144,6 +250,7 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
 
       <FileTreeHeader
         viewMode={viewMode}
+        isCompact={isNarrow}
         onViewModeChange={changeViewMode}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
@@ -155,9 +262,9 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
         operationLoading={operations.operationLoading}
       />
 
-      {viewMode === 'detailed' && filteredFiles.length > 0 && <FileTreeDetailedColumns />}
+      {viewMode === 'detailed' && filteredFiles.length > 0 && <FileTreeDetailedColumns isNarrow={isNarrow} />}
 
-      <ScrollArea className="flex-1" contentClassName="px-2 py-1">
+      <ScrollArea className="flex-1" contentClassName={isNarrow ? 'px-1 py-1' : 'px-2 py-1'}>
         {/* New item input */}
         {operations.isCreating && (
           <div
@@ -215,6 +322,9 @@ export default function FileTree({ selectedProject, onFileOpen }: FileTreeProps)
           handleCancelRename={operations.handleCancelRename}
           renameInputRef={renameInputRef}
           operationLoading={operations.operationLoading}
+          changedFilePaths={changedFilePathSet}
+          focusedFilePath={focusedTreeFilePath}
+          isNarrow={isNarrow}
         />
       </ScrollArea>
 

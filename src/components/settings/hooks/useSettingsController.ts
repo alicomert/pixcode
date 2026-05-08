@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '../../../contexts/ThemeContext';
 import { authenticatedFetch } from '../../../utils/api';
+import { persistLocalNotificationPreferences } from '../../../utils/localNotifications';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 import {
   DEFAULT_CODE_EDITOR_SETTINGS,
@@ -127,6 +128,7 @@ const createDefaultNotificationPreferences = (): NotificationPreferencesState =>
     actionRequired: true,
     stop: true,
     error: true,
+    updates: true,
   },
 });
 
@@ -222,14 +224,21 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
           const notificationData = await toResponseJson<NotificationPreferencesResponse>(notificationResponse);
           if (notificationData.success && notificationData.preferences) {
             setNotificationPreferences(notificationData.preferences);
+            persistLocalNotificationPreferences(notificationData.preferences);
           } else {
-            setNotificationPreferences(createDefaultNotificationPreferences());
+            const defaults = createDefaultNotificationPreferences();
+            setNotificationPreferences(defaults);
+            persistLocalNotificationPreferences(defaults);
           }
         } else {
-          setNotificationPreferences(createDefaultNotificationPreferences());
+          const defaults = createDefaultNotificationPreferences();
+          setNotificationPreferences(defaults);
+          persistLocalNotificationPreferences(defaults);
         }
       } catch {
-        setNotificationPreferences(createDefaultNotificationPreferences());
+        const defaults = createDefaultNotificationPreferences();
+        setNotificationPreferences(defaults);
+        persistLocalNotificationPreferences(defaults);
       }
 
     } catch (error) {
@@ -237,7 +246,9 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       setClaudePermissions(createEmptyClaudePermissions());
       setCursorPermissions(createEmptyCursorPermissions());
       setOpencodePermissions(createEmptyOpencodePermissions());
-      setNotificationPreferences(createDefaultNotificationPreferences());
+      const defaults = createDefaultNotificationPreferences();
+      setNotificationPreferences(defaults);
+      persistLocalNotificationPreferences(defaults);
       setCodexPermissionMode('default');
       setProjectSortOrder('name');
     }
@@ -254,7 +265,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     }
 
     setSaveStatus('success');
-    void checkProviderAuthStatus(loginProvider);
+    void checkProviderAuthStatus(loginProvider, { force: true });
   }, [checkProviderAuthStatus, loginProvider]);
 
   const saveSettings = useCallback(async () => {
@@ -312,6 +323,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
       if (!notificationResponse.ok) {
         throw new Error('Failed to save notification preferences');
       }
+      persistLocalNotificationPreferences(notificationPreferences);
 
       setSaveStatus('success');
     } catch (error) {

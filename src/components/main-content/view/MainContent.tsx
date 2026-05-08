@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
 
 import { cn } from '../../../lib/utils';
@@ -15,6 +15,7 @@ import type { AppTab, Project } from '../../../types/app';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
+import { useChangedFilesMonitor } from '../../../hooks/useChangedFilesMonitor';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
 import { TaskMasterPanel } from '../../task-master';
@@ -35,7 +36,7 @@ type TasksSettingsContextValue = {
 };
 
 const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
-const SIDE_PANEL_MIN_WIDTH = 32;
+const SIDE_PANEL_MIN_WIDTH = 40;
 const SIDE_PANEL_MAX_WIDTH = 62;
 const SIDE_PANEL_DEFAULT_WIDTH = 46;
 
@@ -77,13 +78,21 @@ function MainContent({
   onQuickStartOrchestration,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
-  const { autoExpandTools, showRawParameters, showThinking, autoScrollToBottom, sendByCtrlEnter } = preferences;
+  const {
+    autoExpandTools,
+    showRawParameters,
+    showThinking,
+    autoScrollToBottom,
+    sendByCtrlEnter,
+    changeAwareness,
+  } = preferences;
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
   const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
   const [sidePanelWidth, setSidePanelWidth] = useState(SIDE_PANEL_DEFAULT_WIDTH);
   const [isDraggingSidePanel, setIsDraggingSidePanel] = useState(false);
+  const [mainSurfaceTab, setMainSurfaceTab] = useState<AppTab>(() => (isSidePanelTab(activeTab) ? 'chat' : activeTab));
   const [canUseSidePanelSplit, setCanUseSidePanelSplit] = useState(() => (
     typeof window !== 'undefined' && window.innerWidth >= 1024
   ));
@@ -91,7 +100,6 @@ function MainContent({
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
   const activeSidePanelTab = isSidePanelTab(activeTab) ? activeTab : null;
   const showSidePanelSplit = Boolean(activeSidePanelTab && !isMobile && canUseSidePanelSplit && sidePanelMode === 'split');
-  const showChatColumn = activeTab === 'chat' || showSidePanelSplit;
 
   // Subtle crossfade when switching tabs — drives a small fade+rise on the
   // active content column whenever activeTab changes.
@@ -99,6 +107,7 @@ function MainContent({
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const chatPaneRef = useRef<HTMLDivElement>(null);
   const sidePanelRef = useRef<HTMLDivElement>(null);
+  const sidePanelTransitionRectRef = useRef<DOMRect | null>(null);
   useGsapCrossfade(tabContentRef, activeTab);
 
   const {
@@ -115,10 +124,47 @@ function MainContent({
     selectedProject,
     isMobile,
   });
+  const sidePanelMainTab: AppTab = mainSurfaceTab === 'orchestration' ? 'orchestration' : 'chat';
+  const visiblePrimaryTab = activeSidePanelTab ? sidePanelMainTab : activeTab;
+  const showSidePanelWithChat = Boolean(showSidePanelSplit && !editingFile);
+  const showChatColumn = visiblePrimaryTab === 'chat' && (!activeSidePanelTab || showSidePanelWithChat);
+  const showOrchestrationColumn = visiblePrimaryTab === 'orchestration' && showSidePanelWithChat;
+
+  const {
+    changedFiles,
+    isLoading: changedFilesLoading,
+    error: changedFilesError,
+    lastCheckedAt: lastChangedFilesCheckedAt,
+    latestDetectedFile,
+    refresh: refreshChangedFiles,
+  } = useChangedFilesMonitor(selectedProject, changeAwareness);
+  const [focusedChangedFilePath, setFocusedChangedFilePath] = useState<string | null>(null);
+  const lastHandledDetectedAtRef = useRef(0);
+  const changedFilePaths = useMemo(() => changedFiles.map((file) => file.path), [changedFiles]);
+
+  const focusChangedFile = useCallback((filePath: string) => {
+    setFocusedChangedFilePath(filePath);
+    if (!isMobile && canUseSidePanelSplit) {
+      setSidePanelMode('split');
+    }
+    setActiveTab('files');
+  }, [canUseSidePanelSplit, isMobile, setActiveTab]);
+
+  const closeSidePanel = useCallback(() => {
+    setSidePanelMode('split');
+    setActiveTab(sidePanelMainTab);
+  }, [setActiveTab, sidePanelMainTab]);
 
   const renderSidePanel = (tab: 'files' | 'shell' | 'git') => {
     if (tab === 'files') {
-      return <FileTree selectedProject={selectedProject} onFileOpen={handleFileOpen} />;
+      return (
+        <FileTree
+          selectedProject={selectedProject}
+          onFileOpen={handleFileOpen}
+          changedFilePaths={changedFilePaths}
+          focusedFilePath={focusedChangedFilePath}
+        />
+      );
     }
 
     if (tab === 'shell') {
@@ -166,22 +212,30 @@ function MainContent({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isSidePanelTab(activeTab)) {
+      setMainSurfaceTab(activeTab);
+    }
+  }, [activeTab]);
+
   const handleActiveTabChange = useCallback((next: React.SetStateAction<AppTab>) => {
     const nextTab = typeof next === 'function' ? next(activeTab) : next;
     if (!isMobile && canUseSidePanelSplit && isSidePanelTab(nextTab)) {
       if (activeTab === nextTab) {
+        sidePanelTransitionRectRef.current = sidePanelRef.current?.getBoundingClientRect() ?? null;
         setSidePanelMode((previous) => previous === 'split' ? 'full' : 'split');
       } else {
         setSidePanelMode('split');
       }
     } else {
       setSidePanelMode('split');
+      setMainSurfaceTab(nextTab);
     }
     setActiveTab(nextTab);
   }, [activeTab, canUseSidePanelSplit, isMobile, setActiveTab]);
 
   const handleSidePanelResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!splitContainerRef.current || !showSidePanelSplit) {
+    if (!splitContainerRef.current || !showSidePanelWithChat) {
       return;
     }
 
@@ -212,7 +266,41 @@ function MainContent({
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerEnd, { once: true });
     window.addEventListener('pointercancel', handlePointerEnd, { once: true });
-  }, [showSidePanelSplit]);
+  }, [showSidePanelWithChat]);
+
+  useLayoutEffect(() => {
+    const previousRect = sidePanelTransitionRectRef.current;
+    const sidePanel = sidePanelRef.current;
+    if (!previousRect || !sidePanel || prefersReducedMotion()) {
+      sidePanelTransitionRectRef.current = null;
+      return;
+    }
+
+    const nextRect = sidePanel.getBoundingClientRect();
+    if (nextRect.width <= 0 || nextRect.height <= 0) {
+      sidePanelTransitionRectRef.current = null;
+      return;
+    }
+
+    const deltaX = previousRect.left - nextRect.left;
+    const scaleX = previousRect.width / nextRect.width;
+    const transformOrigin = sidePanelMode === 'full' ? 'left center' : 'right center';
+
+    gsap.fromTo(
+      sidePanel,
+      { x: deltaX, scaleX, opacity: 0.94, transformOrigin },
+      {
+        x: 0,
+        scaleX: 1,
+        opacity: 1,
+        duration: motion.duration.enter,
+        ease: motion.ease.soft,
+        clearProps: 'transform,opacity,transformOrigin',
+      },
+    );
+
+    sidePanelTransitionRectRef.current = null;
+  }, [sidePanelMode, showSidePanelSplit]);
 
   useEffect(() => {
     if (!showSidePanelSplit) {
@@ -221,7 +309,7 @@ function MainContent({
   }, [showSidePanelSplit]);
 
   useEffect(() => {
-    if (!showSidePanelSplit || prefersReducedMotion()) {
+    if (!showSidePanelWithChat || prefersReducedMotion()) {
       return;
     }
 
@@ -245,20 +333,42 @@ function MainContent({
       );
       gsap.fromTo(
         sidePanel,
-        { opacity: 0, x: 40, scale: 0.985 },
+        { opacity: 0, x: -18, scaleX: 0.96, transformOrigin: 'left center' },
         {
           opacity: 1,
           x: 0,
-          scale: 1,
+          scaleX: 1,
           duration: motion.duration.enter,
           ease: motion.ease.soft,
-          clearProps: 'transform,opacity',
+          clearProps: 'transform,opacity,transformOrigin',
         },
       );
     }, splitContainerRef);
 
     return () => context.revert();
-  }, [activeSidePanelTab, showSidePanelSplit]);
+  }, [activeSidePanelTab, showSidePanelWithChat]);
+
+  useEffect(() => {
+    if (!changeAwareness || !latestDetectedFile) {
+      return;
+    }
+
+    if (latestDetectedFile.detectedAt === lastHandledDetectedAtRef.current) {
+      return;
+    }
+
+    lastHandledDetectedAtRef.current = latestDetectedFile.detectedAt;
+    focusChangedFile(latestDetectedFile.path);
+  }, [changeAwareness, focusChangedFile, latestDetectedFile]);
+
+  useEffect(() => {
+    if (!focusedChangedFilePath) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setFocusedChangedFilePath(null), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [focusedChangedFilePath]);
 
   if (isLoading) {
     return <MainContentStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
@@ -288,6 +398,7 @@ function MainContent({
         sidePanelMode={sidePanelMode}
         canUseSidePanelSplit={canUseSidePanelSplit}
         isMobile={isMobile}
+        onCloseSidePanel={activeSidePanelTab ? closeSidePanel : undefined}
         onMenuClick={onMenuClick}
       />
 
@@ -303,17 +414,18 @@ function MainContent({
           className={cn(
             'flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden',
             editorExpanded && 'hidden',
-            !editingFile && !showSidePanelSplit && 'mx-auto w-full max-w-[1100px] px-4 md:px-8',
-            !editingFile && showSidePanelSplit && 'w-full px-3 md:px-4',
+            !editingFile && !activeSidePanelTab && !showSidePanelSplit && 'mx-auto w-full max-w-[1100px] px-4 md:px-8',
+            !editingFile && activeSidePanelTab && !showSidePanelWithChat && 'w-full px-3 md:px-4',
+            !editingFile && showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
           )}
         >
-          {(showChatColumn || activeSidePanelTab) && (
+          {(showChatColumn || showOrchestrationColumn || activeSidePanelTab) && (
             <div
               ref={splitContainerRef}
               className={cn(
                 'h-full min-h-0',
-                showSidePanelSplit && 'flex overflow-hidden',
+                showSidePanelWithChat && 'flex overflow-hidden',
                 isDraggingSidePanel && 'select-none',
               )}
             >
@@ -322,10 +434,10 @@ function MainContent({
                   ref={chatPaneRef}
                   className={cn(
                     'min-h-0 overflow-hidden',
-                    showSidePanelSplit && 'min-w-[320px] flex-none',
-                    !showSidePanelSplit && 'h-full',
+                    showSidePanelWithChat && 'min-w-[320px] flex-none',
+                    !showSidePanelWithChat && 'h-full',
                   )}
-                  style={showSidePanelSplit ? { width: `${100 - sidePanelWidth}%` } : undefined}
+                  style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
                 >
                   <ErrorBoundary showDetails>
                     <ChatInterface
@@ -356,7 +468,20 @@ function MainContent({
                 </div>
               )}
 
-              {showSidePanelSplit && (
+              {showOrchestrationColumn && (
+                <div
+                  ref={chatPaneRef}
+                  className={cn(
+                    'min-h-0 overflow-hidden',
+                    showSidePanelWithChat && 'min-w-[320px] flex-none',
+                  )}
+                  style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
+                >
+                  <OrchestrationPage selectedProject={selectedProject} />
+                </div>
+              )}
+
+              {showSidePanelWithChat && (
                 <button
                   type="button"
                   className="group relative z-20 mx-1 flex w-3 shrink-0 cursor-col-resize touch-none items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
@@ -368,7 +493,7 @@ function MainContent({
                   <span
                     className={cn(
                       'h-16 w-1 rounded-full bg-border transition-all duration-200 group-hover:h-24 group-hover:bg-foreground/40',
-                      isDraggingSidePanel && 'h-28 bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.35)]',
+                      isDraggingSidePanel && 'h-28 bg-foreground/55 shadow-[0_0_18px_rgba(120,120,120,0.22)]',
                     )}
                   />
                 </button>
@@ -379,10 +504,10 @@ function MainContent({
                   ref={sidePanelRef}
                   className={cn(
                     'min-h-0 overflow-hidden rounded-lg border border-border/60 bg-card/40',
-                    showSidePanelSplit && 'min-w-[360px] flex-none shadow-sm',
-                    !showSidePanelSplit && 'h-full',
+                    showSidePanelWithChat && 'min-w-[360px] flex-none shadow-sm',
+                    !showSidePanelWithChat && 'h-full w-full',
                   )}
-                  style={showSidePanelSplit ? { width: `${sidePanelWidth}%` } : undefined}
+                  style={showSidePanelWithChat ? { width: `${sidePanelWidth}%` } : undefined}
                 >
                   {renderSidePanel(activeSidePanelTab)}
                 </div>
@@ -390,7 +515,7 @@ function MainContent({
             </div>
           )}
 
-          {activeTab === 'orchestration' && (
+          {!activeSidePanelTab && activeTab === 'orchestration' && (
             <div className="h-full overflow-hidden">
               <OrchestrationPage selectedProject={selectedProject} />
             </div>
@@ -425,7 +550,16 @@ function MainContent({
           fillSpace={activeTab === 'files'}
         />
       </div>
-      <QuickSettingsPanel />
+      <QuickSettingsPanel
+        selectedProject={selectedProject}
+        changedFiles={changedFiles}
+        changedFilesLoading={changedFilesLoading}
+        changedFilesError={changedFilesError}
+        latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
+        lastChangedFilesCheckedAt={lastChangedFilesCheckedAt}
+        onRefreshChangedFiles={() => { void refreshChangedFiles('manual'); }}
+        onFocusChangedFile={focusChangedFile}
+      />
     </div>
   );
 }

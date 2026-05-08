@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pixcode API Automation - px_ API Keys, Agent Runs and Workflow Control</title>
+    <meta
+      name="description"
+      content="Use Pixcode API automation with px_ API keys to list projects, run Claude Code, Codex, Cursor CLI, Gemini CLI, Qwen Code, and OpenCode tasks, preview orchestration workflows, start runs, stream events, cancel runs, and integrate Telegram or external tools."
+    />
+    <meta
+      name="keywords"
+      content="Pixcode API, px API key, AI coding agent API, Codex API automation, Claude Code automation, OpenCode automation, orchestration REST API, self-hosted developer automation, coding agent webhook"
+    />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
+    <link rel="canonical" href="https://alicomert.github.io/pixcode/api-automation.html" />
+    <link rel="icon" href="favicon.png" />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a class="brand" href="landing.html">
+        <img src="logo.png" alt="" />
+        <span>Pixcode</span>
+      </a>
+      <div class="nav-links">
+        <a href="docs.html">Documentation</a>
+        <a href="features.html">Features</a>
+        <a href="orchestration.html">Orchestration</a>
+        <a href="api-automation.html">API</a>
+        <a href="https://github.com/alicomert/pixcode">GitHub</a>
+      </div>
+    </nav>
+
+    <header class="hero docs-hero">
+      <div>
+        <div class="eyebrow">API automation</div>
+        <h1>Control Pixcode from scripts, dashboards, CI, and remote tools.</h1>
+        <p class="lead">
+          Pixcode exposes REST and WebSocket-powered workflows. Generate a `px_` API key, then trigger provider tasks, inspect projects, preview orchestration, start workflow runs, stream output, and cancel work from external clients.
+        </p>
+      </div>
+      <div class="image-slot">
+        <span><strong>API dashboard slot</strong>Recommended: 1400 x 1000. Show API keys, OpenAPI docs, and an automation request/result.</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <h2>Authentication</h2>
+        <p class="sublead">
+          New Pixcode API keys start with `px_`. Older `ck_` keys remain accepted for compatibility, but new documentation and examples should use `px_`.
+        </p>
+        <div class="grid two">
+          <div class="code-panel"><pre><code>curl http://localhost:3001/api/projects \
+  -H "Authorization: Bearer px_your_key_here"</code></pre></div>
+          <div class="code-panel"><pre><code>curl http://localhost:3001/api/projects \
+  -H "X-API-Key: px_your_key_here"</code></pre></div>
+        </div>
+      </section>
+
+      <section class="section alt">
+        <h2>Run a one-shot agent task</h2>
+        <p class="sublead">
+          `POST /api/agent` is the external REST entry point for non-interactive automation. It can run a provider against a project path, optionally stream events, and optionally return buffered JSON with `stream: false`.
+        </p>
+        <div class="code-panel"><pre><code>curl http://localhost:3001/api/agent \
+  -H "Authorization: Bearer px_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "codex",
+    "projectPath": "/home/me/project",
+    "message": "Review the current diff and list release risks.",
+    "stream": false
+  }'</code></pre></div>
+      </section>
+
+      <section class="section warm">
+        <h2>Workflow automation</h2>
+        <p class="sublead">
+          Orchestration endpoints can list workflow modes, preview expanded DAGs, start runs, read run state, stream events, and cancel active work.
+        </p>
+        <div class="grid two">
+          <div class="card"><strong>Preview</strong><p>Validate agent metadata and inspect the node graph before running child agents.</p></div>
+          <div class="card"><strong>Run</strong><p>Start the workflow and track node runs, A2A task IDs, status, events, and output.</p></div>
+          <div class="card"><strong>Stream</strong><p>Use run event endpoints to follow progress in dashboards or CLI scripts.</p></div>
+          <div class="card"><strong>Cancel</strong><p>Stop active orchestration runs when the user changes direction or detects bad output.</p></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Common integration ideas</h2>
+        <ul class="feature-list">
+          <li>Ask Codex or Claude Code to review a Git diff from a CI job before release.</li>
+          <li>Trigger OpenCode or Gemini CLI from a custom internal dashboard.</li>
+          <li>Build a Telegram command that starts a Pixcode agent run on an always-on server.</li>
+          <li>Run multi-agent review on a branch before creating a tag or npm publish.</li>
+          <li>Expose a safe internal tool that lists projects and starts approved workflows.</li>
+        </ul>
+        <p>
+          Full OpenAPI reference: <a href="openapi.yaml">openapi.yaml</a>.
+        </p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <strong>Pixcode API automation</strong> · <a href="docs.html">Documentation</a> · <a href="openapi.yaml">OpenAPI</a> · <a href="llms.txt">llms.txt</a>
+    </footer>
+  </body>
+</html>

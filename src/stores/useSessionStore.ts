@@ -86,6 +86,7 @@ export interface SessionSlot {
 }
 
 const EMPTY: NormalizedMessage[] = [];
+const SEMANTIC_DEDUPE_WINDOW_MS = 30_000;
 
 function createEmptySlot(): SessionSlot {
   return {
@@ -104,15 +105,71 @@ function createEmptySlot(): SessionSlot {
 }
 
 /**
- * Compute merged messages: server + realtime, deduped by id.
+ * Compute merged messages: server + realtime, deduped by id and by the
+ * same role/content when the server catches up with a local pending bubble.
  * Server messages take priority (they're the persisted source of truth).
  * Realtime messages that aren't yet in server stay (in-flight streaming).
  */
+function normalizeMessageContent(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function semanticMergeKey(message: NormalizedMessage): string | null {
+  if (message.kind === 'text') {
+    const content = normalizeMessageContent(message.content);
+    if (!content) return null;
+    return [message.sessionId, message.provider, message.kind, message.role || '', content].join('\u0000');
+  }
+
+  if (message.kind === 'error' || message.kind === 'task_notification') {
+    const content = normalizeMessageContent(message.content || message.summary);
+    if (!content) return null;
+    return [message.sessionId, message.provider, message.kind, content].join('\u0000');
+  }
+
+  return null;
+}
+
+function messageTime(message: NormalizedMessage): number | null {
+  const time = Date.parse(message.timestamp);
+  return Number.isFinite(time) ? time : null;
+}
+
 function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[]): NormalizedMessage[] {
   if (realtime.length === 0) return server;
   if (server.length === 0) return realtime;
   const serverIds = new Set(server.map(m => m.id));
-  const extra = realtime.filter(m => !serverIds.has(m.id));
+  const serverSemanticMessages = new Map<string, Array<{ time: number | null; used: boolean }>>();
+
+  for (const message of server) {
+    const key = semanticMergeKey(message);
+    if (!key) continue;
+    const bucket = serverSemanticMessages.get(key) || [];
+    bucket.push({ time: messageTime(message), used: false });
+    serverSemanticMessages.set(key, bucket);
+  }
+
+  const extra = realtime.filter((message) => {
+    if (serverIds.has(message.id)) return false;
+
+    const key = semanticMergeKey(message);
+    if (!key) return true;
+
+    const candidates = serverSemanticMessages.get(key);
+    if (!candidates?.length) return true;
+
+    const realtimeTime = messageTime(message);
+    const matchIndex = candidates.findIndex((candidate) => {
+      if (candidate.used) return false;
+      if (realtimeTime === null || candidate.time === null) return true;
+      return Math.abs(candidate.time - realtimeTime) <= SEMANTIC_DEDUPE_WINDOW_MS;
+    });
+    if (matchIndex === -1) return true;
+
+    candidates[matchIndex].used = true;
+    return false;
+  });
   if (extra.length === 0) return server;
   return [...server, ...extra];
 }

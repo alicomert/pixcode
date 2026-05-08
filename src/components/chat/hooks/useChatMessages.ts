@@ -5,7 +5,12 @@
 
 import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage, SubagentChildTool } from '../types/types';
-import { decodeHtmlEntities, unescapeWithMathProtection, formatUsageLimitText } from '../utils/chatFormatting';
+import {
+  decodeHtmlEntities,
+  unescapeWithMathProtection,
+  formatUsageLimitText,
+  formatProviderErrorText,
+} from '../utils/chatFormatting';
 
 /**
  * Convert NormalizedMessage[] from the session store into ChatMessage[]
@@ -135,7 +140,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             : '';
         converted.push({
           type: 'error',
-          content: errorText || 'Unknown error',
+          content: formatProviderErrorText(errorText || 'Unknown error', msg.provider),
           timestamp: msg.timestamp,
         });
         break;

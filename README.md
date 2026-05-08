@@ -1,303 +1,281 @@
 <div align="center">
-  <img src="public/logo.svg" alt="Pixcode" width="64" height="64">
-  <h1>Pixcode — Run Claude Code, Codex, Cursor, Gemini & Qwen Code from one UI</h1>
-  <p>A desktop and mobile UI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>, <a href="https://developers.openai.com/codex">Codex</a>, <a href="https://geminicli.com/">Gemini-CLI</a>, and <a href="https://github.com/QwenLM/qwen-code">Qwen Code</a>.<br>Use it locally or remotely to view your active projects and sessions from everywhere.</p>
-  <p><strong>☁️ Pixcode Cloud — coming soon.</strong></p>
+  <img src="public/logo.png" alt="Pixcode logo" width="96" height="96" />
+  <h1>Pixcode</h1>
+  <p><strong>A self-hosted control room for AI coding agents.</strong></p>
+  <p>
+    Run Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode from one web UI with chat, shell, files, git, orchestration, API keys, plugins, notifications, Telegram, and desktop/server deployment.
+  </p>
+  <p>
+    <a href="https://www.npmjs.com/package/@pixelbyte-software/pixcode"><img src="https://img.shields.io/npm/v/@pixelbyte-software/pixcode?style=for-the-badge&color=10b981" alt="npm version" /></a>
+    <a href="https://github.com/alicomert/pixcode/releases/latest"><img src="https://img.shields.io/github/v/release/alicomert/pixcode?style=for-the-badge&color=0ea5e9" alt="latest release" /></a>
+    <img src="https://img.shields.io/badge/Node.js-22%2B-3c873a?style=for-the-badge" alt="Node.js 22+" />
+    <img src="https://img.shields.io/badge/Desktop-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=for-the-badge" alt="desktop platforms" />
+  </p>
+  <p>
+    <a href="README.tr.md">Türkçe</a> ·
+    <a href="README.de.md">Deutsch</a> ·
+    <a href="README.ru.md">Русский</a> ·
+    <a href="README.ja.md">日本語</a> ·
+    <a href="README.ko.md">한국어</a> ·
+    <a href="README.zh-CN.md">简体中文</a>
+  </p>
 </div>
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode">Pixcode</a> · <a href="https://github.com/alicomert/pixcode">Documentation</a> · <a href="https://discord.gg/buxwujPNRE">Discord</a> · <a href="https://github.com/alicomert/pixcode/issues">Bug Reports</a> · <a href="CONTRIBUTING.md">Contributing</a>
-</p>
+## What Pixcode Is
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87_Download-Desktop_App-0066FF?style=for-the-badge" alt="Download Desktop App"></a>
-  <a href="https://www.npmjs.com/package/@pixelbyte-software/pixcode"><img src="https://img.shields.io/badge/npm-install_-g-CB3837?style=for-the-badge&logo=npm&logoColor=white" alt="npm"></a>
-  <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join our Discord"></a>
-</p>
+Pixcode turns your machine, VDS, or workstation into a browser-based AI development cockpit. Instead of jumping between terminals, desktop apps, CLI logs, file explorers, Git tools, and provider dashboards, you get one local web app that understands coding-agent workflows from start to finish.
 
-<p align="center">
-  <strong>📦 Desktop installers:</strong>
-  <a href="https://github.com/alicomert/pixcode/releases/latest">Windows · macOS · Linux</a>
-  &nbsp;·&nbsp;
-  <strong>☁️ Pixcode Cloud:</strong> coming soon
-</p>
+It is designed for three common setups:
 
-<p align="center">
-  <a href="./README.md"><img src="https://img.shields.io/badge/English-5C3FFC?style=for-the-badge&logoColor=white" alt="English"></a>
-  <a href="./README.tr.md"><img src="https://img.shields.io/badge/T%C3%BCrk%C3%A7e-4B4B4B?style=for-the-badge" alt="Türkçe"></a>
-  <a href="./README.ru.md"><img src="https://img.shields.io/badge/%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-4B4B4B?style=for-the-badge" alt="Русский"></a>
-  <a href="./README.de.md"><img src="https://img.shields.io/badge/Deutsch-4B4B4B?style=for-the-badge" alt="Deutsch"></a>
-  <a href="./README.it.md"><img src="https://img.shields.io/badge/Italiano-4B4B4B?style=for-the-badge" alt="Italiano"></a>
-  <a href="./README.ja.md"><img src="https://img.shields.io/badge/%E6%97%A5%E6%9C%AC%E8%AA%9E-4B4B4B?style=for-the-badge" alt="日本語"></a>
-  <a href="./README.ko.md"><img src="https://img.shields.io/badge/%ED%95%9C%EA%B5%AD%EC%96%B4-4B4B4B?style=for-the-badge" alt="한국어"></a>
-  <a href="./README.zh-CN.md"><img src="https://img.shields.io/badge/%E4%B8%AD%E6%96%87-4B4B4B?style=for-the-badge" alt="中文"></a>
-</p>
+- **Local workstation**: run Pixcode on your computer and use it as a richer UI for the CLIs you already trust.
+- **Always-on server**: run it on a Linux server, keep sessions alive, and connect from a laptop, tablet, or phone.
+- **Desktop app**: install `.exe`, `.dmg`, or Linux builds from GitHub releases when you want a packaged app experience.
 
----
+Pixcode is not a hosted cloud IDE. Your projects, credentials, CLI sessions, local files, Git state, and MCP config stay under your own machine unless you explicitly connect external services.
 
 ## Screenshots
 
-<div align="center">
-  
-<table>
-<tr>
-<td align="center">
-<h3>Desktop View</h3>
-<img src="public/screenshots/desktop-main.png" alt="Desktop Interface" width="400">
-<br>
-<em>Main interface showing project overview and chat</em>
-</td>
-<td align="center">
-<h3>Mobile Experience</h3>
-<img src="public/screenshots/mobile-chat.png" alt="Mobile Interface" width="250">
-<br>
-<em>Responsive mobile design with touch navigation</em>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<h3>CLI Selection</h3>
-<img src="public/screenshots/cli-selection.png" alt="CLI Selection" width="400">
-<br>
-<em>Select between Claude Code, Gemini, Cursor CLI and Codex</em>
-</td>
-</tr>
-</table>
+| Workspace control room | Mobile chat |
+| --- | --- |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
 
+| CLI selection | Tools and MCP |
+| --- | --- |
+| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
 
+## Highlights
 
-</div>
+### One UI for the CLIs you already use
 
-## Features
+- Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode are available from the same project screen.
+- Provider auth, API-key credentials, OAuth paste flows, install checks, model lists, and CLI version status live under Settings.
+- You can keep using the provider-native CLIs. Pixcode wraps them with session management, web sockets, notifications, file context, and project controls.
+- Processing state is visible while a CLI is thinking, running tools, waiting for approval, or producing output, so the screen does not feel frozen.
 
-- **Responsive Design** - Works seamlessly across desktop, tablet, and mobile so you can also use Agents from mobile 
-- **Interactive Chat Interface** - Built-in chat interface for seamless communication with the Agents
-- **Integrated Shell Terminal** - Direct access to the Agents CLI through built-in shell functionality
-- **File Explorer** - Interactive file tree with syntax highlighting and live editing
-- **Git Explorer** - View, stage and commit your changes. You can also switch branches 
-- **Session Management** - Resume conversations, manage multiple sessions, and track history
-- **Plugin System** - Extend Pixcode with custom plugins — add new tabs, backend services, and integrations. [Build your own →](https://github.com/alicomert/pixcode)
-- **TaskMaster AI Integration** *(Optional)* - Advanced project management with AI-powered task planning, PRD parsing, and workflow automation
-- **Model Compatibility** - Works with Claude, GPT, and Gemini model families (see [`shared/modelConstants.js`](shared/modelConstants.js) for the full list of supported models)
+### Chat that feels like a development workspace
 
+- Project-aware conversations with session history.
+- Fixed bottom prompt composer for focused chat and selected project screens.
+- Mode selection for default/plan/run flows, with mode persistence where the workflow expects it.
+- Slash command support and provider-specific tool rendering.
+- Push and Telegram notifications when long-running agent work finishes, fails, or needs attention.
 
-## Quick Start
+### Files, shell, and source control without leaving the agent
 
-### Pixcode (Recommended)
+- Built-in project file browser with edit, upload, rename, delete, and detailed view.
+- Integrated shell panel that can open as split view or full view without losing the main chat/orchestration screen.
+- Source Control panel for Git status, diffs, branches, commits, and changed files.
+- Split panels have compact icon controls, close actions, and half/full behavior for desktop. Mobile uses a screen-appropriate layout instead of trying to force desktop split behavior.
+- The file list is optimized for narrow panels, so permissions and long paths do not dominate the UI.
 
-The fastest way to get started — no local setup required. Get a fully managed, containerized development environment accessible from the web, mobile app, API, or your favorite IDE.
+### Command Center for changed files
 
-**[Get started with Pixcode](https://github.com/alicomert/pixcode)**
+Pixcode keeps an eye on local working-tree changes, not only GitHub updates. The Quick Settings command mode can show changed files as they appear, highlight them, and jump directly to the edited location.
 
+This is meant for control: when an AI agent edits files, you can see what changed immediately, open the file in the right panel, and keep the main chat or orchestration view visible.
 
-### Self-Hosted (Open source)
+### Multi-agent orchestration
 
-#### npm
+The orchestration system is built for more than "send one prompt to one bot." It can coordinate multiple CLI agents around the same goal.
 
-Try Pixcode instantly with **npx** (requires **Node.js** v22+):
+Built-in workflow styles include:
 
+- **Agent Team**: split a task across frontend, backend, review, docs, or custom roles.
+- **Multi-model Review**: ask different providers or models to inspect the same implementation.
+- **Sequential Handoff**: pass work through ordered stages when one step depends on the previous result.
+- **Decision Debate**: compare approaches before implementation.
+
+Orchestration controls include:
+
+- enable/disable agents per run,
+- duplicate a provider when you need multiple workers from the same CLI,
+- assign role, stage, label, and instruction per agent,
+- select the model per agent, including OpenCode model choices,
+- choose a fallback CLI agent for failed steps,
+- preview the workflow DAG before running,
+- stream run events and cancel active runs,
+- resize orchestration side panes so task setup and run output can breathe.
+
+### API-first automation
+
+Pixcode's own frontend talks to the backend through REST and WebSocket APIs, and external automation can use the same control plane with Pixcode API keys.
+
+New API keys start with `px_`:
+
+```bash
+curl http://localhost:3001/api/projects \
+  -H "Authorization: Bearer px_your_key_here"
 ```
+
+Run a one-shot provider task:
+
+```bash
+curl http://localhost:3001/api/agent \
+  -H "Authorization: Bearer px_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "codex",
+    "projectPath": "/home/me/project",
+    "message": "Review the current diff and list the risky changes.",
+    "stream": false
+  }'
+```
+
+Preview an orchestration workflow:
+
+```bash
+curl http://localhost:3001/api/orchestration/workflows/agent_team/preview \
+  -H "Authorization: Bearer px_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {
+      "agents": [
+        { "adapterId": "codex", "label": "Backend", "role": "backend" },
+        { "adapterId": "opencode", "label": "Reviewer", "role": "review" }
+      ]
+    }
+  }'
+```
+
+Legacy `ck_` keys remain accepted for older installations, but `px_` is the current prefix.
+
+OpenAPI reference: [`public/openapi.yaml`](public/openapi.yaml)
+
+### Themes and appearance
+
+Pixcode now has a real theme system instead of a single blue/navy look.
+
+- Dark and light modes.
+- Ready-made accent palettes, including emerald and VS Code-like colors.
+- Custom light-mode and dark-mode accent colors.
+- Token-based styling for active states, focus rings, buttons, navigation, and high-emphasis controls.
+- Settings-driven theme changes without rebuilding the app.
+
+The goal is to let the UI feel closer to a command-line/development tool when you want it, while still keeping the web app readable on mobile and desktop.
+
+### Notifications and Telegram bridge
+
+- Browser push notifications for long-running CLI sessions.
+- Telegram pairing with short-lived codes.
+- Telegram notifications for completed, failed, or action-required work.
+- Optional bridge behavior so Telegram messages can become prompts for the Pixcode instance.
+- Notification preferences are stored per user.
+
+### Plugins and MCP
+
+Pixcode includes optional extension points:
+
+- MCP server management for supported providers.
+- Provider-specific MCP/session/auth panels.
+- Plugin loading with frontend tabs and optional backend services.
+- Local settings for API keys, base URLs, model catalogs, and provider install status.
+
+## Installation
+
+### Run with npx
+
+Requires Node.js 22 or newer.
+
+```bash
 npx @pixelbyte-software/pixcode
 ```
 
-Or install **globally** for regular use:
+Then open:
 
+```text
+http://localhost:3001
 ```
+
+### Install globally
+
+```bash
 npm install -g @pixelbyte-software/pixcode
 pixcode
 ```
 
-Open `http://localhost:3001` — all your existing sessions are discovered automatically.
+### Desktop installers
 
-Visit the **[documentation →](https://github.com/alicomert/pixcode)** for full configuration options, PM2, remote server setup and more.
+Download desktop builds from GitHub releases:
 
-#### Keep It Running On Linux (VDS / SSH-safe)
+- Windows: `.exe`
+- macOS: `.dmg`
+- Linux: AppImage / package builds depending on the release asset
 
-If you run Pixcode over SSH and your terminal disconnects, foreground processes like `npm run dev` will stop.  
-Use the built-in daemon manager to run Pixcode as a persistent service:
+Releases: <https://github.com/alicomert/pixcode/releases/latest>
+
+### Linux daemon
+
+For a server/VDS setup:
 
 ```bash
-# Default behavior on Linux (auto-daemon):
-pixcode
-
-# Explicit install (recommended on first setup):
 pixcode daemon install --mode auto --port 3001
 pixcode daemon status --mode auto
-pixcode daemon doctor --mode auto
-```
-
-Useful commands:
-
-```bash
 pixcode daemon logs --mode auto
 pixcode daemon restart --mode auto
-pixcode daemon stop --mode auto      # temporary stop, auto-start remains enabled
-pixcode daemon disable --mode auto   # disable auto-start at boot
-pixcode daemon uninstall --mode auto
-pixcode update --restart-daemon
 ```
 
-Notes:
-- On Linux, `pixcode` now attempts auto-daemon startup by default.
-- `npm run dev`, `npm run start`, and direct server entrypoints now pass through the same auto-daemon behavior.
-- Recommended for always-on server deployments: use `pixcode daemon install`, not `npm run dev`.
-- `--mode user` uses `systemctl --user`, `--mode system` uses system service management, and `--mode auto` chooses the best available mode.
-- Use `pixcode --no-daemon` (or `PIXCODE_NO_DAEMON=1`) to force foreground mode.
-- On some servers you may need to enable linger for boot-time startup without an active login session:
-  `sudo loginctl enable-linger <your-username>`
+Foreground mode:
 
-#### Docker Sandboxes (Experimental)
-
-Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
-
-```
-npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
+```bash
+pixcode --no-daemon
 ```
 
-Supports Claude Code, Codex, and Gemini CLI. See the [sandbox docs](docker/) for setup and advanced options.
+### Ports
 
+- Backend and bundled frontend: `SERVER_PORT`, default `3001`.
+- Vite-only frontend development: `VITE_PORT`, default `5173`.
 
----
+For normal installed usage, think in terms of one port: `3001`. The `5173` port is only for separate Vite frontend development.
 
-## Which option is right for you?
+## First Run Checklist
 
-Pixcode is the open source UI layer that powers Pixcode. You can self-host it on your own machine, run it in a Docker sandbox for isolation, or use Pixcode for a fully managed environment.
+1. Open Pixcode and create or sign in to the local user account.
+2. Add the project folders you want to manage.
+3. Connect the CLI providers you actually use.
+4. Open Settings and check provider install/auth/model status.
+5. Generate a `px_` API key if you want automation, CI, Telegram, or external tools to talk to Pixcode.
+6. Pick your theme palette under Appearance.
+7. Enable notifications if you want long-running sessions to report back.
 
-| | Self-Hosted (npm) | Self-Hosted (Docker Sandbox) *(Experimental)* | Pixcode |
-|---|---|---|---|
-| **Best for** | Local agent sessions on your own machine | Isolated agents with web/mobile IDE | Teams who want agents in the cloud |
-| **How you access it** | Browser via `[yourip]:port` | Browser via `localhost:port` | Browser, any IDE, REST API, n8n |
-| **Setup** | `npx @pixelbyte-software/pixcode` | `npx @pixelbyte-software/pixcode@latest sandbox ~/project` | No setup required |
-| **Isolation** | Runs on your host | Hypervisor-level sandbox (microVM) | Full cloud isolation |
-| **Machine needs to stay on** | Yes | Yes | No |
-| **Mobile access** | Any browser on your network | Any browser on your network | Any device, native app coming |
-| **Agents supported** | Claude Code, Cursor CLI, Codex, Gemini CLI | Claude Code, Codex, Gemini CLI | Claude Code, Cursor CLI, Codex, Gemini CLI |
-| **File explorer and Git** | Yes | Yes | Yes |
-| **MCP configuration** | Synced with `~/.claude` | Managed via UI | Managed via UI |
-| **REST API** | Yes | Yes | Yes |
-| **Team sharing** | No | No | Yes |
-| **Platform cost** | Free, open source | Free, open source | Starts at $7/month |
+## Development
 
-> All options use your own AI subscriptions (Claude, Cursor, etc.) — Pixcode provides the environment, not the AI.
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm run build
+```
 
----
+Important development notes:
 
-## Security & Tools Configuration
+- `npm run dev` uses the daemon manager on Linux.
+- For a foreground development loop, run `npm run client` and `npm run server` separately, or run `pixcode --no-daemon`.
+- `npm run server` runs built output from `dist-server/`; rebuild after backend changes.
+- There is no unit test suite configured today. Use typecheck, lint, build, and manual provider/API checks.
 
-**🔒 Important Notice**: All Claude Code tools are **disabled by default**. This prevents potentially harmful operations from running automatically.
+## Repository Map
 
-### Enabling Tools
+- `src/` - React + Vite frontend.
+- `server/` - Express, WebSocket, CLI adapters, routes, auth, daemon, notifications.
+- `server/modules/orchestration/` - multi-agent workflow engine and A2A adapters.
+- `server/modules/providers/` - provider auth, MCP, sessions, model and install endpoints.
+- `shared/` - contracts shared by frontend and backend.
+- `public/openapi.yaml` - API reference shipped with the app.
+- `public/screenshots/` - README/product screenshots.
 
-To use Claude Code's full functionality, you'll need to manually enable tools:
+## Security Model
 
-1. **Open Tools Settings** - Click the gear icon in the sidebar
-2. **Enable Selectively** - Turn on only the tools you need
-3. **Apply Settings** - Your preferences are saved locally
+- Pixcode is self-hosted. Treat it like a local control plane for your machine.
+- Use strong local account credentials when exposing it on a network.
+- Put it behind a trusted reverse proxy/VPN when running on a public server.
+- API keys are intended for automation. Rotate them if they are exposed.
+- Provider secrets are masked in APIs and UI responses where possible.
 
-<div align="center">
+## Links
 
-![Tools Settings Modal](public/screenshots/tools-modal.png)
-*Tools Settings interface - enable only what you need*
-
-</div>
-
-**Recommended approach**: Start with basic tools enabled and add more as needed. You can always adjust these settings later.
-
----
-
-## Plugins
-
-Pixcode has a plugin system that lets you add custom tabs with their own frontend UI and optional Node.js backend. Install plugins from git repos directly in **Settings > Plugins**, or build your own.
-
-### Available Plugins
-
-| Plugin | Description |
-|---|---|
-| **[Project Stats](https://github.com/alicomert/pixcode)** | Shows file counts, lines of code, file-type breakdown, largest files, and recently modified files for your current project |
-| **[Web Terminal](https://github.com/alicomert/pixcode)** | Full xterm.js terminal with multi-tab support|
-
-### Build Your Own
-
-**[Plugin Starter Template →](https://github.com/alicomert/pixcode)** — fork this repo to create your own plugin. It includes a working example with frontend rendering, live context updates, and RPC communication to a backend server.
-
-**[Plugin Documentation →](https://github.com/alicomert/pixcode)** — full guide to the plugin API, manifest format, security model, and more.
-
----
-## FAQ
-
-<details>
-<summary>How is this different from Claude Code Remote Control?</summary>
-
-Claude Code Remote Control lets you send messages to a session already running in your local terminal. Your machine has to stay on, your terminal has to stay open, and sessions time out after roughly 10 minutes without a network connection.
-
-Pixcode and Pixcode extend Claude Code rather than sit alongside it — your MCP servers, permissions, settings, and sessions are the exact same ones Claude Code uses natively. Nothing is duplicated or managed separately.
-
-Here's what that means in practice:
-
-- **All your sessions, not just one** — Pixcode auto-discovers every session from your `~/.claude` folder. Remote Control only exposes the single active session to make it available in the Claude mobile app.
-- **Your settings are your settings** — MCP servers, tool permissions, and project config you change in Pixcode are written directly to your Claude Code config and take effect immediately, and vice versa.
-- **Works with more agents** — Claude Code, Cursor CLI, Codex, and Gemini CLI, not just Claude Code.
-- **Full UI, not just a chat window** — file explorer, Git integration, MCP management, and a shell terminal are all built in.
-- **Pixcode runs in the cloud** — close your laptop, the agent keeps running. No terminal to babysit, no machine to keep awake.
-
-</details>
-
-<details>
-<summary>Do I need to pay for an AI subscription separately?</summary>
-
-Yes. Pixcode provides the environment, not the AI. You bring your own Claude, Cursor, Codex, or Gemini subscription. Pixcode starts at $7/month for the hosted environment on top of that.
-
-</details>
-
-<details>
-<summary>Can I use Pixcode on my phone?</summary>
-
-Yes. For self-hosted, run the server on your machine and open `[yourip]:port` in any browser on your network. For Pixcode, open it from any device — no VPN, no port forwarding, no setup. A native app is also in the works.
-
-</details>
-
-<details>
-<summary>Will changes I make in the UI affect my local Claude Code setup?</summary>
-
-Yes, for self-hosted. Pixcode reads from and writes to the same `~/.claude` config that Claude Code uses natively. MCP servers you add via the UI show up in Claude Code immediately and vice versa.
-
-</details>
-
----
-
-## Community & Support
-
-- **[Documentation](https://github.com/alicomert/pixcode)** — installation, configuration, features, and troubleshooting
-- **[Discord](https://discord.gg/buxwujPNRE)** — get help and connect with other users
-- **[GitHub Issues](https://github.com/alicomert/pixcode/issues)** — bug reports and feature requests
-- **[Contributing Guide](CONTRIBUTING.md)** — how to contribute to the project
-
-## License
-
-GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later) — see [LICENSE](LICENSE) for the full text, including additional terms under Section 7.
-
-This project is open source and free to use, modify, and distribute under the AGPL-3.0-or-later license. If you modify this software and run it as a network service, you must make your modified source code available to users of that service.
-
-Pixcode  - (https://github.com/alicomert/pixcode).
-
-## Acknowledgments
-
-### Built With
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** - Anthropic's official CLI
-- **[Cursor CLI](https://docs.cursor.com/en/cli/overview)** - Cursor's official CLI
-- **[Codex](https://developers.openai.com/codex)** - OpenAI Codex
-- **[Gemini-CLI](https://geminicli.com/)** - Google Gemini CLI
-- **[React](https://react.dev/)** - User interface library
-- **[Vite](https://vitejs.dev/)** - Fast build tool and dev server
-- **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
-- **[CodeMirror](https://codemirror.net/)** - Advanced code editor
-- **[TaskMaster AI](https://github.com/eyaltoledano/claude-task-master)** *(Optional)* - AI-powered project management and task planning
-
-
-### Sponsors
-- [Siteboon - AI powered website builder](https://siteboon.ai)
----
-
-<div align="center">
-  <strong>Made with care for the Claude Code, Cursor and Codex community.</strong>
-</div>
+- npm: <https://www.npmjs.com/package/@pixelbyte-software/pixcode>
+- GitHub: <https://github.com/alicomert/pixcode>
+- Releases: <https://github.com/alicomert/pixcode/releases/latest>
+- API docs: [`public/openapi.yaml`](public/openapi.yaml)
+- Static docs: [`public/docs.html`](public/docs.html), [`public/features.html`](public/features.html), [`public/orchestration.html`](public/orchestration.html), [`public/api-automation.html`](public/api-automation.html)
+- AI discovery: [`public/llms.txt`](public/llms.txt), [`public/llms-full.txt`](public/llms-full.txt)

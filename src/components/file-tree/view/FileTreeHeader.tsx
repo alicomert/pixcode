@@ -8,6 +8,7 @@ import { ChevronDown, Eye, FileText, FolderPlus, List, RefreshCw, Search, TableP
 
 type FileTreeHeaderProps = {
   viewMode: FileTreeViewMode;
+  isCompact?: boolean;
   onViewModeChange: (mode: FileTreeViewMode) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
@@ -23,6 +24,7 @@ type FileTreeHeaderProps = {
 
 export default function FileTreeHeader({
   viewMode,
+  isCompact = false,
   onViewModeChange,
   searchQuery,
   onSearchQueryChange,
@@ -36,61 +38,63 @@ export default function FileTreeHeader({
   const { t } = useTranslation();
 
   return (
-    <div className="space-y-2 border-b border-border px-3 pb-2 pt-3">
+    <div className={cn('space-y-2 border-b border-border pb-2 pt-3', isCompact ? 'px-2' : 'px-3')}>
       {/* Title and Toolbar */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-foreground">{t('fileTree.files')}</h3>
-        <div className="flex items-center gap-0.5">
+      <div className="flex items-start justify-between gap-1">
+        <h3 className={cn('shrink-0 font-medium text-foreground', isCompact ? 'hidden text-xs' : 'text-sm')}>
+          {t('fileTree.files')}
+        </h3>
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-0.5 overflow-visible">
           {/* Action buttons */}
           {onNewFile && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0"
+              className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
               onClick={onNewFile}
               title={t('fileTree.newFile', 'New File (Cmd+N)')}
               aria-label={t('fileTree.newFile', 'New File (Cmd+N)')}
               disabled={operationLoading}
             >
-              <FileText className="h-3.5 w-3.5" />
+              <FileText className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
             </Button>
           )}
           {onNewFolder && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0"
+              className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
               onClick={onNewFolder}
               title={t('fileTree.newFolder', 'New Folder (Cmd+Shift+N)')}
               aria-label={t('fileTree.newFolder', 'New Folder (Cmd+Shift+N)')}
               disabled={operationLoading}
             >
-              <FolderPlus className="h-3.5 w-3.5" />
+              <FolderPlus className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
             </Button>
           )}
           {onRefresh && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0"
+              className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
               onClick={onRefresh}
               title={t('fileTree.refresh', 'Refresh')}
               aria-label={t('fileTree.refresh', 'Refresh')}
               disabled={operationLoading}
             >
-              <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
+              <RefreshCw className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5', loading && 'animate-spin')} />
             </Button>
           )}
           {onCollapseAll && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 w-7 p-0"
+              className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
               onClick={onCollapseAll}
               title={t('fileTree.collapseAll', 'Collapse All')}
               aria-label={t('fileTree.collapseAll', 'Collapse All')}
             >
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
             </Button>
           )}
           {/* Divider */}
@@ -99,32 +103,32 @@ export default function FileTreeHeader({
           <Button
             variant={viewMode === 'simple' ? 'default' : 'ghost'}
             size="sm"
-            className="h-7 w-7 p-0"
+            className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
             onClick={() => onViewModeChange('simple')}
             title={t('fileTree.simpleView')}
             aria-label={t('fileTree.simpleView')}
           >
-            <List className="h-3.5 w-3.5" />
+            <List className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
           </Button>
           <Button
             variant={viewMode === 'compact' ? 'default' : 'ghost'}
             size="sm"
-            className="h-7 w-7 p-0"
+            className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
             onClick={() => onViewModeChange('compact')}
             title={t('fileTree.compactView')}
             aria-label={t('fileTree.compactView')}
           >
-            <Eye className="h-3.5 w-3.5" />
+            <Eye className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
           </Button>
           <Button
             variant={viewMode === 'detailed' ? 'default' : 'ghost'}
             size="sm"
-            className="h-7 w-7 p-0"
+            className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
             onClick={() => onViewModeChange('detailed')}
             title={t('fileTree.detailedView')}
             aria-label={t('fileTree.detailedView')}
           >
-            <TableProperties className="h-3.5 w-3.5" />
+            <TableProperties className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
           </Button>
         </div>
       </div>
@@ -137,7 +141,7 @@ export default function FileTreeHeader({
           placeholder={t('fileTree.searchPlaceholder')}
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.target.value)}
-          className="h-8 pl-8 pr-8 text-sm"
+          className={cn(isCompact ? 'h-7 pl-7 pr-7 text-xs' : 'h-8 pl-8 pr-8 text-sm')}
         />
         {searchQuery && (
           <Button

@@ -27,6 +27,9 @@ type FileTreeListProps = {
   handleCancelRename?: () => void;
   renameInputRef?: RefObject<HTMLInputElement>;
   operationLoading?: boolean;
+  changedFilePaths?: Set<string>;
+  focusedFilePath?: string | null;
+  isNarrow?: boolean;
 };
 
 export default function FileTreeList({
@@ -51,6 +54,9 @@ export default function FileTreeList({
   handleCancelRename,
   renameInputRef,
   operationLoading,
+  changedFilePaths,
+  focusedFilePath,
+  isNarrow,
 }: FileTreeListProps) {
   return (
     <div>
@@ -79,6 +85,9 @@ export default function FileTreeList({
           handleCancelRename={handleCancelRename}
           renameInputRef={renameInputRef}
           operationLoading={operationLoading}
+          changedFilePaths={changedFilePaths}
+          focusedFilePath={focusedFilePath}
+          isNarrow={isNarrow}
         />
       ))}
     </div>

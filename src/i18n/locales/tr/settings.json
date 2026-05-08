@@ -4,6 +4,7 @@
     "account": "Hesap",
     "permissions": "İzinler",
     "mcpServers": "MCP Sunucuları",
+    "pluginsMcp": "Eklentiler / MCP",
     "configuration": "Yapılandırma",
     "appearance": "Görünüm"
   },
@@ -56,7 +57,8 @@
       "appearance": "Görünüm",
       "toolDisplay": "Araç Gösterimi",
       "viewOptions": "Görünüm Seçenekleri",
-      "inputSettings": "Girdi Ayarları"
+      "inputSettings": "Girdi Ayarları",
+      "changeAwareness": "Hakimiyet"
     },
     "darkMode": "Koyu Mod",
     "autoExpandTools": "Araçları otomatik genişlet",
@@ -65,6 +67,26 @@
     "autoScrollToBottom": "Otomatik en alta kaydır",
     "sendByCtrlEnter": "Ctrl+Enter ile gönder",
     "sendByCtrlEnterDescription": "Etkinleştirildiğinde, Ctrl+Enter'a basmak yalnız Enter yerine mesajı gönderir. IME (girdi metot düzenleyici) kullananlar için yanlışlıkla göndermeyi önler.",
+    "changeAwareness": "Hakimiyet",
+    "changedFiles": {
+      "title": "Değişen dosyalar",
+      "description": "Yerel dosya değişikliklerini izler ve yeni değişiklikte Dosyalar panelini açar.",
+      "noProject": "Yerel değişiklikleri izlemek için bir proje seç.",
+      "refresh": "Değişen dosyaları yenile",
+      "empty": "Yerel değişiklik yok",
+      "disabled": "Yerel değişiklikleri izlemek için Hakimiyet'i aç.",
+      "more": "+{{count}} dosya daha",
+      "lastChecked": "Kontrol {{value}}",
+      "guideTitle": "Sağ panel rehberi",
+      "guideFiles": "Değişen dosyalar Dosyalar içinde yeşil parlar.",
+      "guidePanel": "Yeni değişiklikler split paneli otomatik açar.",
+      "status": {
+        "M": "D",
+        "A": "E",
+        "D": "S",
+        "U": "Y"
+      }
+    },
     "dragHandle": {
       "dragging": "Tutamaç sürükleniyor",
       "closePanel": "Ayarlar panelini kapat",
@@ -195,13 +217,27 @@
       "title": "Etkinlik Türleri",
       "actionRequired": "Aksiyon gerekli",
       "stop": "Çalıştırma durduruldu",
-      "error": "Çalıştırma başarısız"
+      "error": "Çalıştırma başarısız",
+      "updates": "Uygulama ve CLI güncellemeleri"
     }
   },
   "appearanceSettings": {
     "darkMode": {
       "label": "Koyu Mod",
       "description": "Açık ve koyu temalar arasında geçiş yap"
+    },
+    "colorTheme": {
+      "title": "Renk teması",
+      "palette": {
+        "label": "Vurgu paleti",
+        "description": "Butonlar, odak halkaları, navigasyon ve aktif durumlarda kullanılacak ürün rengini seç."
+      },
+      "custom": {
+        "label": "Özel açık/koyu renkler",
+        "description": "Açık ve koyu mod için ayrı vurgu renkleri seç. Kullanmak için yukarıdan Custom seç.",
+        "light": "Açık",
+        "dark": "Koyu"
+      }
     },
     "projectSorting": {
       "label": "Proje Sıralama",
@@ -382,6 +418,13 @@
     }
   },
   "agents": {
+    "status": {
+      "title": "CLI durumu",
+      "notChecked": "Henüz kontrol edilmedi",
+      "lastChecked": "Son kontrol: {{value}}",
+      "updatesFound": "{{count}} güncelleme var",
+      "refresh": "CLI durumunu yenile"
+    },
     "config": {
       "blurb": "{{name}} CLI'nin başlarken okuduğu dosyaları burada gör ve düzenle. Kaydet dediğinde doğrudan home dizinine yazılır.",
       "refresh": "Yenile",
@@ -392,6 +435,22 @@
       "notCreated": "yeni",
       "readonly": "salt-okunur",
       "noFiles": "Bu ajan için kayıtlı yapılandırma dosyası yok."
+    },
+    "cliVersion": {
+      "title": "CLI sürümü",
+      "installed": "Kurulu: {{version}}",
+      "unknownInstalled": "Kurulu sürüm bilinmiyor",
+      "latest": "Güncel: {{version}}",
+      "checkedAt": "Kontrol: {{value}}",
+      "cached": "önbellek",
+      "updateAvailable": "Güncelleme var",
+      "refresh": "Yenile",
+      "skipped": {
+        "external_installer": "Harici kurulum",
+        "installed_version_unavailable": "Kurulu sürüm okunamadı",
+        "latest_version_unavailable": "Güncel sürüm okunamadı",
+        "not_installed": "Kurulu değil"
+      }
     },
     "authStatus": {
       "checking": "Kontrol ediliyor...",

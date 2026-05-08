@@ -1,5 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+import {
+  DEFAULT_CUSTOM_DARK,
+  DEFAULT_CUSTOM_LIGHT,
+  THEME_ACCENT_STORAGE_KEY,
+  THEME_CUSTOM_DARK_STORAGE_KEY,
+  THEME_CUSTOM_LIGHT_STORAGE_KEY,
+  applyThemeAccent,
+  readThemeAccent,
+  readThemeColor,
+} from '../theme/appTheme';
+
 const ThemeContext = createContext();
 
 export const useTheme = () => {
@@ -26,9 +37,24 @@ export const ThemeProvider = ({ children }) => {
     
     return false;
   });
+  const [accentTheme, setAccentThemeState] = useState(readThemeAccent);
+  const [customLightAccent, setCustomLightAccentState] = useState(() => (
+    readThemeColor(THEME_CUSTOM_LIGHT_STORAGE_KEY, DEFAULT_CUSTOM_LIGHT)
+  ));
+  const [customDarkAccent, setCustomDarkAccentState] = useState(() => (
+    readThemeColor(THEME_CUSTOM_DARK_STORAGE_KEY, DEFAULT_CUSTOM_DARK)
+  ));
 
   // Update document class and localStorage when theme changes
   useEffect(() => {
+    const activeThemeColor = applyThemeAccent(
+      document.documentElement,
+      accentTheme,
+      isDarkMode,
+      customLightAccent,
+      customDarkAccent,
+    );
+
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');
@@ -41,7 +67,7 @@ export const ThemeProvider = ({ children }) => {
       
       const themeColorMeta = document.querySelector('meta[name="theme-color"]');
       if (themeColorMeta) {
-        themeColorMeta.setAttribute('content', '#0c1117'); // Dark background color (hsl(222.2 84% 4.9%))
+        themeColorMeta.setAttribute('content', activeThemeColor);
       }
     } else {
       document.documentElement.classList.remove('dark');
@@ -55,10 +81,10 @@ export const ThemeProvider = ({ children }) => {
       
       const themeColorMeta = document.querySelector('meta[name="theme-color"]');
       if (themeColorMeta) {
-        themeColorMeta.setAttribute('content', '#ffffff'); // Light background color
+        themeColorMeta.setAttribute('content', activeThemeColor);
       }
     }
-  }, [isDarkMode]);
+  }, [accentTheme, customDarkAccent, customLightAccent, isDarkMode]);
 
   // Listen for system theme changes
   useEffect(() => {
@@ -81,9 +107,30 @@ export const ThemeProvider = ({ children }) => {
     setIsDarkMode(prev => !prev);
   };
 
+  const setAccentTheme = (theme) => {
+    setAccentThemeState(theme);
+    localStorage.setItem(THEME_ACCENT_STORAGE_KEY, theme);
+  };
+
+  const setCustomLightAccent = (color) => {
+    setCustomLightAccentState(color);
+    localStorage.setItem(THEME_CUSTOM_LIGHT_STORAGE_KEY, color);
+  };
+
+  const setCustomDarkAccent = (color) => {
+    setCustomDarkAccentState(color);
+    localStorage.setItem(THEME_CUSTOM_DARK_STORAGE_KEY, color);
+  };
+
   const value = {
     isDarkMode,
     toggleDarkMode,
+    accentTheme,
+    setAccentTheme,
+    customLightAccent,
+    setCustomLightAccent,
+    customDarkAccent,
+    setCustomDarkAccent,
   };
 
   return (

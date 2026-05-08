@@ -7,7 +7,8 @@ import { notifyUser as notifyTelegramUser } from './telegram/bot.js';
 const KIND_TO_PREF_KEY = {
   action_required: 'actionRequired',
   stop: 'stop',
-  error: 'error'
+  error: 'error',
+  update: 'updates'
 };
 
 const PROVIDER_LABELS = {
@@ -15,6 +16,8 @@ const PROVIDER_LABELS = {
   cursor: 'Cursor',
   codex: 'Codex',
   gemini: 'Gemini',
+  qwen: 'Qwen Code',
+  opencode: 'OpenCode',
   system: 'System'
 };
 
@@ -121,7 +124,13 @@ function buildPushBody(event) {
     'run.stopped': event.meta?.stopReason || 'Run Stopped: The run has stopped',
     'run.failed': event.meta?.error ? `Run Failed: ${event.meta.error}` : 'Run Failed: The run encountered an error',
     'agent.notification': event.meta?.message ? String(event.meta.message) : 'You have a new notification',
-    'push.enabled': 'Push notifications are now enabled!'
+    'push.enabled': 'Push notifications are now enabled!',
+    'app.update.available': event.meta?.latestVersion
+      ? `Pixcode ${event.meta.latestVersion} is available`
+      : 'A Pixcode update is available',
+    'cli.update.available': event.meta?.latestVersion
+      ? `CLI update available: ${event.meta.latestVersion}`
+      : 'A CLI update is available'
   };
   const providerLabel = PROVIDER_LABELS[event.provider] || 'Assistant';
   const sessionName = resolveSessionName(event);

@@ -10,6 +10,7 @@ type NotificationsSettingsTabProps = {
   pushPermission: NotificationPermission | 'unsupported';
   isPushSubscribed: boolean;
   isPushLoading: boolean;
+  pushError?: string | null;
   onEnablePush: () => void;
   onDisablePush: () => void;
 };
@@ -20,6 +21,7 @@ export default function NotificationsSettingsTab({
   pushPermission,
   isPushSubscribed,
   isPushLoading,
+  pushError,
   onEnablePush,
   onDisablePush,
 }: NotificationsSettingsTabProps) {
@@ -78,6 +80,11 @@ export default function NotificationsSettingsTab({
             {isPushSubscribed && (
               <span className="text-sm text-green-600 dark:text-green-400">
                 {t('notifications.webPush.enabled')}
+              </span>
+            )}
+            {pushError && (
+              <span className="text-sm text-red-600 dark:text-red-400">
+                {pushError}
               </span>
             )}
           </div>
@@ -139,6 +146,24 @@ export default function NotificationsSettingsTab({
               className="h-4 w-4"
             />
             {t('notifications.events.error')}
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={notificationPreferences.events.updates}
+              onChange={(event) =>
+                onNotificationPreferencesChange({
+                  ...notificationPreferences,
+                  events: {
+                    ...notificationPreferences.events,
+                    updates: event.target.checked,
+                  },
+                })
+              }
+              className="h-4 w-4"
+            />
+            {t('notifications.events.updates', { defaultValue: 'App and CLI updates' })}
           </label>
         </div>
       </div>

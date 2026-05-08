@@ -19,6 +19,7 @@ import { CODEX_MODELS } from '../../shared/modelConstants.js';
 import { IS_PLATFORM } from '../constants/config.js';
 
 const router = express.Router();
+const isPixcodeApiKey = (token) => typeof token === 'string' && (token.startsWith('px_') || token.startsWith('ck_'));
 
 /**
  * Middleware to authenticate agent API requests.
@@ -49,18 +50,18 @@ const validateExternalApiKey = (req, res, next) => {
   }
 
   // Self-hosted mode: validate API key from any of the supported transports.
-  //   - Authorization: Bearer ck_... (added so /api/agent accepts the same
+  //   - Authorization: Bearer px_... (legacy ck_... still accepted)
   //     auth shape as the rest of the API, per the auth-unify in this turn)
-  //   - X-API-Key: ck_... (legacy, kept working)
-  //   - ?apiKey=ck_... (EventSource workaround)
+  //   - X-API-Key: px_...
+  //   - ?apiKey=px_... (EventSource workaround)
   const authHeader = req.headers['authorization'];
   const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-  const apiKey = (bearer && bearer.startsWith('ck_') ? bearer : null)
+  const apiKey = (isPixcodeApiKey(bearer) ? bearer : null)
     || req.headers['x-api-key']
     || (typeof req.query.apiKey === 'string' ? req.query.apiKey : null);
 
   if (!apiKey) {
-    return res.status(401).json({ error: 'API key required (Authorization: Bearer ck_..., X-API-Key, or ?apiKey=)' });
+    return res.status(401).json({ error: 'API key required (Authorization: Bearer px_..., X-API-Key, or ?apiKey=)' });
   }
 
   const user = apiKeysDb.validateApiKey(apiKey);
@@ -228,6 +229,61 @@ function validateBranchName(branchName) {
   }
 
   return { valid: true };
+}
+
+function providerDisplayName(provider) {
+  return ({
+    claude: 'Claude',
+    cursor: 'Cursor',
+    codex: 'Codex',
+    gemini: 'Gemini',
+    qwen: 'Qwen',
+    opencode: 'OpenCode',
+  })[provider] || 'Provider';
+}
+
+function describeProviderFailure(rawError, provider) {
+  const rawMessage = String(rawError || '').trim() || 'Provider returned no assistant text.';
+  const normalized = rawMessage.toLowerCase();
+  const name = providerDisplayName(provider);
+
+  const details = {
+    provider,
+    providerName: name,
+    category: 'provider_error',
+    title: `${name} could not answer.`,
+    action: 'Check the provider output, then retry with a shorter prompt or a different model.',
+    rawMessage,
+  };
+
+  if (/(balance|billing|quota|credit|insufficient|payment required|402|usage limit|spend limit)/i.test(rawMessage)) {
+    details.category = 'quota';
+    details.title = `${name} could not answer because the account has no available balance or quota.`;
+    details.action = 'Add credits, increase the provider usage limit, or switch to a free/available model.';
+  } else if (/(rate limit|too many requests|429|temporarily overloaded|resource exhausted)/i.test(rawMessage)) {
+    details.category = 'rate_limit';
+    details.title = `${name} is rate limited right now.`;
+    details.action = 'Wait a bit, reduce parallel runs, or switch to another provider/model.';
+  } else if (/(unauthorized|forbidden|permission_denied|permission denied|api key|token|oauth|login|not authenticated|401|403|invalid credentials)/i.test(rawMessage)) {
+    details.category = 'auth';
+    details.title = `${name} is not authenticated or the selected model is not allowed.`;
+    details.action = 'Reconnect this provider in Settings, refresh the CLI login, or choose a model enabled for the account.';
+  } else if (/(not installed|command not found|enoent|spawn .* enoent|executable file not found)/i.test(rawMessage)) {
+    details.category = 'missing_cli';
+    details.title = `${name} CLI is not installed or not on PATH.`;
+    details.action = 'Install the CLI from Settings -> Agents or set the matching CLI path environment variable.';
+  } else if (/(timeout|timed out|aborted|etimedout|deadline)/i.test(rawMessage)) {
+    details.category = 'timeout';
+    details.title = `${name} timed out before returning a complete answer.`;
+    details.action = 'Retry with a shorter request, reduce orchestration parallelism, or inspect the provider session log.';
+  } else if (normalized.includes('no assistant text') || normalized.includes('empty')) {
+    details.category = 'no_output';
+    details.title = `${name} finished without visible assistant text.`;
+    details.action = 'Retry once; if it repeats, check provider stderr/session logs because the CLI may have exited before streaming text.';
+  }
+
+  details.message = `${details.title} ${details.action}`;
+  return details;
 }
 
 /**
@@ -1276,6 +1332,12 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         (m) => m.type === 'assistant' && m.message?.content?.some?.((p) => p.type === 'text' && p.text)
       );
       const succeeded = !errorEntry && (hasAssistantText || assistantMessages.some((m) => m.type === 'tool_use' || m.type === 'tool_result'));
+      const failureDetails = succeeded
+        ? null
+        : describeProviderFailure(
+          errorEntry?.content || 'Provider returned no assistant text. Check backend log for details.',
+          provider,
+        );
 
       const response = {
         success: succeeded,
@@ -1284,10 +1346,10 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         tokens: tokenSummary,
         projectPath: finalProjectPath
       };
-      if (errorEntry) {
-        response.error = errorEntry.content;
-      } else if (!succeeded) {
-        response.error = 'Provider returned no assistant text. Check backend log for details.';
+      if (failureDetails) {
+        response.error = failureDetails.message;
+        response.rawError = failureDetails.rawMessage;
+        response.errorDetails = failureDetails;
       }
 
       // Add branch/PR info if created
@@ -1353,10 +1415,13 @@ router.post('/', validateExternalApiKey, async (req, res) => {
           if (errEntry) collectedError = errEntry.content;
         } catch { /* ignore — fall back to error.message */ }
       }
+      const failureDetails = describeProviderFailure(collectedError || error.message, provider);
       res.status(502).json({
         success: false,
         sessionId: writer && typeof writer.getSessionId === 'function' ? writer.getSessionId() : null,
-        error: collectedError || error.message,
+        error: failureDetails.message,
+        rawError: failureDetails.rawMessage,
+        errorDetails: failureDetails,
         wrapperError: collectedError ? error.message : undefined,
         messages: collectedMessages,
       });

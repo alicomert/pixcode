@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pixcode Orchestration - Multi-agent Coding Workflows</title>
+    <meta
+      name="description"
+      content="Pixcode orchestration coordinates Claude Code, Codex, Cursor CLI, Gemini CLI, Qwen Code, and OpenCode agents with roles, model selection, fallback CLI agents, workflow preview, streaming events, cancellation, review, handoff, and debate flows."
+    />
+    <meta
+      name="keywords"
+      content="AI agent orchestration, multi agent coding workflow, Pixcode orchestration, Claude Code orchestration, Codex orchestration, OpenCode orchestration, AI code review workflow, multi model review, agent team coding"
+    />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
+    <link rel="canonical" href="https://alicomert.github.io/pixcode/orchestration.html" />
+    <link rel="icon" href="favicon.png" />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a class="brand" href="landing.html">
+        <img src="logo.png" alt="" />
+        <span>Pixcode</span>
+      </a>
+      <div class="nav-links">
+        <a href="docs.html">Documentation</a>
+        <a href="features.html">Features</a>
+        <a href="orchestration.html">Orchestration</a>
+        <a href="api-automation.html">API</a>
+        <a href="https://github.com/alicomert/pixcode">GitHub</a>
+      </div>
+    </nav>
+
+    <header class="hero docs-hero">
+      <div>
+        <div class="eyebrow">Multi-agent workflows</div>
+        <h1>Orchestrate coding agents instead of babysitting terminals.</h1>
+        <p class="lead">
+          Pixcode orchestration lets one goal become a structured workflow: multiple providers, separate roles, model choices, fallback agents, previewable graphs, streamed progress, and a final review path.
+        </p>
+      </div>
+      <div class="image-slot">
+        <span><strong>Orchestration hero slot</strong>Recommended: 1600 x 1000. Show left workflow setup, right run output, role rows, model selectors, and fallback agent selector.</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <h2>Built-in workflow patterns</h2>
+        <div class="grid two">
+          <div class="card">
+            <strong>Agent Team</strong>
+            <p>Split a task across frontend, backend, review, docs, or custom roles. Each agent can have its own provider, model, label, and instruction.</p>
+          </div>
+          <div class="card">
+            <strong>Multi-model Review</strong>
+            <p>Ask different models or providers to inspect the same implementation. Useful for release risk, regressions, security-sensitive changes, and design critique.</p>
+          </div>
+          <div class="card">
+            <strong>Sequential Handoff</strong>
+            <p>Run a task in stages where one agent prepares context, another implements, another reviews, and a final step summarizes.</p>
+          </div>
+          <div class="card">
+            <strong>Decision Debate</strong>
+            <p>Compare approaches before code changes begin. This is useful when architecture, API shape, or UX direction is uncertain.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt">
+        <h2>Run controls</h2>
+        <p class="sublead">
+          Orchestration is not only a prompt box. It gives concrete controls that make multi-agent runs inspectable and recoverable.
+        </p>
+        <ul class="feature-list">
+          <li>Enable or disable agents before a run.</li>
+          <li>Duplicate a provider when multiple workers from the same CLI are needed.</li>
+          <li>Choose per-agent role, label, instruction, and stage.</li>
+          <li>Select models per agent, including OpenCode model choices.</li>
+          <li>Choose a fallback CLI agent for failures.</li>
+          <li>Preview the workflow DAG before execution.</li>
+          <li>Stream run events and inspect node state.</li>
+          <li>Cancel active workflow runs.</li>
+          <li>Resize left and right orchestration panes for desktop workflows.</li>
+        </ul>
+      </section>
+
+      <section class="section warm">
+        <h2>Orchestration API example</h2>
+        <p class="sublead">
+          The same system can be used by external tools through `px_` API keys.
+        </p>
+        <div class="code-panel"><pre><code>curl http://localhost:3001/api/orchestration/workflows/agent_team/preview \
+  -H "Authorization: Bearer px_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {
+      "agents": [
+        { "adapterId": "codex", "label": "Backend", "role": "backend" },
+        { "adapterId": "claude", "label": "Frontend", "role": "frontend" },
+        { "adapterId": "opencode", "label": "Reviewer", "role": "review" }
+      ],
+      "settings": {
+        "maxParallelAgents": 3,
+        "isolation": "host"
+      }
+    }
+  }'</code></pre></div>
+      </section>
+
+      <section class="section">
+        <h2>Screenshot slots</h2>
+        <div class="grid two">
+          <div class="image-slot wide"><span><strong>Workflow setup slot</strong>1600 x 1000. Show agent list, roles, models, fallback, and run button.</span></div>
+          <div class="image-slot wide"><span><strong>Workflow output slot</strong>1600 x 1000. Show streamed events, agent steps, final report, and review result.</span></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <strong>Pixcode orchestration</strong> · <a href="docs.html">Documentation</a> · <a href="api-automation.html">API automation</a>
+    </footer>
+  </body>
+</html>

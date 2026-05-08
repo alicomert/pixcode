@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 import { ReleaseInfo } from '../types/sharedTypes';
+import { notifyOnce } from '../utils/localNotifications';
 
 /**
  * Compare two semantic version strings
@@ -103,11 +104,25 @@ export const useVersionCheck = (owner: string, repo: string) => {
 
         if (data.tag_name) {
           const latest = data.tag_name.replace(/^v/, '');
+          const isUpdateAvailable = compareVersions(latest, currentVersion) > 0;
           setLatestVersion(latest);
           // Only flag an update when the published release is strictly
           // newer than what's running. An older latest (e.g. local 1.30.2
           // vs. npm 1.30.1) must NOT surface as an available update.
-          setUpdateAvailable(compareVersions(latest, currentVersion) > 0);
+          setUpdateAvailable(isUpdateAvailable);
+          if (isUpdateAvailable) {
+            void notifyOnce({
+              key: `app-update:${latest}`,
+              title: 'Pixcode update available',
+              body: `Pixcode ${currentVersion} can update to ${latest}.`,
+              tag: 'pixcode-app-update',
+              data: {
+                type: 'app-update',
+                latestVersion: latest,
+                installMode,
+              },
+            });
+          }
 
           setReleaseInfo({
             title: data.name || data.tag_name,
@@ -153,7 +168,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [owner, repo, currentVersion]);
+  }, [owner, repo, currentVersion, installMode]);
 
   // Expose a manual trigger so the About tab's "Check for Updates" button
   // can fire the same code path used by the interval / focus listeners.

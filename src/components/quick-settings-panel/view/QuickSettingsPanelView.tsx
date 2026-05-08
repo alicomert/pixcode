@@ -4,6 +4,8 @@ import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useTheme } from '../../../contexts/ThemeContext';
+import type { Project } from '../../../types/app';
+import type { ChangedFileEntry } from '../../../utils/changedFiles';
 import { useQuickSettingsDrag } from '../hooks/useQuickSettingsDrag';
 import type { PreferenceToggleKey, QuickSettingsPreferences } from '../types';
 
@@ -11,7 +13,27 @@ import QuickSettingsContent from './QuickSettingsContent';
 import QuickSettingsHandle from './QuickSettingsHandle';
 import QuickSettingsPanelHeader from './QuickSettingsPanelHeader';
 
-export default function QuickSettingsPanelView() {
+type QuickSettingsPanelViewProps = {
+  selectedProject?: Project | null;
+  changedFiles?: ChangedFileEntry[];
+  changedFilesLoading?: boolean;
+  changedFilesError?: string | null;
+  latestChangedFilePath?: string | null;
+  lastChangedFilesCheckedAt?: number | null;
+  onRefreshChangedFiles?: () => void;
+  onFocusChangedFile?: (filePath: string) => void;
+};
+
+export default function QuickSettingsPanelView({
+  selectedProject = null,
+  changedFiles = [],
+  changedFilesLoading = false,
+  changedFilesError = null,
+  latestChangedFilePath = null,
+  lastChangedFilesCheckedAt = null,
+  onRefreshChangedFiles,
+  onFocusChangedFile,
+}: QuickSettingsPanelViewProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { isDarkMode } = useTheme();
@@ -29,9 +51,11 @@ export default function QuickSettingsPanelView() {
     showThinking: preferences.showThinking,
     autoScrollToBottom: preferences.autoScrollToBottom,
     sendByCtrlEnter: preferences.sendByCtrlEnter,
+    changeAwareness: preferences.changeAwareness,
   }), [
     preferences.autoExpandTools,
     preferences.autoScrollToBottom,
+    preferences.changeAwareness,
     preferences.sendByCtrlEnter,
     preferences.showRawParameters,
     preferences.showThinking,
@@ -76,7 +100,15 @@ export default function QuickSettingsPanelView() {
           <QuickSettingsContent
             isDarkMode={isDarkMode}
             preferences={quickSettingsPreferences}
+            selectedProject={selectedProject}
+            changedFiles={changedFiles}
+            changedFilesLoading={changedFilesLoading}
+            changedFilesError={changedFilesError}
+            latestChangedFilePath={latestChangedFilePath}
+            lastChangedFilesCheckedAt={lastChangedFilesCheckedAt}
             onPreferenceChange={handlePreferenceChange}
+            onRefreshChangedFiles={onRefreshChangedFiles}
+            onFocusChangedFile={onFocusChangedFile}
           />
         </div>
       </div>

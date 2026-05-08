@@ -55,7 +55,8 @@
       "appearance": "Aspetto",
       "toolDisplay": "Visualizzazione strumenti",
       "viewOptions": "Opzioni visualizzazione",
-      "inputSettings": "Impostazioni input"
+      "inputSettings": "Impostazioni input",
+      "changeAwareness": "Centro controllo"
     },
     "darkMode": "Modalità scura",
     "autoExpandTools": "Espandi strumenti automaticamente",
@@ -64,6 +65,26 @@
     "autoScrollToBottom": "Scorrimento automatico in basso",
     "sendByCtrlEnter": "Invia con Ctrl+Invio",
     "sendByCtrlEnterDescription": "Se abilitato, premere Ctrl+Invio invierà il messaggio invece di Invio. Utile per gli utenti IME per evitare invii accidentali.",
+    "changeAwareness": "Centro controllo",
+    "changedFiles": {
+      "title": "File modificati",
+      "description": "Segue le modifiche locali e apre il pannello File quando appare una nuova modifica.",
+      "noProject": "Seleziona un progetto per seguire le modifiche locali.",
+      "refresh": "Aggiorna file modificati",
+      "empty": "Nessuna modifica locale rilevata",
+      "disabled": "Abilita Centro controllo per monitorare le modifiche locali.",
+      "more": "+{{count}} altri file",
+      "lastChecked": "Controllato {{value}}",
+      "guideTitle": "Guida pannello destro",
+      "guideFiles": "I file modificati si illuminano in verde in File.",
+      "guidePanel": "Le nuove modifiche aprono automaticamente il pannello diviso.",
+      "status": {
+        "M": "M",
+        "A": "A",
+        "D": "D",
+        "U": "U"
+      }
+    },
     "dragHandle": {
       "dragging": "Trascinamento maniglia",
       "closePanel": "Chiudi pannello impostazioni",

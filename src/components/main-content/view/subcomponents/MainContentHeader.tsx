@@ -17,6 +17,7 @@ export default function MainContentHeader({
   canUseSidePanelSplit,
   isMobile,
   onMenuClick,
+  onCloseSidePanel,
 }: MainContentHeaderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -68,6 +69,7 @@ export default function MainContentHeader({
               sidePanelMode={sidePanelMode}
               canUseSidePanelSplit={canUseSidePanelSplit}
               isMobile={isMobile}
+              onCloseSidePanel={onCloseSidePanel}
             />
           </div>
           {canScrollRight && (

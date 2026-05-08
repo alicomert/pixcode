@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pixcode - Self-hosted AI Coding Agent Control Room</title>
+    <meta
+      name="description"
+      content="Pixcode is a self-hosted web UI and desktop/server control room for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode with multi-agent orchestration, files, shell, Git, API keys, Telegram, notifications, plugins, MCP, and theme customization."
+    />
+    <meta
+      name="keywords"
+      content="Pixcode, AI coding agent UI, Claude Code UI, Claude Code web UI, OpenAI Codex UI, Codex web UI, Cursor CLI UI, Gemini CLI UI, Qwen Code UI, OpenCode UI, multi agent orchestration, AI coding assistant, self hosted AI IDE, local AI coding workspace, coding agent dashboard, MCP manager, Telegram coding bot, yapay zeka kodlama arayuzu, self hosted developer tool"
+    />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="author" content="Pixcode Contributors" />
+    <link rel="canonical" href="https://alicomert.github.io/pixcode/landing.html" />
+    <link rel="icon" href="favicon.png" />
+    <link rel="stylesheet" href="site.css" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Pixcode - Self-hosted AI Coding Agent Control Room" />
+    <meta
+      property="og:description"
+      content="Run Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode from one self-hosted workspace with chat, shell, files, Git, orchestration, API keys, Telegram, plugins, MCP, and desktop installers."
+    />
+    <meta property="og:image" content="screenshots/desktop-main.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#080a0c" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Pixcode",
+        "alternateName": [
+          "Pixcode AI Coding Agent UI",
+          "Pixcode Claude Code UI",
+          "Pixcode Codex UI",
+          "Pixcode OpenCode UI"
+        ],
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Windows, macOS, Linux, Web",
+        "description": "Self-hosted web UI and desktop/server control room for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode.",
+        "softwareVersion": "1.36.0",
+        "codeRepository": "https://github.com/alicomert/pixcode",
+        "downloadUrl": "https://www.npmjs.com/package/@pixelbyte-software/pixcode",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "Multi-CLI AI coding agent chat",
+          "Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode support",
+          "Files, shell, and Git source control",
+          "Changed files command center",
+          "Multi-agent orchestration workflows",
+          "Per-agent role, instruction, model, and fallback controls",
+          "REST and WebSocket API with px_ API keys",
+          "Telegram bridge and browser notifications",
+          "MCP server management and plugin system",
+          "Theme palettes and desktop installers"
+        ],
+        "sameAs": [
+          "https://github.com/alicomert/pixcode",
+          "https://www.npmjs.com/package/@pixelbyte-software/pixcode"
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a class="brand" href="landing.html">
+        <img src="logo.png" alt="" />
+        <span>Pixcode</span>
+      </a>
+      <div class="nav-links">
+        <a href="docs.html">Documentation</a>
+        <a href="features.html">Features</a>
+        <a href="orchestration.html">Orchestration</a>
+        <a href="api-automation.html">API</a>
+        <a href="https://github.com/alicomert/pixcode">GitHub</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Self-hosted AI coding workspace</div>
+        <h1>Pixcode</h1>
+        <p class="lead">
+          A control room for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode. Chat with agents, inspect files, run shell commands, review Git changes, orchestrate multiple agents, expose API access, and keep long-running work alive on your own machine or server.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="https://www.npmjs.com/package/@pixelbyte-software/pixcode">Install from npm</a>
+          <a class="button" href="docs.html">Read documentation</a>
+          <a class="button" href="https://github.com/alicomert/pixcode/releases/latest">Download desktop builds</a>
+        </div>
+        <div class="chips" aria-label="Supported providers and features">
+          <span class="chip">Claude Code</span>
+          <span class="chip">Cursor CLI</span>
+          <span class="chip">OpenAI Codex</span>
+          <span class="chip">Gemini CLI</span>
+          <span class="chip">Qwen Code</span>
+          <span class="chip">OpenCode</span>
+          <span class="chip">MCP</span>
+          <span class="chip">Telegram</span>
+          <span class="chip">px_ API keys</span>
+        </div>
+      </div>
+      <div class="hero-panel" aria-label="Pixcode product preview">
+        <img src="screenshots/desktop-main.png" alt="Pixcode desktop workspace showing chat, project controls, and agent workflow" />
+        <div class="terminal-strip">
+          <div class="prompt-line"><span>$</span><span>npx @pixelbyte-software/pixcode</span></div>
+          <div class="prompt-line"><span>></span><span>open http://localhost:3001</span></div>
+          <div class="prompt-line"><span>></span><span>agents, shell, files, git, orchestration, API</span></div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section">
+        <h2>Built for agent work that does not fit inside one terminal.</h2>
+        <p class="sublead">
+          Pixcode is for developers who already use coding CLIs but want visibility, control, and remote access. It keeps the raw power of provider-native CLIs while adding a real workspace around them.
+        </p>
+        <div class="grid three">
+          <div class="card">
+            <strong class="accent-green">Multi-CLI workspace</strong>
+            <p>Use Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode without rebuilding your workflow around a single provider.</p>
+          </div>
+          <div class="card">
+            <strong class="accent-cyan">Files, shell, Git</strong>
+            <p>Open changed files, run shell commands, inspect source control, and keep the main chat or orchestration view visible with split panels.</p>
+          </div>
+          <div class="card">
+            <strong class="accent-amber">Orchestration</strong>
+            <p>Run agent teams, review workflows, sequential handoffs, and decision debates with per-agent model, role, instruction, and fallback choices.</p>
+          </div>
+        </div>
+        <div class="kpi-row">
+          <div class="kpi"><strong>6</strong><span>major CLI providers in one UI</span></div>
+          <div class="kpi"><strong>px_</strong><span>API key prefix for automation</span></div>
+          <div class="kpi"><strong>1 port</strong><span>normal runtime on port 3001</span></div>
+          <div class="kpi"><strong>3</strong><span>desktop platforms via releases</span></div>
+        </div>
+      </section>
+
+      <section class="section alt">
+        <h2>Screenshot slots for your final marketing images.</h2>
+        <p class="sublead">
+          Replace these slots with polished product screenshots when the final visuals are ready. The layout is already sized so images can drop in without changing the content structure.
+        </p>
+        <div class="grid two">
+          <div class="image-slot wide">
+            <span><strong>Hero screenshot slot</strong>Recommended: 1600 x 1000. Show the full Pixcode workspace with chat, Files, Shell, Source Control, and provider selection.</span>
+          </div>
+          <div class="image-slot wide">
+            <span><strong>Orchestration screenshot slot</strong>Recommended: 1600 x 1000. Show agent roles, run modes, fallback agent, model selection, and workflow output.</span>
+          </div>
+          <div class="image-slot">
+            <span><strong>Mobile screenshot slot</strong>Recommended: 900 x 1600. Show the mobile chat or orchestration experience.</span>
+          </div>
+          <div class="image-slot">
+            <span><strong>Theme screenshot slot</strong>Recommended: 1200 x 900. Show emerald, VS Code-like, and custom accent themes.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section warm">
+        <h2>Fast installation, server mode, desktop mode.</h2>
+        <p class="sublead">
+          Pixcode targets Node.js 22+, ships through npm, and can run as a Linux daemon for always-on remote usage. Desktop builds are published for Windows, macOS, and Linux.
+        </p>
+        <div class="grid three">
+          <div class="code-panel"><pre><code>npx @pixelbyte-software/pixcode</code></pre></div>
+          <div class="code-panel"><pre><code>npm install -g @pixelbyte-software/pixcode
+pixcode</code></pre></div>
+          <div class="code-panel"><pre><code>pixcode daemon install --mode auto --port 3001
+pixcode daemon status --mode auto</code></pre></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Made discoverable for developers and AI assistants.</h2>
+        <p class="sublead">
+          This static site includes direct documentation pages, OpenAPI links, a sitemap, robots instructions, and LLM-readable summaries so search engines and AI systems can understand what Pixcode does.
+        </p>
+        <div class="grid three">
+          <div class="card">
+            <strong>Human docs</strong>
+            <p>Start with <a href="docs.html">docs.html</a> for a complete explanation of every major system.</p>
+          </div>
+          <div class="card">
+            <strong>API docs</strong>
+            <p>Use <a href="api-automation.html">api-automation.html</a> and <a href="openapi.yaml">openapi.yaml</a> for automation and integration details.</p>
+          </div>
+          <div class="card">
+            <strong>AI discovery</strong>
+            <p>Use <a href="llms.txt">llms.txt</a> and <a href="llms-full.txt">llms-full.txt</a> for concise machine-readable project context.</p>
+          </div>
+        </div>
+        <p class="disclaimer">
+          Pixcode is an independent open-source project and is not affiliated with OpenAI, Anthropic, Google, Cursor, Alibaba/Qwen, or OpenCode.
+        </p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <strong>Pixcode</strong> · self-hosted AI coding agent control room ·
+      <a href="docs.html">Documentation</a> ·
+      <a href="features.html">Features</a> ·
+      <a href="orchestration.html">Orchestration</a> ·
+      <a href="api-automation.html">API</a> ·
+      <a href="https://github.com/alicomert/pixcode">GitHub</a>
+    </footer>
+  </body>
+</html>

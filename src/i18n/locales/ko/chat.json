@@ -110,10 +110,6 @@
     "attachImages": "이미지 첨부",
     "send": "전송",
     "stop": "중지",
-    "hintText": {
-      "ctrlEnter": "Ctrl+Enter로 전송 • Shift+Enter로 줄바꿈 • Tab으로 모드 변경 • /로 슬래시 명령어",
-      "enter": "Enter로 전송 • Shift+Enter로 줄바꿈 • Tab으로 모드 변경 • /로 슬래시 명령어"
-    },
     "clickToChangeMode": "클릭하여 권한 모드 변경 (또는 입력창에서 Tab)",
     "showAllCommands": "모든 명령어 보기",
     "clearInput": "입력 지우기",

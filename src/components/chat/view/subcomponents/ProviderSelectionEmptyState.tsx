@@ -224,6 +224,7 @@ export default function ProviderSelectionEmptyState({
               const status = providerAuthStatus[card.id];
               const isUnknown = !status || status.loading || status.installed === null;
               const isLocked = status?.installed === false;
+              const hasCliUpdate = Boolean(status?.updateAvailable && status.latestVersion && !isLocked);
 
               return (
                 <div
@@ -267,8 +268,15 @@ export default function ProviderSelectionEmptyState({
                       className={cn("h-6 w-6 shrink-0", isLocked && "grayscale")}
                     />
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-foreground">
-                        {card.name}
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold text-foreground">
+                          {card.name}
+                        </span>
+                        {hasCliUpdate && (
+                          <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                            {t("providerSelection.updateAvailable", { defaultValue: "Update" })}
+                          </span>
+                        )}
                       </div>
                       <div className="truncate text-[11px] text-muted-foreground">
                         {isUnknown
@@ -355,8 +363,12 @@ export default function ProviderSelectionEmptyState({
                 // the dialog closes. If the refresh hangs or throws, we still
                 // close the dialog and select the provider — the user can
                 // manually refresh from Settings if anything is off.
-                try { await refreshProviderAuthStatuses(); } catch { /* noop */ }
                 const justInstalled = installerFor;
+                try {
+                  if (justInstalled) {
+                    await refreshProviderAuthStatuses([justInstalled], { force: true });
+                  }
+                } catch { /* noop */ }
                 setInstallerFor(null);
                 if (justInstalled) selectProvider(justInstalled);
               }}

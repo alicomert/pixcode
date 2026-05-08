@@ -376,7 +376,7 @@ const userDb = {
 // API key operations
 // ---------------------------------------------------------------------------
 const apiKeysDb = {
-    generateApiKey: () => 'ck_' + crypto.randomBytes(32).toString('hex'),
+    generateApiKey: () => 'px_' + crypto.randomBytes(32).toString('hex'),
 
     createApiKey: (userId, keyName) => {
         const apiKey = apiKeysDb.generateApiKey();
@@ -493,7 +493,7 @@ const credentialsDb = {
 // ---------------------------------------------------------------------------
 const DEFAULT_NOTIFICATION_PREFERENCES = {
     channels: { inApp: false, webPush: false },
-    events: { actionRequired: true, stop: true, error: true },
+    events: { actionRequired: true, stop: true, error: true, updates: true },
 };
 
 const normalizeNotificationPreferences = (value) => {
@@ -507,6 +507,7 @@ const normalizeNotificationPreferences = (value) => {
             actionRequired: source.events?.actionRequired !== false,
             stop: source.events?.stop !== false,
             error: source.events?.error !== false,
+            updates: source.events?.updates !== false,
         },
     };
 };

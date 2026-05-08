@@ -55,7 +55,8 @@
       "appearance": "外観",
       "toolDisplay": "ツール表示",
       "viewOptions": "表示オプション",
-      "inputSettings": "入力設定"
+      "inputSettings": "入力設定",
+      "changeAwareness": "コントロール"
     },
     "darkMode": "ダークモード",
     "autoExpandTools": "ツールを自動展開",
@@ -64,6 +65,26 @@
     "autoScrollToBottom": "自動スクロール",
     "sendByCtrlEnter": "Ctrl+Enterで送信",
     "sendByCtrlEnterDescription": "有効にすると、Enterではなく Ctrl+Enter でメッセージを送信します。IMEユーザーの誤送信防止に便利です。",
+    "changeAwareness": "コントロール",
+    "changedFiles": {
+      "title": "変更されたファイル",
+      "description": "ローカル変更を追跡し、新しい変更が出たらファイルパネルを開きます。",
+      "noProject": "ローカル変更を追跡するプロジェクトを選択してください。",
+      "refresh": "変更ファイルを更新",
+      "empty": "ローカル変更はありません",
+      "disabled": "ローカル変更を監視するにはコントロールを有効にしてください。",
+      "more": "ほか {{count}} 件",
+      "lastChecked": "{{value}} に確認",
+      "guideTitle": "右パネルガイド",
+      "guideFiles": "変更されたファイルはファイル内で緑に光ります。",
+      "guidePanel": "新しい変更で分割パネルが自動的に開きます。",
+      "status": {
+        "M": "M",
+        "A": "A",
+        "D": "D",
+        "U": "U"
+      }
+    },
     "dragHandle": {
       "dragging": "ドラッグ中",
       "closePanel": "設定パネルを閉じる",

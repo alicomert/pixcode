@@ -1,248 +1,166 @@
 <div align="center">
-  <img src="public/logo.svg" alt="Pixcode" width="64" height="64">
-  <h1>Cloud CLI (auch bekannt als Claude Code UI)</h1>
-  <p>Eine Desktop- und Mobile-Oberfläche für <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>, <a href="https://developers.openai.com/codex">Codex</a> und <a href="https://geminicli.com/">Gemini-CLI</a>.<br>Lokal oder remote nutzbar – verwalte deine aktiven Projekte und Sitzungen von überall.</p>
+  <img src="public/logo.png" alt="Pixcode logo" width="96" height="96" />
+  <h1>Pixcode</h1>
+  <p><strong>Self-hosted Kontrollraum für AI-Coding-Agents.</strong></p>
+  <p>
+    Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code und OpenCode in einer Weboberfläche: Chat, Shell, Dateien, Git, Orchestrierung, API-Keys, Plugins, Benachrichtigungen, Telegram und Desktop-/Server-Betrieb.
+  </p>
+  <p>
+    <a href="README.md">English</a> ·
+    <a href="README.tr.md">Türkçe</a> ·
+    <a href="README.ru.md">Русский</a> ·
+    <a href="README.ja.md">日本語</a> ·
+    <a href="README.ko.md">한국어</a> ·
+    <a href="README.zh-CN.md">简体中文</a>
+  </p>
 </div>
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode">Pixcode</a> · <a href="https://github.com/alicomert/pixcode">Dokumentation</a> · <a href="https://discord.gg/buxwujPNRE">Discord</a> · <a href="https://github.com/alicomert/pixcode/issues">Fehler melden</a> · <a href="CONTRIBUTING.md">Mitwirken</a>
-</p>
+## Was ist Pixcode?
 
-<p align="center">
-  <a href="https://github.com/alicomert/pixcode"><img src="https://img.shields.io/badge/☁️_Pixcode_Cloud-Try_Now-0066FF?style=for-the-badge" alt="Pixcode"></a>
-  <a href="https://discord.gg/buxwujPNRE"><img src="https://img.shields.io/badge/Discord-Join_Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Community"></a>
-</p>
+Pixcode macht deinen Laptop, Desktop-Rechner oder Linux-Server zu einem browserbasierten Arbeitsbereich für Coding-Agents. Statt Terminalfenster, CLI-Ausgaben, Dateimanager, Git-Ansicht und Provider-Einstellungen getrennt zu öffnen, bündelt Pixcode alles in einer lokalen Web-App.
 
-<div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <b>Deutsch</b> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a> · <a href="./README.it.md">Italiano</a></i></div>
+Typische Setups:
 
----
+- **Lokal**: Pixcode auf dem eigenen Rechner starten und die bekannten CLIs mit einer komfortableren UI nutzen.
+- **Server/VDS**: Pixcode als Linux-Daemon betreiben und von Browser, Tablet oder Smartphone zugreifen.
+- **Desktop**: Windows-, macOS- und Linux-Installer aus den GitHub-Releases verwenden.
+
+Pixcode ist keine gehostete Cloud-IDE. Projekte, Credentials, Sessions, lokale Dateien, Git-Status und MCP-Konfiguration bleiben auf deiner eigenen Maschine, solange du sie nicht bewusst mit externen Diensten verbindest.
 
 ## Screenshots
 
-<div align="center">
+| Workspace | Mobile Chat |
+| --- | --- |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
 
-<table>
-<tr>
-<td align="center">
-<h3>Desktop-Ansicht</h3>
-<img src="public/screenshots/desktop-main.png" alt="Desktop-Oberfläche" width="400">
-<br>
-<em>Hauptoberfläche mit Projektübersicht und Chat</em>
-</td>
-<td align="center">
-<h3>Mobile-Erfahrung</h3>
-<img src="public/screenshots/mobile-chat.png" alt="Mobile-Oberfläche" width="250">
-<br>
-<em>Responsives mobiles Design mit Touch-Navigation</em>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="2">
-<h3>CLI-Auswahl</h3>
-<img src="public/screenshots/cli-selection.png" alt="CLI-Auswahl" width="400">
-<br>
-<em>Wähle zwischen Claude Code, Gemini, Cursor CLI und Codex</em>
-</td>
-</tr>
-</table>
-
-
-
-</div>
+| CLI-Auswahl | Tools und MCP |
+| --- | --- |
+| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
 
 ## Funktionen
 
-- **Responsives Design** – Funktioniert nahtlos auf Desktop, Tablet und Mobilgerät, sodass du Agents auch vom Smartphone aus nutzen kannst
-- **Interaktives Chat-Interface** – Eingebaute Chat-Oberfläche für die reibungslose Kommunikation mit den Agents
-- **Integriertes Shell-Terminal** – Direkter Zugriff auf die Agents CLI über die eingebaute Shell-Funktionalität
-- **Datei-Explorer** – Interaktiver Dateibaum mit Syntaxhervorhebung und Live-Bearbeitung
-- **Git-Explorer** – Änderungen anzeigen, stagen und committen. Branches wechseln ebenfalls möglich
-- **Sitzungsverwaltung** – Gespräche fortsetzen, mehrere Sitzungen verwalten und Verlauf nachverfolgen
-- **Plugin-System** – Pixcode mit eigenen Plugins erweitern – neue Tabs, Backend-Dienste und Integrationen hinzufügen. [Eigenes Plugin erstellen →](https://github.com/alicomert/pixcode)
-- **TaskMaster AI Integration** *(Optional)* – Erweitertes Projektmanagement mit KI-gestützter Aufgabenplanung, PRD-Parsing und Workflow-Automatisierung
-- **Modell-Kompatibilität** – Funktioniert mit Claude, GPT und Gemini (vollständige Liste unterstützter Modelle in [`shared/modelConstants.js`](shared/modelConstants.js))
+### Ein UI für mehrere CLIs
 
+- Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code und OpenCode.
+- Provider-Auth, API-Key-Credentials, OAuth-Paste, Install-Status, Modelllisten und CLI-Versionen unter Settings.
+- Provider-native CLIs bleiben erhalten; Pixcode ergänzt Session-Management, WebSocket-Streaming, Benachrichtigungen, Dateikontext und Projektsteuerung.
+- Der UI-Zustand zeigt, ob ein CLI denkt, Tools ausführt, auf Freigabe wartet oder Ausgabe streamt.
 
-## Schnellstart
+### Chat, Dateien, Shell und Git
 
-### Pixcode (Empfohlen)
+- Projektbezogene Sessions mit Verlauf.
+- Prompt-Eingabe fest am unteren Rand des Chat-/Projektbereichs.
+- Eingebaute Shell, die auf Desktop als halbes Panel oder Vollpanel geöffnet werden kann.
+- Datei-Browser mit Bearbeiten, Upload, Umbenennen, Löschen und Detailansicht.
+- Source-Control-Ansicht für Status, Diffs, Branches, Commits und geänderte Dateien.
+- Split-Panels mit Icon-Controls, Schließen-Button und responsive Layout für Mobile.
 
-Der schnellste Einstieg – keine lokale Einrichtung erforderlich. Erhalte eine vollständig verwaltete, containerisierte Entwicklungsumgebung, die über Web, Mobile App, API oder deine bevorzugte IDE erreichbar ist.
+### Command Center für Änderungen
 
-**[Mit Pixcode starten](https://github.com/alicomert/pixcode)**
+Pixcode beobachtet lokale Working-Tree-Änderungen. Der Command-Center-Modus in Quick Settings listet geänderte Dateien sofort auf, markiert neue Änderungen sichtbar und kann direkt zur betroffenen Datei springen. So bleibt nachvollziehbar, was ein Agent im Projekt geändert hat.
 
+### Multi-Agent-Orchestrierung
 
-### Self-Hosted (Open Source)
+Die Orchestrierung koordiniert mehrere CLI-Agents für ein gemeinsames Ziel.
 
-#### npm
+- **Agent Team**: Aufgaben nach Rollen wie Frontend, Backend, Review oder Docs aufteilen.
+- **Multi-model Review**: dieselbe Änderung mit mehreren Providern oder Modellen prüfen.
+- **Sequential Handoff**: Arbeitsschritte nacheinander übergeben.
+- **Decision Debate**: Lösungswege vergleichen, bevor implementiert wird.
 
-Pixcode sofort mit **npx** ausprobieren (erfordert **Node.js** v22+):
+Kontrollen:
+
+- Agents pro Lauf aktivieren oder deaktivieren,
+- Provider mehrfach verwenden,
+- Rolle, Stage, Label und Instruktion pro Agent setzen,
+- Modell pro Agent auswählen, auch für OpenCode,
+- Fallback-CLI für fehlerhafte Schritte definieren,
+- Workflow-DAG vorab anzeigen,
+- Run-Events streamen und aktive Runs abbrechen,
+- Orchestrierungsbereiche per Drag ändern.
+
+### API, Telegram und Benachrichtigungen
+
+Pixcode nutzt REST und WebSocket auch intern. Externe Automatisierung kann Pixcode über API-Keys steuern. Neue Keys beginnen mit `px_`; alte `ck_` Keys bleiben kompatibel.
+
+```bash
+curl http://localhost:3001/api/projects \
+  -H "Authorization: Bearer px_your_key_here"
+```
+
+Weitere Möglichkeiten:
+
+- `POST /api/agent` für nicht-interaktive Agent-Läufe.
+- `/api/orchestration/workflows/*` für Preview, Start, Streaming und Cancel von Workflows.
+- Browser-Push und Telegram-Benachrichtigungen für abgeschlossene, fehlgeschlagene oder wartende Tasks.
+- Telegram-Pairing über kurzlebige Codes und optionaler Prompt-Bridge.
+
+OpenAPI: [`public/openapi.yaml`](public/openapi.yaml)
+
+### Themes, Plugins und MCP
+
+- Dark/Light Mode.
+- Accent-Paletten wie Emerald und VS-Code-ähnliche Farben.
+- Eigene Accent-Farben getrennt für Dark und Light.
+- Tokenbasiertes Styling für Buttons, Fokus, Navigation und aktive Zustände.
+- MCP-Serververwaltung für unterstützte Provider.
+- Plugin-System mit Frontend-Tabs und optionalen Backend-Services.
+
+## Installation
+
+Node.js 22 oder neuer wird benötigt.
 
 ```bash
 npx @pixelbyte-software/pixcode
 ```
 
-Oder **global** installieren für regelmäßige Nutzung:
+Oder global:
 
 ```bash
 npm install -g @pixelbyte-software/pixcode
 pixcode
 ```
 
-Öffne `http://localhost:3001` – alle vorhandenen Sitzungen werden automatisch erkannt.
+Öffnen:
 
-Die **[Dokumentation →](https://github.com/alicomert/pixcode)** enthält weitere Konfigurationsoptionen, PM2, Remote-Server-Einrichtung und mehr.
-
-#### Docker Sandboxes (Experimentell)
-
-Agents in isolierten Sandboxes mit Hypervisor-Isolation ausführen. Standardmäßig wird Claude Code gestartet. Erfordert die [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
-
-```
-npx @pixelbyte-software/pixcode@latest sandbox ~/my-project
+```text
+http://localhost:3001
 ```
 
-Unterstützt Claude Code, Codex und Gemini CLI. Weitere Details in der [Sandbox-Dokumentation](docker/).
+Desktop-Builds gibt es in den GitHub-Releases: Windows `.exe`, macOS `.dmg`, Linux AppImage/Pakete.
 
----
+## Linux-Daemon
 
-## Welche Option passt zu dir?
+```bash
+pixcode daemon install --mode auto --port 3001
+pixcode daemon status --mode auto
+pixcode daemon logs --mode auto
+pixcode daemon restart --mode auto
+```
 
-Pixcode ist die Open-Source-UI-Schicht, die Pixcode antreibt. Du kannst es auf deinem eigenen Rechner selbst hosten oder Pixcode nutzen, das darauf aufbaut und eine vollständig verwaltete Cloud-Umgebung, Team-Funktionen und tiefere Integrationen bietet.
+Foreground:
 
-| | Pixcode (Self-hosted) | Pixcode |
-|---|---|---|
-| **Am besten für** | Entwickler:innen, die eine vollständige UI für lokale Agent-Sitzungen auf ihrem eigenen Rechner möchten | Teams und Entwickler:innen, die Agents in der Cloud betreiben möchten, überall erreichbar |
-| **Zugriff** | Browser via `[deineIP]:port` | Browser, jede IDE, REST API, n8n |
-| **Einrichtung** | `npx @pixelbyte-software/pixcode` | Keine Einrichtung erforderlich |
-| **Rechner muss laufen** | Ja | Nein |
-| **Mobiler Zugriff** | Jeder Browser im Netzwerk | Jedes Gerät, native App in Entwicklung |
-| **Verfügbare Sitzungen** | Alle Sitzungen automatisch aus `~/.claude` erkannt | Alle Sitzungen in deiner Cloud-Umgebung |
-| **Unterstützte Agents** | Claude Code, Cursor CLI, Codex, Gemini CLI | Claude Code, Cursor CLI, Codex, Gemini CLI |
-| **Datei-Explorer und Git** | Ja, direkt in der UI | Ja, direkt in der UI |
-| **MCP-Konfiguration** | Über UI verwaltet, synchronisiert mit lokalem `~/.claude` | Über UI verwaltet |
-| **IDE-Zugriff** | Deine lokale IDE | Jede IDE, die mit deiner Cloud-Umgebung verbunden ist |
-| **REST API** | Ja | Ja |
-| **n8n-Node** | Nein | Ja |
-| **Team-Sharing** | Nein | Ja |
-| **Plattformkosten** | Kostenlos, Open Source | Ab $7/Monat |
+```bash
+pixcode --no-daemon
+```
 
-> Beide Optionen verwenden deine eigenen KI-Abonnements (Claude, Cursor usw.) – Pixcode stellt die Umgebung bereit, nicht die KI.
+## Entwicklung
 
----
+```bash
+npm install
+npm run typecheck
+npm run lint
+npm run build
+```
 
-## Sicherheit & Tool-Konfiguration
+Hinweise:
 
-**🔒 Wichtiger Hinweis**: Alle Claude Code Tools sind **standardmäßig deaktiviert**. Dies verhindert, dass potenziell schädliche Operationen automatisch ausgeführt werden.
+- `npm run dev` verwendet unter Linux den Daemon-Manager.
+- Für Frontend-Entwicklung separat `npm run client` verwenden; normaler Betrieb läuft über Port `3001`.
+- `npm run server` startet gebaute Dateien aus `dist-server/`.
 
-### Tools aktivieren
+## Links
 
-Um den vollen Funktionsumfang von Claude Code zu nutzen, müssen Tools manuell aktiviert werden:
-
-1. **Tool-Einstellungen öffnen** – Klicke auf das Zahnrad-Symbol in der Seitenleiste
-2. **Selektiv aktivieren** – Nur die benötigten Tools einschalten
-3. **Einstellungen übernehmen** – Deine Einstellungen werden lokal gespeichert
-
-<div align="center">
-
-![Tool-Einstellungen Modal](public/screenshots/tools-modal.png)
-*Tool-Einstellungen – nur aktivieren, was benötigt wird*
-
-</div>
-
-**Empfohlene Vorgehensweise**: Mit grundlegenden Tools starten und bei Bedarf weitere hinzufügen. Die Einstellungen können jederzeit angepasst werden.
-
----
-
-## Plugins
-
-Pixcode verfügt über ein Plugin-System, mit dem benutzerdefinierte Tabs mit eigener Frontend-UI und optionalem Node.js-Backend hinzugefügt werden können. Plugins können direkt in **Einstellungen > Plugins** aus Git-Repos installiert oder selbst entwickelt werden.
-
-### Verfügbare Plugins
-
-| Plugin | Beschreibung |
-|---|---|
-| **[Project Stats](https://github.com/alicomert/pixcode)** | Zeigt Dateianzahl, Codezeilen, Dateityp-Aufschlüsselung, größte Dateien und zuletzt geänderte Dateien des aktuellen Projekts |
-
-### Eigenes Plugin erstellen
-
-**[Plugin-Starter-Vorlage →](https://github.com/alicomert/pixcode)** – Forke dieses Repository, um ein eigenes Plugin zu erstellen. Es enthält ein funktionierendes Beispiel mit Frontend-Rendering, Live-Kontext-Updates und RPC-Kommunikation zu einem Backend-Server.
-
-**[Plugin-Dokumentation →](https://github.com/alicomert/pixcode)** – Vollständige Anleitung zur Plugin-API, zum Manifest-Format, zum Sicherheitsmodell und mehr.
-
----
-## FAQ
-
-<details>
-<summary>Wie unterscheidet sich das von Claude Code Remote Control?</summary>
-
-Claude Code Remote Control ermöglicht es, Nachrichten an eine bereits im lokalen Terminal laufende Sitzung zu senden. Der Rechner muss eingeschaltet bleiben, das Terminal muss offen bleiben, und Sitzungen laufen nach etwa 10 Minuten ohne Netzwerkverbindung ab.
-
-Pixcode und Pixcode erweitern Claude Code, anstatt neben ihm zu laufen – MCP-Server, Berechtigungen, Einstellungen und Sitzungen sind exakt dieselben, die Claude Code nativ verwendet. Nichts wird dupliziert oder separat verwaltet.
-
-Das bedeutet in der Praxis:
-
-- **Alle Sitzungen, nicht nur eine** – Pixcode erkennt automatisch jede Sitzung aus dem `~/.claude`-Ordner. Remote Control stellt nur die einzelne aktive Sitzung bereit, um sie in der Claude Mobile App verfügbar zu machen.
-- **Deine Einstellungen sind deine Einstellungen** – MCP-Server, Tool-Berechtigungen und Projektkonfiguration, die in Pixcode geändert werden, werden direkt in die Claude Code-Konfiguration geschrieben und treten sofort in Kraft – und umgekehrt.
-- **Funktioniert mit mehr Agents** – Claude Code, Cursor CLI, Codex und Gemini CLI, nicht nur Claude Code.
-- **Vollständige UI, nicht nur ein Chat-Fenster** – Datei-Explorer, Git-Integration, MCP-Verwaltung und ein Shell-Terminal sind alle eingebaut.
-- **Pixcode läuft in der Cloud** – Laptop zuklappen, der Agent läuft weiter. Kein Terminal zu überwachen, kein Rechner, der laufen muss.
-
-</details>
-
-<details>
-<summary>Muss ich ein KI-Abonnement separat bezahlen?</summary>
-
-Ja. Pixcode stellt die Umgebung bereit, nicht die KI. Du bringst dein eigenes Claude-, Cursor-, Codex- oder Gemini-Abonnement mit. Pixcode beginnt bei $7/Monat für die gehostete Umgebung zusätzlich dazu.
-
-</details>
-
-<details>
-<summary>Kann ich Pixcode auf meinem Smartphone nutzen?</summary>
-
-Ja. Bei Self-Hosted: Server auf dem eigenen Rechner starten und `[deineIP]:port` in einem beliebigen Browser im Netzwerk öffnen. Bei Pixcode: Von jedem Gerät aus öffnen – kein VPN, keine Portweiterleitung, keine Einrichtung. Eine native App ist ebenfalls in Entwicklung.
-
-</details>
-
-<details>
-<summary>Wirken sich Änderungen in der UI auf mein lokales Claude Code-Setup aus?</summary>
-
-Ja, bei Self-Hosted. Pixcode liest aus und schreibt in dieselbe `~/.claude`-Konfiguration, die Claude Code nativ verwendet. MCP-Server, die über die UI hinzugefügt werden, erscheinen sofort in Claude Code und umgekehrt.
-
-</details>
-
----
-
-## Community & Support
-
-- **[Dokumentation](https://github.com/alicomert/pixcode)** — Installation, Konfiguration, Funktionen und Fehlerbehebung
-- **[Discord](https://discord.gg/buxwujPNRE)** — Hilfe erhalten und mit anderen Nutzer:innen in Kontakt treten
-- **[GitHub Issues](https://github.com/alicomert/pixcode/issues)** — Fehlerberichte und Feature-Anfragen
-- **[Beitragsrichtlinien](CONTRIBUTING.md)** — So kannst du zum Projekt beitragen
-
-## Lizenz
-
-GNU General Public License v3.0 – siehe [LICENSE](LICENSE)-Datei für Details.
-
-Dieses Projekt ist Open Source und kann unter der GPL v3-Lizenz kostenlos genutzt, modifiziert und verteilt werden.
-
-## Danksagungen
-
-### Erstellt mit
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** - Anthropics offizielle CLI
-- **[Cursor CLI](https://docs.cursor.com/en/cli/overview)** - Cursors offizielle CLI
-- **[Codex](https://developers.openai.com/codex)** - OpenAI Codex
-- **[Gemini-CLI](https://geminicli.com/)** - Google Gemini CLI
-- **[React](https://react.dev/)** - UI-Bibliothek
-- **[Vite](https://vitejs.dev/)** - Schnelles Build-Tool und Dev-Server
-- **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS-Framework
-- **[CodeMirror](https://codemirror.net/)** - Erweiterter Code-Editor
-- **[TaskMaster AI](https://github.com/eyaltoledano/claude-task-master)** *(Optional)* - KI-gestütztes Projektmanagement und Aufgabenplanung
-
-
-### Sponsoren
-- [Siteboon - KI-gestützter Website-Builder](https://siteboon.ai)
----
-
-<div align="center">
-  <strong>Mit Sorgfalt für die Claude Code-, Cursor- und Codex-Community erstellt.</strong>
-</div>
+- npm: <https://www.npmjs.com/package/@pixelbyte-software/pixcode>
+- GitHub: <https://github.com/alicomert/pixcode>
+- Releases: <https://github.com/alicomert/pixcode/releases/latest>

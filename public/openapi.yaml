@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Pixcode REST API
-  version: 1.34.0
+  version: 1.36.0
   description: |
     REST API for Pixcode — the multi-CLI web UI for Claude Code, Cursor CLI,
     Codex, Gemini CLI, Qwen Code, and OpenCode.
@@ -12,8 +12,9 @@ info:
 
     - **JWT cookie** (`token` HTTP-only cookie) — set automatically when the
       browser logs in via `POST /api/auth/login`.
-    - **API key** (`Authorization: Bearer ck_...`) — generated under
+    - **API key** (`Authorization: Bearer px_...`) — generated under
       Settings → API. API keys never expire and survive server restarts.
+      Legacy `ck_...` keys remain accepted for older installations.
 
     Endpoints flagged `apiKey` accept both.
 
@@ -90,16 +91,18 @@ components:
       bearerFormat: JWT
       description: |
         `Authorization: Bearer <token>` — token may be a JWT (issued by
-        `/api/auth/login`) or an API key (prefix `ck_`, generated under
-        Settings → API). The middleware sniffs the prefix to decide.
+        `/api/auth/login`) or an API key (prefix `px_`, generated under
+        Settings → API). Legacy `ck_` keys are still accepted. The middleware
+        sniffs the prefix to decide.
     apiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
       description: |
         Alternative for tools that can't set `Authorization`. Accepts the same
-        `ck_...` keys as `bearerAuth`. Either header works on every secured
-        endpoint — pick whichever your client supports.
+        `px_...` keys as `bearerAuth`; legacy `ck_...` keys remain accepted.
+        Either header works on every secured endpoint — pick whichever your
+        client supports.
     cookieAuth:
       type: apiKey
       in: cookie
@@ -168,7 +171,7 @@ components:
       properties:
         id: { type: integer }
         key_name: { type: string }
-        api_key: { type: string, description: 'Format: `ck_<32-hex>`. Returned in full on creation only.' }
+        api_key: { type: string, description: 'Format: `px_<32-hex>`. Returned in full on creation only. Legacy `ck_<32-hex>` keys remain valid.' }
         created_at: { type: string, format: date-time }
         last_used: { type: string, format: date-time, nullable: true }
         is_active: { type: boolean }
@@ -1610,9 +1613,9 @@ paths:
       description: |
         One-shot non-interactive run for automation/CI. Spawns the chosen
         provider, optionally cloning a GitHub repo first, optionally cutting
-        a branch + opening a PR. **API key required** — accepts the same `ck_`
+        a branch + opening a PR. **API key required** — accepts the same `px_`
         keys as the rest of the API on `Authorization: Bearer`, `X-API-Key`,
-        or `?apiKey=`.
+        or `?apiKey=`. Legacy `ck_` keys remain accepted.
 
         Default response is an SSE stream of provider-native events; pass
         `stream: false` to buffer and return JSON.
