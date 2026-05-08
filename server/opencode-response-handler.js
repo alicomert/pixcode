@@ -27,6 +27,7 @@ class OpencodeResponseHandler {
     this.onInit = options.onInit || null;
     this.onToolUse = options.onToolUse || null;
     this.onToolResult = options.onToolResult || null;
+    this.onError = options.onError || null;
     this.capturedCliSessionId = null;
   }
 
@@ -84,6 +85,9 @@ class OpencodeResponseHandler {
 
     const normalized = sessionsService.normalizeMessage('opencode', event, sid);
     for (const msg of normalized) {
+      if (msg.kind === 'error' && this.onError) {
+        this.onError(msg.content || 'OpenCode streaming error');
+      }
       this.ws.send(msg);
     }
   }

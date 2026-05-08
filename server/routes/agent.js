@@ -268,7 +268,7 @@ function describeProviderFailure(rawError, provider) {
     details.category = 'auth';
     details.title = `${name} is not authenticated or the selected model is not allowed.`;
     details.action = 'Reconnect this provider in Settings, refresh the CLI login, or choose a model enabled for the account.';
-  } else if (/(not installed|command not found|enoent|spawn .* enoent|executable file not found)/i.test(rawMessage)) {
+  } else if (/(not installed|command not found|enoent|spawn .* enoent|executable file not found|exited with code 127)/i.test(rawMessage)) {
     details.category = 'missing_cli';
     details.title = `${name} CLI is not installed or not on PATH.`;
     details.action = 'Install the CLI from Settings -> Agents or set the matching CLI path environment variable.';
@@ -1411,8 +1411,11 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       if (writer && typeof writer.getAssistantMessages === 'function') {
         try {
           collectedMessages = writer.getAssistantMessages();
-          const errEntry = collectedMessages.find((m) => m.type === 'error');
-          if (errEntry) collectedError = errEntry.content;
+          const errorText = collectedMessages
+            .filter((m) => m.type === 'error' && typeof m.content === 'string' && m.content.trim())
+            .map((m) => m.content.trim())
+            .join('\n');
+          if (errorText) collectedError = errorText;
         } catch { /* ignore — fall back to error.message */ }
       }
       const failureDetails = describeProviderFailure(collectedError || error.message, provider);

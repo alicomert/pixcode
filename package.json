@@ -1,6 +1,6 @@
 {
   "name": "@pixelbyte-software/pixcode",
-  "version": "1.36.1",
+  "version": "1.36.2",
   "description": "Self-hosted AI coding agent control room for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode with chat, files, shell, Git, orchestration, API keys, Telegram, MCP, plugins, themes, and desktop/server deployment.",
   "type": "module",
   "main": "dist-server/server/index.js",
@@ -42,6 +42,7 @@
     "lint:fix": "eslint src/ server/ --fix",
     "smoke:orchestration-api": "node scripts/smoke/orchestration-api.mjs",
     "smoke:orchestration-live": "node scripts/smoke/orchestration-live-run.mjs",
+    "smoke:provider-rest": "node scripts/smoke/provider-rest-api.mjs",
     "start": "npm run build && npm run server",
     "release": "./release.sh",
     "prepublishOnly": "npm run build",

@@ -184,6 +184,20 @@ async function spawnOpencode(command, options = {}, ws) {
 
         let terminalNotificationSent = false;
         let terminalFailureReason = null;
+        let terminalFailurePersisted = false;
+
+        const persistTerminalFailure = (message) => {
+            const content = typeof message === 'string' && message.trim()
+                ? message.trim()
+                : null;
+            if (!content || terminalFailurePersisted) return;
+
+            const finalSessionId = capturedSessionId || sessionId || processKey;
+            if (!finalSessionId) return;
+
+            sessionManager.addMessage(finalSessionId, 'assistant', content);
+            terminalFailurePersisted = true;
+        };
 
         const notifyTerminalState = ({ code = null, error = null } = {}) => {
             if (terminalNotificationSent) return;
@@ -277,6 +291,9 @@ async function spawnOpencode(command, options = {}, ws) {
                         }
                     }
                 },
+                onError: (content) => {
+                    terminalFailureReason = content || 'OpenCode streaming error';
+                },
             });
         }
 
@@ -338,6 +355,7 @@ async function spawnOpencode(command, options = {}, ws) {
                 friendly = 'OpenCode upstream call failed. Clearing `~/.cache/opencode` and retrying usually resolves this.';
             }
 
+            terminalFailureReason = friendly;
             const socketSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : (capturedSessionId || sessionId);
             ws.send(createNormalizedMessage({ kind: 'error', content: friendly, sessionId: socketSessionId, provider: 'opencode' }));
         });
@@ -355,6 +373,8 @@ async function spawnOpencode(command, options = {}, ws) {
 
             if (finalSessionId && assistantBlocks.length > 0) {
                 sessionManager.addMessage(finalSessionId, 'assistant', assistantBlocks);
+            } else if (terminalFailureReason) {
+                persistTerminalFailure(terminalFailureReason);
             }
 
             ws.send(createNormalizedMessage({ kind: 'complete', exitCode: code, isNewSession: !sessionId && !!command, sessionId: finalSessionId, provider: 'opencode' }));
@@ -376,9 +396,11 @@ async function spawnOpencode(command, options = {}, ws) {
                     const installed = await providerAuthService.isProviderInstalled('opencode');
                     if (!installed) {
                         const socketSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : finalSessionId;
+                        const installMessage = 'OpenCode CLI is not installed. Install it from the Settings → Agents → OpenCode tab, or run: npm install -g opencode-ai';
+                        terminalFailureReason = installMessage;
                         ws.send(createNormalizedMessage({
                             kind: 'error',
-                            content: 'OpenCode CLI is not installed. Install it from the Settings → Agents → OpenCode tab, or run: npm install -g opencode-ai',
+                            content: installMessage,
                             sessionId: socketSessionId,
                             provider: 'opencode',
                         }));
@@ -404,6 +426,7 @@ async function spawnOpencode(command, options = {}, ws) {
 
             const errorSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : finalSessionId;
             ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: errorSessionId, provider: 'opencode' }));
+            persistTerminalFailure(errorContent);
             // Always emit `complete` so the UI's "Processing..." state clears
             // even when spawn fails (ENOENT, EACCES) and `close` never fires.
             ws.send(createNormalizedMessage({ kind: 'complete', exitCode: 1, isNewSession: !sessionId && !!command, sessionId: errorSessionId, provider: 'opencode' }));

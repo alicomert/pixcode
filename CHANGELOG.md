@@ -2,6 +2,18 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.36.2](https://github.com/alicomert/pixcode/compare/v1.36.1...v1.36.2) (2026-05-08)
+
+### Bug Fixes
+
+* **opencode:** restore assistant history for block-based OpenCode responses so `/api/sessions/:id/messages` no longer returns only user messages after a run.
+* **opencode:** persist terminal, stderr, timeout, and JSON stream errors into the session history so failed runs show a visible answer/error instead of a blank chat.
+* **api:** classify missing CLI failures from REST agent runs more accurately, including split stderr output and `exited with code 127` cases.
+
+### Tests
+
+* **providers:** add `npm run smoke:provider-rest` to exercise Claude, Cursor, Codex, Gemini, Qwen, and OpenCode through `/api/agent` with one REST smoke command.
+
 ## [1.36.1](https://github.com/alicomert/pixcode/compare/v1.36.0...v1.36.1) (2026-05-08)
 
 ### Bug Fixes

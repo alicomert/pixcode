@@ -193,16 +193,55 @@ export class OpencodeSessionsProvider implements IProviderSessions {
     }
 
     const normalized: NormalizedMessage[] = [];
-    for (const raw of rawMessages) {
+    for (let i = 0; i < rawMessages.length; i++) {
+      const raw = rawMessages[i];
       const ts = raw.timestamp || new Date().toISOString();
-      const baseId = raw.uuid || raw.id || generateMessageId('opencode');
+      const baseId = raw.uuid || raw.id || `${PROVIDER}_${sessionId}_${i}`;
       const role = raw.message?.role || raw.role;
       const content = raw.message?.content || raw.content;
 
       if (!role || !content) continue;
       const normalizedRole = role === 'user' ? 'user' : 'assistant';
 
-      if (typeof content === 'string' && content.trim()) {
+      if (Array.isArray(content)) {
+        for (let partIdx = 0; partIdx < content.length; partIdx++) {
+          const part = readObjectRecord(content[partIdx]);
+          if (!part) continue;
+          if (part.type === 'text' && typeof part.text === 'string' && part.text.trim()) {
+            normalized.push(createNormalizedMessage({
+              id: `${baseId}_${partIdx}`,
+              sessionId,
+              timestamp: ts,
+              provider: PROVIDER,
+              kind: 'text',
+              role: normalizedRole,
+              content: part.text,
+            }));
+          } else if (part.type === 'tool_use') {
+            normalized.push(createNormalizedMessage({
+              id: `${baseId}_${partIdx}`,
+              sessionId,
+              timestamp: ts,
+              provider: PROVIDER,
+              kind: 'tool_use',
+              toolName: String(part.name || ''),
+              toolInput: part.input || {},
+              toolId: String(part.id || `${baseId}_${partIdx}`),
+            }));
+          } else if (part.type === 'tool_result') {
+            normalized.push(createNormalizedMessage({
+              id: `${baseId}_${partIdx}`,
+              sessionId,
+              timestamp: ts,
+              provider: PROVIDER,
+              kind: 'tool_result',
+              toolId: String(part.tool_use_id || ''),
+              content: part.content === undefined || part.content === null ? '' : String(part.content),
+              isError: Boolean(part.is_error),
+            }));
+          }
+        }
+      } else if (typeof content === 'string' && content.trim()) {
         normalized.push(createNormalizedMessage({
           id: baseId,
           sessionId,
@@ -212,6 +251,21 @@ export class OpencodeSessionsProvider implements IProviderSessions {
           role: normalizedRole,
           content,
         }));
+      }
+    }
+
+    const toolResultMap = new Map<string, NormalizedMessage>();
+    for (const msg of normalized) {
+      if (msg.kind === 'tool_result' && msg.toolId) {
+        toolResultMap.set(msg.toolId, msg);
+      }
+    }
+    for (const msg of normalized) {
+      if (msg.kind === 'tool_use' && msg.toolId && toolResultMap.has(msg.toolId)) {
+        const toolResult = toolResultMap.get(msg.toolId);
+        if (toolResult) {
+          msg.toolResult = { content: toolResult.content, isError: toolResult.isError };
+        }
       }
     }
 
