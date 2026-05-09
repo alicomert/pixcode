@@ -481,6 +481,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
       : runs.find((run) => ['queued', 'running'].includes(run.status))),
     [runs, selectedRun],
   );
+  const isExecutionMode = Boolean(activeRun);
   const runsRefreshIntervalMs = activeRun ? 5_000 : 30_000;
   useGsapEntrance(pageRef, 'fade-up');
 
@@ -856,11 +857,17 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
 
       <div
         ref={layoutRef}
-        className={`grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden lg:grid-cols-[minmax(300px,var(--orchestration-left-pane))_10px_minmax(0,1fr)] ${
+        data-orchestration-execution-mode={isExecutionMode ? 'true' : 'false'}
+        className={`grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden ${
+          isExecutionMode
+            ? 'lg:grid-cols-[minmax(0,1fr)]'
+            : 'lg:grid-cols-[minmax(300px,var(--orchestration-left-pane))_10px_minmax(0,1fr)]'
+        } ${
           isResizingPanes ? '' : 'transition-[grid-template-columns] duration-300 ease-out'
         }`}
         style={{ '--orchestration-left-pane': `${leftPaneWidth}px` } as CSSProperties}
       >
+        {!isExecutionMode ? (
         <aside className="min-h-0 overflow-auto border-b border-border lg:border-b-0">
           <section className="border-b border-border p-3 md:p-5">
             <label data-orchestration-goal className="block text-xs font-medium text-muted-foreground">{t('orchestration.goal')}</label>
@@ -1285,7 +1292,9 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
             </div>
           </section>
         </aside>
+        ) : null}
 
+        {!isExecutionMode ? (
         <button
           type="button"
           className="group hidden min-h-0 cursor-col-resize items-stretch justify-center border-x border-border/60 bg-muted/25 transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:flex"
@@ -1296,6 +1305,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
         >
           <span className="my-4 w-px rounded-full bg-border transition-colors group-hover:bg-foreground/50" />
         </button>
+        ) : null}
 
         <section className="min-h-0 min-w-0 overflow-hidden">
           <WorkflowRunPanel runId={runId} onPrepareTeamFromSummary={prepareTeamFromSummary} />
