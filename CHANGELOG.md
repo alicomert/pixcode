@@ -2,6 +2,29 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.37.0](https://github.com/alicomert/pixcode/compare/v1.36.4...v1.37.0) (2026-05-09)
+
+Pixcode 1.37.0 is the orchestration reliability and task-foundation release. It turns the v1.37 issue plan into shipped product behavior: stricter agent handoffs, a clearer active-run dashboard, reliable chat hydration, layered notifications, Taskmaster onboarding/execution, multi-worker chat slots, and issue-backed update progress.
+
+### New Features
+
+* **orchestration:** add strict sequential handoff support with internal init/compact packets so each agent can receive the previous agent's real summary before continuing.
+* **orchestration:** focus the active execution dashboard when a workflow starts, keeping progress, current stage, CLI/model context, and final output visible.
+* **notifications:** add an in-app notification center with WebSocket event delivery, desktop/browser fallbacks, Telegram channel preferences, and duplicate-event protection.
+* **tasks:** add optional Taskmaster setup during first account onboarding with install status, persisted setup choice, and non-blocking skip behavior.
+* **tasks:** add Taskmaster execution through orchestration and Telegram, including task listing, task run callbacks, selected provider/model routing, and completion monitoring.
+* **chat:** add up to four multi-worker slots from the composer so users can run separate provider/model/project work in parallel from the main prompt surface.
+* **updates:** show issue-backed release progress in the version/update modal using bundled release metadata instead of repeated GitHub API calls.
+
+### Bug Fixes
+
+* **chat:** stabilize active session hydration, focus/visibility refresh, message dedupe, and polling fallback so agent responses already present in the REST API render without switching chats.
+* **orchestration:** keep internal compact/init packets out of user-facing output while preserving the handoff context needed by later agents.
+
+### Tests
+
+* add smoke coverage for strict handoff compact packets, orchestration execution dashboard focus, user-facing orchestration output, chat realtime hydration, chat session state freshness, notification center events, Taskmaster onboarding, Taskmaster Telegram execution, multi-worker slots, update issue progress, shell manual disconnects, split-panel file editing, Telegram control routing, and update UX.
+
 ## [1.36.4](https://github.com/alicomert/pixcode/compare/v1.36.3...v1.36.4) (2026-05-08)
 
 ### Bug Fixes
