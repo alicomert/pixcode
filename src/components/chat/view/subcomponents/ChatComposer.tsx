@@ -12,7 +12,9 @@ import type {
   TouchEvent,
 } from 'react';
 
+import type { Project } from '../../../../types/app';
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
+import type { WorkerSlot } from '../../utils/workerSlots';
 import {
   PromptInput,
   PromptInputHeader,
@@ -30,6 +32,7 @@ import ImageAttachment from './ImageAttachment';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import ThinkingModeSelector from './ThinkingModeSelector';
 import TokenUsagePie from './TokenUsagePie';
+import WorkerSlotsControl from './WorkerSlotsControl';
 
 import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, ListChecks } from '@/lib/icons';
 
@@ -102,6 +105,9 @@ interface ChatComposerProps {
   onTextareaScrollSync: (target: HTMLTextAreaElement) => void;
   onTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void;
   onInputFocusChange?: (focused: boolean) => void;
+  workerSlots: WorkerSlot[];
+  onWorkerSlotsChange: (slots: WorkerSlot[]) => void;
+  selectedProject: Project | null;
   placeholder: string;
   isTextareaExpanded: boolean;
   sendByCtrlEnter?: boolean;
@@ -158,6 +164,9 @@ export default function ChatComposer({
   onTextareaScrollSync,
   onTextareaInput,
   onInputFocusChange,
+  workerSlots,
+  onWorkerSlotsChange,
+  selectedProject,
   placeholder,
   isTextareaExpanded,
 }: ChatComposerProps) {
@@ -320,6 +329,13 @@ export default function ChatComposer({
             >
               <ImageIcon />
             </PromptInputButton>
+
+            <WorkerSlotsControl
+              workerSlots={workerSlots}
+              onWorkerSlotsChange={onWorkerSlotsChange}
+              selectedProject={selectedProject}
+              disabled={isLoading}
+            />
 
             <button
               type="button"

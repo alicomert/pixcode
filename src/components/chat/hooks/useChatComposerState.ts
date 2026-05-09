@@ -15,6 +15,13 @@ import { authenticatedFetch } from '../../../utils/api';
 import { thinkingModes } from '../constants/thinkingModes';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import { safeLocalStorage } from '../utils/chatStorage';
+import {
+  MAX_WORKER_SLOTS,
+  persistWorkerSlots,
+  readWorkerSlots,
+  resolveWorkerSlotModel,
+  type WorkerSlot,
+} from '../utils/workerSlots';
 import type {
   ChatMessage,
   PendingPermissionRequest,
@@ -87,6 +94,23 @@ const createFakeSubmitEvent = () => {
 const isTemporarySessionId = (sessionId: string | null | undefined) =>
   Boolean(sessionId && sessionId.startsWith('new-session-'));
 
+function extractWorkerAssistantText(response: unknown): string {
+  const record = response && typeof response === 'object' ? response as Record<string, unknown> : {};
+  if (typeof record.error === 'string') {
+    return record.error;
+  }
+
+  const messages = Array.isArray(record.messages) ? record.messages : [];
+  const chunks: string[] = [];
+  for (const message of messages) {
+    if (message && typeof message === 'object' && typeof (message as Record<string, unknown>).content === 'string') {
+      chunks.push((message as Record<string, string>).content);
+    }
+  }
+
+  return chunks.join('\n\n').trim();
+}
+
 const getNotificationSessionSummary = (
   selectedSession: ProjectSession | null,
   fallbackInput: string,
@@ -151,6 +175,15 @@ export function useChatComposerState({
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [thinkingMode, setThinkingMode] = useState('none');
+  const [workerSlotsState, setWorkerSlotsState] = useState<WorkerSlot[]>(() => (
+    typeof window === 'undefined' ? [] : readWorkerSlots()
+  ));
+
+  const setWorkerSlots = useCallback((slots: WorkerSlot[]) => {
+    const nextSlots = slots.slice(0, MAX_WORKER_SLOTS);
+    setWorkerSlotsState(nextSlots);
+    persistWorkerSlots(nextSlots);
+  }, []);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Pending abort: stop button hit BEFORE the provider emitted its first
@@ -716,6 +749,51 @@ export function useChatComposerState({
         });
       }
 
+      const activeWorkerSlots = workerSlotsState.filter((slot) => slot.enabled).slice(0, MAX_WORKER_SLOTS);
+      if (activeWorkerSlots.length > 0) {
+        addMessage({
+          type: 'assistant',
+          content: `Starting ${activeWorkerSlots.length} worker slot${activeWorkerSlots.length === 1 ? '' : 's'} in parallel.`,
+          timestamp: new Date(),
+        });
+
+        activeWorkerSlots.forEach((slot, index) => {
+          const workerProjectPath = slot.projectPath || resolvedProjectPath;
+          void authenticatedFetch('/api/agent', {
+            method: 'POST',
+            body: JSON.stringify({
+              projectPath: workerProjectPath,
+              provider: slot.provider,
+              model: resolveWorkerSlotModel(slot),
+              message: messageContent,
+              cleanup: false,
+              stream: false,
+            }),
+          })
+            .then(async (response) => {
+              const payload = await response.json().catch(() => ({}));
+              if (!response.ok || payload?.success === false) {
+                throw new Error(payload?.error || `HTTP ${response.status}`);
+              }
+
+              const text = extractWorkerAssistantText(payload);
+              addMessage({
+                type: 'assistant',
+                content: `**Worker ${index + 1}: ${slot.provider}**${slot.projectPath ? `\nProject: \`${slot.projectPath}\`` : ''}\n\n${text || 'Worker finished without assistant text.'}`,
+                timestamp: new Date(),
+              });
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error);
+              addMessage({
+                type: 'error',
+                content: `Worker ${index + 1} (${slot.provider}) failed: ${message}`,
+                timestamp: new Date(),
+              });
+            });
+        });
+      }
+
       setInput('');
       inputValueRef.current = '';
       resetCommandMenuState();
@@ -759,6 +837,7 @@ export function useChatComposerState({
       setIsUserScrolledUp,
       slashCommands,
       thinkingMode,
+      workerSlotsState,
     ],
   );
 
@@ -1063,5 +1142,7 @@ export function useChatComposerState({
     handleGrantToolPermission,
     handleInputFocusChange,
     isInputFocused,
+    workerSlots: workerSlotsState,
+    setWorkerSlots,
   };
 }
