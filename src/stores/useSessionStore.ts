@@ -79,6 +79,7 @@ export interface SessionSlot {
   _lastRealtimeRef: NormalizedMessage[];
   status: SessionStatus;
   fetchedAt: number;
+  lastHydratedAt: number;
   total: number;
   hasMore: boolean;
   offset: number;
@@ -97,6 +98,7 @@ function createEmptySlot(): SessionSlot {
     _lastRealtimeRef: EMPTY,
     status: 'idle',
     fetchedAt: 0,
+    lastHydratedAt: 0,
     total: 0,
     hasMore: false,
     offset: 0,
@@ -172,6 +174,45 @@ function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[
   });
   if (extra.length === 0) return server;
   return [...server, ...extra];
+}
+
+function dropCaughtUpRealtimeMessages(
+  server: NormalizedMessage[],
+  realtime: NormalizedMessage[],
+): NormalizedMessage[] {
+  if (server.length === 0 || realtime.length === 0) return realtime;
+
+  const serverIds = new Set(server.map(m => m.id));
+  const serverSemanticMessages = new Map<string, Array<{ time: number | null; used: boolean }>>();
+
+  for (const message of server) {
+    const key = semanticMergeKey(message);
+    if (!key) continue;
+    const bucket = serverSemanticMessages.get(key) || [];
+    bucket.push({ time: messageTime(message), used: false });
+    serverSemanticMessages.set(key, bucket);
+  }
+
+  return realtime.filter((message) => {
+    if (serverIds.has(message.id)) return false;
+
+    const key = semanticMergeKey(message);
+    if (!key) return true;
+
+    const candidates = serverSemanticMessages.get(key);
+    if (!candidates?.length) return true;
+
+    const realtimeTime = messageTime(message);
+    const matchIndex = candidates.findIndex((candidate) => {
+      if (candidate.used) return false;
+      if (realtimeTime === null || candidate.time === null) return true;
+      return Math.abs(candidate.time - realtimeTime) <= SEMANTIC_DEDUPE_WINDOW_MS;
+    });
+    if (matchIndex === -1) return true;
+
+    candidates[matchIndex].used = true;
+    return false;
+  });
 }
 
 /**
@@ -260,10 +301,12 @@ export function useSessionStore() {
       const messages: NormalizedMessage[] = data.messages || [];
 
       slot.serverMessages = messages;
+      slot.realtimeMessages = dropCaughtUpRealtimeMessages(messages, slot.realtimeMessages);
       slot.total = data.total ?? messages.length;
       slot.hasMore = Boolean(data.hasMore);
       slot.offset = (opts.offset ?? 0) + messages.length;
       slot.fetchedAt = Date.now();
+      slot.lastHydratedAt = slot.fetchedAt;
       slot.status = 'idle';
       recomputeMergedIfNeeded(slot);
       if (data.tokenUsage) {
@@ -381,11 +424,11 @@ export function useSessionStore() {
       const data = await response.json();
 
       slot.serverMessages = data.messages || [];
+      slot.realtimeMessages = dropCaughtUpRealtimeMessages(slot.serverMessages, slot.realtimeMessages);
       slot.total = data.total ?? slot.serverMessages.length;
       slot.hasMore = Boolean(data.hasMore);
       slot.fetchedAt = Date.now();
-      // drop realtime messages that the server has caught up with to prevent unbounded growth.
-      slot.realtimeMessages = [];
+      slot.lastHydratedAt = slot.fetchedAt;
       recomputeMergedIfNeeded(slot);
       notify(sessionId);
     } catch (error) {

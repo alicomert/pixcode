@@ -12,6 +12,8 @@ import { normalizedToChatMessages } from './useChatMessages';
 const MESSAGES_PER_PAGE = 20;
 const INITIAL_VISIBLE_MESSAGES = 100;
 const EMPTY_STORE_MESSAGES: NormalizedMessage[] = [];
+const CHAT_PROCESSING_SYNC_INTERVAL_MS = 4_000;
+const CHAT_FOCUS_REFRESH_MIN_MS = 2_000;
 
 type PendingViewSession = {
   sessionId: string | null;
@@ -129,6 +131,8 @@ export function useChatSessionState({
   const pendingScrollRestoreRef = useRef<ScrollRestoreState | null>(null);
   const pendingInitialScrollRef = useRef(true);
   const messagesOffsetRef = useRef(0);
+  const isFetchingSessionMessagesRef = useRef(false);
+  const lastFocusRefreshRef = useRef(0);
   const scrollPositionRef = useRef({ height: 0, top: 0 });
   const loadAllFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadAllOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -297,6 +301,40 @@ export function useChatSessionState({
     }
   }, [isNearBottom, loadOlderMessages]);
 
+  const refreshActiveSessionMessages = useCallback(async (options: { showLoading?: boolean } = {}) => {
+    if (!selectedSession || !selectedProject) return null;
+    if (isFetchingSessionMessagesRef.current) return sessionStore.getSessionSlot(selectedSession.id) ?? null;
+
+    isFetchingSessionMessagesRef.current = true;
+    if (options.showLoading) {
+      setIsLoadingSessionMessages(true);
+    }
+
+    try {
+      const sessionProvider = selectedSession.__provider || (localStorage.getItem('selected-provider') as Provider) || 'claude';
+      const slot = await sessionStore.fetchFromServer(selectedSession.id, {
+        provider: sessionProvider as LLMProvider,
+        projectName: selectedProject.name,
+        projectPath: selectedProject.fullPath || selectedProject.path || '',
+        limit: MESSAGES_PER_PAGE,
+        offset: 0,
+      });
+
+      if (slot) {
+        setHasMoreMessages(slot.hasMore);
+        setTotalMessages(slot.total);
+        if (slot.tokenUsage) setTokenBudget(slot.tokenUsage as Record<string, unknown>);
+      }
+
+      return slot;
+    } finally {
+      isFetchingSessionMessagesRef.current = false;
+      if (options.showLoading) {
+        setIsLoadingSessionMessages(false);
+      }
+    }
+  }, [selectedProject, selectedSession, sessionStore]);
+
   useLayoutEffect(() => {
     if (!pendingScrollRestoreRef.current || !scrollContainerRef.current) return;
     const { height, top } = pendingScrollRestoreRef.current;
@@ -346,8 +384,15 @@ export function useChatSessionState({
     const provider = (selectedSession.__provider || localStorage.getItem('selected-provider') as Provider) || 'claude';
     const sessionKey = `${selectedSession.id}:${selectedProject.name}:${provider}`;
 
-    // Skip if already loaded and fresh
-    if (lastLoadedSessionKeyRef.current === sessionKey && sessionStore.has(selectedSession.id) && !sessionStore.isStale(selectedSession.id)) {
+    const existingSlot = sessionStore.getSessionSlot(selectedSession.id);
+    // Skip only when a non-empty slot is already loaded and fresh. Empty/error
+    // slots must re-fetch so the pane does not get stuck on the placeholder.
+    if (
+      lastLoadedSessionKeyRef.current === sessionKey
+      && existingSlot
+      && existingSlot.serverMessages.length > 0
+      && !sessionStore.isStale(selectedSession.id)
+    ) {
       return;
     }
 
@@ -391,23 +436,7 @@ export function useChatSessionState({
     lastLoadedSessionKeyRef.current = sessionKey;
 
     // Fetch from server → store updates → chatMessages re-derives automatically
-    setIsLoadingSessionMessages(true);
-    sessionStore.fetchFromServer(selectedSession.id, {
-      provider: (selectedSession.__provider || provider) as LLMProvider,
-      projectName: selectedProject.name,
-      projectPath: selectedProject.fullPath || selectedProject.path || '',
-      limit: MESSAGES_PER_PAGE,
-      offset: 0,
-    }).then(slot => {
-      if (slot) {
-        setHasMoreMessages(slot.hasMore);
-        setTotalMessages(slot.total);
-        if (slot.tokenUsage) setTokenBudget(slot.tokenUsage as Record<string, unknown>);
-      }
-      setIsLoadingSessionMessages(false);
-    }).catch(() => {
-      setIsLoadingSessionMessages(false);
-    });
+    void refreshActiveSessionMessages({ showLoading: true });
   }, [
     pendingViewSessionRef,
     resetStreamingState,
@@ -418,6 +447,7 @@ export function useChatSessionState({
     sendMessage,
     ws,
     sessionStore,
+    refreshActiveSessionMessages,
   ]);
 
   // External message update (e.g. WebSocket reconnect, background refresh)
@@ -426,19 +456,10 @@ export function useChatSessionState({
 
     const reloadExternalMessages = async () => {
       try {
-        const provider = (localStorage.getItem('selected-provider') as Provider) || 'claude';
+        await refreshActiveSessionMessages();
 
-        // Skip store refresh during active streaming
-        if (!isLoading) {
-          await sessionStore.refreshFromServer(selectedSession.id, {
-            provider: (selectedSession.__provider || provider) as LLMProvider,
-            projectName: selectedProject.name,
-            projectPath: selectedProject.fullPath || selectedProject.path || '',
-          });
-
-          if (Boolean(autoScrollToBottom) && isNearBottom()) {
-            setTimeout(() => scrollToBottom(), 200);
-          }
+        if (Boolean(autoScrollToBottom) && isNearBottom()) {
+          setTimeout(() => scrollToBottom(), 200);
         }
       } catch (error) {
         console.error('Error reloading messages from external update:', error);
@@ -453,9 +474,41 @@ export function useChatSessionState({
     scrollToBottom,
     selectedProject,
     selectedSession,
-    sessionStore,
-    isLoading,
+    refreshActiveSessionMessages,
   ]);
+
+  useEffect(() => {
+    if (!selectedSession || !selectedProject) return undefined;
+
+    const refreshOnVisible = () => {
+      if (document.visibilityState === 'hidden') return;
+      const now = Date.now();
+      if (now - lastFocusRefreshRef.current < CHAT_FOCUS_REFRESH_MIN_MS) return;
+      lastFocusRefreshRef.current = now;
+      void refreshActiveSessionMessages();
+    };
+
+    document.addEventListener('visibilitychange', refreshOnVisible);
+    window.addEventListener('focus', refreshOnVisible);
+
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOnVisible);
+      window.removeEventListener('focus', refreshOnVisible);
+    };
+  }, [refreshActiveSessionMessages, selectedProject, selectedSession]);
+
+  useEffect(() => {
+    if (!selectedSession || !selectedProject) return undefined;
+    const activeViewSessionId = selectedSession.id;
+    const shouldPoll = isLoading || Boolean(processingSessions?.has(activeViewSessionId));
+    if (!shouldPoll) return undefined;
+
+    const timer = window.setInterval(() => {
+      void refreshActiveSessionMessages();
+    }, CHAT_PROCESSING_SYNC_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [isLoading, processingSessions, refreshActiveSessionMessages, selectedProject, selectedSession]);
 
   // Search navigation target
   useEffect(() => {

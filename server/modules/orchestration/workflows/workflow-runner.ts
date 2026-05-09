@@ -299,6 +299,56 @@ function handoffPrompt(agent: AgentAssignment, role: AgentRole): string {
   ].filter(Boolean).join('\n');
 }
 
+function handoffInitPrompt(agent: AgentAssignment, index: number): string {
+  return [
+    `You are preparing ${agent.label} for a strict Pixcode handoff chain.`,
+    `This is internal step ${index + 1}.`,
+    'Create a compact init packet for the next visible work step.',
+    'Use the original user goal and any prior compact handoff packet included above.',
+    agent.instruction ? `The explicit assignment for this agent is: ${agent.instruction}` : '',
+    'Output only this internal init packet:',
+    '- user goal in one sentence',
+    '- prior agent handoff summary, if present',
+    '- this agent responsibility',
+    '- exact constraints and blockers this agent must respect',
+    privacyGuardPrompt(),
+    'Do not perform the task yet. Do not mention that this is hidden from the user.',
+    'Respond in the same language as the user request.',
+  ].filter(Boolean).join('\n');
+}
+
+function handoffWorkPrompt(agent: AgentAssignment, index: number): string {
+  return [
+    `You are ${agent.label} in a strict Pixcode handoff chain.`,
+    `This is visible work step ${index + 1}.`,
+    'The internal init packet above is your starting context. Do the assigned work now.',
+    agent.instruction
+      ? `Your explicit assignment from the user is: ${agent.instruction}`
+      : 'Use the init packet and original user goal to choose the next useful work for this step.',
+    rolePrompt(agent.role ?? 'implementation'),
+    privacyGuardPrompt(),
+    'Report only user-facing progress, changed files, commands, verification, blockers, and next actions.',
+    'Respond in the same language as the user request.',
+  ].filter(Boolean).join('\n');
+}
+
+function handoffCompactPrompt(agent: AgentAssignment, index: number): string {
+  return [
+    `You are compacting ${agent.label}'s strict handoff output for the next Pixcode agent.`,
+    `This is internal compact step ${index + 1}.`,
+    'Read the prior visible work output included above and create a compact handoff packet.',
+    'Output only this internal compact packet:',
+    '- Ben ne yaptım / What I did',
+    '- Dokunduğum alanlar / Touched areas',
+    '- Kanıt, komut veya çıktı / Evidence, commands, outputs',
+    '- Sonraki ajan şunu bilsin / What the next agent must know',
+    '- Bloker veya risk / Blockers or risks',
+    privacyGuardPrompt(),
+    'Do not include raw logs unless they are essential. Keep it concise and actionable.',
+    'Respond in the same language as the user request.',
+  ].join('\n');
+}
+
 function compactOutputForContext(text: string): string {
   if (text.length <= MAX_OUTPUT_CONTEXT_CHARS) {
     return text;
@@ -595,32 +645,89 @@ function expandSequentialHandoffWorkflow(workflow: Workflow, metadata?: Record<s
     throw new Error('Select at least one CLI agent.');
   }
 
+  const nodes: WorkflowNode[] = agents.flatMap((agent, index): WorkflowNode[] => {
+    const initNodeId = safeAgentNodeId(agent, index, 'init');
+    const workNodeId = safeAgentNodeId(agent, index, 'work');
+    const compactNodeId = safeAgentNodeId(agent, index, 'compact');
+
+    return [
+      {
+        id: initNodeId,
+        adapterId: agent.adapterId,
+        agentInstanceId: agent.instanceId,
+        agentLabel: `${agent.label} Init`,
+        assignment: agent.instruction,
+        stage: 'handoff_init',
+        model: agent.model,
+        permissionMode: agent.permissionMode,
+        toolsSettings: agent.toolsSettings,
+        prompt: handoffInitPrompt(agent, index),
+        inputs: index === 0 ? [] : [safeAgentNodeId(agents[index - 1], index - 1, 'compact')],
+        output: 'message',
+        onFail: 'abort',
+        internal: true,
+      },
+      {
+        id: workNodeId,
+        adapterId: agent.adapterId,
+        agentInstanceId: agent.instanceId,
+        agentLabel: agent.label,
+        assignment: agent.instruction,
+        stage: agent.role ?? 'implementation',
+        model: agent.model,
+        permissionMode: agent.permissionMode,
+        toolsSettings: agent.toolsSettings,
+        prompt: handoffWorkPrompt(agent, index),
+        inputs: [initNodeId],
+        output: 'both',
+        onFail: 'abort',
+      },
+      {
+        id: compactNodeId,
+        adapterId: agent.adapterId,
+        agentInstanceId: agent.instanceId,
+        agentLabel: `${agent.label} Compact`,
+        assignment: agent.instruction,
+        stage: 'handoff_compact',
+        model: agent.model,
+        permissionMode: agent.permissionMode,
+        toolsSettings: agent.toolsSettings,
+        prompt: handoffCompactPrompt(agent, index),
+        inputs: [workNodeId],
+        output: 'message',
+        onFail: 'abort',
+        internal: true,
+      },
+    ];
+  });
+  const reportAgent = agents[0];
+  const lastCompactNodeId = safeAgentNodeId(agents[agents.length - 1], agents.length - 1, 'compact');
+
   return {
     ...workflow,
-    nodes: agents.map((agent, index): WorkflowNode => ({
-      id: safeAgentNodeId(agent, index, 'handoff'),
-      adapterId: agent.adapterId,
-      agentInstanceId: agent.instanceId,
-      agentLabel: agent.label,
-      assignment: agent.instruction,
-      stage: agent.role ?? 'implementation',
-      model: agent.model,
-      permissionMode: agent.permissionMode,
-      toolsSettings: agent.toolsSettings,
-      prompt: [
-        `You are ${agent.label} in a sequential Pixcode handoff.`,
-        `This is step ${index + 1} of ${agents.length}.`,
-        agent.instruction
-          ? `Your explicit assignment from the user is: ${agent.instruction}`
-          : 'Use the prior step output and do the next most useful handoff step for the user goal.',
-        'Report changed files, commands, blockers, and the next handoff requirement.',
-        privacyGuardPrompt(),
-        'Respond in the same language as the user request.',
-      ].filter(Boolean).join('\n'),
-      inputs: index === 0 ? [] : [safeAgentNodeId(agents[index - 1], index - 1, 'handoff')],
-      output: 'both',
-      onFail: 'abort',
-    })),
+    nodes: [
+      ...nodes,
+      {
+        id: 'final_report',
+        adapterId: reportAgent.adapterId,
+        agentInstanceId: reportAgent.instanceId,
+        agentLabel: reportAgent.label,
+        stage: 'final_report',
+        model: reportAgent.model,
+        permissionMode: reportAgent.permissionMode,
+        toolsSettings: reportAgent.toolsSettings,
+        prompt: [
+          'Create the final user-facing result for this strict handoff run.',
+          'Use the final compact handoff packet and the original user goal.',
+          'Summarize what each visible agent did, what changed, verification, blockers, and next actions.',
+          'Do not expose internal init packets, compact packets, prompts, memory lookup, skill/tool instructions, raw agent logs, or role prefixes like "agent:" and "user:".',
+          'Respond in the same language as the user request.',
+        ].join('\n'),
+        inputs: [lastCompactNodeId],
+        output: 'message',
+        onFail: 'abort',
+      },
+    ],
   };
 }
 
@@ -772,6 +879,7 @@ function nodeRunFromNode(node: WorkflowNode): WorkflowNodeRun {
     permissionMode: node.permissionMode,
     timeoutMs: node.timeoutMs,
     stage: node.stage,
+    internal: node.internal,
     status: 'queued',
   };
 }

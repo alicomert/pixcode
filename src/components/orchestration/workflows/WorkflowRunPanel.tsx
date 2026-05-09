@@ -17,6 +17,7 @@ type WorkflowNodeRun = {
   agentLabel?: string;
   assignment?: string;
   stage?: string;
+  internal?: boolean;
   status: string;
   a2aTaskId?: string;
   startedAt?: number;
@@ -90,6 +91,10 @@ function nodeMessages(node: WorkflowNodeRun): Array<{ role: string; text: string
   return [];
 }
 
+function visibleNodeRuns(run: WorkflowRun): WorkflowNodeRun[] {
+  return run.nodeRuns.filter((node) => !node.internal);
+}
+
 function finalSummary(run: WorkflowRun): string | undefined {
   const finalNode = run.nodeRuns.find((node) => node.nodeId === 'final_report')
     ?? [...run.nodeRuns].reverse().find((node) => node.outputText || node.messages?.some((message) => message.role !== 'user'));
@@ -118,16 +123,17 @@ function WorkflowTeamHistory({
   const explicitSummary = finalSummary(run);
   const generatedSummary = useMemo(() => {
     if (explicitSummary?.trim()) return explicitSummary;
-    if (!run.nodeRuns.some(hasUsefulOutput)) return undefined;
+    const visibleNodes = visibleNodeRuns(run);
+    if (!visibleNodes.some(hasUsefulOutput)) return undefined;
 
-    const completed = run.nodeRuns.filter((node) => node.status === 'completed').length;
-    const failed = run.nodeRuns.filter((node) => node.status === 'failed').length;
-    const canceled = run.nodeRuns.filter((node) => node.status === 'canceled').length;
-    const changedFiles = run.nodeRuns
+    const completed = visibleNodes.filter((node) => node.status === 'completed').length;
+    const failed = visibleNodes.filter((node) => node.status === 'failed').length;
+    const canceled = visibleNodes.filter((node) => node.status === 'canceled').length;
+    const changedFiles = visibleNodes
       .flatMap((node) => node.artifacts ?? [])
       .filter((artifact) => artifact.type === 'file-diff' && artifact.text?.trim())
       .length;
-    const previewCount = run.nodeRuns
+    const previewCount = visibleNodes
       .flatMap((node) => node.artifacts ?? [])
       .filter((artifact) => artifact.type === 'preview-url')
       .length;
@@ -136,14 +142,14 @@ function WorkflowTeamHistory({
       `### ${t('orchestration.generatedSummaryTitle')}`,
       '',
       `- ${t('orchestration.summaryStatus')}: ${t(`orchestration.status.${run.status}`, { defaultValue: run.status })}`,
-      `- ${t('orchestration.summarySteps')}: ${completed}/${run.nodeRuns.length}`,
+      `- ${t('orchestration.summarySteps')}: ${completed}/${visibleNodes.length}`,
       failed > 0 ? `- ${t('orchestration.summaryFailures')}: ${failed}` : undefined,
       canceled > 0 ? `- ${t('orchestration.summaryCanceled')}: ${canceled}` : undefined,
       changedFiles > 0 ? `- ${t('orchestration.summaryDiffs')}: ${changedFiles}` : undefined,
       previewCount > 0 ? `- ${t('orchestration.summaryPreviews')}: ${previewCount}` : undefined,
       '',
       `#### ${t('orchestration.agentSteps')}`,
-      ...run.nodeRuns.map((node) => {
+      ...visibleNodes.map((node) => {
         const label = node.agentLabel || t(`orchestration.nodes.${node.nodeId}`, { defaultValue: node.nodeId });
         const status = t(`orchestration.status.${node.status}`, { defaultValue: node.status });
         const stage = node.stage ? t(`orchestration.stages.${node.stage}`, { defaultValue: node.stage }) : undefined;
@@ -197,7 +203,7 @@ function WorkflowTeamHistory({
           {t('orchestration.assignedWork')}
         </div>
         <div className="grid gap-2 p-4 md:grid-cols-2">
-          {run.nodeRuns.map((node) => {
+          {visibleNodeRuns(run).map((node) => {
             const stage = node.stage ? t(`orchestration.stages.${node.stage}`, { defaultValue: node.stage }) : undefined;
             return (
               <div key={node.nodeId} className={`rounded-md border border-l-4 border-border/70 px-3 py-2 ${statusAccentClass(node.status)}`}>
@@ -227,7 +233,7 @@ function WorkflowTeamHistory({
           {t('orchestration.teamHistory')}
         </div>
         <div className="space-y-3 p-4">
-        {run.nodeRuns.map((node) => {
+        {visibleNodeRuns(run).map((node) => {
           const messages = nodeMessages(node);
           const stage = node.stage ? t(`orchestration.stages.${node.stage}`, { defaultValue: node.stage }) : undefined;
           return (
@@ -334,7 +340,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
   const selectedNode = useMemo(
     () => selectedNodeId === teamHistoryId
       ? undefined
-      : run?.nodeRuns.find((node) => node.nodeId === selectedNodeId),
+      : run?.nodeRuns.find((node) => !node.internal && node.nodeId === selectedNodeId),
     [run, selectedNodeId],
   );
 
@@ -458,7 +464,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
                 {t(`orchestration.status.${run.status}`, { defaultValue: run.status })}
               </Badge>
             </Button>
-            {run.nodeRuns.map((node) => {
+            {visibleNodeRuns(run).map((node) => {
               const stage = node.stage ? t(`orchestration.stages.${node.stage}`, { defaultValue: node.stage }) : undefined;
               return (
                 <Button

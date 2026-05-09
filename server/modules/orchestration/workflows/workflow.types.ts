@@ -17,6 +17,7 @@ export interface WorkflowNode {
   toolsSettings?: Record<string, unknown>;
   isolation?: 'host' | 'worktree' | 'docker';
   timeoutMs?: number;
+  internal?: boolean;
 }
 
 export interface Workflow {
@@ -38,6 +39,7 @@ export interface WorkflowNodeRun {
   permissionMode?: string;
   timeoutMs?: number;
   stage?: string;
+  internal?: boolean;
   status: WorkflowNodeStatus;
   a2aTaskId?: string;
   startedAt?: number;
