@@ -63,6 +63,7 @@ const PACKAGE_BINARIES = {
     '@google/gemini-cli': 'gemini',
     '@qwen-code/qwen-code': 'qwen',
     'opencode-ai': 'opencode',
+    'task-master': 'task-master',
 };
 
 /**

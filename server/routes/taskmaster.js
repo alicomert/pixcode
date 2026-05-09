@@ -17,6 +17,12 @@ import express from 'express';
 import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
 
 import { extractProjectDirectory } from '../projects.js';
+import {
+    cancelInstallJob,
+    createInstallJob,
+    getInstallJob,
+    snapshotDonePayload
+} from '../services/install-jobs.js';
 import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
 import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
 
@@ -179,6 +185,121 @@ router.get('/installation-status', async (req, res) => {
             isReady: false
         });
     }
+});
+
+/**
+ * POST /api/taskmaster/install
+ * Install TaskMaster CLI into Pixcode's sandboxed CLI bin.
+ */
+router.post('/install', async (req, res) => {
+    try {
+        const job = createInstallJob({
+            provider: 'taskmaster',
+            installCmd: 'npm install -g task-master',
+            packageName: 'task-master'
+        });
+
+        res.json({
+            success: true,
+            jobId: job.id,
+            provider: 'taskmaster',
+            packageName: 'task-master',
+            startedAt: job.startedAt
+        });
+    } catch (error) {
+        console.error('TaskMaster install start error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to start TaskMaster install',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/taskmaster/install/:jobId/stream
+ * Replay and stream TaskMaster install output.
+ */
+router.get('/install/:jobId/stream', async (req, res) => {
+    const job = getInstallJob(req.params.jobId);
+    if (!job || job.provider !== 'taskmaster') {
+        return res.status(404).json({
+            success: false,
+            error: 'Install job not found or already expired'
+        });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+    let closed = false;
+    const write = (event, payload) => {
+        if (closed) return;
+        try {
+            res.write(`event: ${event}\n`);
+            res.write(`data: ${JSON.stringify(payload)}\n\n`);
+        } catch {
+            // Socket is gone.
+        }
+    };
+
+    try { res.write(': start\n\n'); } catch { /* noop */ }
+    const heartbeat = setInterval(() => {
+        if (!closed) {
+            try { res.write(': ping\n\n'); } catch { /* noop */ }
+        }
+    }, 5000);
+
+    for (const entry of job.logs) {
+        write('log', { stream: entry.stream, chunk: entry.chunk });
+    }
+
+    const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(heartbeat);
+        job.emitter.off('log', onLog);
+        job.emitter.off('done', onDone);
+    };
+    const onLog = (entry) => {
+        write('log', { stream: entry.stream, chunk: entry.chunk });
+    };
+    const onDone = (payload) => {
+        write('done', payload);
+        cleanup();
+        try { res.end(); } catch { /* noop */ }
+    };
+
+    if (job.status !== 'running') {
+        write('done', snapshotDonePayload(job));
+        cleanup();
+        try { res.end(); } catch { /* noop */ }
+        return;
+    }
+
+    job.emitter.on('log', onLog);
+    job.emitter.once('done', onDone);
+
+    req.on('close', cleanup);
+});
+
+/**
+ * DELETE /api/taskmaster/install/:jobId
+ * Cancel a running TaskMaster install job.
+ */
+router.delete('/install/:jobId', async (req, res) => {
+    const job = getInstallJob(req.params.jobId);
+    if (!job || job.provider !== 'taskmaster') {
+        return res.status(404).json({
+            success: false,
+            error: 'Install job not found'
+        });
+    }
+
+    res.json({ success: true, cancelled: cancelInstallJob(req.params.jobId) });
 });
 
 /**

@@ -1,4 +1,4 @@
-import { Check, GitBranch, LogIn } from '@/lib/icons';
+import { Check, GitBranch, ListChecks, LogIn } from '@/lib/icons';
 
 type OnboardingStepProgressProps = {
   currentStep: number;
@@ -7,6 +7,7 @@ type OnboardingStepProgressProps = {
 const onboardingSteps = [
   { title: 'Git Configuration', icon: GitBranch, required: true },
   { title: 'Connect Agents', icon: LogIn, required: false },
+  { title: 'Task System', icon: ListChecks, required: false },
 ];
 
 export default function OnboardingStepProgress({ currentStep }: OnboardingStepProgressProps) {
