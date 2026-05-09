@@ -7,6 +7,9 @@ import { copyTextToClipboard } from "../../../utils/clipboard";
 import type { InstallMode } from "../../../hooks/useVersionCheck";
 import { IS_PLATFORM } from "../../../constants/config";
 import { useGsapEntrance } from "../../../lib/animations";
+import { stripIssueProgressBlock } from "../utils/releaseIssueProgress";
+
+import { ReleaseIssueProgress } from "./ReleaseIssueProgress";
 
 interface VersionUpgradeModalProps {
     isOpen: boolean;
@@ -384,6 +387,11 @@ export function VersionUpgradeModal({
                     </div>
                 </div>
 
+                <ReleaseIssueProgress
+                    releaseBody={releaseInfo?.body || ''}
+                    version={latestVersion || currentVersion}
+                />
+
                 {/* Changelog */}
                 {releaseInfo?.body && (
                     <div className="space-y-3">
@@ -514,7 +522,7 @@ export function VersionUpgradeModal({
 const cleanChangelog = (body: string) => {
     if (!body) return '';
 
-    return body
+    return stripIssueProgressBlock(body)
         // Remove full commit hashes (40 character hex strings)
         .replace(/\b[0-9a-f]{40}\b/gi, '')
         // Remove short commit hashes (7-10 character hex strings at start of line or after dash/space)
