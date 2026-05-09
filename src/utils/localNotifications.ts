@@ -5,16 +5,29 @@ type NotifyOnceOptions = {
   key: string;
   title: string;
   body: string;
+  event?: string;
   tag?: string;
   data?: Record<string, unknown>;
 };
 
-function updatesEnabledByPreference(): boolean {
+const EVENT_KEY_MAP: Record<string, string> = {
+  action_required: 'actionRequired',
+  stop: 'stop',
+  error: 'error',
+  update: 'updates',
+  updates: 'updates',
+};
+
+function eventEnabledByPreference(event = 'updates'): boolean {
   try {
     const parsed = JSON.parse(localStorage.getItem(NOTIFICATION_PREFS_KEY) ?? 'null') as {
-      events?: { updates?: boolean };
+      channels?: { desktop?: boolean };
+      events?: Record<string, boolean>;
     } | null;
-    return parsed?.events?.updates !== false;
+    if (parsed?.channels?.desktop === false) {
+      return false;
+    }
+    return parsed?.events?.[EVENT_KEY_MAP[event] || event] !== false;
   } catch {
     return true;
   }
@@ -35,11 +48,29 @@ export async function notifyOnce({
   tag,
   data,
 }: NotifyOnceOptions): Promise<boolean> {
+  return notifyLocalEventOnce({
+    key,
+    title,
+    body,
+    event: 'updates',
+    tag,
+    data,
+  });
+}
+
+export async function notifyLocalEventOnce({
+  key,
+  title,
+  body,
+  event = 'updates',
+  tag,
+  data,
+}: NotifyOnceOptions): Promise<boolean> {
   if (
     typeof window === 'undefined'
     || !('Notification' in window)
     || Notification.permission !== 'granted'
-    || !updatesEnabledByPreference()
+    || !eventEnabledByPreference(event)
   ) {
     return false;
   }

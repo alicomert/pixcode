@@ -47,6 +47,8 @@ export type NotificationPreferencesState = {
   channels: {
     inApp: boolean;
     webPush: boolean;
+    telegram: boolean;
+    desktop: boolean;
   };
   events: {
     actionRequired: boolean;

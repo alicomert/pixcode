@@ -493,7 +493,7 @@ const credentialsDb = {
 // Notification preferences
 // ---------------------------------------------------------------------------
 const DEFAULT_NOTIFICATION_PREFERENCES = {
-    channels: { inApp: false, webPush: false },
+    channels: { inApp: true, webPush: false, telegram: true, desktop: true },
     events: { actionRequired: true, stop: true, error: true, updates: true },
 };
 
@@ -501,8 +501,10 @@ const normalizeNotificationPreferences = (value) => {
     const source = value && typeof value === 'object' ? value : {};
     return {
         channels: {
-            inApp: source.channels?.inApp === true,
+            inApp: source.channels?.inApp !== false,
             webPush: source.channels?.webPush === true,
+            telegram: source.channels?.telegram !== false,
+            desktop: source.channels?.desktop !== false,
         },
         events: {
             actionRequired: source.events?.actionRequired !== false,

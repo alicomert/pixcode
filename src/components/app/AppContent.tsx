@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
+import InAppNotificationCenter from '../notifications/InAppNotificationCenter';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
@@ -206,6 +207,7 @@ export default function AppContent() {
         />
       </div>
 
+      <InAppNotificationCenter latestMessage={latestMessage} />
     </div>
   );
 }

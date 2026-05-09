@@ -23,6 +23,11 @@ const PROVIDER_LABELS = {
 
 const recentEventKeys = new Map();
 const DEDUPE_WINDOW_MS = 20000;
+let notificationWebSocketServer = null;
+
+function setNotificationWebSocketServer(wss) {
+  notificationWebSocketServer = wss;
+}
 
 const cleanupOldEventKeys = () => {
   const now = Date.now();
@@ -39,6 +44,22 @@ function shouldSendPush(preferences, event) {
   const eventEnabled = prefEventKey ? Boolean(preferences?.events?.[prefEventKey]) : true;
 
   return webPushEnabled && eventEnabled;
+}
+
+function shouldSendInApp(preferences, event) {
+  const inAppEnabled = preferences?.channels?.inApp !== false;
+  const prefEventKey = KIND_TO_PREF_KEY[event.kind];
+  const eventEnabled = prefEventKey ? preferences?.events?.[prefEventKey] !== false : true;
+
+  return inAppEnabled && eventEnabled;
+}
+
+function shouldSendTelegram(preferences, event) {
+  const telegramEnabled = preferences?.channels?.telegram !== false;
+  const prefEventKey = KIND_TO_PREF_KEY[event.kind];
+  const eventEnabled = prefEventKey ? preferences?.events?.[prefEventKey] !== false : true;
+
+  return telegramEnabled && eventEnabled;
 }
 
 function isDuplicate(event) {
@@ -149,6 +170,41 @@ function buildPushBody(event) {
   };
 }
 
+function buildNotificationPayload(event) {
+  const pushBody = buildPushBody(event);
+  return {
+    id: event.dedupeKey || `${event.provider || 'system'}:${event.kind || 'info'}:${event.code || 'generic'}:${event.sessionId || 'none'}:${event.createdAt}`,
+    title: pushBody.title,
+    body: pushBody.body,
+    kind: event.kind || 'info',
+    code: event.code || 'generic.info',
+    severity: event.severity || 'info',
+    provider: event.provider || null,
+    sessionId: event.sessionId || null,
+    createdAt: event.createdAt,
+    requiresUserAction: Boolean(event.requiresUserAction),
+    data: pushBody.data
+  };
+}
+
+function broadcastInAppNotification(userId, event) {
+  if (!notificationWebSocketServer || !userId || !event) {
+    return;
+  }
+
+  const message = JSON.stringify({
+    type: 'notification:event',
+    notification: buildNotificationPayload(event)
+  });
+  const normalizedUserId = String(userId);
+
+  notificationWebSocketServer.clients.forEach((client) => {
+    if (client.readyState === 1 && String(client.userId || '') === normalizedUserId) {
+      client.send(message);
+    }
+  });
+}
+
 async function sendWebPush(userId, event) {
   const subscriptions = pushSubscriptionsDb.getSubscriptions(userId);
   if (!subscriptions.length) return;
@@ -191,6 +247,14 @@ function notifyUserIfEnabled({ userId, event }) {
     return;
   }
 
+  if (shouldSendInApp(preferences, event)) {
+    try {
+      broadcastInAppNotification(userId, event);
+    } catch (err) {
+      console.error('In-app notification send error:', err);
+    }
+  }
+
   if (shouldSendPush(preferences, event)) {
     sendWebPush(userId, event).catch((err) => {
       console.error('Web push send error:', err);
@@ -203,14 +267,16 @@ function notifyUserIfEnabled({ userId, event }) {
   const providerLabel = PROVIDER_LABELS[event.provider] || event.provider || 'Session';
   const sessionTitle = event.meta?.sessionName || providerLabel;
   const errorText = event.meta?.error || '';
-  notifyTelegramUser({
-    userId,
-    kind: event.kind,
-    title: sessionTitle,
-    error: errorText,
-  }).catch((err) => {
-    console.warn('[telegram] notify failed:', err?.message || err);
-  });
+  if (shouldSendTelegram(preferences, event)) {
+    notifyTelegramUser({
+      userId,
+      kind: event.kind,
+      title: sessionTitle,
+      error: errorText,
+    }).catch((err) => {
+      console.warn('[telegram] notify failed:', err?.message || err);
+    });
+  }
 }
 
 function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'completed', sessionName = null }) {
@@ -247,6 +313,8 @@ function notifyRunFailed({ userId, provider, sessionId = null, error, sessionNam
 
 export {
   createNotificationEvent,
+  setNotificationWebSocketServer,
+  broadcastInAppNotification,
   notifyUserIfEnabled,
   notifyRunStopped,
   notifyRunFailed

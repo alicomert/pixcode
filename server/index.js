@@ -99,6 +99,7 @@ import {
 import { primeCliBinPath } from './services/install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames } from './database/db.js';
+import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
@@ -319,6 +320,7 @@ const wss = new WebSocketServer({
 
 // Make WebSocket server available to routes
 app.locals.wss = wss;
+setNotificationWebSocketServer(wss);
 
 app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
 app.use(express.json({
@@ -1813,6 +1815,7 @@ function handleChatConnection(ws, request) {
     console.log('[INFO] Chat WebSocket connected');
 
     // Add to connected clients for project updates
+    ws.userId = request?.user?.id ?? request?.user?.userId ?? null;
     connectedClients.add(ws);
 
     // Wrap WebSocket with writer for consistent interface with SSEStreamWriter

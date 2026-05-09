@@ -123,6 +123,8 @@ const createDefaultNotificationPreferences = (): NotificationPreferencesState =>
   channels: {
     inApp: true,
     webPush: false,
+    telegram: true,
+    desktop: true,
   },
   events: {
     actionRequired: true,
