@@ -48,11 +48,20 @@ export function createOrchestrationTaskRouter(): Router {
     try {
       const adapterId = typeof req.body?.adapterId === 'string' ? req.body.adapterId : '';
       const isolation = req.body?.isolation;
+      const projectPath = typeof req.body?.projectPath === 'string' ? req.body.projectPath : undefined;
+      const model = typeof req.body?.model === 'string' ? req.body.model : undefined;
+      const permissionMode = typeof req.body?.permissionMode === 'string' ? req.body.permissionMode : undefined;
       if (!adapterId) {
         res.status(400).json({ error: { code: 'ADAPTER_REQUIRED', message: 'adapterId is required' } });
         return;
       }
-      const task = await orchestrationTaskService.dispatch(req.params.id, { adapterId, isolation });
+      const task = await orchestrationTaskService.dispatch(req.params.id, {
+        adapterId,
+        isolation,
+        projectPath,
+        model,
+        permissionMode,
+      });
       res.json(task);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

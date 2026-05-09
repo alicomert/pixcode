@@ -150,6 +150,17 @@ async function readTaskMasterTasks(projectName) {
     return { projectPath, transformedTasks, currentTag };
 }
 
+function taskMasterExecutionDescription(task) {
+    return [
+        task.description ? `Description:\n${task.description}` : '',
+        task.details ? `Details:\n${task.details}` : '',
+        task.testStrategy ? `Test strategy:\n${task.testStrategy}` : '',
+        Array.isArray(task.dependencies) && task.dependencies.length
+            ? `Dependencies: ${task.dependencies.join(', ')}`
+            : '',
+    ].filter(Boolean).join('\n\n');
+}
+
 // API Routes
 
 /**
@@ -346,6 +357,75 @@ router.get('/tasks/:projectName', async (req, res) => {
         console.error('TaskMaster tasks loading error:', error);
         res.status(500).json({
             error: 'Failed to load TaskMaster tasks',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * POST /api/taskmaster/execute/:projectName/:taskId
+ * Import a TaskMaster task into orchestration and dispatch it to a CLI agent.
+ */
+router.post('/execute/:projectName/:taskId', async (req, res) => {
+    try {
+        const { projectName, taskId } = req.params;
+        const adapterId = typeof req.body?.adapterId === 'string'
+            ? req.body.adapterId
+            : typeof req.body?.provider === 'string'
+                ? req.body.provider
+                : '';
+        const model = typeof req.body?.model === 'string' ? req.body.model : undefined;
+        const permissionMode = typeof req.body?.permissionMode === 'string' ? req.body.permissionMode : undefined;
+        const isolation = ['host', 'worktree', 'docker'].includes(req.body?.isolation)
+            ? req.body.isolation
+            : 'worktree';
+        const projectId = typeof req.body?.projectId === 'string' ? req.body.projectId : projectName;
+
+        if (!adapterId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing adapterId',
+                message: 'adapterId or provider is required'
+            });
+        }
+
+        const { projectPath, transformedTasks } = await readTaskMasterTasks(projectName);
+        const task = transformedTasks.find((candidate) => String(candidate.id) === String(taskId));
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                error: 'TaskMaster task not found',
+                message: `Task "${taskId}" was not found in project "${projectName}"`
+            });
+        }
+
+        const orchestrationTask = orchestrationTaskService.upsertFromTaskMaster({
+            projectId,
+            taskmasterId: String(task.id),
+            title: `TaskMaster #${task.id}: ${task.title}`,
+            description: taskMasterExecutionDescription(task)
+        });
+
+        const dispatchedTask = await orchestrationTaskService.dispatch(orchestrationTask.id, {
+            adapterId,
+            isolation,
+            projectPath,
+            model,
+            permissionMode
+        });
+
+        res.json({
+            success: true,
+            projectName,
+            projectPath,
+            taskmasterTask: task,
+            task: dispatchedTask
+        });
+    } catch (error) {
+        console.error('TaskMaster execute error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to execute TaskMaster task',
             message: error.message
         });
     }

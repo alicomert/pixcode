@@ -71,6 +71,12 @@ class OrchestrationTaskService {
         },
         metadata: {
           isolation: input.isolation ?? 'worktree',
+          model: input.model,
+          permissionMode: input.permissionMode,
+          workspace: {
+            kind: input.isolation ?? 'worktree',
+            projectPath: input.projectPath,
+          },
           orchestrationTaskId: task.id,
           taskmasterId: task.taskmasterId,
         },
@@ -86,6 +92,7 @@ class OrchestrationTaskService {
     task.adapterId = input.adapterId;
     task.adapterSelector = input.adapterId;
     task.workspaceKind = input.isolation ?? 'worktree';
+    task.workspacePath = input.projectPath;
     task.state = 'in_progress';
     task.updatedAt = Date.now();
     this.store.set(task);

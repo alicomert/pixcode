@@ -26,4 +26,7 @@ export interface CreateOrchestrationTaskInput {
 export interface DispatchOrchestrationTaskInput {
   adapterId: string;
   isolation?: 'host' | 'worktree' | 'docker';
+  projectPath?: string;
+  model?: string;
+  permissionMode?: string;
 }
