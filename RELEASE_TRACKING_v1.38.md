@@ -8,7 +8,7 @@ This file is the source checklist for the v1.38 planning wave. Replace the `GH-T
 - [ ] GH-TBD-telegram Telegram feature parity for remote control
 - [ ] GH-TBD-taskmaster Taskmaster as the shared execution queue for CLI agents
 - [ ] GH-TBD-plugins CLI plugin and external tool configuration management
-- [ ] GH-TBD-desktop Desktop installer signing, artifact, and update recovery hardening
+- [x] GH-TBD-desktop Desktop installer signing, artifact, and update recovery hardening
 - [ ] GH-TBD-observability Run diagnostics and provider health visibility
 <!-- /pixcode:issue-progress -->
 
@@ -54,6 +54,7 @@ This file is the source checklist for the v1.38 planning wave. Replace the `GH-T
 - Document and/or implement macOS signing and notarization path.
 - Keep unsigned macOS warning guidance visible until signing is complete.
 - Verify `.exe`, `.dmg`, and AppImage artifact versions against package version and bundled Pixcode dependency.
+- Added `npm run smoke:v138-desktop` to verify package version alignment, artifact naming, AppImage coverage, DMG Gatekeeper helper packaging, and unsigned macOS guidance.
 
 ### Diagnostics And Health
 
