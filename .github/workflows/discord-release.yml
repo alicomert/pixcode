@@ -5,18 +5,47 @@ on:
     types: [published]
 
 jobs:
-  github-releases-to-discord:
+  discord-release-notification:
     runs-on: ubuntu-latest
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Github Releases To Discord
-        uses: SethCohen/github-releases-to-discord@v1.19.0
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          color: "2105893"
-          username: "Release Changelog"
-          avatar_url: "https://cdn.discordapp.com/avatars/487431320314576937/bd64361e4ba6313d561d54e78c9e7171.png"
-          content: "||@everyone||"
-          footer_title: "Changelog"
-          reduce_headings: true
+      - name: Skip when webhook is not configured
+        if: ${{ env.DISCORD_WEBHOOK_URL == '' }}
+        run: echo "DISCORD_WEBHOOK_URL is not configured; skipping Discord release notification."
+
+      - name: Send Discord release notification
+        if: ${{ env.DISCORD_WEBHOOK_URL != '' }}
+        shell: bash
+        run: |
+          node <<'NODE' > /tmp/discord-release-payload.json
+          const fs = require('node:fs');
+
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const release = event.release || {};
+          const body = String(release.body || 'No release notes provided.');
+          const description = body.length > 3900 ? `${body.slice(0, 3897)}...` : body;
+
+          const payload = {
+            content: '||@everyone||',
+            username: 'Release Changelog',
+            avatar_url: 'https://cdn.discordapp.com/avatars/487431320314576937/bd64361e4ba6313d561d54e78c9e7171.png',
+            embeds: [
+              {
+                title: release.name || release.tag_name || 'Pixcode release',
+                url: release.html_url,
+                description,
+                color: 2105893,
+                footer: { text: 'Changelog' },
+              },
+            ],
+          };
+
+          process.stdout.write(JSON.stringify(payload));
+          NODE
+
+          curl -fsS \
+            -H "Content-Type: application/json" \
+            --data @/tmp/discord-release-payload.json \
+            "$DISCORD_WEBHOOK_URL"
