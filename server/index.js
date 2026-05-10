@@ -75,6 +75,7 @@ import geminiRoutes from './routes/gemini.js';
 import qwenRoutes from './routes/qwen.js';
 import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
+import diagnosticsRoutes from './routes/diagnostics.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import {
   createA2ARouter,
@@ -320,6 +321,8 @@ const wss = new WebSocketServer({
 
 // Make WebSocket server available to routes
 app.locals.wss = wss;
+app.locals.installMode = installMode;
+app.locals.serverVersion = SERVER_VERSION;
 setNotificationWebSocketServer(wss);
 
 app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
@@ -390,6 +393,9 @@ app.use('/api/plugins', authenticateToken, pluginsRoutes);
 
 // Unified session messages route (protected)
 app.use('/api/sessions', authenticateToken, messagesRoutes);
+
+// Diagnostics API Routes (protected)
+app.use('/api/diagnostics', authenticateToken, diagnosticsRoutes);
 
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);

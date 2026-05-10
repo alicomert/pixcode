@@ -61,6 +61,8 @@ This file is the source checklist for the v1.38 planning wave. Replace the `GH-T
 - Add a diagnostics panel for provider health, active runs, WebSocket state, notification channel status, and recent errors.
 - Add copyable diagnostics bundles with secret redaction.
 - Prefer manual refresh and cached provider health over expensive repeated checks.
+- Added protected `/api/diagnostics` server bundle with runtime, version, WebSocket, notification, credential-state, and redacted environment data.
+- Added `npm run smoke:v138-diagnostics` to prevent token/secret leakage in diagnostics output.
 
 ## Verification Map
 
