@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.38.0](https://github.com/alicomert/pixcode/compare/v1.37.0...v1.38.0) (2026-05-10)
+
+Pixcode 1.38.0 starts the remote-control and release-hardening wave. It publishes the v1.38 GitHub issue plan, adds release-progress metadata that can be read by the update UI, hardens desktop installer guidance, and introduces a redacted diagnostics bundle for support/debugging.
+
+### New Features
+
+* **release:** add v1.38 GitHub issue automation and link the release checklist to issues #15-#22.
+* **diagnostics:** add protected `/api/diagnostics` output with runtime, version, WebSocket client count, notification state, credential presence, memory usage, and redacted environment data.
+
+### Improvements
+
+* **desktop:** verify desktop package version alignment, installer artifact naming, AppImage coverage, unsigned macOS Gatekeeper guidance, and the bundled `Fix Gatekeeper.command` helper through a dedicated v1.38 smoke check.
+* **updates:** keep the `pixcode:issue-progress` block populated with real GitHub issue numbers so future update screens can present issue-backed progress without guessing.
+
+### Tests
+
+* add `npm run smoke:v138-issues` for v1.38 issue payload validation.
+* add `npm run smoke:v138-desktop` for desktop release-hardening checks.
+* add `npm run smoke:v138-diagnostics` for diagnostics health aggregation and secret-redaction checks.
+
 ## [1.37.0](https://github.com/alicomert/pixcode/compare/v1.36.4...v1.37.0) (2026-05-09)
 
 Pixcode 1.37.0 is the orchestration reliability and task-foundation release. It turns the v1.37 issue plan into shipped product behavior: stricter agent handoffs, a clearer active-run dashboard, reliable chat hydration, layered notifications, Taskmaster onboarding/execution, multi-worker chat slots, and issue-backed update progress.
