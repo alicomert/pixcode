@@ -2,6 +2,25 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.38.1](https://github.com/alicomert/pixcode/compare/v1.38.0...v1.38.1) (2026-05-10)
+
+Pixcode 1.38.1 completes the v1.38 operations issue set after the initial 1.38.0 planning release. It turns the remote/API/Telegram/Taskmaster/provider/diagnostics GitHub issues into shipped behavior and closes the v1.38 epic.
+
+### New Features
+
+* **remote:** add first-run local/remote mode selection, redacted remote API URL/key persistence, protected remote config APIs, and remote health checks.
+* **api:** add a protected public API manifest and OpenAPI fragment covering auth, projects, sessions, providers, orchestration, Taskmaster, notifications, files, git, settings, updates, diagnostics, remote, Telegram, and plugins.
+* **api:** persist scoped `px_` API-key metadata while keeping keys revocable and compatible with existing API-key auth paths.
+* **telegram:** add sessions, new-chat controls, and errors-only progress mode alongside final-only, step-summary, and all-output modes.
+* **tasks:** add Taskmaster queue/detail automation routes and preserve provider, model, permission mode, fallback provider, and worker slot in dispatch metadata.
+* **providers:** add provider plugin-state endpoints plus redacted config previews, validation, and safe backup actions for CLI config files.
+* **diagnostics:** add Settings -> Diagnostics with manual refresh, provider health, WebSocket state, active runs, recent redacted errors, and copyable support bundles.
+
+### Tests
+
+* add `npm run smoke:v138-completion` to verify the complete v1.38 issue completion surface before release.
+* re-run v1.38 issue planner, desktop, diagnostics, Telegram control, Taskmaster Telegram, typecheck, lint, and build checks for the patch release.
+
 ## [1.38.0](https://github.com/alicomert/pixcode/compare/v1.37.0...v1.38.0) (2026-05-10)
 
 Pixcode 1.38.0 starts the remote-control and release-hardening wave. It publishes the v1.38 GitHub issue plan, adds release-progress metadata that can be read by the update UI, hardens desktop installer guidance, and introduces a redacted diagnostics bundle for support/debugging.
