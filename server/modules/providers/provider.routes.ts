@@ -670,6 +670,102 @@ const resolveConfigFile = (provider: string, fileId: string): { descriptor: Prov
   return { descriptor, absolutePath };
 };
 
+const SENSITIVE_CONFIG_PATTERN = /(api[_-]?key|token|secret|password|authorization|bearer)\s*[:=]\s*["']?([^"'\n\r]+)/ig;
+
+function redactProviderConfigPreview(contents: string): string {
+  return contents.replace(SENSITIVE_CONFIG_PATTERN, (_match, key) => `${key}: [redacted]`);
+}
+
+async function validateProviderConfigContents(descriptor: ProviderConfigFile, contents: string) {
+  if (Buffer.byteLength(contents, 'utf8') > MAX_CONFIG_FILE_SIZE_BYTES) {
+    throw new AppError(
+      `Config contents exceed ${MAX_CONFIG_FILE_SIZE_BYTES} bytes`,
+      { code: 'PROVIDER_CONFIG_TOO_LARGE', statusCode: 413 },
+    );
+  }
+
+  if (descriptor.format === 'json') {
+    try {
+      JSON.parse(contents || '{}');
+    } catch (err) {
+      throw new AppError(`Invalid JSON: ${(err as Error).message}`, {
+        code: 'PROVIDER_CONFIG_INVALID_JSON',
+        statusCode: 400,
+      });
+    }
+  }
+
+  return {
+    valid: true,
+    format: descriptor.format,
+    readonly: Boolean(descriptor.readonly),
+    preview: redactProviderConfigPreview(contents).slice(0, 4000),
+  };
+}
+
+async function buildProviderPluginState(provider: string) {
+  const files = PROVIDER_CONFIG_FILES[provider] || [];
+  const configs = await Promise.all(files.map(async (entry) => {
+    const absolutePath = path.resolve(os.homedir(), entry.relativePath);
+    let exists = false;
+    let size: number | null = null;
+    let updatedAt: string | null = null;
+    let preview = '';
+    try {
+      const stat = await fs.stat(absolutePath);
+      exists = stat.isFile();
+      size = stat.size;
+      updatedAt = stat.mtime.toISOString();
+      if (exists && stat.size <= MAX_CONFIG_FILE_SIZE_BYTES) {
+        preview = redactProviderConfigPreview(await fs.readFile(absolutePath, 'utf8')).slice(0, 1200);
+      }
+    } catch {
+      // Missing config files are normal for CLIs that have not been used yet.
+    }
+
+    return {
+      id: entry.id,
+      label: entry.label,
+      format: entry.format,
+      readonly: Boolean(entry.readonly),
+      relativePath: entry.relativePath,
+      absolutePath,
+      exists,
+      size,
+      updatedAt,
+      preview,
+      canBackup: exists,
+      canValidate: entry.format === 'json' || entry.format === 'env' || entry.format === 'toml' || entry.format === 'text',
+    };
+  }));
+
+  return {
+    provider,
+    supported: files.length > 0,
+    configCount: files.length,
+    installedCount: configs.filter((config) => config.exists).length,
+    configs,
+  };
+}
+
+router.get(
+  '/plugin-state',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const providers = await Promise.all(
+      Object.keys(PROVIDER_CONFIG_FILES).map((provider) => buildProviderPluginState(provider)),
+    );
+    res.json(createApiSuccessResponse({ providers }));
+  }),
+);
+
+router.get(
+  '/plugin-state/:provider',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    res.json(createApiSuccessResponse(await buildProviderPluginState(provider)));
+  }),
+);
+
 router.get(
   '/:provider/config-files',
   asyncHandler(async (req: Request, res: Response) => {
@@ -822,6 +918,44 @@ router.put(
       absolutePath,
       size: stat.size,
       updatedAt: stat.mtime.toISOString(),
+    }));
+  }),
+);
+
+router.post(
+  '/:provider/config-files/:fileId/validate',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = String(req.params.provider);
+    const fileId = String(req.params.fileId);
+    const { descriptor, absolutePath } = resolveConfigFile(provider, fileId);
+    const contents = typeof req.body?.contents === 'string'
+      ? req.body.contents
+      : await fs.readFile(absolutePath, 'utf8').catch(() => '');
+    res.json(createApiSuccessResponse(await validateProviderConfigContents(descriptor, contents)));
+  }),
+);
+
+router.post(
+  '/:provider/config-files/:fileId/backup',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = String(req.params.provider);
+    const fileId = String(req.params.fileId);
+    const { absolutePath } = resolveConfigFile(provider, fileId);
+    const stat = await fs.stat(absolutePath);
+    if (!stat.isFile()) {
+      throw new AppError(`${absolutePath} is not a regular file`, {
+        code: 'PROVIDER_CONFIG_NOT_FILE',
+        statusCode: 409,
+      });
+    }
+    const backupPath = `${absolutePath}.pixcode-backup-${Date.now()}`;
+    await fs.copyFile(absolutePath, backupPath);
+    res.json(createApiSuccessResponse({
+      provider,
+      fileId,
+      absolutePath,
+      backupPath,
+      size: stat.size,
     }));
   }),
 );

@@ -76,6 +76,8 @@ import qwenRoutes from './routes/qwen.js';
 import pluginsRoutes from './routes/plugins.js';
 import messagesRoutes from './routes/messages.js';
 import diagnosticsRoutes from './routes/diagnostics.js';
+import remoteRoutes from './routes/remote.js';
+import publicApiRoutes from './routes/public-api.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import {
   createA2ARouter,
@@ -396,6 +398,12 @@ app.use('/api/sessions', authenticateToken, messagesRoutes);
 
 // Diagnostics API Routes (protected)
 app.use('/api/diagnostics', authenticateToken, diagnosticsRoutes);
+
+// Remote connection API Routes (protected)
+app.use('/api/remote', authenticateToken, remoteRoutes);
+
+// Public automation manifest (protected so private host details only go to signed-in clients)
+app.use('/api/public', authenticateToken, publicApiRoutes);
 
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);

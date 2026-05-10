@@ -121,6 +121,7 @@
     "plugins": "Plugins",
     "mobile": "Use from Mobile",
     "telegram": "Telegram",
+    "diagnostics": "Diagnostics",
     "about": "About"
   },
   "mobile": {

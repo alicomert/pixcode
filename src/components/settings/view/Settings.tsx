@@ -12,6 +12,7 @@ import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
 import MobileSettingsTab from '../view/tabs/mobile-settings/MobileSettingsTab';
 import TelegramSettingsTab from '../view/tabs/telegram-settings/TelegramSettingsTab';
+import DiagnosticsSettingsTab from '../view/tabs/DiagnosticsSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useWebPush } from '../../../hooks/useWebPush';
@@ -176,6 +177,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               {activeTab === 'mobile' && <MobileSettingsTab />}
 
               {activeTab === 'telegram' && <TelegramSettingsTab />}
+
+              {activeTab === 'diagnostics' && <DiagnosticsSettingsTab />}
 
               {activeTab === 'about' && <AboutTab />}
             </div>

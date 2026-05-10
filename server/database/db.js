@@ -379,17 +379,28 @@ const userDb = {
 const apiKeysDb = {
     generateApiKey: () => 'px_' + crypto.randomBytes(32).toString('hex'),
 
-    createApiKey: (userId, keyName) => {
+    normalizeScopes: (scopes) => {
+        if (!Array.isArray(scopes)) return [];
+        return Array.from(new Set(scopes
+            .filter((scope) => typeof scope === 'string')
+            .map((scope) => scope.trim())
+            .filter(Boolean)
+        )).sort();
+    },
+
+    createApiKey: (userId, keyName, scopes = []) => {
         const apiKey = apiKeysDb.generateApiKey();
+        const normalizedScopes = apiKeysDb.normalizeScopes(scopes);
         const row = store.insert('api_keys', {
             user_id: userId,
             key_name: keyName,
             api_key: apiKey,
+            scopes: normalizedScopes,
             created_at: nowIso(),
             last_used: null,
             is_active: true,
         });
-        return { id: row.id, keyName, apiKey };
+        return { id: row.id, keyName, apiKey, scopes: normalizedScopes };
     },
 
     getApiKeys: (userId) => {
@@ -402,6 +413,7 @@ const apiKeysDb = {
                 id: r.id,
                 key_name: r.key_name,
                 api_key: r.api_key,
+                scopes: apiKeysDb.normalizeScopes(r.scopes),
                 created_at: r.created_at,
                 last_used: r.last_used,
                 is_active: r.is_active ? 1 : 0,
@@ -420,6 +432,7 @@ const apiKeysDb = {
             id: user.id,
             username: user.username,
             api_key_id: key.id,
+            api_key_scopes: apiKeysDb.normalizeScopes(key.scopes),
         };
     },
 
@@ -428,6 +441,11 @@ const apiKeysDb = {
 
     toggleApiKey: (userId, apiKeyId, isActive) =>
         store.updateWhere('api_keys', (r) => r.id === apiKeyId && r.user_id === userId, { is_active: Boolean(isActive) }) > 0,
+
+    updateApiKeyScopes: (userId, apiKeyId, scopes = []) =>
+        store.updateWhere('api_keys', (r) => r.id === apiKeyId && r.user_id === userId, {
+            scopes: apiKeysDb.normalizeScopes(scopes),
+        }) > 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -691,7 +709,7 @@ function normalizeTelegramControlState(value = {}) {
     const selectedProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.selectedProvider)
         ? raw.selectedProvider
         : DEFAULT_TELEGRAM_CONTROL_STATE.selectedProvider;
-    const progressMode = ['final', 'steps', 'all'].includes(raw.progressMode)
+    const progressMode = ['final', 'steps', 'all', 'errors'].includes(raw.progressMode)
         ? raw.progressMode
         : DEFAULT_TELEGRAM_CONTROL_STATE.progressMode;
 

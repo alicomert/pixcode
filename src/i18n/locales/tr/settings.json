@@ -121,6 +121,7 @@
     "plugins": "Eklentiler",
     "mobile": "Mobilden Kullan",
     "telegram": "Telegram",
+    "diagnostics": "Tanılama",
     "about": "Hakkında"
   },
   "mobile": {

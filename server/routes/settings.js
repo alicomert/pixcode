@@ -29,13 +29,13 @@ router.get('/api-keys', async (req, res) => {
 // Create a new API key
 router.post('/api-keys', async (req, res) => {
   try {
-    const { keyName } = req.body;
+    const { keyName, scopes } = req.body;
 
     if (!keyName || !keyName.trim()) {
       return res.status(400).json({ error: 'Key name is required' });
     }
 
-    const result = apiKeysDb.createApiKey(req.user.id, keyName.trim());
+    const result = apiKeysDb.createApiKey(req.user.id, keyName.trim(), scopes);
     res.json({
       success: true,
       apiKey: result
@@ -83,6 +83,29 @@ router.patch('/api-keys/:keyId/toggle', async (req, res) => {
   } catch (error) {
     console.error('Error toggling API key:', error);
     res.status(500).json({ error: 'Failed to toggle API key' });
+  }
+});
+
+// Update API key scopes
+router.patch('/api-keys/:keyId/scopes', async (req, res) => {
+  try {
+    const { keyId } = req.params;
+    const { scopes } = req.body;
+
+    if (!Array.isArray(scopes)) {
+      return res.status(400).json({ error: 'scopes must be an array' });
+    }
+
+    const success = apiKeysDb.updateApiKeyScopes(req.user.id, parseInt(keyId), scopes);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'API key not found' });
+    }
+  } catch (error) {
+    console.error('Error updating API key scopes:', error);
+    res.status(500).json({ error: 'Failed to update API key scopes' });
   }
 });
 

@@ -11,12 +11,18 @@ type SetupFormState = {
   username: string;
   password: string;
   confirmPassword: string;
+  connectionMode: 'local' | 'remote';
+  remoteUrl: string;
+  remoteApiKey: string;
 };
 
 const initialState: SetupFormState = {
   username: '',
   password: '',
   confirmPassword: '',
+  connectionMode: 'local',
+  remoteUrl: '',
+  remoteApiKey: '',
 };
 
 /**
@@ -41,6 +47,10 @@ function validateSetupForm(formState: SetupFormState): string | null {
     return 'Passwords do not match.';
   }
 
+  if (formState.connectionMode === 'remote' && !formState.remoteUrl.trim()) {
+    return 'Remote Pixcode server URL is required.';
+  }
+
   return null;
 }
 
@@ -57,7 +67,7 @@ export default function SetupForm() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const updateField = useCallback((field: keyof SetupFormState, value: string) => {
+  const updateField = useCallback(<Field extends keyof SetupFormState>(field: Field, value: SetupFormState[Field]) => {
     setFormState((previous) => ({ ...previous, [field]: value }));
   }, []);
 
@@ -73,6 +83,22 @@ export default function SetupForm() {
       }
 
       setIsSubmitting(true);
+      const connectionResponse = await fetch('/api/auth/connection-mode', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: formState.connectionMode,
+          remoteUrl: formState.connectionMode === 'remote' ? formState.remoteUrl.trim() : null,
+          apiKey: formState.connectionMode === 'remote' ? formState.remoteApiKey.trim() : null,
+        }),
+      });
+      if (!connectionResponse.ok) {
+        const payload = await connectionResponse.json().catch(() => null);
+        setErrorMessage(payload?.error || 'Could not save connection mode.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const result = await register(formState.username.trim(), formState.password);
       if (!result.success) {
         setErrorMessage(result.error);
@@ -90,6 +116,61 @@ export default function SetupForm() {
       logo={<img src="/logo.svg" alt="Pixcode" className="h-16 w-16" />}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-2 rounded-lg border border-border/70 bg-muted/30 p-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => updateField('connectionMode', 'local')}
+            disabled={isSubmitting}
+            className={`rounded-md px-3 py-2 text-left text-sm transition-colors ${
+              formState.connectionMode === 'local'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            }`}
+          >
+            <span className="block font-medium">Use this computer directly</span>
+            <span className="block text-xs opacity-80">Run Pixcode and CLIs on this machine.</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => updateField('connectionMode', 'remote')}
+            disabled={isSubmitting}
+            className={`rounded-md px-3 py-2 text-left text-sm transition-colors ${
+              formState.connectionMode === 'remote'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+            }`}
+          >
+            <span className="block font-medium">Connect to a remote Pixcode server</span>
+            <span className="block text-xs opacity-80">Control another always-on Pixcode host by API.</span>
+          </button>
+        </div>
+
+        {formState.connectionMode === 'remote' && (
+          <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
+            <AuthInputField
+              id="remoteUrl"
+              name="remoteUrl"
+              label="Remote API URL"
+              value={formState.remoteUrl}
+              onChange={(value) => updateField('remoteUrl', value)}
+              placeholder="https://your-server.example.com"
+              isDisabled={isSubmitting}
+              autoComplete="url"
+            />
+            <AuthInputField
+              id="remoteApiKey"
+              name="remoteApiKey"
+              label="Remote API Key"
+              value={formState.remoteApiKey}
+              onChange={(value) => updateField('remoteApiKey', value)}
+              placeholder="px_..."
+              isDisabled={isSubmitting}
+              type="password"
+              autoComplete="off"
+            />
+          </div>
+        )}
+
         <AuthInputField
           id="username"
           name="username"

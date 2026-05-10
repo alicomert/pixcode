@@ -48,11 +48,45 @@ function normalizeMemory(memory) {
   );
 }
 
+function redactText(value) {
+  return String(value || '').replace(
+    /(ghp_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|npm_[A-Za-z0-9_]+|px_[A-Za-z0-9_]+|ck_[A-Za-z0-9_]+|[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,})/g,
+    '[redacted]',
+  );
+}
+
 function resolveWebSocketClientCount(options) {
   if (Number.isInteger(options.wsClientCount)) {
     return options.wsClientCount;
   }
   return options.wss?.clients?.size || 0;
+}
+
+function normalizeProviderHealth(input = {}, env = process.env, now = new Date()) {
+  const defaults = {
+    claude: { configured: Boolean(env.ANTHROPIC_API_KEY || env.CLAUDE_API_KEY) },
+    codex: { configured: Boolean(env.OPENAI_API_KEY) },
+    cursor: { configured: false },
+    gemini: { configured: Boolean(env.GEMINI_API_KEY || env.GOOGLE_API_KEY) },
+    qwen: { configured: Boolean(env.DASHSCOPE_API_KEY || env.OPENAI_API_KEY) },
+    opencode: { configured: false },
+  };
+
+  return Object.fromEntries(
+    Object.entries({ ...defaults, ...input }).map(([provider, value]) => {
+      const raw = value && typeof value === 'object' ? value : {};
+      return [
+        provider,
+        redactDiagnostics({
+          status: raw.status || (raw.configured ? 'configured' : 'unknown'),
+          auth: raw.auth || (raw.configured ? 'configured' : 'not_configured'),
+          cli: raw.cli || raw.version || null,
+          checkedAt: raw.checkedAt || now.toISOString(),
+          details: raw.details || null,
+        }),
+      ];
+    }),
+  );
 }
 
 export function collectDiagnostics(options = {}) {
@@ -61,8 +95,12 @@ export function collectDiagnostics(options = {}) {
   const versions = options.versions || process.versions;
   const memoryUsage = options.memoryUsage || process.memoryUsage;
   const uptime = options.uptime ?? process.uptime();
+  const activeRuns = Array.isArray(options.activeRuns) ? options.activeRuns : [];
+  const recentErrors = Array.isArray(options.recentErrors) ? options.recentErrors : [];
+  const providerHealth = normalizeProviderHealth(options.providerHealth, env, now);
+  const cache = options.cache && typeof options.cache === 'object' ? options.cache : {};
 
-  return {
+  const diagnostics = {
     status: 'ok',
     timestamp: now.toISOString(),
     version: options.serverVersion || '0.0.0',
@@ -84,7 +122,29 @@ export function collectDiagnostics(options = {}) {
       telegramConfigured: Boolean(env.TELEGRAM_BOT_TOKEN),
       webPushConfigured: Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY),
     },
+    providerHealth,
+    activeRuns: activeRuns.map((run) => redactDiagnostics(run)),
+    recentErrors: recentErrors.map((error) => redactDiagnostics({
+      ...error,
+      message: redactText(error?.message),
+      stack: error?.stack ? redactText(error.stack) : undefined,
+    })),
+    cache: redactDiagnostics({
+      providerHealthUpdatedAt: cache.providerHealthUpdatedAt || null,
+      diagnosticsUpdatedAt: now.toISOString(),
+    }),
+    manualRefresh: {
+      available: true,
+      endpoint: '/api/diagnostics/refresh',
+    },
+    bundle: {
+      copyable: true,
+      endpoint: '/api/diagnostics/bundle',
+      includes: ['runtime', 'websocket', 'notifications', 'providerHealth', 'activeRuns', 'recentErrors'],
+    },
   };
+
+  return redactDiagnostics(diagnostics);
 }
 
 export function redactDiagnostics(input) {

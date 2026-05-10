@@ -161,6 +161,29 @@ function taskMasterExecutionDescription(task) {
     ].filter(Boolean).join('\n\n');
 }
 
+function buildTaskMasterQueueSummary(projectName, projectPath, tasks) {
+    const normalized = tasks.map((task) => ({
+        ...task,
+        queueState: ['done', 'completed', 'cancelled', 'canceled'].includes(String(task.status || '').toLowerCase())
+            ? 'finished'
+            : String(task.status || 'pending') === 'in-progress'
+                ? 'running'
+                : 'queued',
+    }));
+    return {
+        projectName,
+        projectPath,
+        queue: normalized,
+        totals: {
+            all: normalized.length,
+            queued: normalized.filter((task) => task.queueState === 'queued').length,
+            running: normalized.filter((task) => task.queueState === 'running').length,
+            finished: normalized.filter((task) => task.queueState === 'finished').length,
+        },
+        timestamp: new Date().toISOString(),
+    };
+}
+
 // API Routes
 
 /**
@@ -363,6 +386,66 @@ router.get('/tasks/:projectName', async (req, res) => {
 });
 
 /**
+ * GET /api/taskmaster/queue/:projectName
+ * Stable automation endpoint for remote UI, Telegram, and external clients.
+ */
+router.get('/queue/:projectName', async (req, res) => {
+    try {
+        const { projectName } = req.params;
+        const { projectPath, transformedTasks } = await readTaskMasterTasks(projectName);
+        res.json(buildTaskMasterQueueSummary(projectName, projectPath, transformedTasks));
+    } catch (error) {
+        if (error?.code === 'ENOENT') {
+            return res.json(buildTaskMasterQueueSummary(req.params.projectName, null, []));
+        }
+        console.error('TaskMaster queue loading error:', error);
+        res.status(500).json({
+            error: 'Failed to load TaskMaster queue',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * GET /api/taskmaster/task/:projectName/:taskId
+ * Load a single TaskMaster item with queue metadata.
+ */
+router.get('/task/:projectName/:taskId', async (req, res) => {
+    try {
+        const { projectName, taskId } = req.params;
+        const { projectPath, transformedTasks } = await readTaskMasterTasks(projectName);
+        const task = transformedTasks.find((candidate) => String(candidate.id) === String(taskId));
+        if (!task) {
+            return res.status(404).json({
+                success: false,
+                error: 'TaskMaster task not found',
+                message: `Task "${taskId}" was not found in project "${projectName}"`
+            });
+        }
+        res.json({
+            success: true,
+            projectName,
+            projectPath,
+            task,
+            execution: {
+                supportsProvider: true,
+                supportsModel: true,
+                supportsFallbackProvider: true,
+                supportsPermissionMode: true,
+                supportsWorkerSlot: true,
+            },
+        });
+    } catch (error) {
+        console.error('TaskMaster task detail error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to load TaskMaster task',
+            message: error.message
+        });
+    }
+});
+
+/**
  * POST /api/taskmaster/execute/:projectName/:taskId
  * Import a TaskMaster task into orchestration and dispatch it to a CLI agent.
  */
@@ -376,6 +459,8 @@ router.post('/execute/:projectName/:taskId', async (req, res) => {
                 : '';
         const model = typeof req.body?.model === 'string' ? req.body.model : undefined;
         const permissionMode = typeof req.body?.permissionMode === 'string' ? req.body.permissionMode : undefined;
+        const fallbackProvider = typeof req.body?.fallbackProvider === 'string' ? req.body.fallbackProvider : undefined;
+        const workerSlot = Number.isInteger(req.body?.workerSlot) ? req.body.workerSlot : undefined;
         const isolation = ['host', 'worktree', 'docker'].includes(req.body?.isolation)
             ? req.body.isolation
             : 'worktree';
@@ -403,7 +488,14 @@ router.post('/execute/:projectName/:taskId', async (req, res) => {
             projectId,
             taskmasterId: String(task.id),
             title: `TaskMaster #${task.id}: ${task.title}`,
-            description: taskMasterExecutionDescription(task)
+            description: taskMasterExecutionDescription(task),
+            metadata: {
+                provider: adapterId,
+                model,
+                permissionMode,
+                fallbackProvider,
+                workerSlot,
+            },
         });
 
         const dispatchedTask = await orchestrationTaskService.dispatch(orchestrationTask.id, {
@@ -411,7 +503,9 @@ router.post('/execute/:projectName/:taskId', async (req, res) => {
             isolation,
             projectPath,
             model,
-            permissionMode
+            permissionMode,
+            fallbackProvider,
+            workerSlot,
         });
 
         res.json({
@@ -419,6 +513,13 @@ router.post('/execute/:projectName/:taskId', async (req, res) => {
             projectName,
             projectPath,
             taskmasterTask: task,
+            execution: {
+                provider: adapterId,
+                model,
+                permissionMode,
+                fallbackProvider,
+                workerSlot,
+            },
             task: dispatchedTask
         });
     } catch (error) {

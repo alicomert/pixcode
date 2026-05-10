@@ -7,6 +7,10 @@ import bcrypt from 'bcryptjs';
 
 import { userDb, db } from '../database/db.js';
 import { generateToken, authenticateToken } from '../middleware/auth.js';
+import {
+  getPublicRemoteConnectionConfig,
+  saveRemoteConnectionConfig,
+} from '../services/remote-connection.js';
 
 const router = express.Router();
 
@@ -21,6 +25,21 @@ router.get('/status', async (req, res) => {
   } catch (error) {
     console.error('Auth status error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// First-run connection mode is intentionally public: it is needed before
+// account creation so a fresh desktop install can decide whether it controls
+// this machine or a remote Pixcode server.
+router.get('/connection-mode', (req, res) => {
+  res.json({ success: true, connection: getPublicRemoteConnectionConfig() });
+});
+
+router.put('/connection-mode', (req, res) => {
+  try {
+    res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 

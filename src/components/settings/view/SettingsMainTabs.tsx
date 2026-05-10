@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { SettingsMainTab } from '../types/types';
 
-import { GitBranch, Info, Key, Puzzle } from '@/lib/icons';
+import { Bug, GitBranch, Info, Key, Puzzle } from '@/lib/icons';
 
 type SettingsMainTabsProps = {
   activeTab: SettingsMainTab;
@@ -24,6 +24,7 @@ const TAB_CONFIG: MainTabConfig[] = [
   { id: 'tasks', labelKey: 'mainTabs.tasks' },
   { id: 'notifications', labelKey: 'mainTabs.notifications' },
   { id: 'plugins', labelKey: 'mainTabs.plugins', icon: Puzzle },
+  { id: 'diagnostics', labelKey: 'mainTabs.diagnostics', icon: Bug },
   { id: 'about', labelKey: 'mainTabs.about', icon: Info },
 ];
 

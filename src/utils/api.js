@@ -35,6 +35,12 @@ export const api = {
   // Auth endpoints (no token required)
   auth: {
     status: () => fetch('/api/auth/status'),
+    connectionMode: () => fetch('/api/auth/connection-mode'),
+    updateConnectionMode: (payload) => fetch('/api/auth/connection-mode', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
     login: (username, password) => fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,6 +57,15 @@ export const api = {
 
   // Protected endpoints
   // config endpoint removed - no longer needed (frontend uses window.location)
+  publicApiManifest: () => authenticatedFetch('/api/public/manifest'),
+  diagnostics: () => authenticatedFetch('/api/diagnostics'),
+  refreshDiagnostics: () => authenticatedFetch('/api/diagnostics/refresh', { method: 'POST' }),
+  remoteConnection: () => authenticatedFetch('/api/remote/config'),
+  updateRemoteConnection: (payload) =>
+    authenticatedFetch('/api/remote/config', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
   projects: () => authenticatedFetch('/api/projects'),
   sessions: (projectName, limit = 5, offset = 0) =>
     authenticatedFetch(`/api/projects/${projectName}/sessions?limit=${limit}&offset=${offset}`),

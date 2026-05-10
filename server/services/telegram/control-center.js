@@ -49,6 +49,8 @@ const CONTROL_COMMANDS = new Set([
   '/workflows',
   '/orchestration',
   '/runs',
+  '/sessions',
+  '/newchat',
   '/tasks',
   '/task',
   '/settings',
@@ -213,6 +215,7 @@ function mainMenuKeyboard(lang) {
     [button(t(lang, 'control.button.projects'), 'projects'), button(t(lang, 'control.button.provider'), 'providers')],
     [button(t(lang, 'control.button.models'), 'models'), button(t(lang, 'control.button.workflows'), 'workflows')],
     [button(t(lang, 'control.button.tasks'), 'tasks'), button(t(lang, 'control.button.runs'), 'runs')],
+    [button(t(lang, 'control.button.sessions'), 'sessions'), button(t(lang, 'control.button.newChat'), 'new_chat')],
     [button(t(lang, 'control.button.install'), 'install_menu'), button(t(lang, 'control.button.auth'), 'auth_menu')],
     [button(t(lang, 'control.button.settings'), 'settings')],
   ];
@@ -344,6 +347,44 @@ async function showRuns({ bot, chatId, link, editMessageId }) {
   await send(bot, chatId, t(lang, 'control.recentRuns'), {
     editMessageId,
     reply_markup: { inline_keyboard: rows(buttons, 1) },
+  });
+}
+
+async function showSessions({ bot, chatId, link, editMessageId }) {
+  const lang = languageFor(link);
+  const state = getState(link.user_id);
+  if (!state.selectedProjectName) {
+    await send(bot, chatId, t(lang, 'control.selectProjectFirst'), { editMessageId });
+    return;
+  }
+
+  const data = await localApi(link.user_id, `/api/projects/${encodeURIComponent(state.selectedProjectName)}/sessions?limit=10&offset=0`);
+  const sessions = Array.isArray(data?.sessions) ? data.sessions : [];
+  if (sessions.length === 0) {
+    await send(bot, chatId, t(lang, 'control.noSessions'), { editMessageId });
+    return;
+  }
+
+  const lines = sessions.slice(0, 10).map((session, index) =>
+    `${index + 1}. ${compact(session.summary || session.id || session.sessionId, 70)}`
+  );
+  await send(bot, chatId, `${t(lang, 'control.recentSessions')}\n\n${lines.join('\n')}`, {
+    editMessageId,
+    reply_markup: {
+      inline_keyboard: [
+        [button(t(lang, 'control.button.newChat'), 'new_chat')],
+        [button(t(lang, 'control.button.mainMenu'), 'menu')],
+      ],
+    },
+  });
+}
+
+async function startNewChat({ bot, chatId, link, editMessageId }) {
+  const lang = languageFor(link);
+  updateTelegramControlState(link.user_id, { awaiting: { type: 'agent_prompt' } });
+  await send(bot, chatId, t(lang, 'control.newChatReady'), {
+    editMessageId,
+    reply_markup: { inline_keyboard: [[button(t(lang, 'control.button.mainMenu'), 'menu')]] },
   });
 }
 
@@ -483,7 +524,10 @@ function summarizeRun(run, mode) {
   ];
   const nodeRuns = Array.isArray(run.nodeRuns) ? run.nodeRuns : [];
   if (mode !== 'final') {
-    for (const node of nodeRuns) {
+    const visibleNodes = mode === 'errors'
+      ? nodeRuns.filter((node) => node.error || node.status === 'failed')
+      : nodeRuns;
+    for (const node of visibleNodes) {
       lines.push(`- ${node.status}: ${node.agentLabel || node.nodeId}${node.error ? ` — ${node.error}` : ''}`);
     }
   }
@@ -510,6 +554,15 @@ async function monitorWorkflowRun({ bot, chatId, link, runId }) {
           if (!seenNodeStatus.has(key)) {
             seenNodeStatus.set(key, true);
             await send(bot, chatId, `${node.agentLabel || node.nodeId}: ${node.status}${node.error ? `\n${node.error}` : ''}`);
+          }
+        }
+      }
+      if (state.progressMode === 'errors') {
+        for (const node of nodeRuns.filter((candidate) => candidate.error || candidate.status === 'failed')) {
+          const key = `${node.nodeId}:${node.status}:${node.error || ''}`;
+          if (!seenNodeStatus.has(key)) {
+            seenNodeStatus.set(key, true);
+            await send(bot, chatId, `${node.agentLabel || node.nodeId}: ${node.status}\n${node.error || ''}`);
           }
         }
       }
@@ -664,6 +717,7 @@ async function showSettings({ bot, chatId, link, editMessageId }) {
     [
       button(state.progressMode === 'final' ? checked(t(lang, 'control.button.progressFinal')) : t(lang, 'control.button.progressFinal'), 'progress_mode', { progressMode: 'final' }),
       button(state.progressMode === 'steps' ? checked(t(lang, 'control.button.progressSteps')) : t(lang, 'control.button.progressSteps'), 'progress_mode', { progressMode: 'steps' }),
+      button(state.progressMode === 'errors' ? checked(t(lang, 'control.button.progressErrors')) : t(lang, 'control.button.progressErrors'), 'progress_mode', { progressMode: 'errors' }),
       button(state.progressMode === 'all' ? checked(t(lang, 'control.button.progressAll')) : t(lang, 'control.button.progressAll'), 'progress_mode', { progressMode: 'all' }),
     ],
     [
@@ -741,6 +795,14 @@ async function handleCommand({ bot, chatId, link, text }) {
     await showRuns({ bot, chatId, link });
     return true;
   }
+  if (command === '/sessions') {
+    await showSessions({ bot, chatId, link });
+    return true;
+  }
+  if (command === '/newchat') {
+    await startNewChat({ bot, chatId, link });
+    return true;
+  }
   if (command === '/tasks') {
     await showTaskMasterTasks({ bot, chatId, link });
     return true;
@@ -775,7 +837,7 @@ async function handleCommand({ bot, chatId, link, text }) {
     return true;
   }
   if (command === '/progress') {
-    if (!['final', 'steps', 'all'].includes(argText)) {
+    if (!['final', 'steps', 'all', 'errors'].includes(argText)) {
       await send(bot, chatId, t(lang, 'control.progressUsage'));
       return true;
     }
@@ -877,6 +939,8 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
   if (action === 'models_refresh') return showModelMenu({ bot, chatId, link, refresh: true, editMessageId });
   if (action === 'workflows') return showWorkflowMenu({ bot, chatId, link, editMessageId });
   if (action === 'runs') return showRuns({ bot, chatId, link, editMessageId });
+  if (action === 'sessions') return showSessions({ bot, chatId, link, editMessageId });
+  if (action === 'new_chat') return startNewChat({ bot, chatId, link, editMessageId });
   if (action === 'tasks') return showTaskMasterTasks({ bot, chatId, link, editMessageId });
   if (action === 'install_menu') return showInstallMenu({ bot, chatId, link, editMessageId });
   if (action === 'auth_menu') return showAuthMenu({ bot, chatId, link, editMessageId });

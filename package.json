@@ -49,6 +49,7 @@
     "smoke:update-ux": "node scripts/smoke/update-ux.mjs",
     "smoke:v138-diagnostics": "node scripts/smoke/v138-diagnostics.mjs",
     "smoke:v138-desktop": "node scripts/smoke/v138-desktop-release-hardening.mjs",
+    "smoke:v138-completion": "node scripts/smoke/v138-completion.mjs",
     "smoke:v138-issues": "node scripts/smoke/v138-issue-planner.mjs",
     "issues:v1.38": "node scripts/github/create-v1.38-issues.mjs --apply",
     "start": "npm run build && npm run server",
