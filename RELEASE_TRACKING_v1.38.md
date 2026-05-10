@@ -1,0 +1,72 @@
+# Pixcode v1.38 Release Tracking
+
+This file is the source checklist for the v1.38 planning wave. Replace the `GH-TBD-*` placeholders with GitHub issue numbers once the GitHub API is reachable, and keep the marked block in the GitHub release body so the app can show update progress mapped to issues and tasks.
+
+<!-- pixcode:issue-progress -->
+- [ ] GH-TBD-remote First-run local/remote connection mode and API URL pairing
+- [ ] GH-TBD-api Complete Pixcode control surface through API keys
+- [ ] GH-TBD-telegram Telegram feature parity for remote control
+- [ ] GH-TBD-taskmaster Taskmaster as the shared execution queue for CLI agents
+- [ ] GH-TBD-plugins CLI plugin and external tool configuration management
+- [ ] GH-TBD-desktop Desktop installer signing, artifact, and update recovery hardening
+- [ ] GH-TBD-observability Run diagnostics and provider health visibility
+<!-- /pixcode:issue-progress -->
+
+## Epic
+
+- GH-TBD-epic epic(product): track v1.38 remote API and task operations
+
+## Scope
+
+### First-Run Local/Remote Mode
+
+- Ask whether the user will use this computer directly or connect to a remote Pixcode server.
+- Let remote mode accept an API URL and API key/session credentials before normal onboarding and update checks.
+- Show a full-width connection banner when the controlled server is unreachable.
+- Persist the selected mode and allow changing it from Settings.
+
+### Public API Surface
+
+- Define stable public API groups for auth, projects, sessions, provider runs, orchestration, Taskmaster tasks, notifications, files, git/source-control, settings, and update status.
+- Keep `px_` API key prefix, add scoped/revocable API keys, and document examples in OpenAPI.
+- Make Telegram and future remote clients use the same API/service layer instead of separate logic.
+
+### Telegram Control Parity
+
+- Add structured menus for active sessions, new chat, existing project, provider/model selection, orchestration workflows, Taskmaster tasks, settings, and notification granularity.
+- Support final-only, step-summary, all-output, and errors-only notification modes.
+- Keep menus edited in place and fully localized.
+
+### Taskmaster Execution Backbone
+
+- Add task create/edit/list/detail flows in UI, API, and Telegram.
+- Bind tasks to project path, provider, model, permission mode, fallback provider, and worker slot.
+- Persist progress, summaries, final output, failure reasons, and changed files per task.
+
+### Provider Plugin And Tool Configuration
+
+- Detect provider-specific plugin/tool config locations where supported.
+- Show installed/available plugin state per provider.
+- Allow safe enable/disable/update with preview, backup, validation, and redacted secrets.
+
+### Desktop Release Hardening
+
+- Document and/or implement macOS signing and notarization path.
+- Keep unsigned macOS warning guidance visible until signing is complete.
+- Verify `.exe`, `.dmg`, and AppImage artifact versions against package version and bundled Pixcode dependency.
+
+### Diagnostics And Health
+
+- Add a diagnostics panel for provider health, active runs, WebSocket state, notification channel status, and recent errors.
+- Add copyable diagnostics bundles with secret redaction.
+- Prefer manual refresh and cached provider health over expensive repeated checks.
+
+## Verification Map
+
+- Remote mode: local/remote mode persistence, remote health banner, login/register/pairing guard
+- API: API-key create/list project -> provider run -> result fetch smoke
+- Telegram: command routing, callback routing, language, project/session/provider/model switching
+- Taskmaster: create -> dispatch -> progress -> completion/failure state
+- Provider plugins: sample config discovery/parsing and secret redaction
+- Desktop: desktop package version alignment and artifact checklist
+- Diagnostics: health aggregation and secret redaction
