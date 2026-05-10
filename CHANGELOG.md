@@ -2,6 +2,24 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.38.3](https://github.com/alicomert/pixcode/compare/v1.38.2...v1.38.3) (2026-05-10)
+
+Pixcode 1.38.3 is a Mac/runtime reliability patch for the v1.38 desktop and orchestration wave. It fixes macOS GUI PATH detection for provider/task installs, keeps Qwen/OpenCode chats hydrated after project refreshes, improves the multi-worker composer entry point, and prevents external-directory permission denials from breaking orchestration final reports.
+
+### Bug Fixes
+
+* **macos:** hydrate the desktop runtime PATH from the user's login shell and common Node manager paths so TaskMaster/provider installs can find `npm` from Electron, not only from Terminal.
+* **providers:** honor resolved `CODEX_CLI_PATH`, `CURSOR_CLI_PATH`, `GEMINI_CLI_PATH`, and `QWEN_CLI_PATH` during CLI status checks so existing CLIs do not falsely show install/download states.
+* **chat:** include Qwen and OpenCode session pools in project refresh/change detection and persist the selected session provider before navigation, fixing chats that stayed on the "continue your conversation" screen until another chat was opened.
+* **orchestration:** detect external-directory permission denials, avoid default auto-reject mode for selected host workspaces, and synthesize a readable final report from completed agent outputs instead of failing the whole run.
+* **desktop:** resize the macOS tray/menu-bar icon to a native 18px template image so the app logo does not overflow the menu bar.
+* **ui:** move the multi-worker `+` control next to the chat composer send button and add direction-aware split-panel transitions.
+
+### Tests
+
+* add smoke checks for macOS desktop runtime PATH resolution, Qwen/OpenCode chat session pools, orchestration permission fallback, desktop tray icon sizing, and multi-worker composer UI placement.
+* re-run smoke checks, typecheck, lint, and production build before publishing.
+
 ## [1.38.2](https://github.com/alicomert/pixcode/compare/v1.38.1...v1.38.2) (2026-05-10)
 
 Pixcode 1.38.2 is a desktop notification patch for the installer builds. It routes agent/task notifications through the Electron native notification bridge first, then falls back to the existing browser/service-worker notification path for web and server installs.

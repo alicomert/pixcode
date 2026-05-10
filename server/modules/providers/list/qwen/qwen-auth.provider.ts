@@ -32,7 +32,7 @@ type QwenCredentialsStatus = {
  */
 export class QwenProviderAuth implements IProviderAuth {
   private checkInstalled(): boolean {
-    const cliPath = process.env.QWEN_PATH || 'qwen';
+    const cliPath = process.env.QWEN_CLI_PATH || process.env.QWEN_PATH || 'qwen';
     try {
       const result = spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
       return !result.error && result.status === 0;

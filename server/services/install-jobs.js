@@ -48,6 +48,11 @@ import spawn from 'cross-spawn';
 const jobs = new Map();
 const FINISHED_TTL_MS = 10 * 60 * 1000;
 const HARD_TIMEOUT_MS = 10 * 60 * 1000;
+const USER_SHELL_PATH_CACHE_TTL_MS = 5 * 60 * 1000;
+const userShellPathCache = {
+    value: null,
+    readAt: 0,
+};
 
 export const CLI_HOME = path.join(os.homedir(), '.pixcode', 'cli-bin');
 export const CLI_BIN_DIR = path.join(CLI_HOME, 'node_modules', '.bin');
@@ -94,13 +99,9 @@ function ensureCliHome() {
  */
 export function primeCliBinPath(env = process.env) {
     ensureCliHome();
-    const sep = process.platform === 'win32' ? ';' : ':';
-    const current = env.PATH || env.Path || '';
-    if (!current.split(sep).some((entry) => path.resolve(entry || '') === path.resolve(CLI_BIN_DIR))) {
-        const next = current ? `${CLI_BIN_DIR}${sep}${current}` : CLI_BIN_DIR;
-        env.PATH = next;
-        if ('Path' in env) env.Path = next;
-    }
+    const augmentedEnv = buildCliSpawnEnv(env);
+    env.PATH = augmentedEnv.PATH;
+    if ('Path' in env || augmentedEnv.Path) env.Path = augmentedEnv.Path || augmentedEnv.PATH;
     // Once PATH is ready, resolve any well-known provider binaries to absolute
     // paths and export them as *_CLI_PATH env vars. This side-steps a Windows
     // gotcha: `child_process.spawn('claude', …)` does NOT auto-resolve .cmd /
@@ -139,6 +140,135 @@ export function resolveProviderExecutables(env = process.env) {
         const resolved = findExecutableOnPath(name, env);
         if (resolved) env[envKey] = resolved;
     }
+}
+
+function pathSeparator() {
+    return process.platform === 'win32' ? ';' : ':';
+}
+
+function splitPathList(value) {
+    return String(value || '').split(pathSeparator()).map((entry) => entry.trim()).filter(Boolean);
+}
+
+function collectNvmNodeBins(home) {
+    const versionsDir = path.join(home, '.nvm', 'versions', 'node');
+    try {
+        return fs.readdirSync(versionsDir)
+            .map((version) => path.join(versionsDir, version, 'bin'))
+            .filter((candidate) => {
+                try {
+                    return fs.statSync(candidate).isDirectory();
+                } catch {
+                    return false;
+                }
+            })
+            .sort()
+            .reverse();
+    } catch {
+        return [];
+    }
+}
+
+function collectKnownUserBinDirs(env = process.env) {
+    const home = os.homedir();
+    if (process.platform === 'win32') {
+        return [
+            path.join(env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'npm'),
+            path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Programs', 'nodejs'),
+        ];
+    }
+
+    return [
+        CLI_BIN_DIR,
+        path.dirname(process.execPath),
+        ...collectNvmNodeBins(home),
+        path.join(home, '.volta', 'bin'),
+        path.join(home, '.asdf', 'shims'),
+        path.join(home, '.bun', 'bin'),
+        path.join(home, '.local', 'bin'),
+        path.join(home, '.npm-global', 'bin'),
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/bin',
+        '/usr/local/sbin',
+        '/usr/bin',
+        '/bin',
+    ];
+}
+
+export function collectUserShellPath(env = process.env) {
+    if (process.platform === 'win32') return [];
+
+    const now = Date.now();
+    if (userShellPathCache.value && now - userShellPathCache.readAt < USER_SHELL_PATH_CACHE_TTL_MS) {
+        return userShellPathCache.value;
+    }
+
+    const shells = [env.SHELL, '/bin/zsh', '/bin/bash']
+        .filter(Boolean)
+        .filter((candidate, index, list) => list.indexOf(candidate) === index)
+        .filter((candidate) => {
+            try {
+                return fs.existsSync(candidate);
+            } catch {
+                return false;
+            }
+        });
+
+    const marker = '__PIXCODE_LOGIN_PATH__=';
+    for (const shell of shells) {
+        try {
+            const output = execFileSync(shell, ['-lc', `printf '\\n${marker}%s\\n' "$PATH"`], {
+                encoding: 'utf8',
+                env,
+                timeout: 2500,
+                stdio: ['ignore', 'pipe', 'ignore'],
+            });
+            const line = output.split(/\r?\n/).reverse().find((part) => part.startsWith(marker));
+            const shellPath = line?.slice(marker.length);
+            if (shellPath) {
+                const entries = splitPathList(shellPath);
+                userShellPathCache.value = entries;
+                userShellPathCache.readAt = now;
+                return entries;
+            }
+        } catch {
+            // GUI-launched macOS apps often have a tiny PATH. If the user's
+            // shell startup files are noisy or slow, fall back to known bins.
+        }
+    }
+
+    userShellPathCache.value = [];
+    userShellPathCache.readAt = now;
+    return [];
+}
+
+function mergePathEntries(env, preferredEntries) {
+    const existing = splitPathList(env.PATH || env.Path || '');
+    const seen = new Set();
+    const merged = [];
+
+    for (const entry of [...preferredEntries, ...existing]) {
+        if (!entry) continue;
+        const key = path.resolve(entry);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(entry);
+    }
+
+    const nextPath = merged.join(pathSeparator());
+    env.PATH = nextPath;
+    if ('Path' in env) env.Path = nextPath;
+    return env;
+}
+
+export function buildCliSpawnEnv(baseEnv = process.env) {
+    const env = { ...baseEnv };
+    return mergePathEntries(env, [
+        CLI_BIN_DIR,
+        ...collectUserShellPath(baseEnv),
+        ...collectKnownUserBinDirs(baseEnv),
+    ]);
 }
 
 /**
@@ -301,10 +431,8 @@ export function findExecutableOnPath(name, env = process.env) {
         paths.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Programs', `${name}-code`));
         paths.push(path.join(env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'AnthropicClaude'));
     } else {
-        paths.push(path.join(home, '.local', 'bin'));
-        paths.push(path.join(home, '.npm-global', 'bin'));
-        paths.push('/usr/local/bin');
-        paths.push('/opt/homebrew/bin');
+        paths.push(...collectUserShellPath(env));
+        paths.push(...collectKnownUserBinDirs(env));
     }
 
     const exts = isWindows
@@ -331,7 +459,7 @@ export function findExecutableOnPath(name, env = process.env) {
  * more reliable than trusting PATH — when Pixcode runs as a daemon, PATH
  * is often minimal and doesn't include the user's node install.
  */
-function resolveNpmCommand() {
+function resolveNpmCommand(env = process.env) {
     const nodeDir = path.dirname(process.execPath);
     const isWindows = process.platform === 'win32';
     const candidates = isWindows
@@ -348,8 +476,11 @@ function resolveNpmCommand() {
             return siblingNpm; // we'll invoke `node <npm-cli.js>`
         }
     }
-    // Fall back to bare name and let the shell resolve.
-    return isWindows ? 'npm.cmd' : 'npm';
+
+    const resolvedFromPath = findExecutableOnPath('npm', env);
+    if (resolvedFromPath) return resolvedFromPath;
+
+    return null;
 }
 
 function packageFromCommand(installCmd) {
@@ -406,7 +537,19 @@ export function createInstallJob({ provider, installCmd, packageName }) {
     appendLog('meta', `Installing ${pkg} into ${CLI_HOME}\n`);
     appendLog('meta', `(sandboxed — no sudo / admin required)\n`);
 
-    const npmCmd = resolveNpmCommand();
+    const installEnv = buildCliSpawnEnv(process.env);
+    const npmCmd = resolveNpmCommand(installEnv);
+    if (!npmCmd) {
+        job.status = 'error';
+        job.error = 'npm was not found. Install Node.js/npm or add it to your macOS login shell PATH, then click Refresh.';
+        job.finishedAt = new Date().toISOString();
+        appendLog('stderr', job.error + '\n');
+        emitter.emit('done', buildDonePayload(job));
+        scheduleCleanup(job);
+        jobs.set(id, job);
+        return job;
+    }
+
     const useNodeRunner = npmCmd.endsWith('.js');
 
     const cmd = useNodeRunner ? process.execPath : npmCmd;
@@ -420,7 +563,7 @@ export function createInstallJob({ provider, installCmd, packageName }) {
     try {
         child = spawn(cmd, args, {
             cwd: CLI_HOME,
-            env: { ...process.env, npm_config_yes: 'true' },
+            env: { ...installEnv, npm_config_yes: 'true' },
             stdio: ['ignore', 'pipe', 'pipe'],
             windowsHide: true,
             // cross-spawn handles .cmd/.bat resolution itself — no shell

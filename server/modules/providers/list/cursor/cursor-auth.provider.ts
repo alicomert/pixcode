@@ -11,12 +11,16 @@ type CursorLoginStatus = {
 };
 
 export class CursorProviderAuth implements IProviderAuth {
+  private cliPath(): string {
+    return process.env.CURSOR_CLI_PATH || 'cursor-agent';
+  }
+
   /**
    * Checks whether the cursor-agent CLI is available on this host.
    */
   private checkInstalled(): boolean {
     try {
-      const result = spawn.sync('cursor-agent', ['--version'], { stdio: 'ignore', timeout: 5000 });
+      const result = spawn.sync(this.cliPath(), ['--version'], { stdio: 'ignore', timeout: 5000 });
       return !result.error && result.status === 0;
     } catch {
       return false;
@@ -74,7 +78,7 @@ export class CursorProviderAuth implements IProviderAuth {
       }, 5000);
 
       try {
-        childProcess = spawn('cursor-agent', ['status']);
+        childProcess = spawn(this.cliPath(), ['status']);
       } catch {
         clearTimeout(timeout);
         processCompleted = true;

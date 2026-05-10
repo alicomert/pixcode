@@ -7,6 +7,7 @@ import type {
   WorkflowRun,
 } from '@/modules/orchestration/workflows/workflow.types.js';
 import {
+  type ResolvedWorkspaceTarget,
   resolveWorkflowWorkspace,
   workspaceContextPrompt,
   workspaceTargetMetadata,
@@ -360,6 +361,92 @@ function compactOutputForContext(text: string): string {
     `\n\n[...${text.length - MAX_OUTPUT_CONTEXT_CHARS} characters omitted from prior agent output...]\n\n`,
     text.slice(-edge),
   ].join('');
+}
+
+function isExternalDirectoryPermissionError(value: unknown): boolean {
+  const text = String(value ?? '').toLocaleLowerCase('en');
+  return (
+    text.includes('external_directory') ||
+    /permission requested:.*auto-rejecting/u.test(text) ||
+    /auto-rejecting.*permission/u.test(text) ||
+    /outside (the )?(workspace|working directory)/u.test(text) ||
+    /permission.*external/u.test(text)
+  );
+}
+
+function isFinalReportNode(node: WorkflowNode): boolean {
+  return node.id === 'final_report' || node.stage === 'final_report' || node.stage === 'report';
+}
+
+function workspaceNeedsHostPermissionBypass(target: ResolvedWorkspaceTarget): boolean {
+  return (target.kind === 'selected_project' || target.kind === 'custom') && target.projectPath !== target.appRoot;
+}
+
+function resolveNodePermissionMode(node: WorkflowNode, target: ResolvedWorkspaceTarget): string | undefined {
+  if (node.permissionMode && node.permissionMode !== 'default') {
+    return node.permissionMode;
+  }
+
+  if (workspaceNeedsHostPermissionBypass(target)) {
+    return 'bypassPermissions';
+  }
+
+  return node.permissionMode;
+}
+
+function buildPermissionFallbackOutput(
+  node: WorkflowNode,
+  reason: string,
+  target: ResolvedWorkspaceTarget,
+): string {
+  return [
+    'Bu adım çalışma alanı izin sınırına takıldı.',
+    '',
+    `Ajan: ${node.agentLabel || node.id}`,
+    `Hedef çalışma alanı: ${target.projectPath}`,
+    `Hata: ${reason}`,
+    '',
+    'Pixcode bu adımı workflow dışına taşırmadan devam ettirdi. Ajan aynı dış dizin yoluna tekrar tekrar erişmek yerine mevcut bağlamla ilerlemeli.',
+  ].join('\n');
+}
+
+function buildFallbackFinalReport(
+  outputs: Map<string, string>,
+  reason: string,
+  target: ResolvedWorkspaceTarget,
+): string {
+  const completedOutputs = [...outputs.entries()]
+    .map(([nodeId, output]) => [`## ${nodeId}`, output || '(çıktı yok)'].join('\n'))
+    .join('\n\n');
+
+  return [
+    'Final rapor aracı çalışma alanı izin sınırına takıldı, bu yüzden Pixcode tamamlanan ajan çıktılarından güvenli bir özet üretti.',
+    '',
+    `Hedef çalışma alanı: ${target.projectPath}`,
+    `İzin hatası: ${reason}`,
+    '',
+    completedOutputs || 'Bu turda final rapora aktarılabilecek tamamlanmış ajan çıktısı yok.',
+  ].join('\n');
+}
+
+function completeNodeWithPermissionFallback(
+  nodeRun: WorkflowNodeRun,
+  node: WorkflowNode,
+  outputs: Map<string, string>,
+  completed: Set<string>,
+  reason: string,
+  target: ResolvedWorkspaceTarget,
+): void {
+  const outputText = isFinalReportNode(node)
+    ? buildFallbackFinalReport(outputs, reason, target)
+    : buildPermissionFallbackOutput(node, reason, target);
+
+  nodeRun.status = 'completed';
+  nodeRun.error = reason;
+  nodeRun.outputText = outputText;
+  nodeRun.finishedAt = nodeRun.finishedAt ?? Date.now();
+  outputs.set(node.id, compactOutputForContext(outputText));
+  completed.add(node.id);
 }
 
 function expandAgentTeamWorkflow(workflow: Workflow, metadata?: Record<string, unknown>): Workflow {
@@ -1316,6 +1403,7 @@ class WorkflowRunner {
 
     nodeRun.status = 'running';
     nodeRun.startedAt = Date.now();
+    nodeRun.permissionMode = resolveNodePermissionMode(node, resolveWorkflowWorkspace(run.metadata));
     workflowStore.setRun(run);
 
     const inputContext = node.inputs.map((input) => outputs.get(input)).filter(Boolean).join('\n\n');
@@ -1328,6 +1416,7 @@ class WorkflowRunner {
     const isolation = readIsolation(settings.isolation) ?? node.isolation ?? 'host';
     const keepAfterCompletion = readBoolean(settings.keepWorkspace) ?? true;
     const baseRef = readString(settings.baseRef) ?? 'HEAD';
+    const effectivePermissionMode = resolveNodePermissionMode(node, workspaceTarget);
     let body: { id?: string; error?: { message?: string } };
     try {
       const submit = await fetch(`${localA2ABaseUrl()}/tasks`, {
@@ -1348,7 +1437,7 @@ class WorkflowRunner {
             agentLabel: node.agentLabel,
             assignment: node.assignment,
             model: node.model,
-            permissionMode: node.permissionMode,
+            permissionMode: effectivePermissionMode,
             toolsSettings: node.toolsSettings,
             projectPath,
             workspaceTarget: workspaceTargetMetadata(workspaceTarget),
@@ -1370,6 +1459,11 @@ class WorkflowRunner {
       nodeRun.status = 'failed';
       nodeRun.error = error instanceof Error ? error.message : String(error);
       workflowStore.setRun(run);
+      if (isExternalDirectoryPermissionError(nodeRun.error)) {
+        completeNodeWithPermissionFallback(nodeRun, node, outputs, completed, nodeRun.error, workspaceTarget);
+        workflowStore.setRun(run);
+        return;
+      }
       if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
         return;
       }
@@ -1417,6 +1511,11 @@ class WorkflowRunner {
         outputs.set(node.id, compactOutputForContext(nodeRun.outputText));
       }
       workflowStore.setRun(run);
+      if (isExternalDirectoryPermissionError(nodeRun.error)) {
+        completeNodeWithPermissionFallback(nodeRun, node, outputs, completed, nodeRun.error, workspaceTarget);
+        workflowStore.setRun(run);
+        return;
+      }
       if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
         return;
       }
@@ -1452,6 +1551,11 @@ class WorkflowRunner {
     nodeRun.status = 'failed';
     nodeRun.error = result.error ?? `A2A task ended with ${result.state}`;
     workflowStore.setRun(run);
+    if (isExternalDirectoryPermissionError(`${nodeRun.error}\n${nodeRun.outputText ?? ''}`)) {
+      completeNodeWithPermissionFallback(nodeRun, node, outputs, completed, nodeRun.error, workspaceTarget);
+      workflowStore.setRun(run);
+      return;
+    }
     if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
       return;
     }

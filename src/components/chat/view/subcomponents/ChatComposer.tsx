@@ -330,13 +330,6 @@ export default function ChatComposer({
               <ImageIcon />
             </PromptInputButton>
 
-            <WorkerSlotsControl
-              workerSlots={workerSlots}
-              onWorkerSlotsChange={onWorkerSlotsChange}
-              selectedProject={selectedProject}
-              disabled={isLoading}
-            />
-
             <button
               type="button"
               onClick={onModeSwitch}
@@ -422,7 +415,15 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="flex min-w-10 shrink-0 items-center gap-2">
+          <div className="worker-slot-composer-rail flex min-w-[5.75rem] shrink-0 items-center justify-end gap-2">
+            <WorkerSlotsControl
+              workerSlots={workerSlots}
+              onWorkerSlotsChange={onWorkerSlotsChange}
+              selectedProject={selectedProject}
+              disabled={isLoading}
+              align="right"
+              buttonClassName="h-10 w-10 rounded-full border-dashed bg-muted/25 opacity-75 hover:opacity-100"
+            />
             <PromptInputSubmit
               disabled={!input.trim() || isLoading}
               className="h-10 w-10 min-w-10 flex-none shrink-0 sm:h-10 sm:w-10 sm:min-w-10"

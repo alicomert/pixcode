@@ -59,17 +59,29 @@ const projectsHaveChanges = (
     return (
       serialize(nextProject.cursorSessions) !== serialize(prevProject.cursorSessions) ||
       serialize(nextProject.codexSessions) !== serialize(prevProject.codexSessions) ||
-      serialize(nextProject.geminiSessions) !== serialize(prevProject.geminiSessions)
+      serialize(nextProject.geminiSessions) !== serialize(prevProject.geminiSessions) ||
+      serialize(nextProject.qwenSessions) !== serialize(prevProject.qwenSessions) ||
+      serialize(nextProject.opencodeSessions) !== serialize(prevProject.opencodeSessions)
     );
   });
 };
 
+const tagSessions = (
+  sessions: ProjectSession[] | undefined,
+  provider: NonNullable<ProjectSession['__provider']>,
+): ProjectSession[] => (sessions ?? []).map((session) => ({
+  ...session,
+  __provider: session.__provider ?? provider,
+}));
+
 const getProjectSessions = (project: Project): ProjectSession[] => {
   return [
-    ...(project.sessions ?? []),
-    ...(project.codexSessions ?? []),
-    ...(project.cursorSessions ?? []),
-    ...(project.geminiSessions ?? []),
+    ...tagSessions(project.sessions, 'claude'),
+    ...tagSessions(project.codexSessions, 'codex'),
+    ...tagSessions(project.cursorSessions, 'cursor'),
+    ...tagSessions(project.geminiSessions, 'gemini'),
+    ...tagSessions(project.qwenSessions, 'qwen'),
+    ...tagSessions(project.opencodeSessions, 'opencode'),
   ];
 };
 
@@ -426,7 +438,11 @@ export function useProjectsState({
         ? 'opencode'
         : sessionId.startsWith('qwen_')
           ? 'qwen'
-          : null;
+          : sessionId.startsWith('codex-') || sessionId.startsWith('codex_')
+            ? 'codex'
+            : sessionId.startsWith('gemini_')
+              ? 'gemini'
+              : null;
       const activeProvider = (typeof window !== 'undefined'
         ? (localStorage.getItem('selected-provider') as 'claude' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode' | null)
         : null) || 'claude';
@@ -459,7 +475,10 @@ export function useProjectsState({
         setActiveTab('chat');
       }
 
-      const provider = localStorage.getItem('selected-provider') || 'claude';
+      const provider = session.__provider || localStorage.getItem('selected-provider') || 'claude';
+      if (session.__provider) {
+        localStorage.setItem('selected-provider', session.__provider);
+      }
       if (provider === 'cursor') {
         sessionStorage.setItem('cursorSessionId', session.id);
       }

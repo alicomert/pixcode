@@ -13,13 +13,16 @@ import path from 'path';
 import { spawn } from 'child_process';
 
 import express from 'express';
+import crossSpawn from 'cross-spawn';
 
 import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
 
 import { extractProjectDirectory } from '../projects.js';
 import {
     cancelInstallJob,
+    buildCliSpawnEnv,
     createInstallJob,
+    findExecutableOnPath,
     getInstallJob,
     snapshotDonePayload
 } from '../services/install-jobs.js';
@@ -34,70 +37,46 @@ const router = express.Router();
  */
 async function checkTaskMasterInstallation() {
     return new Promise((resolve) => {
-        // Check if task-master command is available
-        const child = spawn('which', ['task-master'], { 
-            stdio: ['ignore', 'pipe', 'pipe'],
-            shell: true 
-        });
-        
-        let output = '';
-        let errorOutput = '';
-        
-        child.stdout.on('data', (data) => {
-            output += data.toString();
-        });
-        
-        child.stderr.on('data', (data) => {
-            errorOutput += data.toString();
-        });
-        
-        child.on('close', (code) => {
-            if (code === 0 && output.trim()) {
-                // TaskMaster is installed, get version
-                const versionChild = spawn('task-master', ['--version'], { 
-                    stdio: ['ignore', 'pipe', 'pipe'],
-                    shell: true 
-                });
-                
-                let versionOutput = '';
-                
-                versionChild.stdout.on('data', (data) => {
-                    versionOutput += data.toString();
-                });
-                
-                versionChild.on('close', (versionCode) => {
-                    resolve({
-                        isInstalled: true,
-                        installPath: output.trim(),
-                        version: versionCode === 0 ? versionOutput.trim() : 'unknown',
-                        reason: null
-                    });
-                });
-                
-                versionChild.on('error', () => {
-                    resolve({
-                        isInstalled: true,
-                        installPath: output.trim(),
-                        version: 'unknown',
-                        reason: null
-                    });
-                });
-            } else {
-                resolve({
-                    isInstalled: false,
-                    installPath: null,
-                    version: null,
-                    reason: 'TaskMaster CLI not found in PATH'
-                });
-            }
-        });
-        
-        child.on('error', (error) => {
+        const env = buildCliSpawnEnv();
+        const taskMasterPath = findExecutableOnPath('task-master', env);
+
+        if (!taskMasterPath) {
             resolve({
                 isInstalled: false,
                 installPath: null,
                 version: null,
-                reason: `Error checking installation: ${error.message}`
+                reason: 'TaskMaster CLI not found in PATH'
+            });
+            return;
+        }
+
+        const versionChild = crossSpawn(taskMasterPath, ['--version'], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env,
+            windowsHide: true,
+        });
+                
+        let versionOutput = '';
+                
+        versionChild.stdout?.on('data', (data) => {
+            versionOutput += data.toString();
+        });
+                
+        versionChild.on('close', (versionCode) => {
+            resolve({
+                isInstalled: true,
+                installPath: taskMasterPath,
+                version: versionCode === 0 ? versionOutput.trim() : 'unknown',
+                reason: null
+            });
+        });
+                
+        versionChild.on('error', () => {
+            resolve({
+                isInstalled: true,
+                installPath: taskMasterPath,
+                version: 'unknown',
+                reason: null
             });
         });
     });

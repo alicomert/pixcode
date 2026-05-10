@@ -636,13 +636,25 @@ function maybeNotify({ title, body }) {
 // ---------------------------------------------------------------------------
 // Tray
 // ---------------------------------------------------------------------------
+function normalizeTrayIcon(image) {
+  if (!image || image.isEmpty?.()) return nativeImage.createEmpty();
+
+  if (process.platform === 'darwin') {
+    const macMenuBarIcon = image.resize({ width: 18, height: 18, quality: 'best' });
+    macMenuBarIcon.setTemplateImage(true);
+    return macMenuBarIcon;
+  }
+
+  return image;
+}
+
 function resolveTrayIcon() {
   const candidates = [
     path.join(__dirname, '..', 'build-resources', 'icon.png'),
     path.join(process.resourcesPath || '', 'build-resources', 'icon.png'),
   ];
   for (const p of candidates) {
-    if (p && fs.existsSync(p)) return nativeImage.createFromPath(p);
+    if (p && fs.existsSync(p)) return normalizeTrayIcon(nativeImage.createFromPath(p));
   }
   return nativeImage.createEmpty();
 }

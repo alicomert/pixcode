@@ -1,5 +1,5 @@
 import type { ChangeEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Project } from '../../../../types/app';
@@ -12,12 +12,16 @@ import {
 } from '../../utils/workerSlots';
 
 import { Plus, XIcon } from '@/lib/icons';
+import { cn } from '@/lib/utils';
 
 type WorkerSlotsControlProps = {
   workerSlots: WorkerSlot[];
   onWorkerSlotsChange: (slots: WorkerSlot[]) => void;
   selectedProject: Project | null;
   disabled?: boolean;
+  align?: 'left' | 'right';
+  className?: string;
+  buttonClassName?: string;
 };
 
 const providerLabels: Record<string, string> = {
@@ -34,15 +38,29 @@ export default function WorkerSlotsControl({
   onWorkerSlotsChange,
   selectedProject,
   disabled = false,
+  align = 'left',
+  className,
+  buttonClassName,
 }: WorkerSlotsControlProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
+  const [shouldRenderPanel, setShouldRenderPanel] = useState(false);
   const activeCount = workerSlots.filter((slot) => slot.enabled).length;
   const selectedProjectPath = selectedProject?.fullPath || selectedProject?.path || '';
 
   const canAddSlot = workerSlots.length < MAX_WORKER_SLOTS;
 
   const normalizedSlots = useMemo(() => workerSlots.slice(0, MAX_WORKER_SLOTS), [workerSlots]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRenderPanel(true);
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => setShouldRenderPanel(false), 180);
+    return () => window.clearTimeout(timeout);
+  }, [isOpen]);
 
   const updateSlot = (id: string, patch: Partial<WorkerSlot>) => {
     onWorkerSlotsChange(workerSlots.map((slot) => (
@@ -77,7 +95,7 @@ export default function WorkerSlotsControl({
   };
 
   return (
-    <div className="relative">
+    <div className={cn('relative', className)}>
       <button
         type="button"
         onClick={() => {
@@ -88,9 +106,21 @@ export default function WorkerSlotsControl({
           }
         }}
         disabled={disabled}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/30 text-muted-foreground transition-all hover:border-primary/50 hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-        title={t('input.workerSlots', { defaultValue: 'Worker slots' })}
-        aria-label={t('input.workerSlots', { defaultValue: 'Worker slots' })}
+        className={cn(
+          'relative flex h-9 w-9 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/30 text-muted-foreground shadow-sm shadow-transparent transition-all duration-200 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:shadow-primary/10 disabled:cursor-not-allowed disabled:opacity-50',
+          activeCount > 0 && 'border-primary/40 bg-primary/10 text-primary shadow-primary/10',
+          buttonClassName,
+        )}
+        title={t('input.workerSlotsWithCount', {
+          defaultValue: 'Multi-project workers ({{count}}/{{max}})',
+          count: activeCount,
+          max: MAX_WORKER_SLOTS,
+        })}
+        aria-label={t('input.workerSlotsWithCount', {
+          defaultValue: 'Multi-project workers ({{count}}/{{max}})',
+          count: activeCount,
+          max: MAX_WORKER_SLOTS,
+        })}
       >
         <Plus className="h-4 w-4" />
         {activeCount > 0 && (
@@ -100,8 +130,16 @@ export default function WorkerSlotsControl({
         )}
       </button>
 
-      {isOpen && (
-        <div className="absolute bottom-12 left-0 z-50 w-[min(34rem,calc(100vw-2rem))] rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl shadow-black/10">
+      {shouldRenderPanel && (
+        <div
+          className={cn(
+            'absolute bottom-12 z-50 w-[min(34rem,calc(100vw-2rem))] origin-bottom rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-xl shadow-black/10 transition-[opacity,transform] duration-200 ease-out',
+            align === 'right' ? 'right-0' : 'left-0',
+            isOpen
+              ? 'translate-y-0 scale-100 opacity-100'
+              : 'pointer-events-none translate-y-2 scale-[0.98] opacity-0',
+          )}
+        >
           <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
             <div>
               <div className="text-sm font-medium">{t('input.workerSlots', { defaultValue: 'Worker slots' })}</div>

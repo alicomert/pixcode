@@ -315,7 +315,7 @@ function MainContent({
 
     const deltaX = previousRect.left - nextRect.left;
     const scaleX = previousRect.width / nextRect.width;
-    const transformOrigin = sidePanelMode === 'full' ? 'left center' : 'right center';
+    const transformOrigin = 'right center';
 
     gsap.fromTo(
       sidePanel,
@@ -364,7 +364,7 @@ function MainContent({
       );
       gsap.fromTo(
         sidePanel,
-        { opacity: 0, x: -18, scaleX: 0.96, transformOrigin: 'left center' },
+        { opacity: 0, x: 28, scaleX: 0.96, transformOrigin: 'right center' },
         {
           opacity: 1,
           x: 0,
@@ -465,7 +465,8 @@ function MainContent({
                   ref={chatPaneRef}
                   className={cn(
                     'min-h-0 overflow-hidden',
-                    showSidePanelWithChat && 'min-w-[320px] flex-none',
+                    showSidePanelWithChat && 'min-w-[320px] flex-none transition-[width,opacity,transform] duration-300 ease-out',
+                    isDraggingSidePanel && 'transition-none',
                     !showSidePanelWithChat && 'h-full',
                   )}
                   style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
@@ -504,7 +505,8 @@ function MainContent({
                   ref={chatPaneRef}
                   className={cn(
                     'min-h-0 overflow-hidden',
-                    showSidePanelWithChat && 'min-w-[320px] flex-none',
+                    showSidePanelWithChat && 'min-w-[320px] flex-none transition-[width,opacity,transform] duration-300 ease-out',
+                    isDraggingSidePanel && 'transition-none',
                   )}
                   style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
                 >
@@ -535,7 +537,8 @@ function MainContent({
                   ref={sidePanelRef}
                   className={cn(
                     'min-h-0 overflow-hidden rounded-lg border border-border/60 bg-card/40',
-                    showSidePanelWithChat && 'min-w-[360px] flex-none shadow-sm',
+                    showSidePanelWithChat && 'min-w-[360px] flex-none shadow-sm transition-[width,opacity,transform] duration-300 ease-out',
+                    isDraggingSidePanel && 'transition-none',
                     !showSidePanelWithChat && 'h-full w-full',
                   )}
                   style={showSidePanelWithChat ? { width: `${sidePanelWidth}%` } : undefined}

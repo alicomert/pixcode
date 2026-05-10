@@ -114,7 +114,9 @@ export function workspaceContextPrompt(target: ResolvedWorkspaceTarget): string 
     'Rules:',
     '- Treat the working directory above as the authoritative project/application for this task.',
     '- Do not guess another repository path unless the user explicitly asks for it.',
+    '- Do not access parent directories, sibling projects, or broad external globs outside the working directory unless the user explicitly asks.',
     '- If the user asks to analyze or modify Pixcode/orchestration itself, the target workspace must be the Pixcode app root.',
     '- Before running package-manager commands, inspect the package files in the working directory.',
+    '- If a tool reports a permission denial, summarize the limitation and continue from the provided context instead of retrying the same external path.',
   ].filter(Boolean).join('\n');
 }
