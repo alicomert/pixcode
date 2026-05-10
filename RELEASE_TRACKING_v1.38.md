@@ -3,18 +3,18 @@
 This file is the source checklist for the v1.38 planning wave. Replace the `GH-TBD-*` placeholders with GitHub issue numbers once the GitHub API is reachable, and keep the marked block in the GitHub release body so the app can show update progress mapped to issues and tasks.
 
 <!-- pixcode:issue-progress -->
-- [ ] GH-TBD-remote First-run local/remote connection mode and API URL pairing
-- [ ] GH-TBD-api Complete Pixcode control surface through API keys
-- [ ] GH-TBD-telegram Telegram feature parity for remote control
-- [ ] GH-TBD-taskmaster Taskmaster as the shared execution queue for CLI agents
-- [ ] GH-TBD-plugins CLI plugin and external tool configuration management
-- [x] GH-TBD-desktop Desktop installer signing, artifact, and update recovery hardening
-- [ ] GH-TBD-observability Run diagnostics and provider health visibility
+- [ ] #15 First-run local/remote connection mode and API URL pairing
+- [ ] #16 Complete Pixcode control surface through API keys
+- [ ] #17 Telegram feature parity for remote control
+- [ ] #18 Taskmaster as the shared execution queue for CLI agents
+- [ ] #19 CLI plugin and external tool configuration management
+- [x] #20 Desktop installer signing, artifact, and update recovery hardening
+- [ ] #21 Run diagnostics and provider health visibility
 <!-- /pixcode:issue-progress -->
 
 ## Epic
 
-- GH-TBD-epic epic(product): track v1.38 remote API and task operations
+- #22 epic(product): track v1.38 remote API and task operations
 
 ## Scope
 
