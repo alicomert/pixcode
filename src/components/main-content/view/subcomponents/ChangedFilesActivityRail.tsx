@@ -9,7 +9,7 @@ type ChangedFilesActivityRailProps = {
   latestChangedFilePath: string | null;
   lastCheckedAt: number | null;
   onRefresh: () => void;
-  onOpenFile: (filePath: string) => void;
+  onOpenFile: (file: ChangedFileEntry) => void;
 };
 
 const STATUS_LABEL: Record<ChangedFileStatus, string> = {
@@ -92,7 +92,7 @@ export default function ChangedFilesActivityRail({
                 <button
                   key={`${file.status}:${file.path}`}
                   type="button"
-                  onClick={() => onOpenFile(file.path)}
+                  onClick={() => onOpenFile(file)}
                   className={`group flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-all ${
                     isLatest
                       ? 'changed-file-flash border-emerald-500/60 bg-emerald-500/15'

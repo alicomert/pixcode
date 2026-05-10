@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.38.5](https://github.com/alicomert/pixcode/compare/v1.38.4...v1.38.5) (2026-05-10)
+
+Pixcode 1.38.5 is a Command Center realtime-write hotfix. It connects agent file write/edit tool events directly to the changed-files rail and opens changed files in the editor with diff context.
+
+### Bug Fixes
+
+* **command-center:** ingest realtime `Write`, `Edit`, `MultiEdit`, `ApplyPatch`, and provider file-change events instead of waiting only for git/filesystem polling.
+* **command-center:** keep direct agent writes merged with polled local changes so the rail does not go empty after a status refresh.
+* **editor:** open changed files from the activity rail with preserved `old_string`/`new_string` diff context, enabling the green changed-content view in the editor.
+* **command-center:** normalize absolute agent paths back to project-relative paths before highlighting or opening files.
+
+### Tests
+
+* add smoke coverage for direct agent write ingestion and changed-file editor opening.
+* re-run Command Center non-git smoke, extraction behavior checks, typecheck, lint, and production build before publishing.
+
 ## [1.38.4](https://github.com/alicomert/pixcode/compare/v1.38.3...v1.38.4) (2026-05-10)
 
 Pixcode 1.38.4 is a Command Center and mobile-access reliability patch. It makes local-only projects first-class, moves changed-file awareness beside the active AI workspace, turns missing tunnel binaries into actionable setup guidance, and makes notification channel preferences stricter.

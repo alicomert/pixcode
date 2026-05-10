@@ -19,6 +19,7 @@ import { useChangedFilesMonitor } from '../../../hooks/useChangedFilesMonitor';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
 import { TaskMasterPanel } from '../../task-master';
+import type { ChangedFileEntry } from '../../../utils/changedFiles';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
@@ -140,18 +141,30 @@ function MainContent({
     lastCheckedAt: lastChangedFilesCheckedAt,
     latestDetectedFile,
     refresh: refreshChangedFiles,
-  } = useChangedFilesMonitor(selectedProject, changeAwareness);
+  } = useChangedFilesMonitor(selectedProject, changeAwareness, latestMessage);
   const [focusedChangedFilePath, setFocusedChangedFilePath] = useState<string | null>(null);
   const lastHandledDetectedAtRef = useRef(0);
   const changedFilePaths = useMemo(() => changedFiles.map((file) => file.path), [changedFiles]);
 
-  const focusChangedFile = useCallback((filePath: string) => {
-    setFocusedChangedFilePath(filePath);
+  const handleChangedFileOpen = useCallback((file: ChangedFileEntry) => {
+    setFocusedChangedFilePath(file.path);
+    handleFileOpen(file.path, file.diffInfo ?? null);
+
     if (!isMobile && canUseSidePanelSplit) {
       setSidePanelMode('split');
     }
+
     setActiveTab('files');
-  }, [canUseSidePanelSplit, isMobile, setActiveTab]);
+  }, [canUseSidePanelSplit, handleFileOpen, isMobile, setActiveTab]);
+
+  const focusChangedFile = useCallback((filePath: string) => {
+    const file = changedFiles.find((entry) => entry.path === filePath) ?? {
+      path: filePath,
+      status: 'M' as const,
+    };
+
+    handleChangedFileOpen(file);
+  }, [changedFiles, handleChangedFileOpen]);
 
   const closeSidePanel = useCallback(() => {
     setSidePanelMode('split');
@@ -510,7 +523,7 @@ function MainContent({
                         latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
                         lastCheckedAt={lastChangedFilesCheckedAt}
                         onRefresh={() => { void refreshChangedFiles('manual'); }}
-                        onOpenFile={focusChangedFile}
+                        onOpenFile={handleChangedFileOpen}
                       />
                     )}
                   </div>
@@ -539,7 +552,7 @@ function MainContent({
                         latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
                         lastCheckedAt={lastChangedFilesCheckedAt}
                         onRefresh={() => { void refreshChangedFiles('manual'); }}
-                        onOpenFile={focusChangedFile}
+                        onOpenFile={handleChangedFileOpen}
                       />
                     )}
                   </div>
@@ -594,7 +607,7 @@ function MainContent({
                   latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
                   lastCheckedAt={lastChangedFilesCheckedAt}
                   onRefresh={() => { void refreshChangedFiles('manual'); }}
-                  onOpenFile={focusChangedFile}
+                  onOpenFile={handleChangedFileOpen}
                 />
               )}
             </div>
