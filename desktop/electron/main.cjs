@@ -745,6 +745,7 @@ function createMainWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
       // Allow loading http://localhost for our own server — without this
       // Electron blocks the navigation on newer versions by default.
       webSecurity: true,
@@ -775,6 +776,17 @@ function createMainWindow() {
     return { action: 'deny' };
   });
 }
+
+ipcMain.handle('pixcode:desktop-notification', async (_event, payload) => {
+  const title = typeof payload?.title === 'string' ? payload.title.trim() : '';
+  if (!title) return { ok: false };
+
+  maybeNotify({
+    title,
+    body: typeof payload?.body === 'string' ? payload.body : '',
+  });
+  return { ok: true };
+});
 
 // ---------------------------------------------------------------------------
 // Boot

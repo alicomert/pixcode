@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.38.2](https://github.com/alicomert/pixcode/compare/v1.38.1...v1.38.2) (2026-05-10)
+
+Pixcode 1.38.2 is a desktop notification patch for the installer builds. It routes agent/task notifications through the Electron native notification bridge first, then falls back to the existing browser/service-worker notification path for web and server installs.
+
+### Bug Fixes
+
+* **desktop:** add a preload-safe native notification bridge so Windows/macOS/Linux installers can show OS notifications for agent, task, permission, and error events, not only app update events.
+* **notifications:** keep the browser/service-worker fallback for npm/web installs while honoring the existing desktop notification preference and dedupe behavior.
+
+### Tests
+
+* add `node scripts/smoke/desktop-native-notifications.mjs` to verify the Electron preload, IPC handler, renderer bridge, and fallback wiring.
+* re-run notification center, desktop release-hardening, typecheck, lint, and production build checks for the patch release.
+
 ## [1.38.1](https://github.com/alicomert/pixcode/compare/v1.38.0...v1.38.1) (2026-05-10)
 
 Pixcode 1.38.1 completes the v1.38 operations issue set after the initial 1.38.0 planning release. It turns the remote/API/Telegram/Taskmaster/provider/diagnostics GitHub issues into shipped behavior and closes the v1.38 epic.

@@ -68,8 +68,6 @@ export async function notifyLocalEventOnce({
 }: NotifyOnceOptions): Promise<boolean> {
   if (
     typeof window === 'undefined'
-    || !('Notification' in window)
-    || Notification.permission !== 'granted'
     || !eventEnabledByPreference(event)
   ) {
     return false;
@@ -82,6 +80,30 @@ export async function notifyLocalEventOnce({
     }
   } catch {
     // If localStorage is blocked, send at most from this call path.
+  }
+
+  try {
+    const sentByDesktop = await window.pixcodeDesktop?.notify({
+      title,
+      body,
+      event,
+      tag,
+      data,
+    });
+    if (sentByDesktop) {
+      try {
+        localStorage.setItem(storageKey, new Date().toISOString());
+      } catch {
+        // Best effort dedupe only.
+      }
+      return true;
+    }
+  } catch (error) {
+    console.warn('Desktop notification bridge failed:', error);
+  }
+
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
+    return false;
   }
 
   const options: NotificationOptions & { renotify?: boolean } = {
