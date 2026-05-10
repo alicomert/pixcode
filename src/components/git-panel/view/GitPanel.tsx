@@ -88,6 +88,7 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
     <div className="flex h-full flex-col bg-background">
       <GitPanelHeader
         isMobile={isMobile}
+        isGitRepository={gitStatus?.isGitRepository !== false}
         currentBranch={currentBranch}
         branches={branches}
         remoteStatus={remoteStatus}

@@ -19,6 +19,8 @@ export type GitPanelProps = {
 };
 
 export type GitStatusResponse = {
+  isGitRepository?: boolean;
+  trackingMode?: 'git' | 'filesystem';
   branch?: string;
   hasCommits?: boolean;
   modified?: string[];

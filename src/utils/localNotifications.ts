@@ -36,6 +36,7 @@ function eventEnabledByPreference(event = 'updates'): boolean {
 export function persistLocalNotificationPreferences(preferences: unknown) {
   try {
     localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(preferences));
+    window.dispatchEvent(new CustomEvent('pixcode:notification-preferences-changed'));
   } catch {
     // Notifications still work with browser permission even if localStorage is unavailable.
   }

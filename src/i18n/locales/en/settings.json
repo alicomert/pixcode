@@ -79,7 +79,7 @@
       "lastChecked": "Checked {{value}}",
       "guideTitle": "Right panel guide",
       "guideFiles": "Changed files glow green in Files.",
-      "guidePanel": "New changes open the split panel automatically.",
+      "guidePanel": "New changes appear beside the active chat.",
       "status": {
         "M": "M",
         "A": "A",

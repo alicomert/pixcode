@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { DarkModeToggle } from '../../../shared/view/ui';
 import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
 import type { Project } from '../../../types/app';
-import type { ChangedFileEntry, ChangedFileStatus } from '../../../utils/changedFiles';
+import type { ChangedFileEntry } from '../../../utils/changedFiles';
 import {
   INPUT_SETTING_TOGGLES,
   SETTING_ROW_CLASS,
@@ -33,13 +33,6 @@ type QuickSettingsContentProps = {
   onPreferenceChange: (key: PreferenceToggleKey, value: boolean) => void;
   onRefreshChangedFiles?: () => void;
   onFocusChangedFile?: (filePath: string) => void;
-};
-
-const STATUS_TONE: Record<ChangedFileStatus, string> = {
-  M: 'border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-800/70 dark:bg-amber-900/35 dark:text-amber-200',
-  A: 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-900/35 dark:text-emerald-200',
-  D: 'border-red-300 bg-red-100 text-red-800 dark:border-red-800/70 dark:bg-red-900/35 dark:text-red-200',
-  U: 'border-sky-300 bg-sky-100 text-sky-800 dark:border-sky-800/70 dark:bg-sky-900/35 dark:text-sky-200',
 };
 
 const formatLastChecked = (value: number | null) => {
@@ -81,6 +74,11 @@ export default function QuickSettingsContent({
     ))
   );
   const lastCheckedLabel = formatLastChecked(lastChangedFilesCheckedAt);
+  const changedFilesSummary = preferences.changeAwareness
+    ? changedFiles.length > 0
+      ? `${changedFiles.length} changed file${changedFiles.length === 1 ? '' : 's'}`
+      : t('quickSettings.changedFiles.empty')
+    : t('quickSettings.changedFiles.disabled');
 
   return (
     <div className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden bg-background p-4">
@@ -149,42 +147,18 @@ export default function QuickSettingsContent({
             </div>
           )}
 
-          {preferences.changeAwareness && selectedProject && changedFiles.length > 0 ? (
-            <div className="space-y-1">
-              {changedFiles.slice(0, 8).map((file) => {
-                const isLatest = latestChangedFilePath === file.path;
-                return (
-                  <button
-                    key={`${file.status}:${file.path}`}
-                    type="button"
-                    onClick={() => onFocusChangedFile?.(file.path)}
-                    className={`group flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-all ${
-                      isLatest
-                        ? 'changed-file-flash border-emerald-500/50 bg-emerald-500/15'
-                        : 'border-border/60 bg-background/70 hover:border-emerald-500/30 hover:bg-emerald-500/10'
-                    }`}
-                  >
-                    <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded border px-1 text-[10px] font-semibold ${STATUS_TONE[file.status]}`}>
-                      {t(`quickSettings.changedFiles.status.${file.status}`)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
-                      {file.path}
-                    </span>
-                  </button>
-                );
-              })}
-              {changedFiles.length > 8 && (
-                <p className="px-1 pt-1 text-[11px] text-muted-foreground">
-                  {t('quickSettings.changedFiles.more', { count: changedFiles.length - 8 })}
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-md border border-dashed border-border/70 px-2 py-2 text-[11px] text-muted-foreground">
-              {preferences.changeAwareness
-                ? t('quickSettings.changedFiles.empty')
-                : t('quickSettings.changedFiles.disabled')}
-            </div>
+          <div className="rounded-md border border-dashed border-border/70 px-2 py-2 text-[11px] text-muted-foreground">
+            {changedFilesSummary}
+          </div>
+
+          {preferences.changeAwareness && selectedProject && latestChangedFilePath && (
+            <button
+              type="button"
+              onClick={() => onFocusChangedFile?.(latestChangedFilePath)}
+              className="mt-2 inline-flex w-full items-center justify-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-500/15 dark:text-emerald-200"
+            >
+              Open latest changed file
+            </button>
           )}
 
           {lastCheckedLabel && (

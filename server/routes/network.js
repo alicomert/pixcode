@@ -104,7 +104,11 @@ router.post('/tunnel', async (req, res) => {
     // required external binary is missing" — it tells the UI to show the
     // "install cloudflared/ngrok" hint rather than a generic server error.
     const status = error?.code === 'ENOENT_TUNNEL' ? 424 : 502;
-    res.status(status).json({ error: error?.message || 'Tunnel start failed', tunnel: getTunnelState() });
+    res.status(status).json({
+      error: error?.message || 'Tunnel start failed',
+      installHint: error?.installHint,
+      tunnel: getTunnelState(),
+    });
   }
 });
 

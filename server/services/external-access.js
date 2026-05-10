@@ -37,6 +37,7 @@ let tunnelState = {
   binary: null, // 'cloudflared' | 'ngrok'
   url: null,
   error: null,
+  installHint: null,
   log: [],
 };
 
@@ -66,6 +67,18 @@ const detectBinary = async () => {
   return null;
 };
 
+const createTunnelInstallHint = () => ({
+  title: 'Tunnel binary required',
+  message: 'Install cloudflared or ngrok to create a public mobile URL. Local LAN QR codes still work on the same Wi-Fi/network.',
+  commands: [
+    'macOS: brew install cloudflared',
+    'Windows: winget install Cloudflare.cloudflared',
+    'Linux: install cloudflared from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/',
+    'Alternative: install and authenticate ngrok from https://ngrok.com/download',
+  ],
+  docsUrl: 'https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/',
+});
+
 const cloudflareUrlRegex = /https?:\/\/[a-z0-9.-]+trycloudflare\.com/i;
 const ngrokUrlRegex = /https?:\/\/[a-z0-9.-]+\.ngrok(-free)?\.(app|io)/i;
 
@@ -90,16 +103,18 @@ export const startTunnel = async ({ port }) => {
 
   const binary = await detectBinary();
   if (!binary) {
-    tunnelState = { running: false, binary: null, url: null, error: 'No tunnel binary found', log: [] };
+    const installHint = createTunnelInstallHint();
+    tunnelState = { running: false, binary: null, url: null, error: 'No tunnel binary found', installHint, log: [] };
     const err = new Error('No tunnel binary found (tried cloudflared, ngrok)');
     err.code = 'ENOENT_TUNNEL';
+    err.installHint = installHint;
     throw err;
   }
 
   const args = buildTunnelArgs(binary, port);
   const child = spawn(binary, args, { stdio: ['ignore', 'pipe', 'pipe'] });
   tunnelProc = child;
-  tunnelState = { running: true, binary, url: null, error: null, log: [] };
+  tunnelState = { running: true, binary, url: null, error: null, installHint: null, log: [] };
 
   const handleChunk = (chunk) => {
     const text = chunk.toString();
@@ -119,6 +134,7 @@ export const startTunnel = async ({ port }) => {
       binary,
       url: null,
       error: code === 0 ? null : `Tunnel exited with code ${code}`,
+      installHint: null,
       log: tunnelState.log,
     };
   });
@@ -138,7 +154,7 @@ export const startTunnel = async ({ port }) => {
     // If we never captured a URL, kill the child so we don't leak it.
     try { child.kill(); } catch { /* ignore */ }
     tunnelProc = null;
-    tunnelState = { ...tunnelState, running: false, error: 'Tunnel did not report a public URL' };
+    tunnelState = { ...tunnelState, running: false, error: 'Tunnel did not report a public URL', installHint: null };
     throw new Error(tunnelState.error);
   }
 
@@ -147,7 +163,7 @@ export const startTunnel = async ({ port }) => {
 
 export const stopTunnel = async () => {
   if (!tunnelProc) {
-    tunnelState = { running: false, binary: null, url: null, error: null, log: [] };
+    tunnelState = { running: false, binary: null, url: null, error: null, installHint: null, log: [] };
     return tunnelState;
   }
   try {
@@ -156,7 +172,7 @@ export const stopTunnel = async () => {
     // already dead
   }
   tunnelProc = null;
-  tunnelState = { running: false, binary: null, url: null, error: null, log: [] };
+  tunnelState = { running: false, binary: null, url: null, error: null, installHint: null, log: [] };
   return tunnelState;
 };
 

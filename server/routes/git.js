@@ -10,6 +10,150 @@ import { spawnCursor } from '../cursor-cli.js';
 
 const router = express.Router();
 const COMMIT_DIFF_CHARACTER_LIMIT = 500_000;
+const FILESYSTEM_SCAN_MAX_FILES = 5_000;
+const FILESYSTEM_SCAN_MAX_DEPTH = 10;
+const filesystemChangeSnapshots = new Map();
+const FILESYSTEM_SCAN_EXCLUDED_DIRS = new Set([
+  '.git',
+  '.hg',
+  '.svn',
+  'node_modules',
+  'dist',
+  'dist-server',
+  'build',
+  '.next',
+  '.nuxt',
+  '.svelte-kit',
+  'coverage',
+  '.turbo',
+  '.cache',
+  '.pixcode-dev',
+]);
+
+function isNotGitRepositoryMessage(message = '') {
+  return message.includes('Not a git repository')
+    || message.includes('not a git repository')
+    || message.includes('Project directory is not a git repository');
+}
+
+function shouldSkipFilesystemEntry(entryName) {
+  return FILESYSTEM_SCAN_EXCLUDED_DIRS.has(entryName)
+    || entryName.endsWith('.log')
+    || entryName === '.DS_Store';
+}
+
+function toProjectRelativePath(projectPath, filePath) {
+  return path.relative(projectPath, filePath).replace(/\\/g, '/');
+}
+
+async function collectFilesystemSnapshot(projectPath) {
+  const snapshot = new Map();
+  let limitReached = false;
+
+  async function walk(directoryPath, depth) {
+    if (limitReached || depth > FILESYSTEM_SCAN_MAX_DEPTH) {
+      return;
+    }
+
+    let entries = [];
+    try {
+      entries = await fs.readdir(directoryPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (limitReached || shouldSkipFilesystemEntry(entry.name)) {
+        continue;
+      }
+
+      const absolutePath = path.join(directoryPath, entry.name);
+
+      if (entry.isDirectory()) {
+        await walk(absolutePath, depth + 1);
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      try {
+        const stat = await fs.stat(absolutePath);
+        snapshot.set(toProjectRelativePath(projectPath, absolutePath), {
+          mtimeMs: Math.round(stat.mtimeMs),
+          size: stat.size,
+        });
+      } catch {
+        continue;
+      }
+
+      if (snapshot.size >= FILESYSTEM_SCAN_MAX_FILES) {
+        limitReached = true;
+        break;
+      }
+    }
+  }
+
+  await walk(projectPath, 0);
+  return { snapshot, limitReached };
+}
+
+function diffFilesystemSnapshots(previousSnapshot, nextSnapshot) {
+  if (!previousSnapshot) {
+    return { modified: [], added: [], deleted: [] };
+  }
+
+  const modified = [];
+  const added = [];
+  const deleted = [];
+
+  for (const [filePath, nextMeta] of nextSnapshot.entries()) {
+    const previousMeta = previousSnapshot.get(filePath);
+    if (!previousMeta) {
+      added.push(filePath);
+      continue;
+    }
+
+    if (previousMeta.mtimeMs !== nextMeta.mtimeMs || previousMeta.size !== nextMeta.size) {
+      modified.push(filePath);
+    }
+  }
+
+  for (const filePath of previousSnapshot.keys()) {
+    if (!nextSnapshot.has(filePath)) {
+      deleted.push(filePath);
+    }
+  }
+
+  return {
+    modified: modified.sort(),
+    added: added.sort(),
+    deleted: deleted.sort(),
+  };
+}
+
+async function buildFilesystemStatus(projectPath) {
+  const normalizedProjectPath = path.resolve(projectPath);
+  const previousSnapshot = filesystemChangeSnapshots.get(normalizedProjectPath) ?? null;
+  const { snapshot, limitReached } = await collectFilesystemSnapshot(normalizedProjectPath);
+  filesystemChangeSnapshots.set(normalizedProjectPath, snapshot);
+  const { modified, added, deleted } = diffFilesystemSnapshots(previousSnapshot, snapshot);
+
+  return {
+    isGitRepository: false,
+    trackingMode: 'filesystem',
+    branch: null,
+    hasCommits: false,
+    modified,
+    added,
+    deleted,
+    untracked: [],
+    snapshotReady: Boolean(previousSnapshot),
+    fileCount: snapshot.size,
+    scanLimitReached: limitReached,
+  };
+}
 
 function spawnAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -297,8 +441,9 @@ router.get('/status', async (req, res) => {
     return res.status(400).json({ error: 'Project name is required' });
   }
 
+  let projectPath;
   try {
-    const projectPath = await getActualProjectPath(project);
+    projectPath = await getActualProjectPath(project);
 
     // Validate git repository
     await validateGitRepository(projectPath);
@@ -340,6 +485,15 @@ router.get('/status', async (req, res) => {
       untracked
     });
   } catch (error) {
+    if (projectPath && isNotGitRepositoryMessage(error.message)) {
+      try {
+        res.json(await buildFilesystemStatus(projectPath));
+        return;
+      } catch (fallbackError) {
+        console.error('Filesystem status fallback error:', fallbackError);
+      }
+    }
+
     console.error('Git status error:', error);
     res.json({
       error: error.message.includes('not a git repository') || error.message.includes('Project directory is not a git repository')

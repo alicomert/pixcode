@@ -9,6 +9,8 @@ import {
 } from '../utils/changedFiles';
 
 type GitStatusResponse = {
+  isGitRepository?: boolean;
+  trackingMode?: 'git' | 'filesystem';
   modified?: string[];
   added?: string[];
   deleted?: string[];
@@ -72,7 +74,8 @@ export function useChangedFilesMonitor(selectedProject: Project | null, enabled:
       }
 
       if (!response.ok || data.error) {
-        setError(data.details || data.error || `Git status failed (${response.status})`);
+        const errorMessage = data.details ?? data.error ?? `Git status failed (${response.status})`;
+        setError(errorMessage);
         return;
       }
 

@@ -26,6 +26,7 @@ type InAppNotificationCenterProps = {
 };
 
 const STORAGE_KEY = 'pixcode.inAppNotifications.v1';
+const NOTIFICATION_PREFS_KEY = 'pixcode.notificationPreferences.v1';
 const MAX_NOTIFICATIONS = 25;
 
 function readStoredNotifications(): NotificationItem[] {
@@ -42,6 +43,17 @@ function persistNotifications(items: NotificationItem[]) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items.slice(0, MAX_NOTIFICATIONS)));
   } catch {
     // The in-app center still works for the current session if localStorage is blocked.
+  }
+}
+
+function inAppEnabledByPreference(): boolean {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NOTIFICATION_PREFS_KEY) ?? 'null') as {
+      channels?: { inApp?: boolean };
+    } | null;
+    return parsed?.channels?.inApp !== false;
+  } catch {
+    return true;
   }
 }
 
@@ -102,6 +114,19 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
   ));
   const [isOpen, setIsOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  const [inAppEnabled, setInAppEnabled] = useState(() => (
+    typeof window === 'undefined' ? true : inAppEnabledByPreference()
+  ));
+
+  useEffect(() => {
+    const refreshPreference = () => setInAppEnabled(inAppEnabledByPreference());
+    window.addEventListener('storage', refreshPreference);
+    window.addEventListener('pixcode:notification-preferences-changed', refreshPreference);
+    return () => {
+      window.removeEventListener('storage', refreshPreference);
+      window.removeEventListener('pixcode:notification-preferences-changed', refreshPreference);
+    };
+  }, []);
 
   useEffect(() => {
     const message = latestMessage as NotificationMessage | null;
@@ -111,6 +136,19 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
 
     const nextItem = toNotificationItem(message.notification);
     if (!nextItem) {
+      return;
+    }
+
+    void notifyLocalEventOnce({
+      key: nextItem.id,
+      title: nextItem.title,
+      body: nextItem.body,
+      event: nextItem.kind || 'updates',
+      tag: typeof nextItem.data?.tag === 'string' ? nextItem.data.tag : nextItem.id,
+      data: nextItem.data,
+    });
+
+    if (!inAppEnabled) {
       return;
     }
 
@@ -130,15 +168,7 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
       return next;
     });
     setIsOpen(true);
-    void notifyLocalEventOnce({
-      key: nextItem.id,
-      title: nextItem.title,
-      body: nextItem.body,
-      event: nextItem.kind || 'updates',
-      tag: typeof nextItem.data?.tag === 'string' ? nextItem.data.tag : nextItem.id,
-      data: nextItem.data,
-    });
-  }, [latestMessage]);
+  }, [inAppEnabled, latestMessage]);
 
   const unreadCount = useMemo(
     () => items.filter((item) => !readIds.has(item.id)).length,
@@ -162,7 +192,7 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
     });
   }, []);
 
-  if (items.length === 0) {
+  if (!inAppEnabled || items.length === 0) {
     return null;
   }
 

@@ -8,6 +8,7 @@ import { AlertCircle, Check, ChevronDown, Download, GitBranch, Plus, RefreshCw, 
 
 type GitPanelHeaderProps = {
   isMobile: boolean;
+  isGitRepository?: boolean;
   currentBranch: string;
   branches: string[];
   remoteStatus: GitRemoteStatus | null;
@@ -33,6 +34,7 @@ type GitPanelHeaderProps = {
 
 export default function GitPanelHeader({
   isMobile,
+  isGitRepository = true,
   currentBranch,
   branches,
   remoteStatus,
@@ -121,7 +123,13 @@ export default function GitPanelHeader({
       {/* Branch row + action buttons */}
       <div className={`flex items-center justify-between border-b border-border/60 ${isMobile ? 'px-3 py-2' : 'px-4 py-3'}`}>
         {/* Branch selector */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative min-w-0" ref={dropdownRef}>
+          {!isGitRepository ? (
+            <div className={`flex min-w-0 items-center rounded-lg ${isMobile ? 'space-x-1 px-2 py-1' : 'space-x-2 px-3 py-1.5'}`}>
+              <GitBranch className={`text-muted-foreground ${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`} />
+              <span className={`truncate font-medium ${isMobile ? 'text-xs' : 'text-sm'}`}>Local files</span>
+            </div>
+          ) : (
           <button
             onClick={() => setShowBranchDropdown((prev) => !prev)}
             className={`flex items-center rounded-lg transition-colors hover:bg-accent ${isMobile ? 'space-x-1 px-2 py-1' : 'space-x-2 px-3 py-1.5'}`}
@@ -149,8 +157,9 @@ export default function GitPanelHeader({
             </span>
             <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${showBranchDropdown ? 'rotate-180' : ''}`} />
           </button>
+          )}
 
-          {showBranchDropdown && (
+          {isGitRepository && showBranchDropdown && (
             <div className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
               <div className="max-h-64 overflow-y-auto py-1">
                 {branches.map((branch) => (
@@ -186,7 +195,7 @@ export default function GitPanelHeader({
 
         {/* Action buttons */}
         <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'}`}>
-          {remoteStatus?.hasRemote && (
+          {isGitRepository && remoteStatus?.hasRemote && (
             <>
               {!remoteStatus.hasUpstream ? (
                 <button
@@ -239,16 +248,18 @@ export default function GitPanelHeader({
             </>
           )}
 
-          <button
-            onClick={requestRevertLocalCommitConfirmation}
-            disabled={isRevertingLocalCommit}
-            className={`rounded-lg transition-colors hover:bg-accent disabled:opacity-50 ${isMobile ? 'p-1' : 'p-1.5'}`}
-            title="Revert latest local commit"
-          >
-            <RotateCcw
-              className={`text-muted-foreground ${isRevertingLocalCommit ? 'animate-pulse' : ''} ${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`}
-            />
-          </button>
+          {isGitRepository && (
+            <button
+              onClick={requestRevertLocalCommitConfirmation}
+              disabled={isRevertingLocalCommit}
+              className={`rounded-lg transition-colors hover:bg-accent disabled:opacity-50 ${isMobile ? 'p-1' : 'p-1.5'}`}
+              title="Revert latest local commit"
+            >
+              <RotateCcw
+                className={`text-muted-foreground ${isRevertingLocalCommit ? 'animate-pulse' : ''} ${isMobile ? 'h-3 w-3' : 'h-4 w-4'}`}
+              />
+            </button>
+          )}
 
           <button
             onClick={onRefresh}

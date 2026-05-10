@@ -12,6 +12,7 @@ type FileChangeItemProps = {
   isSelected: boolean;
   diff?: string;
   wrapText: boolean;
+  readOnly?: boolean;
   onToggleSelected: (filePath: string) => void;
   onToggleExpanded: (filePath: string) => void;
   onOpenFile: (filePath: string) => void;
@@ -27,6 +28,7 @@ export default function FileChangeItem({
   isSelected,
   diff,
   wrapText,
+  readOnly = false,
   onToggleSelected,
   onToggleExpanded,
   onOpenFile,
@@ -39,13 +41,15 @@ export default function FileChangeItem({
   return (
     <div className="border-b border-border last:border-0">
       <div className={`flex items-center transition-colors hover:bg-accent/50 ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggleSelected(filePath)}
-          onClick={(event) => event.stopPropagation()}
-          className={`rounded border-border bg-background text-primary checked:bg-primary focus:ring-primary/40 ${isMobile ? 'mr-1.5' : 'mr-2'}`}
-        />
+        {!readOnly && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelected(filePath)}
+            onClick={(event) => event.stopPropagation()}
+            className={`rounded border-border bg-background text-primary checked:bg-primary focus:ring-primary/40 ${isMobile ? 'mr-1.5' : 'mr-2'}`}
+          />
+        )}
 
         <div className="flex min-w-0 flex-1 items-center">
           <button
@@ -71,7 +75,7 @@ export default function FileChangeItem({
           </span>
 
           <span className="flex items-center gap-1">
-            {(status === 'M' || status === 'D' || status === 'U') && (
+            {!readOnly && (status === 'M' || status === 'D' || status === 'U') && (
               <button
                 onClick={(event) => {
                   event.stopPropagation();

@@ -25,6 +25,14 @@ type TunnelState = {
   binary: string | null;
   url: string | null;
   error: string | null;
+  installHint?: TunnelInstallHint | null;
+};
+
+type TunnelInstallHint = {
+  title?: string;
+  message?: string;
+  commands?: string[];
+  docsUrl?: string;
 };
 
 // UPnP auto-port-forward was removed in v1.32 — the cloudflared / ngrok
@@ -62,6 +70,7 @@ export default function MobileSettingsTab() {
   const [externalQrs, setExternalQrs] = useState<EndpointQr[]>([]);
   const [tunnelBusy, setTunnelBusy] = useState(false);
   const [externalError, setExternalError] = useState<string | null>(null);
+  const [tunnelInstallHint, setTunnelInstallHint] = useState<TunnelInstallHint | null>(null);
 
   const loadEndpoints = useCallback(async () => {
     setLoading(true);
@@ -95,6 +104,7 @@ export default function MobileSettingsTab() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const json = (await response.json()) as ExternalState;
       setExternal(json);
+      setTunnelInstallHint(json.tunnel?.installHint ?? null);
 
       const urls: { key: string; label: string; url: string }[] = [];
       if (json.tunnel?.running && json.tunnel.url) {
@@ -132,8 +142,12 @@ export default function MobileSettingsTab() {
       const response = await authenticatedFetch('/api/network/tunnel', {
         method: isRunning ? 'DELETE' : 'POST',
       });
-      const body = (await response.json()) as { error?: string; tunnel?: TunnelState };
+      const body = (await response.json()) as { error?: string; installHint?: TunnelInstallHint; tunnel?: TunnelState };
       if (!response.ok) {
+        setTunnelInstallHint(body.installHint ?? body.tunnel?.installHint ?? null);
+        if (body.tunnel) {
+          setExternal({ tunnel: body.tunnel });
+        }
         if (response.status === 424) {
           setExternalError(t('mobile.external.tunnelUnavailable') as string);
         } else {
@@ -289,6 +303,24 @@ export default function MobileSettingsTab() {
             {external?.tunnel.running ? t('mobile.external.tunnelStop') : t('mobile.external.tunnelStart')}
           </button>
         </div>
+
+        {(tunnelInstallHint || external?.tunnel.installHint) && (
+          <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-100">
+            <div className="font-semibold">
+              {(tunnelInstallHint || external?.tunnel.installHint)?.title || 'Tunnel setup needed'}
+            </div>
+            <p className="mt-1 leading-5">
+              {(tunnelInstallHint || external?.tunnel.installHint)?.message}
+            </p>
+            {Boolean((tunnelInstallHint || external?.tunnel.installHint)?.commands?.length) && (
+              <ul className="mt-2 list-disc space-y-1 pl-4">
+                {(tunnelInstallHint || external?.tunnel.installHint)?.commands?.map((command) => (
+                  <li key={command} className="font-mono text-[11px]">{command}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {externalQrs.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-2">{externalQrs.map(renderQrCard)}</div>

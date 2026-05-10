@@ -79,7 +79,7 @@
       "lastChecked": "Kontrol {{value}}",
       "guideTitle": "Sağ panel rehberi",
       "guideFiles": "Değişen dosyalar Dosyalar içinde yeşil parlar.",
-      "guidePanel": "Yeni değişiklikler split paneli otomatik açar.",
+      "guidePanel": "Yeni değişiklikler aktif sohbetin yanında görünür.",
       "status": {
         "M": "D",
         "A": "E",

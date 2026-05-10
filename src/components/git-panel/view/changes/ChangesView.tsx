@@ -51,6 +51,7 @@ export default function ChangesView({
 
   const changedFiles = useMemo(() => getAllChangedFiles(gitStatus), [gitStatus]);
   const hasExpandedFiles = expandedFiles.size > 0;
+  const isFilesystemTracking = gitStatus?.isGitRepository === false;
 
   useEffect(() => {
     if (!gitStatus || gitStatus.error) {
@@ -142,17 +143,19 @@ export default function ChangesView({
 
   return (
     <>
-      <CommitComposer
-        isMobile={isMobile}
-        projectPath={projectPath}
-        selectedFileCount={selectedFiles.size}
-        isHidden={hasExpandedFiles}
-        onCommit={commitSelectedFiles}
-        onGenerateMessage={generateMessageForSelection}
-        onRequestConfirmation={onRequestConfirmation}
-      />
+      {!isFilesystemTracking && (
+        <CommitComposer
+          isMobile={isMobile}
+          projectPath={projectPath}
+          selectedFileCount={selectedFiles.size}
+          isHidden={hasExpandedFiles}
+          onCommit={commitSelectedFiles}
+          onGenerateMessage={generateMessageForSelection}
+          onRequestConfirmation={onRequestConfirmation}
+        />
+      )}
 
-      {!gitStatus?.error && <FileStatusLegend isMobile={isMobile} />}
+      {!gitStatus?.error && !isFilesystemTracking && <FileStatusLegend isMobile={isMobile} />}
 
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
@@ -185,6 +188,37 @@ export default function ChangesView({
                 </>
               )}
             </button>
+          </div>
+        ) : isFilesystemTracking ? (
+          <div className="p-3">
+            <div className="mb-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3">
+              <div className="text-sm font-medium text-foreground">Local file activity</div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                This folder is not a git repository. Pixcode is tracking file writes locally so agent changes are still visible.
+              </p>
+            </div>
+
+            {!hasChangedFiles(gitStatus) ? (
+              <div className="flex h-32 flex-col items-center justify-center text-muted-foreground">
+                <GitCommit className="mb-2 h-10 w-10 opacity-40" />
+                <p className="text-sm">No local changes detected</p>
+              </div>
+            ) : (
+              <FileChangeList
+                gitStatus={gitStatus}
+                gitDiff={gitDiff}
+                expandedFiles={expandedFiles}
+                selectedFiles={selectedFiles}
+                isMobile={isMobile}
+                wrapText={wrapText}
+                readOnly
+                onToggleSelected={toggleFileSelected}
+                onToggleExpanded={toggleFileExpanded}
+                onOpenFile={(filePath) => { void onOpenFile(filePath); }}
+                onToggleWrapText={() => onWrapTextChange(!wrapText)}
+                onRequestFileAction={requestFileAction}
+              />
+            )}
           </div>
         ) : !gitStatus || !hasChangedFiles(gitStatus) ? (
           <div className="flex h-32 flex-col items-center justify-center text-muted-foreground">
