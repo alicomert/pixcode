@@ -2,6 +2,24 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.38.4](https://github.com/alicomert/pixcode/compare/v1.38.3...v1.38.4) (2026-05-10)
+
+Pixcode 1.38.4 is a Command Center and mobile-access reliability patch. It makes local-only projects first-class, moves changed-file awareness beside the active AI workspace, turns missing tunnel binaries into actionable setup guidance, and makes notification channel preferences stricter.
+
+### Bug Fixes
+
+* **git:** return a structured filesystem-tracking status for non-git folders instead of surfacing `Git operation failed`.
+* **command-center:** show changed files in a dedicated activity rail beside chat/orchestration, while Quick Settings keeps only the toggle and compact status.
+* **source-control:** render non-git folders as local file activity so users are not forced to initialize Git just to see agent edits.
+* **mobile:** show cloudflared/ngrok install guidance when no tunnel binary exists and keep LAN QR endpoints usable.
+* **notifications:** honor the In-app center channel preference before storing or opening in-app notification UI.
+* **desktop:** keep the desktop bundled `@pixelbyte-software/pixcode` dependency aligned with the release version.
+
+### Tests
+
+* add smoke coverage for non-git Command Center fallback, mobile tunnel guidance, and in-app notification preference enforcement.
+* re-run smoke checks, typecheck, lint, and production build before publishing.
+
 ## [1.38.3](https://github.com/alicomert/pixcode/compare/v1.38.2...v1.38.3) (2026-05-10)
 
 Pixcode 1.38.3 is a Mac/runtime reliability patch for the v1.38 desktop and orchestration wave. It fixes macOS GUI PATH detection for provider/task installs, keeps Qwen/OpenCode chats hydrated after project refreshes, improves the multi-worker composer entry point, and prevents external-directory permission denials from breaking orchestration final reports.
