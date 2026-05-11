@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.3](https://github.com/alicomert/pixcode/compare/v1.40.2...v1.40.3) (2026-05-11)
+
+Pixcode 1.40.3 makes Live View safer on machines that do not have the detected runtime installed, especially PHP on Windows.
+
+### Bug Fixes
+
+* **live-view:** preflight detected process runners before launch so missing PHP, Node package managers, Python, Go, Rust, and similar runtimes do not create broken preview sessions.
+* **live-view:** show a clear unavailable-runner message in the Live View panel when the selected project needs a runtime that is not in `PATH`.
+* **live-view:** keep the detected framework and command visible so users can install the missing runtime or use a custom command with the full executable path.
+
+### Tests
+
+* extend Live View integration smoke coverage for missing PHP runtime detection and unavailable-runner UI messaging.
+* re-run Live View integration smoke, typecheck, lint, production build, and npm pack dry-run before publishing.
+
 ## [1.40.2](https://github.com/alicomert/pixcode/compare/v1.40.1...v1.40.2) (2026-05-11)
 
 Pixcode 1.40.2 makes Live View failures actionable, especially for process-backed runners such as PHP, Node, React, Vite, Next.js, and custom commands.

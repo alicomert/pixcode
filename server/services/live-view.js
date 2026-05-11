@@ -8,6 +8,7 @@ const sessionsByProject = new Map();
 const sessionsByShareId = new Map();
 const READY_TIMEOUT_MS = 12000;
 const LOG_LIMIT = 200;
+const RUNTIME_CHECK_TIMEOUT_MS = 1800;
 
 const localUrlRegex = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[[^\]]+\])(?::(\d+))?[^\s"'<>]*/i;
 
@@ -76,6 +77,88 @@ function packageRunArgs(packageManager, scriptName, extraArgs = []) {
 
 function buildDisplayCommand(command, args) {
   return [command, ...args].join(' ');
+}
+
+function quoteForPosixShell(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function quoteForWindowsShell(value) {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+function isPathLikeCommand(command) {
+  return path.isAbsolute(command) || command.includes('/') || command.includes('\\');
+}
+
+function runtimeMissingReason(command, framework) {
+  const base = `${command} executable was not found in PATH.`;
+  if (framework === 'PHP' || command === 'php') {
+    return `${base} Install PHP and add php.exe to PATH, or use a custom command with the full PHP executable path.`;
+  }
+  if (command === 'npm' || command === 'pnpm' || command === 'yarn' || command === 'bun') {
+    return `${base} Install Node.js/package manager support or use a custom command with the full executable path.`;
+  }
+  if (command === 'python' || command === 'python3') {
+    return `${base} Install Python and add it to PATH, or use a custom command with the full Python executable path.`;
+  }
+  return `${base} Install ${framework || command} or use a custom command with the full executable path.`;
+}
+
+async function checkCommandAvailability(command, env = process.env) {
+  if (!command || command.includes('\n') || command.includes('\r')) return true;
+
+  if (isPathLikeCommand(command)) {
+    try {
+      await fs.access(command);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const checker = process.platform === 'win32'
+    ? {
+      command: process.env.ComSpec || 'cmd.exe',
+      args: ['/d', '/s', '/c', `where ${quoteForWindowsShell(command)}`],
+    }
+    : {
+      command: '/bin/sh',
+      args: ['-lc', `command -v ${quoteForPosixShell(command)}`],
+    };
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let child = null;
+    const finish = (available) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(available);
+    };
+
+    const timer = setTimeout(() => {
+      try {
+        child?.kill();
+      } catch {
+        // Ignore a raced process exit.
+      }
+      finish(true);
+    }, RUNTIME_CHECK_TIMEOUT_MS);
+
+    child = spawn(checker.command, checker.args, {
+      env,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+
+    child.on('error', (error) => {
+      finish(error?.code === 'ENOENT' ? false : true);
+    });
+    child.on('exit', (code) => {
+      finish(code === 0);
+    });
+  });
 }
 
 function buildPackageCommand(packageManager, scriptName, id, label, framework, extraArgs = []) {
@@ -286,7 +369,7 @@ async function detectProcessCommand(projectPath) {
   return null;
 }
 
-export async function detectLiveViewTarget(projectPath) {
+export async function detectLiveViewTarget(projectPath, options = {}) {
   if (!projectPath || !(await dirExists(projectPath))) {
     return {
       available: false,
@@ -297,6 +380,19 @@ export async function detectLiveViewTarget(projectPath) {
 
   const processCommand = await detectProcessCommand(projectPath);
   if (processCommand) {
+    const runtimeAvailable = await checkCommandAvailability(processCommand.command, options.env || process.env);
+    if (!runtimeAvailable) {
+      return {
+        available: false,
+        kind: 'process',
+        label: processCommand.label,
+        framework: processCommand.framework,
+        command: processCommand,
+        missingRuntime: processCommand.command,
+        reason: runtimeMissingReason(processCommand.command, processCommand.framework),
+      };
+    }
+
     return {
       available: true,
       kind: 'process',

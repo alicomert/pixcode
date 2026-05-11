@@ -80,6 +80,10 @@ assert.ok(
   'Live View panel should show the actual runner error instead of only an error badge.',
 );
 assert.ok(
+  liveViewPanel.includes('targetUnavailableReason') && liveViewPanel.includes('liveView.runnerUnavailable'),
+  'Live View panel should show a clear unavailable-runner message before launching a missing runtime.',
+);
+assert.ok(
   liveViewPanel.includes("runAction('restart')"),
   'Live View panel should expose a restart action for failed process runners.',
 );
@@ -108,6 +112,7 @@ const workspace = await mkdtemp(path.join(tmpdir(), 'pixcode-live-view-smoke-'))
 const staticProject = path.join(workspace, 'static');
 const viteProject = path.join(workspace, 'vite');
 const djangoProject = path.join(workspace, 'django');
+const phpProject = path.join(workspace, 'php');
 await writeFile(path.join(staticProject, 'index.html'), '<main>hello</main>', { recursive: true }).catch(async (error) => {
   if (error.code !== 'ENOENT') throw error;
   const { mkdir } = await import('node:fs/promises');
@@ -122,6 +127,8 @@ await writeFile(path.join(viteProject, 'package.json'), JSON.stringify({
 }, null, 2));
 await mkdir(djangoProject, { recursive: true });
 await writeFile(path.join(djangoProject, 'manage.py'), '#!/usr/bin/env python\n');
+await mkdir(phpProject, { recursive: true });
+await writeFile(path.join(phpProject, 'index.php'), '<?php echo "hello";');
 
 const staticTarget = await detectLiveViewTarget(staticProject);
 assert.equal(staticTarget.available, true, 'Static HTML projects should be available.');
@@ -134,6 +141,20 @@ assert.equal(viteTarget.command?.id, 'npm-dev-vite', 'Vite projects should get a
 const djangoTarget = await detectLiveViewTarget(djangoProject);
 assert.equal(djangoTarget.available, true, 'Django projects should be detected from manage.py.');
 assert.equal(djangoTarget.command?.id, 'python-django', 'Django projects should get a runserver command.');
+
+const phpMissingRuntimeTarget = await detectLiveViewTarget(phpProject, {
+  env: {
+    ...process.env,
+    PATH: '',
+  },
+});
+assert.equal(phpMissingRuntimeTarget.available, false, 'PHP projects should not be marked runnable when php is missing from PATH.');
+assert.equal(phpMissingRuntimeTarget.framework, 'PHP', 'Missing PHP runtime diagnostics should keep the detected framework.');
+assert.match(
+  phpMissingRuntimeTarget.reason || '',
+  /php executable was not found/i,
+  'Missing PHP runtime diagnostics should explain that php is not available.',
+);
 
 const staticSession = await startLiveView('static-smoke', staticProject);
 assert.equal(staticSession.status, 'running', 'Static Live View should start without a child process.');

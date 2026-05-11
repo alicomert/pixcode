@@ -543,6 +543,7 @@
     "restart": "Yeniden başlat",
     "stop": "Durdur",
     "runnerError": "Çalıştırıcı hatası",
+    "runnerUnavailable": "Çalıştırıcı yok",
     "runnerErrorFallback": "Önizleme hazır olmadan çalıştırıcı durdu.",
     "detecting": "Proje çalıştırıcısı algılanıyor…",
     "noRunner": "Çalıştırıcı algılanmadı",

@@ -543,6 +543,7 @@
     "restart": "Restart",
     "stop": "Stop",
     "runnerError": "Runner error",
+    "runnerUnavailable": "Runner unavailable",
     "runnerErrorFallback": "The runner stopped before the preview became available.",
     "detecting": "Detecting project runner…",
     "noRunner": "No runner detected",
