@@ -75,6 +75,14 @@ assert.ok(
   liveViewPanel.includes('viewportSize.width') && liveViewPanel.includes('viewportSize.height'),
   'Live View iframe should use the selected preview resolution.',
 );
+assert.ok(
+  liveViewPanel.includes('sessionError') && liveViewPanel.includes('status.session.error'),
+  'Live View panel should show the actual runner error instead of only an error badge.',
+);
+assert.ok(
+  liveViewPanel.includes("runAction('restart')"),
+  'Live View panel should expose a restart action for failed process runners.',
+);
 
 const serverIndex = await read('server/index.js');
 assert.ok(

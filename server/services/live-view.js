@@ -391,6 +391,9 @@ function publicSession(session) {
     upstreamUrl: session.upstreamUrl,
     startedAt: session.startedAt,
     stoppedAt: session.stoppedAt,
+    exitCode: session.exitCode ?? null,
+    exitSignal: session.exitSignal ?? null,
+    spawnErrorCode: session.spawnErrorCode ?? null,
     error: session.error,
     log: session.log.slice(-40),
   };
@@ -453,6 +456,9 @@ export async function startLiveView(projectName, projectPath, options = {}) {
       upstreamUrl: null,
       startedAt: new Date().toISOString(),
       stoppedAt: null,
+      exitCode: null,
+      exitSignal: null,
+      spawnErrorCode: null,
       error: null,
       log: [`Serving static files from ${path.relative(projectPath, target.staticRoot) || '.'}`],
     };
@@ -477,6 +483,9 @@ export async function startLiveView(projectName, projectPath, options = {}) {
     upstreamUrl: `http://127.0.0.1:${port}`,
     startedAt: new Date().toISOString(),
     stoppedAt: null,
+    exitCode: null,
+    exitSignal: null,
+    spawnErrorCode: null,
     error: null,
     log: [`$ ${command.displayCommand}`],
     child: null,
@@ -511,11 +520,14 @@ export async function startLiveView(projectName, projectPath, options = {}) {
   child.on('error', (error) => {
     session.status = 'error';
     session.error = error.message;
+    session.spawnErrorCode = error.code || null;
     appendLog(session, `process error: ${error.message}`);
   });
   child.on('exit', (code, signal) => {
     session.status = code === 0 ? 'stopped' : 'error';
     session.stoppedAt = new Date().toISOString();
+    session.exitCode = code;
+    session.exitSignal = signal;
     session.error = code === 0 ? null : `Process exited with ${signal || `code ${code}`}`;
     appendLog(session, session.error || 'Process stopped.');
   });

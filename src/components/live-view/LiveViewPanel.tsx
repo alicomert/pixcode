@@ -188,6 +188,10 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
   const frameSrc = status?.session?.sharePath || null;
   const isRunning = status?.session?.status === 'running';
   const isStarting = status?.session?.status === 'starting';
+  const sessionError = status?.session?.status === 'error'
+    ? status.session.error || t('liveView.runnerErrorFallback', { defaultValue: 'The runner stopped before the preview became available.' })
+    : null;
+  const sessionLogs = status?.session?.log?.slice(-8) || [];
   const canStart = Boolean(status?.target?.available || customCommand.trim());
 
   const copyShareUrl = useCallback(async () => {
@@ -239,10 +243,16 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
             {t('buttons.refresh')}
           </Button>
           {status?.session ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => void runAction('stop')} disabled={isBusy}>
-              <SquareIcon className="h-4 w-4" />
-              {t('liveView.stop', { defaultValue: 'Stop' })}
-            </Button>
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={() => void runAction('restart')} disabled={isBusy || isStarting}>
+                {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {t('liveView.restart', { defaultValue: 'Restart' })}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => void runAction('stop')} disabled={isBusy}>
+                <SquareIcon className="h-4 w-4" />
+                {t('liveView.stop', { defaultValue: 'Stop' })}
+              </Button>
+            </>
           ) : (
             <Button type="button" size="sm" onClick={() => void runAction('start')} disabled={!canStart || isBusy}>
               {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
@@ -294,6 +304,23 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Button>
+                </div>
+              )}
+
+              {sessionError && (
+                <div className="rounded-lg border border-destructive/35 bg-destructive/10 p-3 text-sm">
+                  <div className="flex items-center gap-2 font-medium text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    {t('liveView.runnerError', { defaultValue: 'Runner error' })}
+                  </div>
+                  <p className="mt-2 text-xs text-destructive/90">
+                    {sessionError}
+                  </p>
+                  {sessionLogs.length > 0 && (
+                    <pre className="mt-2 max-h-28 overflow-auto rounded-md border border-destructive/20 bg-background/70 p-2 text-xs text-muted-foreground">
+                      {sessionLogs.join('\n')}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>

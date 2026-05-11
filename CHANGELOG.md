@@ -2,6 +2,23 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.2](https://github.com/alicomert/pixcode/compare/v1.40.1...v1.40.2) (2026-05-11)
+
+Pixcode 1.40.2 makes Live View failures actionable, especially for process-backed runners such as PHP, Node, React, Vite, Next.js, and custom commands.
+
+### Bug Fixes
+
+* **live-view:** stop hiding failed process sessions behind a generic `Live View session not found` response.
+* **live-view:** show a diagnostic HTML page on `/live/<share-id>/` when the runner is starting, stopped, errored, or unreachable.
+* **live-view:** include the attempted command, upstream URL, port, exit/spawn details, recent logs, and framework-specific suggestions in diagnostic responses.
+* **live-view:** show the real runner error and latest logs directly inside the Live View panel, with a Restart action for failed runners.
+
+### Tests
+
+* add Live View diagnostic smoke coverage for PHP runner failures and public diagnostic rendering.
+* extend Live View integration smoke coverage for visible runner errors and restart controls.
+* re-run Live View diagnostics smoke, Live View integration smoke, chat timeline smoke, Changes panel smoke, chat composer layout smoke, orchestration mobile scroll smoke, typecheck, lint, production build, and npm pack dry-run before publishing.
+
 ## [1.40.1](https://github.com/alicomert/pixcode/compare/v1.40.0...v1.40.1) (2026-05-11)
 
 Pixcode 1.40.1 tightens the Live View and chat experience after the first Live View rollout.
