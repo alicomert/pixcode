@@ -6,11 +6,11 @@
     <title>Pixcode Documentation - Complete Self-hosted AI Coding Agent Guide</title>
     <meta
       name="description"
-      content="Complete Pixcode documentation covering Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, chat, files, shell, Git, orchestration, API keys, Telegram, notifications, MCP, plugins, themes, desktop installers, and Linux server deployment."
+      content="Complete Pixcode documentation covering Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, chat, files, shell, Git/local changes, orchestration, TaskMaster planning, custom OpenAI-compatible APIs, API keys, Telegram, notifications, MCP, plugins, themes, desktop installers, and Linux server deployment."
     />
     <meta
       name="keywords"
-      content="Pixcode documentation, Claude Code web UI documentation, Codex UI documentation, Cursor CLI web interface, AI coding agent orchestration docs, OpenCode UI docs, MCP server manager, local AI coding assistant, self-hosted coding agent dashboard"
+      content="Pixcode documentation, Claude Code web UI documentation, Codex UI documentation, Cursor CLI web interface, AI coding agent orchestration docs, TaskMaster AI planning, OpenAI compatible API URL, OpenCode UI docs, MCP server manager, local AI coding assistant, self-hosted coding agent dashboard"
     />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
     <link rel="canonical" href="https://alicomert.github.io/pixcode/docs.html" />
@@ -75,6 +75,7 @@
           <a href="#workspace">Workspace UI</a>
           <a href="#command-center">Changed files</a>
           <a href="#orchestration">Orchestration</a>
+          <a href="#taskmaster">TaskMaster</a>
           <a href="#api">API and automation</a>
           <a href="#telegram">Notifications and Telegram</a>
           <a href="#plugins">Plugins and MCP</a>
@@ -153,7 +154,7 @@
           <section id="command-center" class="doc-section">
             <h2>Changed files command center</h2>
             <p>
-              Pixcode can watch local working-tree changes through its Git status layer. In Quick Settings, the Command Center view can show changed files as they appear, highlight newly modified paths, and open the related file location. This helps users keep control when an AI agent edits multiple files quickly.
+              Pixcode can watch Git changes or local filesystem changes. In Quick Settings, the Command Center view can show changed files as they appear, highlight newly modified paths, and open the related file location. This helps users keep control when an AI agent edits multiple files quickly, even when the project is not a Git repository.
             </p>
             <p>
               The important design point is that this does not depend on GitHub pushes. It works with local changes, so the user can review the agent's work before committing, pushing, tagging, or publishing.
@@ -180,6 +181,19 @@
             <p>
               For deeper orchestration details, see <a href="orchestration.html">orchestration.html</a>.
             </p>
+          </section>
+
+          <section id="taskmaster" class="doc-section">
+            <h2>TaskMaster planning</h2>
+            <p>
+              Pixcode can enable TaskMaster-backed planning for PRD parsing, task breakdown, status tracking, and agent task execution. The Tasks settings page checks TaskMaster installation, lets the user refresh that status manually, and stores provider environment values for TaskMaster CLI runs.
+            </p>
+            <p>
+              Provider settings include standard API keys and URLs plus custom OpenAI-compatible API URL, API key, and model values. This means a user can point TaskMaster planning at a private gateway, local router, company endpoint, or third-party provider that exposes an OpenAI-compatible API.
+            </p>
+            <div class="code-panel"><pre><code>OPENAI_API_KEY=sk-custom-...
+OPENAI_BASE_URL=https://your-provider.example.com/v1
+OPENAI_MODEL=your-model-id</code></pre></div>
           </section>
 
           <section id="api" class="doc-section">

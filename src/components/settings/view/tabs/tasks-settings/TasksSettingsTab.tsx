@@ -101,6 +101,30 @@ const CONFIG_FIELDS: ConfigFieldDefinition[] = [
     placeholder: 'https://api.openai.com/v1',
   },
   {
+    id: 'openaiCompatibleApiKey',
+    envName: 'OPENAI_COMPATIBLE_API_KEY -> OPENAI_API_KEY',
+    label: 'Custom OpenAI-compatible key',
+    description: 'Use any provider that speaks the OpenAI API shape. Pixcode maps this to OPENAI_API_KEY for TaskMaster runs.',
+    secret: true,
+    placeholder: 'sk-custom-...',
+  },
+  {
+    id: 'openaiCompatibleBaseUrl',
+    envName: 'OPENAI_COMPATIBLE_BASE_URL -> OPENAI_BASE_URL',
+    label: 'Custom OpenAI-compatible API URL',
+    description: 'Point TaskMaster at an OpenAI-compatible endpoint such as a gateway, local server, or private model router.',
+    secret: false,
+    placeholder: 'https://your-provider.example.com/v1',
+  },
+  {
+    id: 'openaiCompatibleModel',
+    envName: 'OPENAI_COMPATIBLE_MODEL / OPENAI_MODEL',
+    label: 'Custom OpenAI-compatible model',
+    description: 'Optional model id for providers that need a custom OpenAI-compatible model value in the environment.',
+    secret: false,
+    placeholder: 'provider/model-or-model-id',
+  },
+  {
     id: 'googleApiKey',
     envName: 'GOOGLE_API_KEY / GEMINI_API_KEY',
     label: 'Google Gemini',
@@ -356,7 +380,7 @@ export default function TasksSettingsTab() {
               <div>
                 <div className="text-sm font-semibold text-foreground">TaskMaster API keys and URLs</div>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Save provider environment values once. Pixcode injects them into TaskMaster CLI commands without exposing secret values back to the UI.
+                  Save provider environment values once. Pixcode injects them into TaskMaster CLI commands without exposing secret values back to the UI. Custom OpenAI-compatible values override the standard OpenAI key and URL only for TaskMaster execution.
                 </p>
               </div>
               <a
@@ -416,7 +440,7 @@ export default function TasksSettingsTab() {
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs leading-5 text-muted-foreground">
-                Blank secret fields are preserved on save. Blank URL fields clear the saved URL.
+                Blank secret fields are preserved on save. Blank URL and model fields clear the saved value.
               </p>
               <button
                 type="button"

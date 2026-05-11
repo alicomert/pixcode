@@ -13,7 +13,10 @@
     "dist/",
     "dist-server/",
     "scripts/",
-    "README.md"
+    "README.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md"
   ],
   "homepage": "https://github.com/alicomert/pixcode",
   "repository": {
@@ -69,6 +72,8 @@
     "coding agent dashboard",
     "multi-agent orchestration",
     "agent orchestration",
+    "taskmaster",
+    "openai compatible api",
     "claude code",
     "claude-code",
     "claude-code-ui",

@@ -1,0 +1,42 @@
+name: Good first issue
+description: Create a small, well-scoped task for new contributors.
+title: "[Good first issue]: "
+labels: ["good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for tasks that are safe for a new contributor: small scope, clear files, and a visible success condition.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be improved?
+      placeholder: "Example: Add a short empty-state message to the TaskMaster settings card."
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Likely files
+      description: List the files or folders a contributor should start with.
+      placeholder: |
+        src/components/...
+        server/routes/...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How do we know the task is done?
+      placeholder: |
+        - The UI shows the new empty state.
+        - Existing lint/typecheck still pass.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Add screenshots, examples, links, or constraints.

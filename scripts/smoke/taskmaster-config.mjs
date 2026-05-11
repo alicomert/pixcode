@@ -20,6 +20,14 @@ assert.ok(
 );
 
 assert.ok(
+  taskmasterConfig.includes('openaiCompatibleApiKey')
+    && taskmasterConfig.includes('OPENAI_COMPATIBLE_BASE_URL')
+    && taskmasterConfig.includes('CUSTOM_OPENAI_API_KEY')
+    && taskmasterConfig.includes('buildTaskMasterConfigEnvValues'),
+  'TaskMaster config should support custom OpenAI-compatible API keys, API URLs, model values, and shared env resolution.',
+);
+
+assert.ok(
   taskmasterRoutes.includes("router.get('/config'") && taskmasterRoutes.includes("router.put('/config'"),
   'TaskMaster routes should expose authenticated config read/write endpoints.',
 );
@@ -35,8 +43,12 @@ assert.ok(
 );
 
 assert.ok(
-  tasksSettingsTab.includes('/api/taskmaster/config') && tasksSettingsTab.includes('ANTHROPIC_API_KEY') && tasksSettingsTab.includes('OPENAI_BASE_URL'),
-  'Task settings tab should let users save TaskMaster API keys and API URLs.',
+  tasksSettingsTab.includes('/api/taskmaster/config')
+    && tasksSettingsTab.includes('ANTHROPIC_API_KEY')
+    && tasksSettingsTab.includes('OPENAI_BASE_URL')
+    && tasksSettingsTab.includes('Custom OpenAI-compatible')
+    && tasksSettingsTab.includes('OPENAI_COMPATIBLE_MODEL'),
+  'Task settings tab should let users save TaskMaster API keys, API URLs, and custom OpenAI-compatible provider settings.',
 );
 
 assert.ok(
