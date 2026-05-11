@@ -23,6 +23,7 @@
     "files": "File",
     "git": "Controllo Versione",
     "changes": "Modifiche",
+    "liveView": "Vista live",
     "tasks": "Attività",
     "orchestration": "Orchestrazione"
   },

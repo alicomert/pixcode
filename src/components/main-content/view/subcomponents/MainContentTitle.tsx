@@ -32,6 +32,10 @@ function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: st
     return t('tabs.changes');
   }
 
+  if (activeTab === 'liveView') {
+    return t('tabs.liveView');
+  }
+
   if (activeTab === 'tasks' && shouldShowTasksTab) {
     return 'TaskMaster';
   }

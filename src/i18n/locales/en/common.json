@@ -23,6 +23,7 @@
     "files": "Files",
     "git": "Source Control",
     "changes": "Changes",
+    "liveView": "Live View",
     "tasks": "Tasks",
     "orchestration": "Orchestration"
   },
@@ -534,5 +535,24 @@
       "updateAvailable": "Update available",
       "closeSidebar": "Close sidebar"
     }
+  },
+  "liveView": {
+    "title": "Live View",
+    "subtitle": "Run this project locally and share it through the active secure tunnel when one is running.",
+    "start": "Start",
+    "stop": "Stop",
+    "detecting": "Detecting project runner…",
+    "noRunner": "No runner detected",
+    "staticHint": "Static HTML will be served directly when index.html exists.",
+    "customCommand": "Custom command",
+    "customPlaceholder": "npm run dev, python app.py, go run .",
+    "shareLink": "Share link",
+    "starting": "Starting",
+    "openExternal": "Open externally",
+    "externalActive": "Secure tunnel is active; this link can be shared outside your network.",
+    "localOnly": "External Access is off; this link is local to this Pixcode server.",
+    "frameTitle": "Project Live View",
+    "emptyTitle": "Start Live View",
+    "emptyDescription": "Pixcode will detect the project stack, start the local web server, and expose it here."
   }
 }

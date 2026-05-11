@@ -23,6 +23,7 @@
     "files": "파일",
     "git": "소스 관리",
     "changes": "변경 사항",
+    "liveView": "라이브 보기",
     "tasks": "작업",
     "orchestration": "오케스트레이션"
   },

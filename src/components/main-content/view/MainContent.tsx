@@ -8,6 +8,7 @@ import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import GitPanel from '../../git-panel/view/GitPanel';
 import OrchestrationPage from '../../orchestration/OrchestrationPage';
+import LiveViewPanel from '../../live-view/LiveViewPanel';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
@@ -101,6 +102,7 @@ function MainContent({
   const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
   const [sidePanelWidth, setSidePanelWidth] = useState(SIDE_PANEL_DEFAULT_WIDTH);
   const [isDraggingSidePanel, setIsDraggingSidePanel] = useState(false);
+  const [liveViewAvailable, setLiveViewAvailable] = useState(false);
   const [changeTrackingMode, setChangeTrackingMode] = useState<ChangedFilesTrackingMode>(() => {
     if (typeof window === 'undefined') {
       return 'local';
@@ -324,6 +326,29 @@ function MainContent({
   }, [shouldShowTasksTab, activeTab, setActiveTab]);
 
   useEffect(() => {
+    if (!selectedProject) {
+      setLiveViewAvailable(false);
+      return;
+    }
+
+    let cancelled = false;
+    authenticatedFetch(`/api/live-view/${encodeURIComponent(selectedProject.name)}/status`, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!cancelled) {
+          setLiveViewAvailable(Boolean(data?.target?.available || data?.session));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLiveViewAvailable(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -529,6 +554,7 @@ function MainContent({
         selectedProject={selectedProject}
         selectedSession={selectedSession}
         shouldShowTasksTab={shouldShowTasksTab}
+        liveViewAvailable={liveViewAvailable}
         activeSidePanelTab={activeSidePanelTab}
         sidePanelMode={sidePanelMode}
         canUseSidePanelSplit={canUseSidePanelSplit}
@@ -553,6 +579,7 @@ function MainContent({
             !editingFile && activeSidePanelTab && !showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
+            !editingFile && activeTab === 'liveView' && 'max-w-none px-0 md:px-0',
           )}
         >
           {(showChatColumn || showOrchestrationColumn || activeSidePanelTab) && (
@@ -670,6 +697,15 @@ function MainContent({
           )}
 
           {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
+
+          {activeTab === 'liveView' && (
+            <div className="h-full min-h-0 overflow-hidden">
+              <LiveViewPanel
+                selectedProject={selectedProject}
+                onAvailabilityChange={setLiveViewAvailable}
+              />
+            </div>
+          )}
 
           <div className={`h-full overflow-hidden ${activeTab === 'preview' ? 'block' : 'hidden'}`} />
 

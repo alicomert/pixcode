@@ -23,6 +23,7 @@
     "files": "文件",
     "git": "源代码管理",
     "changes": "更改",
+    "liveView": "实时预览",
     "tasks": "任务",
     "orchestration": "编排"
   },

@@ -121,7 +121,7 @@ const isUpdateAdditive = (
   );
 };
 
-const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'files', 'shell', 'git', 'tasks', 'preview']);
+const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'files', 'shell', 'git', 'changes', 'liveView', 'tasks', 'preview']);
 
 const isValidTab = (tab: string): tab is AppTab => {
   return VALID_TABS.has(tab) || tab.startsWith('plugin:');
@@ -471,7 +471,7 @@ export function useProjectsState({
     (session: ProjectSession) => {
       setSelectedSession(session);
 
-      if (activeTab === 'tasks' || activeTab === 'preview' || activeTab === 'orchestration') {
+      if (activeTab === 'tasks' || activeTab === 'preview' || activeTab === 'liveView' || activeTab === 'orchestration') {
         setActiveTab('chat');
       }
 

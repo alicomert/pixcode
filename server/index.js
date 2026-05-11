@@ -78,6 +78,7 @@ import messagesRoutes from './routes/messages.js';
 import diagnosticsRoutes from './routes/diagnostics.js';
 import remoteRoutes from './routes/remote.js';
 import publicApiRoutes from './routes/public-api.js';
+import liveViewRoutes, { createLiveViewPublicRouter } from './routes/live-view.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import {
   createA2ARouter,
@@ -405,6 +406,9 @@ app.use('/api/remote', authenticateToken, remoteRoutes);
 // Public automation manifest (protected so private host details only go to signed-in clients)
 app.use('/api/public', authenticateToken, publicApiRoutes);
 
+// Project Live View (protected control API + public share proxy)
+app.use('/api/live-view', authenticateToken, liveViewRoutes);
+
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
 
@@ -419,6 +423,7 @@ app.use('/a2a', createA2ARouter());
 app.use('/preview', authenticateToken, createPreviewProxyRouter());
 app.use('/api/orchestration', authenticateToken, createOrchestrationTaskRouter());
 app.use('/api/orchestration', authenticateToken, createWorkflowRouter());
+app.use('/live', createLiveViewPublicRouter());
 
 // Network discovery / QR endpoints (protected)
 app.use('/api/network', authenticateToken, networkRoutes);

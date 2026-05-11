@@ -23,6 +23,7 @@
     "files": "Файлы",
     "git": "Система контроля версий",
     "changes": "Изменения",
+    "liveView": "Live View",
     "tasks": "Задачи",
     "orchestration": "Оркестрация"
   },

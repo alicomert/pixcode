@@ -23,6 +23,7 @@
     "files": "Dosyalar",
     "git": "Kaynak Kontrolü",
     "changes": "Değişiklikler",
+    "liveView": "Canlı Görünüm",
     "tasks": "Görevler",
     "orchestration": "Orkestrasyon"
   },
@@ -534,5 +535,24 @@
       "updateAvailable": "Güncelleme mevcut",
       "closeSidebar": "Kenar çubuğunu kapat"
     }
+  },
+  "liveView": {
+    "title": "Canlı Görünüm",
+    "subtitle": "Bu projeyi yerelde çalıştır ve aktif güvenli tünel varsa paylaşım linkiyle dışarı aç.",
+    "start": "Başlat",
+    "stop": "Durdur",
+    "detecting": "Proje çalıştırıcısı algılanıyor…",
+    "noRunner": "Çalıştırıcı algılanmadı",
+    "staticHint": "index.html varsa statik HTML doğrudan sunulur.",
+    "customCommand": "Özel komut",
+    "customPlaceholder": "npm run dev, python app.py, go run .",
+    "shareLink": "Paylaşım linki",
+    "starting": "Başlatılıyor",
+    "openExternal": "Dışarıda aç",
+    "externalActive": "Güvenli tünel aktif; bu link ağ dışına paylaşılabilir.",
+    "localOnly": "External Access kapalı; bu link sadece bu Pixcode sunucusunda yerel çalışır.",
+    "frameTitle": "Proje Canlı Görünümü",
+    "emptyTitle": "Canlı Görünümü başlat",
+    "emptyDescription": "Pixcode proje yapısını algılar, yerel web sunucusunu başlatır ve burada gösterir."
   }
 }

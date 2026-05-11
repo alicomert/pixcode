@@ -66,6 +66,7 @@ export type MainContentHeaderProps = {
   selectedProject: Project;
   selectedSession: ProjectSession | null;
   shouldShowTasksTab: boolean;
+  liveViewAvailable?: boolean;
   activeSidePanelTab?: AppTab | null;
   sidePanelMode?: 'split' | 'full';
   canUseSidePanelSplit?: boolean;

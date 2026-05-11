@@ -23,6 +23,7 @@
     "files": "Dateien",
     "git": "Quellcodeverwaltung",
     "changes": "Änderungen",
+    "liveView": "Live-Ansicht",
     "tasks": "Aufgaben",
     "orchestration": "Orchestrierung"
   },

@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.0](https://github.com/alicomert/pixcode/compare/v1.39.2...v1.40.0) (2026-05-11)
+
+Pixcode 1.40.0 adds project Live View: a first-class tab that detects runnable web projects, starts or serves them locally, and exposes a share link through Pixcode's existing External Access tunnel when available.
+
+### New Features
+
+* **live-view:** add a `Live View` / `Canlı Görünüm` top tab after `Changes`, with an availability indicator when Pixcode detects a runnable project.
+* **live-view:** detect common project entry points automatically, including Vite, Next.js, Nuxt, Astro, package scripts, Django, FastAPI, Flask, Go, Rust, PHP, and static `index.html`.
+* **live-view:** start detected runners with a stable local port, serve static HTML directly, keep recent logs visible, and allow a custom command override for uncommon stacks.
+* **sharing:** expose running previews through `/live/<share-id>/` and show both local and secure-tunnel share links when External Access is running.
+
+### Tests
+
+* add Live View integration smoke coverage for tab registration, route mounting, detection, static session startup, and share-path generation.
+* re-run Live View smoke, chat composer layout smoke, Changes panel smoke, orchestration mobile scroll smoke, typecheck, lint, production build, and npm pack dry-run before publishing.
+
 ## [1.39.2](https://github.com/alicomert/pixcode/compare/v1.39.1...v1.39.2) (2026-05-11)
 
 Pixcode 1.39.2 removes the last empty layout gap left behind by the old Command Center rail.

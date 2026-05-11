@@ -14,6 +14,7 @@ import {
   Folder,
   GitBranch,
   FileCode,
+  Globe,
   ClipboardCheck,
   Workflow,
   X,
@@ -24,6 +25,7 @@ type MainContentTabSwitcherProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   shouldShowTasksTab: boolean;
+  liveViewAvailable?: boolean;
   activeSidePanelTab?: AppTab | null;
   sidePanelMode?: 'split' | 'full';
   canUseSidePanelSplit?: boolean;
@@ -55,6 +57,7 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
   { kind: 'builtin', id: 'changes', labelKey: 'tabs.changes', icon: FileCode },
+  { kind: 'builtin', id: 'liveView', labelKey: 'tabs.liveView', icon: Globe },
 ];
 
 const TASKS_TAB: BuiltInTab = {
@@ -70,6 +73,7 @@ export default function MainContentTabSwitcher({
   activeTab,
   setActiveTab,
   shouldShowTasksTab,
+  liveViewAvailable = false,
   activeSidePanelTab,
   sidePanelMode = 'split',
   canUseSidePanelSplit = true,
@@ -129,6 +133,12 @@ export default function MainContentTabSwitcher({
                   />
                 )}
                 <span className="hidden lg:inline">{displayLabel}</span>
+                {tab.id === 'liveView' && liveViewAvailable && (
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]"
+                    aria-hidden="true"
+                  />
+                )}
                 {showLayoutIndicator && (
                   <span
                     className={`ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded border ${
