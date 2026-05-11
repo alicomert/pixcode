@@ -111,6 +111,7 @@ interface ChatComposerProps {
   placeholder: string;
   isTextareaExpanded: boolean;
   sendByCtrlEnter?: boolean;
+  composerContainerRef?: RefObject<HTMLDivElement>;
 }
 
 export default function ChatComposer({
@@ -169,6 +170,7 @@ export default function ChatComposer({
   selectedProject,
   placeholder,
   isTextareaExpanded,
+  composerContainerRef,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const textareaRect = textareaRef.current?.getBoundingClientRect();
@@ -187,7 +189,10 @@ export default function ChatComposer({
   const hasPendingPermissions = pendingPermissionRequests.length > 0;
 
   return (
-    <div className="sticky bottom-0 z-20 flex-shrink-0 bg-gradient-to-t from-background via-background/95 to-background/70 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-4 md:pb-6">
+    <div
+      ref={composerContainerRef}
+      className="absolute inset-x-0 bottom-0 z-20 flex-shrink-0 bg-gradient-to-t from-background via-background/95 to-background/70 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-4 md:pb-6"
+    >
       {!hasPendingPermissions && (
         <ClaudeStatus
           status={claudeStatus}

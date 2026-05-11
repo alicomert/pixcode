@@ -2,6 +2,35 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.39.0](https://github.com/alicomert/pixcode/compare/v1.38.5...v1.39.0) (2026-05-11)
+
+Pixcode 1.39.0 adds custom OpenAI-compatible TaskMaster configuration and refreshes the public-facing project presentation for open-source discovery, contributor onboarding, and GitHub Pages SEO.
+
+### New Features
+
+* **taskmaster:** add custom OpenAI-compatible API key, API URL, and model fields to TaskMaster Settings.
+* **taskmaster:** map custom OpenAI-compatible values into `OPENAI_API_KEY`, `OPENAI_BASE_URL`, and `OPENAI_MODEL` for TaskMaster CLI execution while preserving aliases for compatible tooling.
+* **docs:** rebuild the README as a complete open-source project overview with install commands, screenshots, feature map, API examples, TaskMaster notes, security guidance, and contribution links.
+* **site:** redesign the GitHub Pages landing page as a text-first product page that explains what Pixcode does, supported CLIs, orchestration, TaskMaster, API automation, and install paths.
+* **community:** add `CODE_OF_CONDUCT.md`, `SECURITY.md`, and a `good first issue` template for public contribution flow.
+
+### Bug Fixes
+
+* **chat:** pin the chat composer to the bottom of the chat frame with measured message-pane padding so it no longer jumps between empty, split-panel, side-panel, and active-session layouts.
+* **orchestration:** allow page-level vertical scrolling before desktop split mode so mobile and tablet users can reach the run panel instead of being trapped inside individual subpanes.
+
+### Improvements
+
+* **seo:** update `llms.txt`, `llms-full.txt`, sitemap metadata, docs, and feature pages with TaskMaster and OpenAI-compatible endpoint coverage.
+* **package:** include contributor and security documents in the npm tarball.
+
+### Tests
+
+* add smoke coverage for custom OpenAI-compatible TaskMaster config fields and env resolution.
+* add smoke coverage for the fixed chat composer layout.
+* add smoke coverage for orchestration mobile scroll behavior.
+* re-run TaskMaster config smoke, chat composer layout smoke, orchestration mobile scroll smoke, typecheck, lint, production build, diff whitespace check, and npm pack dry-run before publishing.
+
 ## [1.38.5](https://github.com/alicomert/pixcode/compare/v1.38.4...v1.38.5) (2026-05-10)
 
 Pixcode 1.38.5 is a Command Center realtime-write hotfix. It connects agent file write/edit tool events directly to the changed-files rail and opens changed files in the editor with diff context.

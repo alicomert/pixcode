@@ -444,7 +444,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
       </header>
 
       <div className="grid flex-1 xl:min-h-0 xl:grid-cols-[280px_1fr]">
-        <nav className="min-h-0 overflow-auto border-b border-border p-3 xl:border-b-0 xl:border-r">
+        <nav className="min-h-0 overflow-visible border-b border-border p-3 xl:overflow-auto xl:border-b-0 xl:border-r">
           <div className="mb-2 flex items-center gap-2 px-1 text-xs font-medium text-muted-foreground">
             <Bot className="h-4 w-4" />
             {t('orchestration.agentSteps')}
@@ -492,7 +492,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
           </div>
         </nav>
 
-        <div ref={contentRef} className="min-h-0 overflow-auto p-4 md:p-5">
+        <div ref={contentRef} className="min-h-0 overflow-visible p-4 md:p-5 xl:overflow-auto">
           {selectedNodeId === teamHistoryId ? (
             <WorkflowTeamHistory run={run} onPrepareTeamFromSummary={onPrepareTeamFromSummary} />
           ) : selectedNode ? (

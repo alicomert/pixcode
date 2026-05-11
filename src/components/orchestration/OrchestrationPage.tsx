@@ -858,7 +858,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
       <div
         ref={layoutRef}
         data-orchestration-execution-mode={isExecutionMode ? 'true' : 'false'}
-        className={`grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-hidden ${
+        className={`grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-y-auto lg:overflow-hidden ${
           isExecutionMode
             ? 'lg:grid-cols-[minmax(0,1fr)]'
             : 'lg:grid-cols-[minmax(300px,var(--orchestration-left-pane))_10px_minmax(0,1fr)]'
@@ -868,7 +868,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
         style={{ '--orchestration-left-pane': `${leftPaneWidth}px` } as CSSProperties}
       >
         {!isExecutionMode ? (
-        <aside className="min-h-0 overflow-auto border-b border-border lg:border-b-0">
+        <aside className="min-h-0 overflow-visible border-b border-border lg:overflow-auto lg:border-b-0">
           <section className="border-b border-border p-3 md:p-5">
             <label data-orchestration-goal className="block text-xs font-medium text-muted-foreground">{t('orchestration.goal')}</label>
             <textarea
@@ -1307,7 +1307,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
         </button>
         ) : null}
 
-        <section className="min-h-0 min-w-0 overflow-hidden">
+        <section className="min-h-0 min-w-0 overflow-visible lg:overflow-hidden">
           <WorkflowRunPanel runId={runId} onPrepareTeamFromSummary={prepareTeamFromSummary} />
         </section>
       </div>

@@ -58,6 +58,7 @@ interface ChatMessagesPaneProps {
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject: Project;
+  bottomPaddingPx?: number;
 }
 
 export default function ChatMessagesPane({
@@ -108,6 +109,7 @@ export default function ChatMessagesPane({
   showRawParameters,
   showThinking,
   selectedProject,
+  bottomPaddingPx = 0,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const messageKeyMapRef = useRef<WeakMap<ChatMessage, string>>(new WeakMap());
@@ -144,6 +146,7 @@ export default function ChatMessagesPane({
       onWheel={onWheel}
       onTouchMove={onTouchMove}
       className="relative min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden px-0 py-3 sm:space-y-4 sm:p-4"
+      style={{ paddingBottom: bottomPaddingPx ? `${bottomPaddingPx}px` : undefined }}
     >
       {isLoading && chatMessages.length > 0 && (
         <div className="sticky top-2 z-30 mx-3 flex justify-center sm:mx-0">

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
@@ -20,6 +20,8 @@ type PendingViewSession = {
   sessionId: string | null;
   startedAt: number;
 };
+
+const CHAT_COMPOSER_FALLBACK_HEIGHT = 176;
 
 /**
  * Red banner surfaced at the top of the chat pane when the selected
@@ -88,6 +90,8 @@ function ChatInterface({
   const streamTimerRef = useRef<number | null>(null);
   const accumulatedStreamRef = useRef('');
   const pendingViewSessionRef = useRef<PendingViewSession | null>(null);
+  const composerFrameRef = useRef<HTMLDivElement>(null);
+  const [composerFrameHeight, setComposerFrameHeight] = useState(CHAT_COMPOSER_FALLBACK_HEIGHT);
 
   const resetStreamingState = useCallback(() => {
     if (streamTimerRef.current) {
@@ -96,6 +100,39 @@ function ChatInterface({
     }
     streamBufferRef.current = '';
     accumulatedStreamRef.current = '';
+  }, []);
+
+  useEffect(() => {
+    const frame = composerFrameRef.current;
+    if (!frame) {
+      return undefined;
+    }
+
+    let animationFrame = 0;
+    const measure = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(() => {
+        setComposerFrameHeight(Math.max(CHAT_COMPOSER_FALLBACK_HEIGHT, Math.ceil(frame.offsetHeight)));
+      });
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => {
+        cancelAnimationFrame(animationFrame);
+        window.removeEventListener('resize', measure);
+      };
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(frame);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      observer.disconnect();
+    };
   }, []);
 
   const {
@@ -352,7 +389,7 @@ function ChatInterface({
 
   return (
     <PermissionContext.Provider value={permissionContextValue}>
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
         {isProjectMissing && (
           <ProjectDeletedBanner path={directoryStatus.status?.path ?? null} />
         )}
@@ -404,6 +441,7 @@ function ChatInterface({
           showRawParameters={showRawParameters}
           showThinking={showThinking}
           selectedProject={selectedProject}
+          bottomPaddingPx={composerFrameHeight + 16}
         />
 
         <ChatComposer
@@ -483,6 +521,7 @@ function ChatInterface({
           })}
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
+          composerContainerRef={composerFrameRef}
         />
       </div>
     </PermissionContext.Provider>
