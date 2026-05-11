@@ -22,6 +22,7 @@
     "shell": "Terminale",
     "files": "File",
     "git": "Controllo Versione",
+    "changes": "Modifiche",
     "tasks": "Attività",
     "orchestration": "Orchestrazione"
   },

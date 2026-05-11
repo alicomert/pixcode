@@ -13,6 +13,7 @@ import {
   Terminal,
   Folder,
   GitBranch,
+  FileCode,
   ClipboardCheck,
   Workflow,
   X,
@@ -53,6 +54,7 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
+  { kind: 'builtin', id: 'changes', labelKey: 'tabs.changes', icon: FileCode },
 ];
 
 const TASKS_TAB: BuiltInTab = {
@@ -62,7 +64,7 @@ const TASKS_TAB: BuiltInTab = {
   icon: ClipboardCheck,
 };
 
-const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes']);
 
 export default function MainContentTabSwitcher({
   activeTab,

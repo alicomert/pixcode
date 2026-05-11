@@ -44,13 +44,13 @@ type FileWithDiffResponse = {
   error?: string;
 };
 
-const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes']);
 const SIDE_PANEL_MIN_WIDTH = 40;
 const SIDE_PANEL_MAX_WIDTH = 50;
 const SIDE_PANEL_DEFAULT_WIDTH = 46;
 const COMMAND_CENTER_MODE_STORAGE_KEY = 'command-center-tracking-mode';
 
-function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' {
+function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' | 'changes' {
   return sidePanelTabs.has(tab);
 }
 
@@ -94,7 +94,6 @@ function MainContent({
     showThinking,
     autoScrollToBottom,
     sendByCtrlEnter,
-    changeAwareness,
   } = preferences;
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
@@ -147,7 +146,6 @@ function MainContent({
   const dockEditorInsideFilesPanel = Boolean(activeSidePanelTab === 'files' && editingFile && !isMobile);
   const showChatColumn = visiblePrimaryTab === 'chat' && (!activeSidePanelTab || showSidePanelWithChat);
   const showOrchestrationColumn = visiblePrimaryTab === 'orchestration' && showSidePanelWithChat;
-  const showChangedFilesRail = Boolean(changeAwareness && !isMobile && !activeSidePanelTab);
 
   const {
     changedFiles,
@@ -156,7 +154,7 @@ function MainContent({
     lastCheckedAt: lastChangedFilesCheckedAt,
     latestDetectedFile,
     refresh: refreshChangedFiles,
-  } = useChangedFilesMonitor(selectedProject, changeAwareness, latestMessage, changeTrackingMode);
+  } = useChangedFilesMonitor(selectedProject, Boolean(selectedProject), latestMessage, changeTrackingMode);
   const [focusedChangedFilePath, setFocusedChangedFilePath] = useState<string | null>(null);
   const lastHandledDetectedAtRef = useRef(0);
   const changedFilePaths = useMemo(() => changedFiles.map((file) => file.path), [changedFiles]);
@@ -232,21 +230,12 @@ function MainContent({
     }
   }, [canUseSidePanelSplit, handleFileOpen, hydrateChangedFileDiffInfo, isMobile, setActiveTab]);
 
-  const focusChangedFile = useCallback((filePath: string) => {
-    const file = changedFiles.find((entry) => entry.path === filePath) ?? {
-      path: filePath,
-      status: 'M' as const,
-    };
-
-    handleChangedFileOpen(file);
-  }, [changedFiles, handleChangedFileOpen]);
-
   const closeSidePanel = useCallback(() => {
     setSidePanelMode('split');
     setActiveTab(sidePanelMainTab);
   }, [setActiveTab, sidePanelMainTab]);
 
-  const renderSidePanel = (tab: 'files' | 'shell' | 'git') => {
+  const renderSidePanel = (tab: 'files' | 'shell' | 'git' | 'changes') => {
     if (tab === 'files') {
       if (dockEditorInsideFilesPanel) {
         return (
@@ -295,6 +284,23 @@ function MainContent({
           session={selectedSession}
           showHeader={false}
           isActive={activeTab === 'shell'}
+        />
+      );
+    }
+
+    if (tab === 'changes') {
+      return (
+        <ChangedFilesActivityRail
+          changedFiles={changedFiles}
+          isLoading={changedFilesLoading}
+          error={changedFilesError}
+          latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
+          lastCheckedAt={lastChangedFilesCheckedAt}
+          trackingMode={changeTrackingMode}
+          onTrackingModeChange={setChangeTrackingMode}
+          onRefresh={() => { void refreshChangedFiles('manual'); }}
+          onOpenFile={handleChangedFileOpen}
+          variant="panel"
         />
       );
     }
@@ -478,7 +484,7 @@ function MainContent({
   }, [activeSidePanelTab, showSidePanelWithChat]);
 
   useEffect(() => {
-    if (!changeAwareness || !latestDetectedFile) {
+    if (!latestDetectedFile) {
       return;
     }
 
@@ -488,7 +494,7 @@ function MainContent({
 
     lastHandledDetectedAtRef.current = latestDetectedFile.detectedAt;
     setFocusedChangedFilePath(latestDetectedFile.path);
-  }, [changeAwareness, latestDetectedFile]);
+  }, [latestDetectedFile]);
 
   useEffect(() => {
     if (!focusedChangedFilePath) {
@@ -569,48 +575,33 @@ function MainContent({
                   )}
                   style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
                 >
-                  <div className={cn('h-full min-h-0', showChangedFilesRail && 'flex gap-3')}>
-                    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                      <ErrorBoundary showDetails>
-                        <ChatInterface
-                          selectedProject={selectedProject}
-                          selectedSession={selectedSession}
-                          ws={ws}
-                          sendMessage={sendMessage}
-                          latestMessage={latestMessage}
-                          onFileOpen={handleFileOpen}
-                          onInputFocusChange={onInputFocusChange}
-                          onSessionActive={onSessionActive}
-                          onSessionInactive={onSessionInactive}
-                          onSessionProcessing={onSessionProcessing}
-                          onSessionNotProcessing={onSessionNotProcessing}
-                          processingSessions={processingSessions}
-                          onReplaceTemporarySession={onReplaceTemporarySession}
-                          onNavigateToSession={onNavigateToSession}
-                          onShowSettings={onShowSettings}
-                          autoExpandTools={autoExpandTools}
-                          showRawParameters={showRawParameters}
-                          showThinking={showThinking}
-                          autoScrollToBottom={autoScrollToBottom}
-                          sendByCtrlEnter={sendByCtrlEnter}
-                          externalMessageUpdate={externalMessageUpdate}
-                          onShowAllTasks={tasksEnabled ? () => handleActiveTabChange('tasks') : null}
-                        />
-                      </ErrorBoundary>
-                    </div>
-                    {showChangedFilesRail && (
-                      <ChangedFilesActivityRail
-                        changedFiles={changedFiles}
-                        isLoading={changedFilesLoading}
-                        error={changedFilesError}
-                        latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
-                        lastCheckedAt={lastChangedFilesCheckedAt}
-                        trackingMode={changeTrackingMode}
-                        onTrackingModeChange={setChangeTrackingMode}
-                        onRefresh={() => { void refreshChangedFiles('manual'); }}
-                        onOpenFile={handleChangedFileOpen}
+                  <div className="flex h-full min-h-0 min-w-0 flex-1">
+                    <ErrorBoundary showDetails>
+                      <ChatInterface
+                        selectedProject={selectedProject}
+                        selectedSession={selectedSession}
+                        ws={ws}
+                        sendMessage={sendMessage}
+                        latestMessage={latestMessage}
+                        onFileOpen={handleFileOpen}
+                        onInputFocusChange={onInputFocusChange}
+                        onSessionActive={onSessionActive}
+                        onSessionInactive={onSessionInactive}
+                        onSessionProcessing={onSessionProcessing}
+                        onSessionNotProcessing={onSessionNotProcessing}
+                        processingSessions={processingSessions}
+                        onReplaceTemporarySession={onReplaceTemporarySession}
+                        onNavigateToSession={onNavigateToSession}
+                        onShowSettings={onShowSettings}
+                        autoExpandTools={autoExpandTools}
+                        showRawParameters={showRawParameters}
+                        showThinking={showThinking}
+                        autoScrollToBottom={autoScrollToBottom}
+                        sendByCtrlEnter={sendByCtrlEnter}
+                        externalMessageUpdate={externalMessageUpdate}
+                        onShowAllTasks={tasksEnabled ? () => handleActiveTabChange('tasks') : null}
                       />
-                    )}
+                    </ErrorBoundary>
                   </div>
                 </div>
               )}
@@ -625,23 +616,8 @@ function MainContent({
                   )}
                   style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
                 >
-                  <div className={cn('h-full min-h-0', showChangedFilesRail && 'flex gap-3')}>
-                    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                      <OrchestrationPage selectedProject={selectedProject} />
-                    </div>
-                    {showChangedFilesRail && (
-                      <ChangedFilesActivityRail
-                        changedFiles={changedFiles}
-                        isLoading={changedFilesLoading}
-                        error={changedFilesError}
-                        latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
-                        lastCheckedAt={lastChangedFilesCheckedAt}
-                        trackingMode={changeTrackingMode}
-                        onTrackingModeChange={setChangeTrackingMode}
-                        onRefresh={() => { void refreshChangedFiles('manual'); }}
-                        onOpenFile={handleChangedFileOpen}
-                      />
-                    )}
+                  <div className="flex h-full min-h-0 min-w-0 flex-1">
+                    <OrchestrationPage selectedProject={selectedProject} />
                   </div>
                 </div>
               )}
@@ -682,23 +658,8 @@ function MainContent({
           )}
 
           {!activeSidePanelTab && activeTab === 'orchestration' && (
-            <div className={cn('h-full overflow-hidden', showChangedFilesRail && 'flex gap-3')}>
-              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                <OrchestrationPage selectedProject={selectedProject} />
-              </div>
-              {showChangedFilesRail && (
-                <ChangedFilesActivityRail
-                  changedFiles={changedFiles}
-                  isLoading={changedFilesLoading}
-                  error={changedFilesError}
-                  latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
-                  lastCheckedAt={lastChangedFilesCheckedAt}
-                  trackingMode={changeTrackingMode}
-                  onTrackingModeChange={setChangeTrackingMode}
-                  onRefresh={() => { void refreshChangedFiles('manual'); }}
-                  onOpenFile={handleChangedFileOpen}
-                />
-              )}
+            <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+              <OrchestrationPage selectedProject={selectedProject} />
             </div>
           )}
 
@@ -733,18 +694,7 @@ function MainContent({
           />
         )}
       </div>
-      <QuickSettingsPanel
-        selectedProject={selectedProject}
-        changedFiles={changedFiles}
-        changedFilesLoading={changedFilesLoading}
-        changedFilesError={changedFilesError}
-        latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
-        lastChangedFilesCheckedAt={lastChangedFilesCheckedAt}
-        changedFilesTrackingMode={changeTrackingMode}
-        onChangedFilesTrackingModeChange={setChangeTrackingMode}
-        onRefreshChangedFiles={() => { void refreshChangedFiles('manual'); }}
-        onFocusChangedFile={focusChangedFile}
-      />
+      <QuickSettingsPanel />
     </div>
   );
 }

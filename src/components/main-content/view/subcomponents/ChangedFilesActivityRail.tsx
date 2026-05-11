@@ -1,5 +1,6 @@
 import type { ChangedFilesTrackingMode } from '../../../../hooks/useChangedFilesMonitor';
 import type { ChangedFileEntry, ChangedFileStatus } from '../../../../utils/changedFiles';
+import { cn } from '../../../../lib/utils';
 
 import { FileCode, Loader2, RefreshCw } from '@/lib/icons';
 
@@ -13,6 +14,7 @@ type ChangedFilesActivityRailProps = {
   onTrackingModeChange: (mode: ChangedFilesTrackingMode) => void;
   onRefresh: () => void;
   onOpenFile: (file: ChangedFileEntry) => void;
+  variant?: 'rail' | 'panel';
 };
 
 const STATUS_LABEL: Record<ChangedFileStatus, string> = {
@@ -48,11 +50,20 @@ export default function ChangedFilesActivityRail({
   onTrackingModeChange,
   onRefresh,
   onOpenFile,
+  variant = 'rail',
 }: ChangedFilesActivityRailProps) {
   const lastCheckedLabel = formatTime(lastCheckedAt);
+  const isPanel = variant === 'panel';
 
   return (
-    <aside className="hidden h-full w-[260px] shrink-0 flex-col overflow-hidden rounded-lg border border-border/60 bg-card/45 shadow-sm xl:flex">
+    <aside
+      className={cn(
+        'h-full min-h-0 flex-col overflow-hidden bg-card/45',
+        isPanel
+          ? 'flex w-full rounded-none border-0'
+          : 'hidden w-[260px] shrink-0 rounded-lg border border-border/60 shadow-sm xl:flex',
+      )}
+    >
       <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

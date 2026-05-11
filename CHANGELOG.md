@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.39.1](https://github.com/alicomert/pixcode/compare/v1.39.0...v1.39.1) (2026-05-11)
+
+Pixcode 1.39.1 fixes the chat and orchestration layout regression from 1.39.0 and moves changed-file awareness into a normal top navigation panel.
+
+### Bug Fixes
+
+* **chat:** keep the composer pinned inside the chat frame even when the changed-files panel is closed, so the input no longer drops below the viewport or disappears.
+* **orchestration:** keep orchestration inside a stable full-height flex frame so the page scroll behavior does not depend on the old Command Center rail.
+* **changes:** promote Command Center to a first-class `Changes` side panel beside Chat, Orchestration, Shell, Files, and Source Control.
+* **quick-settings:** remove the Command Center enable/disable switch from Quick Settings; changed-file tracking now powers file highlights and the optional Changes panel directly.
+
+### Tests
+
+* add smoke coverage for the `Changes` side-panel layout and Quick Settings removal.
+* re-run Changes panel smoke, chat composer layout smoke, orchestration mobile scroll smoke, typecheck, lint, production build, and diff whitespace check before publishing.
+
 ## [1.39.0](https://github.com/alicomert/pixcode/compare/v1.38.5...v1.39.0) (2026-05-11)
 
 Pixcode 1.39.0 adds custom OpenAI-compatible TaskMaster configuration and refreshes the public-facing project presentation for open-source discovery, contributor onboarding, and GitHub Pages SEO.

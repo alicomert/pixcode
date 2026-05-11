@@ -22,6 +22,7 @@
     "shell": "终端",
     "files": "文件",
     "git": "源代码管理",
+    "changes": "更改",
     "tasks": "任务",
     "orchestration": "编排"
   },

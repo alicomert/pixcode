@@ -22,6 +22,7 @@
     "shell": "Shell",
     "files": "파일",
     "git": "소스 관리",
+    "changes": "변경 사항",
     "tasks": "작업",
     "orchestration": "오케스트레이션"
   },
