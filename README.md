@@ -14,6 +14,9 @@
     <img src="https://img.shields.io/badge/Desktop-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=for-the-badge" alt="desktop platforms" />
   </p>
   <p>
+    <a href="https://www.producthunt.com/products/pixcode?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-pixcode" target="_blank" rel="noopener noreferrer"><img alt="Pixcode - A self-hosted control room for AI coding agents. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1144104&amp;theme=light&amp;t=1778502023682"></a>
+  </p>
+  <p>
     <a href="https://alicomert.github.io/pixcode/landing.html">Website</a> ·
     <a href="https://github.com/alicomert/pixcode/releases/latest">Releases</a> ·
     <a href="public/docs.html">Docs</a> ·

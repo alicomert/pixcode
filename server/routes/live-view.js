@@ -50,8 +50,8 @@ function buildLiveViewSuggestions(session, reason) {
   const suggestions = [];
 
   if (framework.includes('php')) {
-    suggestions.push('Run `php --version` in the same machine and make sure the PHP executable is available in PATH.');
-    suggestions.push('If PHP is installed outside PATH, use Live View custom command with the full php executable path.');
+    suggestions.push('Pixcode can prepare a local PHP runtime automatically and keep it under your user profile.');
+    suggestions.push('If the automatic runtime download fails, check the Live View panel logs and retry.');
     suggestions.push('Check that the project has an index.php or a valid PHP router file in the selected project root.');
   } else if (
     framework.includes('javascript')

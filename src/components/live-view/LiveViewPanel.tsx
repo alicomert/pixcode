@@ -23,6 +23,13 @@ type LiveViewTarget = {
   label?: string;
   framework?: string;
   reason?: string;
+  managedRuntime?: {
+    id: string;
+    label?: string;
+    status: 'missing' | 'installing' | 'installed' | 'system' | 'unsupported';
+    installable?: boolean;
+    reason?: string;
+  } | null;
   command?: {
     id: string;
     label: string;
@@ -46,6 +53,7 @@ type LiveViewSession = {
   upstreamUrl?: string | null;
   error?: string | null;
   log?: string[];
+  managedRuntime?: LiveViewTarget['managedRuntime'];
 };
 
 type LiveViewStatus = {
@@ -189,6 +197,8 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
   const isRunning = status?.session?.status === 'running';
   const isStarting = status?.session?.status === 'starting';
   const targetUnavailableReason = !status?.target?.available ? status?.target?.reason || null : null;
+  const managedRuntime = status?.target?.managedRuntime || status?.session?.managedRuntime || null;
+  const managedRuntimePending = Boolean(managedRuntime?.installable && managedRuntime.status === 'missing' && !status?.session);
   const sessionError = status?.session?.status === 'error'
     ? status.session.error || t('liveView.runnerErrorFallback', { defaultValue: 'The runner stopped before the preview became available.' })
     : null;
@@ -333,6 +343,20 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
                   </div>
                   <p className="mt-2 text-xs text-amber-800/90 dark:text-amber-200/90">
                     {targetUnavailableReason}
+                  </p>
+                </div>
+              )}
+
+              {managedRuntimePending && !targetUnavailableReason && (
+                <div className="rounded-lg border border-sky-500/35 bg-sky-500/10 p-3 text-sm">
+                  <div className="flex items-center gap-2 font-medium text-sky-700 dark:text-sky-300">
+                    <RefreshCw className="h-4 w-4" />
+                    {t('liveView.managedRuntimePreparing', { defaultValue: 'Pixcode will prepare the runtime' })}
+                  </div>
+                  <p className="mt-2 text-xs text-sky-800/90 dark:text-sky-200/90">
+                    {status?.target?.reason || t('liveView.managedRuntimeDescription', {
+                      defaultValue: 'Press Start and Pixcode will prepare the required local runtime automatically.',
+                    })}
                   </p>
                 </div>
               )}

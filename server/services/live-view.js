@@ -4,6 +4,8 @@ import { promises as fs } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 
+import { ensureManagedRuntime, getManagedRuntimeStatus } from './managed-runtimes.js';
+
 const sessionsByProject = new Map();
 const sessionsByShareId = new Map();
 const READY_TIMEOUT_MS = 12000;
@@ -92,17 +94,17 @@ function isPathLikeCommand(command) {
 }
 
 function runtimeMissingReason(command, framework) {
-  const base = `${command} executable was not found in PATH.`;
+  const base = `${command} is not available on this machine.`;
   if (framework === 'PHP' || command === 'php') {
-    return `${base} Install PHP and add php.exe to PATH, or use a custom command with the full PHP executable path.`;
+    return 'Pixcode can prepare a local PHP runtime automatically before starting this project.';
   }
   if (command === 'npm' || command === 'pnpm' || command === 'yarn' || command === 'bun') {
-    return `${base} Install Node.js/package manager support or use a custom command with the full executable path.`;
+    return `${base} Pixcode will use its bundled Node runtime when possible; otherwise install the package manager or use a custom command.`;
   }
   if (command === 'python' || command === 'python3') {
-    return `${base} Install Python and add it to PATH, or use a custom command with the full Python executable path.`;
+    return `${base} Pixcode does not have a managed Python runtime for this stack yet.`;
   }
-  return `${base} Install ${framework || command} or use a custom command with the full executable path.`;
+  return `${base} Pixcode does not have a managed ${framework || command} runtime for this stack yet.`;
 }
 
 async function checkCommandAvailability(command, env = process.env) {
@@ -170,6 +172,25 @@ function buildPackageCommand(packageManager, scriptName, id, label, framework, e
     command: packageManager,
     args,
     displayCommand: buildDisplayCommand(packageManager, args),
+  };
+}
+
+function buildManagedPhpCommand(runtimeStatus) {
+  const executable = runtimeStatus?.executablePath || 'frankenphp';
+  return {
+    id: 'frankenphp-php-server',
+    label: 'Pixcode PHP runtime',
+    framework: 'PHP',
+    command: executable,
+    args: ['php-server', '-r', '.'],
+    displayCommand: `${executable} php-server -r .`,
+    env: {
+      SERVER_NAME: 'http://127.0.0.1:$PORT',
+    },
+    managedRuntime: {
+      id: 'frankenphp',
+      status: runtimeStatus?.status || 'missing',
+    },
   };
 }
 
@@ -243,7 +264,20 @@ function withPort(command, port) {
     ...command,
     args: command.args.map((arg) => arg.replaceAll('$PORT', String(port))),
     displayCommand: command.displayCommand.replaceAll('$PORT', String(port)),
+    env: command.env
+      ? Object.fromEntries(Object.entries(command.env).map(([key, value]) => [
+        key,
+        String(value).replaceAll('$PORT', String(port)),
+      ]))
+      : undefined,
   };
+}
+
+function shouldUseShell(command) {
+  if (command.shell) return true;
+  if (process.platform !== 'win32') return false;
+  if (path.isAbsolute(command.command) && command.command.toLowerCase().endsWith('.exe')) return false;
+  return true;
 }
 
 async function detectStaticRoot(projectPath) {
@@ -382,6 +416,22 @@ export async function detectLiveViewTarget(projectPath, options = {}) {
   if (processCommand) {
     const runtimeAvailable = await checkCommandAvailability(processCommand.command, options.env || process.env);
     if (!runtimeAvailable) {
+      if (processCommand.framework === 'PHP' || processCommand.command === 'php') {
+        const managedRuntime = await getManagedRuntimeStatus('frankenphp', { env: options.env || process.env });
+        const command = buildManagedPhpCommand(managedRuntime);
+        return {
+          available: true,
+          kind: 'process',
+          label: command.label,
+          framework: command.framework,
+          command,
+          managedRuntime,
+          reason: managedRuntime.status === 'missing'
+            ? 'Pixcode will prepare a local PHP runtime automatically before starting this project.'
+            : 'Pixcode will run this project with its managed PHP runtime.',
+        };
+      }
+
       return {
         available: false,
         kind: 'process',
@@ -483,6 +533,7 @@ function publicSession(session) {
       label: session.command.label,
       displayCommand: session.command.displayCommand,
     } : null,
+    managedRuntime: session.managedRuntime || null,
     port: session.port,
     upstreamUrl: session.upstreamUrl,
     startedAt: session.startedAt,
@@ -564,7 +615,16 @@ export async function startLiveView(projectName, projectPath, options = {}) {
   }
 
   const port = await findFreePort();
-  const command = withPort(target.command, port);
+  let runtimeStatus = target.managedRuntime || target.command?.managedRuntime || null;
+  let targetCommand = target.command;
+  if (runtimeStatus?.id && runtimeStatus.status !== 'system' && runtimeStatus.status !== 'installed') {
+    runtimeStatus = await ensureManagedRuntime(runtimeStatus.id);
+    if (runtimeStatus.id === 'frankenphp') {
+      targetCommand = buildManagedPhpCommand(runtimeStatus);
+    }
+  }
+
+  const command = withPort(targetCommand, port);
   const session = {
     projectName,
     projectPath,
@@ -574,6 +634,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
     framework: target.framework,
     label: target.label,
     command,
+    managedRuntime: runtimeStatus,
     port,
     host: '127.0.0.1',
     upstreamUrl: `http://127.0.0.1:${port}`,
@@ -589,6 +650,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
 
   const env = {
     ...process.env,
+    ...(command.env || {}),
     PORT: String(port),
     HOST: '127.0.0.1',
     VITE_HOST: '127.0.0.1',
@@ -599,7 +661,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
   const child = spawn(command.command, command.args, {
     cwd: projectPath,
     env,
-    shell: Boolean(command.shell) || process.platform === 'win32',
+    shell: shouldUseShell(command),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

@@ -544,6 +544,8 @@
     "stop": "Durdur",
     "runnerError": "Çalıştırıcı hatası",
     "runnerUnavailable": "Çalıştırıcı yok",
+    "managedRuntimePreparing": "Pixcode runtime'ı hazırlayacak",
+    "managedRuntimeDescription": "Başlat'a basınca Pixcode gereken yerel runtime'ı otomatik hazırlar.",
     "runnerErrorFallback": "Önizleme hazır olmadan çalıştırıcı durdu.",
     "detecting": "Proje çalıştırıcısı algılanıyor…",
     "noRunner": "Çalıştırıcı algılanmadı",

@@ -84,8 +84,22 @@ assert.ok(
   'Live View panel should show a clear unavailable-runner message before launching a missing runtime.',
 );
 assert.ok(
+  liveViewPanel.includes('managedRuntime') && liveViewPanel.includes('liveView.managedRuntimePreparing'),
+  'Live View panel should explain that Pixcode can prepare managed runtimes automatically.',
+);
+assert.ok(
   liveViewPanel.includes("runAction('restart')"),
   'Live View panel should expose a restart action for failed process runners.',
+);
+
+const managedRuntimes = await read('server/services/managed-runtimes.js');
+assert.ok(
+  managedRuntimes.includes("process.platform === 'win32'") && managedRuntimes.includes("process.platform === 'darwin'") && managedRuntimes.includes("process.platform === 'linux'"),
+  'Managed runtime selection should explicitly handle Windows, macOS, and Linux assets.',
+);
+assert.ok(
+  managedRuntimes.includes('extractZip') && managedRuntimes.includes('extractTarGz'),
+  'Managed runtime installation should handle common Windows zip and macOS/Linux tarball assets.',
 );
 
 const serverIndex = await read('server/index.js');
@@ -148,12 +162,14 @@ const phpMissingRuntimeTarget = await detectLiveViewTarget(phpProject, {
     PATH: '',
   },
 });
-assert.equal(phpMissingRuntimeTarget.available, false, 'PHP projects should not be marked runnable when php is missing from PATH.');
+assert.equal(phpMissingRuntimeTarget.available, true, 'PHP projects should remain runnable through a Pixcode-managed runtime when php is missing from PATH.');
 assert.equal(phpMissingRuntimeTarget.framework, 'PHP', 'Missing PHP runtime diagnostics should keep the detected framework.');
-assert.match(
-  phpMissingRuntimeTarget.reason || '',
-  /php executable was not found/i,
-  'Missing PHP runtime diagnostics should explain that php is not available.',
+assert.equal(phpMissingRuntimeTarget.managedRuntime?.id, 'frankenphp', 'Missing PHP should select the Pixcode-managed FrankenPHP runtime.');
+assert.equal(phpMissingRuntimeTarget.managedRuntime?.status, 'missing', 'Missing PHP should report that the managed runtime still needs preparation.');
+assert.equal(phpMissingRuntimeTarget.command?.id, 'frankenphp-php-server', 'Missing PHP should use a managed FrankenPHP server command.');
+assert.ok(
+  !/PATH/i.test(phpMissingRuntimeTarget.reason || ''),
+  'Missing PHP should use product language instead of exposing PATH setup as the primary message.',
 );
 
 const staticSession = await startLiveView('static-smoke', staticProject);

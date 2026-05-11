@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.4](https://github.com/alicomert/pixcode/compare/v1.40.3...v1.40.4) (2026-05-11)
+
+Pixcode 1.40.4 starts the Live View managed-runtime layer so users do not have to manually install PHP just to preview a PHP project.
+
+### New Features
+
+* **live-view:** add Pixcode-managed runtimes under the user profile, starting with a local FrankenPHP runtime for PHP previews.
+* **live-view:** automatically select the managed PHP runner when `php` is missing, keeping PHP projects runnable without global PATH setup.
+* **live-view:** prepare managed PHP on demand across Windows, macOS, and Linux, with Windows zip and macOS/Linux tarball extraction support.
+
+### Bug Fixes
+
+* **live-view:** replace technical PHP PATH guidance with product-level "Pixcode will prepare the runtime" messaging.
+* **live-view:** avoid Windows shell quoting issues when launching a Pixcode-managed `.exe` runtime from an absolute path.
+
+### Tests
+
+* extend Live View integration smoke coverage for managed PHP detection, cross-platform runtime asset handling, and runtime preparation UI.
+* re-run Live View integration smoke, typecheck, lint, production build, and npm pack dry-run before publishing.
+
 ## [1.40.3](https://github.com/alicomert/pixcode/compare/v1.40.2...v1.40.3) (2026-05-11)
 
 Pixcode 1.40.3 makes Live View safer on machines that do not have the detected runtime installed, especially PHP on Windows.

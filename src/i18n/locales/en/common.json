@@ -544,6 +544,8 @@
     "stop": "Stop",
     "runnerError": "Runner error",
     "runnerUnavailable": "Runner unavailable",
+    "managedRuntimePreparing": "Pixcode will prepare the runtime",
+    "managedRuntimeDescription": "Press Start and Pixcode will prepare the required local runtime automatically.",
     "runnerErrorFallback": "The runner stopped before the preview became available.",
     "detecting": "Detecting project runner…",
     "noRunner": "No runner detected",
