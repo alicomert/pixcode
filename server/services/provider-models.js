@@ -86,6 +86,20 @@ function mergeCatalogs(primary, secondary) {
     return Array.from(seen.values());
 }
 
+function mergeProviderCatalogs(provider, primary, staticCatalog) {
+    const normalizedPrimary = normalizeList(primary);
+
+    // OpenCode Zen free models rotate often. When models.dev succeeds, treat
+    // that live catalog as authoritative; otherwise stale static freebies can
+    // leak back into the UI and fail later with ProviderModelNotFoundError.
+    if (provider === 'opencode') {
+        const liveModels = normalizedPrimary.filter((item) => item.source === 'api');
+        if (liveModels.length > 0) return liveModels;
+    }
+
+    return mergeCatalogs(normalizedPrimary, staticCatalog);
+}
+
 // ---------------- Per-provider live discovery ----------------
 
 async function discoverAnthropic(apiKey, baseUrl) {
@@ -287,8 +301,9 @@ export async function getProviderModels(provider, opts = {}) {
         : false;
 
     if (!forceRefresh && cacheFresh && Array.isArray(cached?.models)) {
+        const merged = mergeProviderCatalogs(provider, cached.models, staticCatalog);
         return {
-            models: mergeCatalogs(normalizeList(cached.models), staticCatalog),
+            models: merged,
             fetchedAt: cached.fetchedAt,
             error: cached.error,
             fromCache: true,
@@ -305,7 +320,7 @@ export async function getProviderModels(provider, opts = {}) {
         } catch (err) {
             error = err?.message || String(err);
         }
-        const merged = mergeCatalogs(normalizeList(liveModels), staticCatalog);
+        const merged = mergeProviderCatalogs(provider, liveModels, staticCatalog);
         const entry = { models: merged, error };
         await saveCacheEntry(provider, entry).catch(() => { /* non-fatal */ });
         return { models: merged, fetchedAt: new Date().toISOString(), error, fromCache: false };
@@ -367,7 +382,7 @@ export async function getProviderModels(provider, opts = {}) {
         }
     }
 
-    const merged = mergeCatalogs(normalizeList(liveModels), staticCatalog);
+    const merged = mergeProviderCatalogs(provider, liveModels, staticCatalog);
     const entry = { models: merged, error };
     await saveCacheEntry(provider, entry).catch(() => { /* non-fatal */ });
     return { models: merged, fetchedAt: new Date().toISOString(), error, fromCache: false };

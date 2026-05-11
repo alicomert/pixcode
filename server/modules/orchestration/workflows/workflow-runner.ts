@@ -13,6 +13,17 @@ import {
   workspaceTargetMetadata,
 } from '@/modules/orchestration/workflows/workspace-target.js';
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
+// @ts-ignore — plain-JS service
+import { getProviderModels } from '@/services/provider-models.js';
+
+import {
+  CLAUDE_MODELS,
+  CODEX_MODELS,
+  CURSOR_MODELS,
+  GEMINI_MODELS,
+  OPENCODE_MODELS,
+  QWEN_MODELS,
+} from '../../../../shared/modelConstants.js';
 
 const TERMINAL = new Set(['completed', 'failed', 'canceled']);
 const SKIPPED = 'skipped';
@@ -106,6 +117,34 @@ type AgentAssignment = {
 
 type KnownAgentRole = typeof KNOWN_AGENT_ROLES[number];
 type AgentRole = string;
+type ProviderId = 'claude' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode';
+type ProviderModel = {
+  value: string;
+  label?: string;
+  source?: 'static' | 'api';
+  free?: boolean;
+};
+
+const adapterProviderMap: Record<string, ProviderId | undefined> = {
+  'claude-code': 'claude',
+  cursor: 'cursor',
+  codex: 'codex',
+  gemini: 'gemini',
+  qwen: 'qwen',
+  opencode: 'opencode',
+};
+
+const modelCatalogsByProvider: Record<ProviderId, {
+  staticList: ProviderModel[];
+  defaultModel?: string;
+}> = {
+  claude: { staticList: CLAUDE_MODELS.OPTIONS, defaultModel: CLAUDE_MODELS.DEFAULT },
+  cursor: { staticList: CURSOR_MODELS.OPTIONS, defaultModel: CURSOR_MODELS.DEFAULT },
+  codex: { staticList: CODEX_MODELS.OPTIONS, defaultModel: CODEX_MODELS.DEFAULT },
+  gemini: { staticList: GEMINI_MODELS.OPTIONS, defaultModel: GEMINI_MODELS.DEFAULT },
+  qwen: { staticList: QWEN_MODELS.OPTIONS, defaultModel: QWEN_MODELS.DEFAULT },
+  opencode: { staticList: OPENCODE_MODELS.OPTIONS, defaultModel: OPENCODE_MODELS.DEFAULT },
+};
 
 function readAgentRole(value: unknown): AgentRole | undefined {
   return typeof value === 'string' && value.trim() && value.trim() !== 'auto'
@@ -131,6 +170,44 @@ function readString(value: unknown): string | undefined {
 
 function readBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function modelValueSet(models: ProviderModel[]): Set<string> {
+  return new Set(models.map((model) => model.value).filter(Boolean));
+}
+
+function preferredFallbackModel(models: ProviderModel[], defaultModel?: string): string | undefined {
+  const values = modelValueSet(models);
+  if (defaultModel && values.has(defaultModel)) return defaultModel;
+  return models.find((model) => model.source === 'api' && model.free)?.value
+    ?? models.find((model) => model.source === 'api')?.value
+    ?? models.find((model) => model.free)?.value
+    ?? models[0]?.value
+    ?? defaultModel;
+}
+
+async function resolveWorkflowModel(adapterId: string, requestedModel?: string): Promise<string | undefined> {
+  const provider = adapterProviderMap[adapterId];
+  if (!provider) return requestedModel;
+
+  const catalog = modelCatalogsByProvider[provider];
+  if (!requestedModel) return catalog.defaultModel;
+
+  try {
+    const result = await getProviderModels(provider, {
+      staticList: catalog.staticList,
+    });
+    const models = Array.isArray(result?.models) ? result.models as ProviderModel[] : [];
+    if (modelValueSet(models).has(requestedModel)) {
+      return requestedModel;
+    }
+    return preferredFallbackModel(models, catalog.defaultModel) ?? requestedModel;
+  } catch {
+    const staticValues = modelValueSet(catalog.staticList);
+    return staticValues.has(requestedModel)
+      ? requestedModel
+      : preferredFallbackModel(catalog.staticList, catalog.defaultModel) ?? requestedModel;
+  }
 }
 
 function readIsolation(value: unknown): 'host' | 'worktree' | 'docker' | undefined {
@@ -1408,15 +1485,42 @@ class WorkflowRunner {
 
     const inputContext = node.inputs.map((input) => outputs.get(input)).filter(Boolean).join('\n\n');
     const workspaceTarget = resolveWorkflowWorkspace(run.metadata);
-    const prompt = [workspaceContextPrompt(workspaceTarget), run.input, inputContext, node.prompt]
-      .filter(Boolean)
-      .join('\n\n');
+    const prompt = [
+      'Original user request (primary task; answer this directly even if the workspace is empty):',
+      run.input?.trim() || '(No original user request was provided.)',
+      inputContext
+        ? `Upstream workflow context from prior agents:\n${inputContext}`
+        : '',
+      `Current workflow step instructions:\n${node.prompt}`,
+      workspaceContextPrompt(workspaceTarget),
+    ].filter(Boolean).join('\n\n');
     const settings = getMetadataRecord(run.metadata, 'settings');
     const projectPath = workspaceTarget.projectPath;
     const isolation = readIsolation(settings.isolation) ?? node.isolation ?? 'host';
     const keepAfterCompletion = readBoolean(settings.keepWorkspace) ?? true;
     const baseRef = readString(settings.baseRef) ?? 'HEAD';
     const effectivePermissionMode = resolveNodePermissionMode(node, workspaceTarget);
+    const effectiveModel = await resolveWorkflowModel(node.adapterId, node.model);
+    if (effectiveModel !== node.model) {
+      nodeRun.model = effectiveModel;
+      const modelFallbackEvents = Array.isArray(run.metadata?.modelFallbackEvents)
+        ? run.metadata.modelFallbackEvents
+        : [];
+      run.metadata = {
+        ...run.metadata,
+        modelFallbackEvents: [
+          ...modelFallbackEvents,
+          {
+            nodeId: node.id,
+            adapterId: node.adapterId,
+            requestedModel: node.model,
+            effectiveModel,
+            changedAt: Date.now(),
+          },
+        ],
+      };
+      workflowStore.setRun(run);
+    }
     let body: { id?: string; error?: { message?: string } };
     try {
       const submit = await fetch(`${localA2ABaseUrl()}/tasks`, {
@@ -1436,7 +1540,7 @@ class WorkflowRunner {
             agentInstanceId: node.agentInstanceId,
             agentLabel: node.agentLabel,
             assignment: node.assignment,
-            model: node.model,
+            model: effectiveModel,
             permissionMode: effectivePermissionMode,
             toolsSettings: node.toolsSettings,
             projectPath,

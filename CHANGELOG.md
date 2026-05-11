@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.7](https://github.com/alicomert/pixcode/compare/v1.40.6...v1.40.7) (2026-05-11)
+
+Pixcode 1.40.7 fixes orchestration model drift and makes debate/team workflows keep the real user request in front of every agent.
+
+### Bug Fixes
+
+* **orchestration:** load the same live provider model catalog used by chat so agent model selectors do not get stuck on stale static OpenCode entries.
+* **orchestration:** validate each workflow node model server-side before submitting A2A tasks, falling back to the closest available live model when a saved model has rotated out.
+* **opencode:** stop merging stale static Zen free models into a successful models.dev catalog, preventing `Model not found` failures for removed freebies such as `hy3-preview-free` and `ling-2.6-flash-free`.
+* **orchestration:** label the original user request first in every workflow prompt so agents answer the actual task instead of the workspace context header.
+
+### Tests
+
+* add smoke coverage for OpenCode live model catalog merging and orchestration/chat model synchronization.
+* re-run provider model smoke, orchestration model sync smoke, typecheck, and lint before publishing.
+
 ## [1.40.6](https://github.com/alicomert/pixcode/compare/v1.40.5...v1.40.6) (2026-05-11)
 
 Pixcode 1.40.6 fixes the managed runtime bootstrap paths reported from Live View after the 1.40.5 rollout.

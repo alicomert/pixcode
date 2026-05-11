@@ -110,11 +110,10 @@ export const QWEN_MODELS = {
 export const OPENCODE_MODELS = {
   OPTIONS: [
     // OpenCode Zen — free tier (no charge, may rate-limit). The "limited
-    // time" Zen freebies rotate, so this is the safest small set.
+    // time" Zen freebies rotate, so keep this fallback conservative and let
+    // the live models.dev catalog populate the full current list.
     { value: "opencode/big-pickle", label: "OpenCode Zen · Big Pickle (Free)", free: true },
     { value: "opencode/minimax-m2.5-free", label: "OpenCode Zen · MiniMax M2.5 (Free)", free: true },
-    { value: "opencode/hy3-preview-free", label: "OpenCode Zen · Hy3 Preview (Free)", free: true },
-    { value: "opencode/ling-2.6-flash-free", label: "OpenCode Zen · Ling 2.6 Flash (Free)", free: true },
     { value: "opencode/nemotron-3-super-free", label: "OpenCode Zen · Nemotron 3 Super (Free)", free: true },
     { value: "opencode/gpt-5-nano", label: "OpenCode Zen · GPT-5 Nano (Free)", free: true },
 

@@ -14,7 +14,8 @@ import SessionProviderLogo from '../llm-logo-provider/SessionProviderLogo';
 import { Badge, Button } from '../../shared/view/ui';
 import { useGsapEntrance } from '../../lib/animations';
 import { authenticatedFetch } from '../../utils/api';
-import { CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS, OPENCODE_MODELS, QWEN_MODELS } from '../../../shared/modelConstants';
+import { useProviderModels } from '../../hooks/useProviderModels';
+import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS, OPENCODE_MODELS, QWEN_MODELS } from '../../../shared/modelConstants';
 
 import WorkflowRunPanel from './workflows/WorkflowRunPanel';
 
@@ -87,7 +88,7 @@ type OrchestrationPageProps = {
 };
 
 type AgentRole = string;
-type ModelOption = { value: string; label: string; free?: boolean };
+type ModelOption = { value: string; label: string; source?: 'static' | 'api'; free?: boolean };
 
 const knownAgentRoles = [
   'auto',
@@ -152,6 +153,7 @@ const adapterRuntimeConfig: Record<AdapterId, { modelKey: string; settingsKey: s
 };
 
 const adapterModelOptions: Partial<Record<AdapterId, ModelOption[]>> = {
+  'claude-code': CLAUDE_MODELS.OPTIONS,
   cursor: CURSOR_MODELS.OPTIONS,
   codex: CODEX_MODELS.OPTIONS,
   gemini: GEMINI_MODELS.OPTIONS,
@@ -160,6 +162,7 @@ const adapterModelOptions: Partial<Record<AdapterId, ModelOption[]>> = {
 };
 
 const adapterModelDefaults: Partial<Record<AdapterId, string>> = {
+  'claude-code': CLAUDE_MODELS.DEFAULT,
   cursor: CURSOR_MODELS.DEFAULT,
   codex: CODEX_MODELS.DEFAULT,
   gemini: GEMINI_MODELS.DEFAULT,
@@ -199,10 +202,6 @@ function modelOptionsForAdapter(adapterId: AdapterId): ModelOption[] {
 }
 
 function defaultModelForAdapter(adapterId: AdapterId): string | undefined {
-  if (adapterId === 'claude-code') {
-    return undefined;
-  }
-
   return readStorageString(adapterRuntimeConfig[adapterId].modelKey) ?? adapterModelDefaults[adapterId];
 }
 
@@ -433,6 +432,12 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const claudeModelCatalog = useProviderModels('claude', CLAUDE_MODELS.OPTIONS);
+  const cursorModelCatalog = useProviderModels('cursor', CURSOR_MODELS.OPTIONS);
+  const codexModelCatalog = useProviderModels('codex', CODEX_MODELS.OPTIONS);
+  const geminiModelCatalog = useProviderModels('gemini', GEMINI_MODELS.OPTIONS);
+  const qwenModelCatalog = useProviderModels('qwen', QWEN_MODELS.OPTIONS);
+  const opencodeModelCatalog = useProviderModels('opencode', OPENCODE_MODELS.OPTIONS);
 
   const projectPath = selectedProject.path || selectedProject.fullPath;
   const effectiveWorkspacePath = workspaceTargetMode === 'pixcode_app'
@@ -461,6 +466,47 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     () => roleOptionsForWorkflow(workflowId),
     [workflowId],
   );
+  const providerModelCatalogs = useMemo(() => ({
+    'claude-code': claudeModelCatalog,
+    cursor: cursorModelCatalog,
+    codex: codexModelCatalog,
+    gemini: geminiModelCatalog,
+    qwen: qwenModelCatalog,
+    opencode: opencodeModelCatalog,
+  }), [
+    claudeModelCatalog,
+    cursorModelCatalog,
+    codexModelCatalog,
+    geminiModelCatalog,
+    qwenModelCatalog,
+    opencodeModelCatalog,
+  ]);
+  const modelCatalogLoading = Object.values(providerModelCatalogs).some((catalog) => catalog.loading);
+  const refreshAllModelCatalogs = useCallback(async () => {
+    await Promise.all(Object.values(providerModelCatalogs).map((catalog) => catalog.refresh()));
+  }, [providerModelCatalogs]);
+  const modelOptionsForAgent = useCallback((adapterId: AdapterId): ModelOption[] => (
+    providerModelCatalogs[adapterId]?.models ?? modelOptionsForAdapter(adapterId)
+  ), [providerModelCatalogs]);
+  const sanitizeAgentModel = useCallback((adapterId: AdapterId, model?: string): string | undefined => {
+    const trimmedModel = model?.trim();
+    const options = modelOptionsForAgent(adapterId);
+    const optionValues = new Set(options.map((option) => option.value));
+    if (trimmedModel && optionValues.has(trimmedModel)) {
+      return trimmedModel;
+    }
+
+    const staticDefault = adapterModelDefaults[adapterId];
+    if (staticDefault && optionValues.has(staticDefault)) {
+      return staticDefault;
+    }
+
+    return options.find((option) => option.source === 'api' && option.free)?.value
+      ?? options.find((option) => option.source === 'api')?.value
+      ?? options.find((option) => option.free)?.value
+      ?? options[0]?.value
+      ?? trimmedModel;
+  }, [modelOptionsForAgent]);
   const agentNumbers = useMemo(() => {
     const counts = new Map<AdapterId, number>();
     const numbers = new Map<string, number>();
@@ -715,7 +761,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
           role: agent.role && agent.role !== 'auto' && agent.role !== customRoleValue ? agent.role : undefined,
           instruction: agent.instruction.trim(),
           ...runtimeOptions,
-          model: agent.model?.trim() || runtimeOptions.model,
+          model: sanitizeAgentModel(agent.adapterId, agent.model?.trim() || runtimeOptions.model),
         };
       });
       const response = await authenticatedFetch(`/api/orchestration/workflows/${encodeURIComponent(workflowId)}/runs`, {
@@ -1033,6 +1079,17 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                 </span>
               </label>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refreshAllModelCatalogs()}
+                  disabled={modelCatalogLoading}
+                  title={t('orchestration.refreshModels', 'Refresh model catalog')}
+                >
+                  <RefreshCw className={`h-4 w-4 ${modelCatalogLoading ? 'animate-spin' : ''}`} />
+                  {t('orchestration.refreshModelsShort', 'Models')}
+                </Button>
                 {allAdapterIds.map((adapterId) => (
                   <Button
                     key={adapterId}
@@ -1054,8 +1111,10 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                 const adapter = adapterLabels[agent.adapterId];
                 const label = agentLabel(agent);
                 const runtimeOptions = readAgentRuntimeOptions(agent.adapterId);
-                const modelOptions = modelOptionsForAdapter(agent.adapterId);
-                const activeModel = agent.model || runtimeOptions.model || defaultModelForAdapter(agent.adapterId) || '';
+                const modelOptions = modelOptionsForAgent(agent.adapterId);
+                const preferredModel = agent.model || runtimeOptions.model || defaultModelForAdapter(agent.adapterId);
+                const activeModel = sanitizeAgentModel(agent.adapterId, preferredModel) || '';
+                const staleModel = Boolean(preferredModel && activeModel && preferredModel !== activeModel);
                 return (
                   <div
                     key={agent.instanceId}
@@ -1182,6 +1241,11 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
                             </option>
                           ))}
                         </select>
+                        {staleModel ? (
+                          <span className="text-[10px] text-amber-600 dark:text-amber-300">
+                            {t('orchestration.staleModelFallback', 'Saved model is no longer in the live catalog; Pixcode will use the closest available model.')}
+                          </span>
+                        ) : null}
                       </label>
                     ) : null}
                     <div className="mt-3 rounded-md border border-border/70 bg-background/60 px-3 py-2">
