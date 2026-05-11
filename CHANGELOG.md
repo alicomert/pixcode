@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.1](https://github.com/alicomert/pixcode/compare/v1.40.0...v1.40.1) (2026-05-11)
+
+Pixcode 1.40.1 tightens the Live View and chat experience after the first Live View rollout.
+
+### Bug Fixes
+
+* **live-view:** move Live View into the same split/full side-panel behavior as Files, Source Control, and Changes instead of taking over the primary workspace.
+* **live-view:** clear the stopped preview iframe immediately after Stop so the panel does not show a stale `/live` error response.
+* **live-view:** add editable preview resolution controls with Desktop, Tablet, Mobile, and custom width/height modes.
+* **chat:** order normalized messages by timeline before rendering so older tool events cannot remain stuck below later assistant replies.
+
+### Tests
+
+* add smoke coverage for Live View side-panel registration, stopped-session clearing, resolution controls, and chat message timeline ordering.
+* re-run Live View smoke, chat timeline smoke, Changes panel smoke, chat composer layout smoke, typecheck, lint, production build, and npm pack dry-run before publishing.
+
 ## [1.40.0](https://github.com/alicomert/pixcode/compare/v1.39.2...v1.40.0) (2026-05-11)
 
 Pixcode 1.40.0 adds project Live View: a first-class tab that detects runnable web projects, starts or serves them locally, and exposes a share link through Pixcode's existing External Access tunnel when available.

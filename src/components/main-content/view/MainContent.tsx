@@ -45,13 +45,13 @@ type FileWithDiffResponse = {
   error?: string;
 };
 
-const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes']);
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes', 'liveView']);
 const SIDE_PANEL_MIN_WIDTH = 40;
 const SIDE_PANEL_MAX_WIDTH = 50;
 const SIDE_PANEL_DEFAULT_WIDTH = 46;
 const COMMAND_CENTER_MODE_STORAGE_KEY = 'command-center-tracking-mode';
 
-function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' | 'changes' {
+function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' | 'changes' | 'liveView' {
   return sidePanelTabs.has(tab);
 }
 
@@ -237,7 +237,7 @@ function MainContent({
     setActiveTab(sidePanelMainTab);
   }, [setActiveTab, sidePanelMainTab]);
 
-  const renderSidePanel = (tab: 'files' | 'shell' | 'git' | 'changes') => {
+  const renderSidePanel = (tab: 'files' | 'shell' | 'git' | 'changes' | 'liveView') => {
     if (tab === 'files') {
       if (dockEditorInsideFilesPanel) {
         return (
@@ -303,6 +303,19 @@ function MainContent({
           onRefresh={() => { void refreshChangedFiles('manual'); }}
           onOpenFile={handleChangedFileOpen}
           variant="panel"
+        />
+      );
+    }
+
+    if (tab === 'liveView') {
+      if (!selectedProject) {
+        return null;
+      }
+
+      return (
+        <LiveViewPanel
+          selectedProject={selectedProject}
+          onAvailabilityChange={setLiveViewAvailable}
         />
       );
     }
@@ -579,7 +592,6 @@ function MainContent({
             !editingFile && activeSidePanelTab && !showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
-            !editingFile && activeTab === 'liveView' && 'max-w-none px-0 md:px-0',
           )}
         >
           {(showChatColumn || showOrchestrationColumn || activeSidePanelTab) && (
@@ -697,15 +709,6 @@ function MainContent({
           )}
 
           {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
-
-          {activeTab === 'liveView' && (
-            <div className="h-full min-h-0 overflow-hidden">
-              <LiveViewPanel
-                selectedProject={selectedProject}
-                onAvailabilityChange={setLiveViewAvailable}
-              />
-            </div>
-          )}
 
           <div className={`h-full overflow-hidden ${activeTab === 'preview' ? 'block' : 'hidden'}`} />
 

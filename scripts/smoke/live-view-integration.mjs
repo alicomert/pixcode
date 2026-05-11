@@ -31,11 +31,49 @@ assert.ok(
   tabSwitcher.indexOf("id: 'changes'") < tabSwitcher.indexOf("id: 'liveView'"),
   'Live View should be placed after Changes.',
 );
+assert.ok(
+  /sidePanelTabs\s*=\s*new Set<AppTab>\(\[[^\]]*'liveView'/.test(tabSwitcher),
+  'Live View should use the same split/full side-panel behavior as Files, Source Control, and Changes.',
+);
 
 const mainContent = await read('src/components/main-content/view/MainContent.tsx');
 assert.ok(
   mainContent.includes('LiveViewPanel'),
   'MainContent should render the Live View panel.',
+);
+assert.ok(
+  /sidePanelTabs\s*=\s*new Set<AppTab>\(\[[^\]]*'liveView'/.test(mainContent),
+  'MainContent should classify Live View as a side panel instead of a full main tab.',
+);
+assert.ok(
+  /renderSidePanel\s*=\s*\(tab:[^)]*'liveView'/.test(mainContent),
+  'MainContent should render Live View from renderSidePanel.',
+);
+assert.ok(
+  !mainContent.includes("activeTab === 'liveView' && ("),
+  'Live View must not render as a full-width primary tab.',
+);
+
+const liveViewPanel = await read('src/components/live-view/LiveViewPanel.tsx');
+assert.ok(
+  liveViewPanel.includes("action === 'stop'"),
+  'Live View stop should clear the active iframe session instead of keeping the stopped /live share path.',
+);
+assert.ok(
+  liveViewPanel.includes("setStatus({"),
+  'Live View stop should write a fresh stopped state.',
+);
+assert.ok(
+  liveViewPanel.includes('VIEWPORT_PRESETS'),
+  'Live View should expose desktop, tablet, mobile, and custom viewport presets.',
+);
+assert.ok(
+  liveViewPanel.includes("type=\"number\""),
+  'Live View should let users edit the preview resolution width and height.',
+);
+assert.ok(
+  liveViewPanel.includes('viewportSize.width') && liveViewPanel.includes('viewportSize.height'),
+  'Live View iframe should use the selected preview resolution.',
 );
 
 const serverIndex = await read('server/index.js');

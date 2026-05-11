@@ -67,6 +67,27 @@ type LiveViewPanelProps = {
   onAvailabilityChange?: (available: boolean) => void;
 };
 
+type ViewportPreset = 'desktop' | 'tablet' | 'mobile' | 'custom';
+
+type ViewportSize = {
+  width: number;
+  height: number;
+};
+
+const VIEWPORT_PRESETS: Record<Exclude<ViewportPreset, 'custom'>, ViewportSize> = {
+  desktop: { width: 1440, height: 900 },
+  tablet: { width: 768, height: 1024 },
+  mobile: { width: 390, height: 844 },
+};
+
+const VIEWPORT_MIN = 240;
+const VIEWPORT_MAX = 3840;
+
+function clampViewportValue(value: number, fallback: number) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(VIEWPORT_MAX, Math.max(VIEWPORT_MIN, Math.round(value)));
+}
+
 async function readJson(response: Response) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -84,6 +105,8 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [viewportPreset, setViewportPreset] = useState<ViewportPreset>('desktop');
+  const [viewportSize, setViewportSize] = useState<ViewportSize>(VIEWPORT_PRESETS.desktop);
 
   const endpoint = useMemo(
     () => `/api/live-view/${encodeURIComponent(selectedProject.name)}`,
@@ -136,6 +159,17 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
       const data = await readJson(response);
       const nextStatus = await authenticatedFetch(`${endpoint}/status`, { cache: 'no-store' });
       const fresh = await readJson(nextStatus) as LiveViewStatus;
+      if (action === 'stop') {
+        setStatus({
+          ...fresh,
+          session: null,
+          urls: fresh.urls,
+        });
+        onAvailabilityChange?.(Boolean(fresh.target?.available));
+        setReloadKey((current) => current + 1);
+        return;
+      }
+
       setStatus({
         ...fresh,
         session: data.session ?? fresh.session,
@@ -162,6 +196,20 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   }, [shareUrl]);
+
+  const selectViewportPreset = useCallback((preset: Exclude<ViewportPreset, 'custom'>) => {
+    setViewportPreset(preset);
+    setViewportSize(VIEWPORT_PRESETS[preset]);
+  }, []);
+
+  const updateViewportDimension = useCallback((dimension: keyof ViewportSize, rawValue: string) => {
+    const parsed = Number(rawValue);
+    setViewportPreset('custom');
+    setViewportSize((current) => ({
+      ...current,
+      [dimension]: clampViewportValue(parsed, current[dimension]),
+    }));
+  }, []);
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-background">
@@ -204,119 +252,188 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[340px_minmax(0,1fr)]">
-        <aside className="min-h-0 overflow-y-auto border-b border-border/60 p-4 lg:border-b-0 lg:border-r">
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {t('liveView.detecting', { defaultValue: 'Detecting project runner…' })}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  {status?.target?.available ? (
-                    <CheckCircle className="h-4 w-4 text-emerald-500" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                  )}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t('liveView.detecting', { defaultValue: 'Detecting project runner…' })}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="space-y-2 border-b border-border/60 bg-card/30 px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                {status?.target?.available ? (
+                  <CheckCircle className="h-4 w-4 shrink-0 text-emerald-500" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                )}
+                <span className="truncate">
                   {status?.target?.label || t('liveView.noRunner', { defaultValue: 'No runner detected' })}
+                </span>
+                {status?.session && (
+                  <Badge variant={isRunning ? 'default' : 'outline'} className="ml-auto shrink-0">
+                    {isStarting ? t('liveView.starting', { defaultValue: 'Starting' }) : status.session.status}
+                  </Badge>
+                )}
+              </div>
+
+              {status?.session && (
+                <div className="flex min-w-0 items-center gap-2">
+                  <Input value={shareUrl} readOnly className="h-8 min-w-0 flex-1 text-xs" />
+                  <Button type="button" variant="outline" size="icon" className="h-8 w-8" onClick={() => void copyShareUrl()} title={t('buttons.copy')}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => window.open(shareUrl, '_blank', 'noopener,noreferrer')}
+                    disabled={!shareUrl}
+                    title={t('liveView.openExternal', { defaultValue: 'Open externally' })}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto bg-muted/20 p-3">
+              {frameSrc ? (
+                <div
+                  className="mx-auto min-h-[260px] overflow-hidden rounded-md border border-border/70 bg-white shadow-sm"
+                  style={{
+                    width: `${viewportSize.width}px`,
+                    height: `${viewportSize.height}px`,
+                    maxWidth: '100%',
+                  }}
+                >
+                  <iframe
+                    key={`${frameSrc}:${reloadKey}:${viewportSize.width}x${viewportSize.height}`}
+                    title={t('liveView.frameTitle', { defaultValue: 'Project Live View' })}
+                    src={frameSrc}
+                    className="h-full w-full bg-white"
+                    sandbox="allow-forms allow-modals allow-popups allow-scripts allow-same-origin"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-full min-h-[260px] items-center justify-center p-5 text-center">
+                  <div className="max-w-sm">
+                    <Globe className="mx-auto h-9 w-9 text-muted-foreground" />
+                    <h3 className="mt-3 text-sm font-semibold text-foreground">
+                      {t('liveView.emptyTitle', { defaultValue: 'Start Live View' })}
+                    </h3>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {t('liveView.emptyDescription', {
+                        defaultValue: 'Pixcode will detect the project stack, start the local web server, and expose it here.',
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <details className="shrink-0 border-t border-border/60 bg-background/95">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground">
+                {t('liveView.controls', { defaultValue: 'Runner, share and logs' })}
+              </summary>
+              <div className="max-h-64 space-y-3 overflow-auto px-3 pb-3">
+                <p className="text-xs text-muted-foreground">
                   {status?.target?.command?.displayCommand
                     || status?.target?.reason
                     || t('liveView.staticHint', { defaultValue: 'Static HTML will be served directly when index.html exists.' })}
                 </p>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground" htmlFor="live-view-command">
-                  {t('liveView.customCommand', { defaultValue: 'Custom command' })}
-                </label>
-                <Input
-                  id="live-view-command"
-                  value={customCommand}
-                  onChange={(event) => setCustomCommand(event.target.value)}
-                  placeholder={t('liveView.customPlaceholder', { defaultValue: 'npm run dev, python app.py, go run .' })}
-                  disabled={isBusy || isRunning || isStarting}
-                />
-              </div>
-
-              {status?.session && (
-                <div className="space-y-2 rounded-lg border border-border/60 bg-card/40 p-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {t('liveView.shareLink', { defaultValue: 'Share link' })}
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('liveView.viewport', { defaultValue: 'Viewport' })}
                     </span>
-                    <Badge variant={isRunning ? 'default' : 'outline'}>
-                      {isStarting ? t('liveView.starting', { defaultValue: 'Starting' }) : status.session.status}
-                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {viewportSize.width} × {viewportSize.height}
+                    </span>
                   </div>
-                  <div className="flex gap-2">
-                    <Input value={shareUrl} readOnly className="text-xs" />
-                    <Button type="button" variant="outline" size="icon" onClick={() => void copyShareUrl()} title={t('buttons.copy')}>
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => window.open(shareUrl, '_blank', 'noopener,noreferrer')}
-                      disabled={!shareUrl}
-                      title={t('liveView.openExternal', { defaultValue: 'Open externally' })}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(['desktop', 'tablet', 'mobile'] as const).map((preset) => (
+                      <Button
+                        key={preset}
+                        type="button"
+                        variant={viewportPreset === preset ? 'default' : 'outline'}
+                        size="sm"
+                        className="h-8"
+                        onClick={() => selectViewportPreset(preset)}
+                      >
+                        {t(`liveView.viewport${preset[0].toUpperCase()}${preset.slice(1)}`, {
+                          defaultValue: preset[0].toUpperCase() + preset.slice(1),
+                        })}
+                      </Button>
+                    ))}
+                    <label className="sr-only" htmlFor="live-view-width">
+                      {t('liveView.viewportWidth', { defaultValue: 'Width' })}
+                    </label>
+                    <Input
+                      id="live-view-width"
+                      type="number"
+                      min={VIEWPORT_MIN}
+                      max={VIEWPORT_MAX}
+                      value={viewportSize.width}
+                      onChange={(event) => updateViewportDimension('width', event.target.value)}
+                      className="h-8 w-20 text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">×</span>
+                    <label className="sr-only" htmlFor="live-view-height">
+                      {t('liveView.viewportHeight', { defaultValue: 'Height' })}
+                    </label>
+                    <Input
+                      id="live-view-height"
+                      type="number"
+                      min={VIEWPORT_MIN}
+                      max={VIEWPORT_MAX}
+                      value={viewportSize.height}
+                      onChange={(event) => updateViewportDimension('height', event.target.value)}
+                      className="h-8 w-20 text-xs"
+                    />
                   </div>
-                  {copied && <p className="text-xs text-emerald-500">{t('buttons.copied', { defaultValue: 'Copied' })}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground" htmlFor="live-view-command">
+                    {t('liveView.customCommand', { defaultValue: 'Custom command' })}
+                  </label>
+                  <Input
+                    id="live-view-command"
+                    value={customCommand}
+                    onChange={(event) => setCustomCommand(event.target.value)}
+                    placeholder={t('liveView.customPlaceholder', { defaultValue: 'npm run dev, python app.py, go run .' })}
+                    disabled={isBusy || isRunning || isStarting}
+                  />
+                </div>
+
+                {status?.session && (
                   <p className="text-xs text-muted-foreground">
                     {status.urls?.external
                       ? t('liveView.externalActive', { defaultValue: 'Secure tunnel is active; this link can be shared outside your network.' })
                       : t('liveView.localOnly', { defaultValue: 'External Access is off; this link is local to this Pixcode server.' })}
                   </p>
-                </div>
-              )}
+                )}
 
-              {error && (
-                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                  {error}
-                </div>
-              )}
+                {copied && <p className="text-xs text-emerald-500">{t('buttons.copied', { defaultValue: 'Copied' })}</p>}
 
-              {status?.session?.log?.length ? (
-                <pre className="max-h-56 overflow-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
-                  {status.session.log.slice(-12).join('\n')}
-                </pre>
-              ) : null}
-            </div>
-          )}
-        </aside>
+                {error && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
 
-        <div className="min-h-0 bg-muted/20">
-          {frameSrc ? (
-            <iframe
-              key={`${frameSrc}:${reloadKey}`}
-              title={t('liveView.frameTitle', { defaultValue: 'Project Live View' })}
-              src={frameSrc}
-              className="h-full min-h-[360px] w-full bg-white"
-              sandbox="allow-forms allow-modals allow-popups allow-scripts allow-same-origin"
-            />
-          ) : (
-            <div className="flex h-full min-h-[360px] items-center justify-center p-6 text-center">
-              <div className="max-w-md">
-                <Globe className="mx-auto h-10 w-10 text-muted-foreground" />
-                <h3 className="mt-3 text-sm font-semibold text-foreground">
-                  {t('liveView.emptyTitle', { defaultValue: 'Start Live View' })}
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {t('liveView.emptyDescription', {
-                    defaultValue: 'Pixcode will detect the project stack, start the local web server, and expose it here.',
-                  })}
-                </p>
+                {status?.session?.log?.length ? (
+                  <pre className="max-h-32 overflow-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
+                    {status.session.log.slice(-10).join('\n')}
+                  </pre>
+                ) : null}
               </div>
-            </div>
-          )}
-        </div>
+            </details>
+          </div>
+        )}
       </div>
     </section>
   );

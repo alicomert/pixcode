@@ -12,6 +12,37 @@ import {
   formatProviderErrorText,
 } from '../utils/chatFormatting';
 
+function getMessageTime(message: NormalizedMessage): number | null {
+  const time = Date.parse(message.timestamp);
+  return Number.isFinite(time) ? time : null;
+}
+
+function orderMessagesByTimeline(messages: NormalizedMessage[]): NormalizedMessage[] {
+  return messages
+    .map((message, index) => ({
+      message,
+      index,
+      time: getMessageTime(message),
+      sequence: typeof message.sequence === 'number' ? message.sequence : null,
+      rowid: typeof message.rowid === 'number' ? message.rowid : null,
+    }))
+    .sort((a, b) => {
+      if (a.time !== null && b.time !== null && a.time !== b.time) {
+        return a.time - b.time;
+      }
+      if (a.time === null && b.time !== null) return 1;
+      if (a.time !== null && b.time === null) return -1;
+      if (a.sequence !== null && b.sequence !== null && a.sequence !== b.sequence) {
+        return a.sequence - b.sequence;
+      }
+      if (a.rowid !== null && b.rowid !== null && a.rowid !== b.rowid) {
+        return a.rowid - b.rowid;
+      }
+      return a.index - b.index;
+    })
+    .map(({ message }) => message);
+}
+
 /**
  * Convert NormalizedMessage[] from the session store into ChatMessage[]
  * that the existing UI components expect.
@@ -21,16 +52,17 @@ import {
  */
 export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMessage[] {
   const converted: ChatMessage[] = [];
+  const orderedMessages = orderMessagesByTimeline(messages);
 
   // First pass: collect tool results for attachment
   const toolResultMap = new Map<string, NormalizedMessage>();
-  for (const msg of messages) {
+  for (const msg of orderedMessages) {
     if (msg.kind === 'tool_result' && msg.toolId) {
       toolResultMap.set(msg.toolId, msg);
     }
   }
 
-  for (const msg of messages) {
+  for (const msg of orderedMessages) {
     switch (msg.kind) {
       case 'text': {
         const content = msg.content || '';

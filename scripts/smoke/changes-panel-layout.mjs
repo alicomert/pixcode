@@ -14,7 +14,7 @@ assert.ok(
 );
 
 assert.ok(
-  mainContent.includes("const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes'])"),
+  /const sidePanelTabs = new Set<AppTab>\(\[[^\]]*'changes'[^\]]*\]\)/.test(mainContent),
   'Changes should use the same split/full side-panel behavior as Files, Shell, and Source Control.',
 );
 
@@ -25,7 +25,7 @@ assert.ok(
 );
 
 assert.ok(
-  mainContent.includes("renderSidePanel = (tab: 'files' | 'shell' | 'git' | 'changes')"),
+  /renderSidePanel = \(tab: [^)]*'changes'/.test(mainContent),
   'MainContent should render Changes through the side-panel renderer.',
 );
 

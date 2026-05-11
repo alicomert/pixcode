@@ -67,7 +67,7 @@ const TASKS_TAB: BuiltInTab = {
   icon: ClipboardCheck,
 };
 
-const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes']);
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes', 'liveView']);
 
 export default function MainContentTabSwitcher({
   activeTab,
