@@ -83,12 +83,21 @@ function selectFrankenPhpAsset(release) {
   return candidates[0]?.asset || null;
 }
 
-async function fetchJson(url, env = process.env) {
+function isGitHubUrl(url) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === 'github.com' || hostname === 'api.github.com' || hostname.endsWith('.github.com');
+  } catch {
+    return String(url).includes('github.com');
+  }
+}
+
+async function fetchJson(url, env = process.env, options = {}) {
   const headers = {
-    Accept: 'application/vnd.github+json',
+    Accept: options.accept || 'application/json',
     'User-Agent': 'Pixcode Live View',
   };
-  if (env.GITHUB_TOKEN) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+  if (env.GITHUB_TOKEN && isGitHubUrl(url)) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
 
   const response = await fetch(url, { headers });
   if (!response.ok) {
@@ -99,7 +108,7 @@ async function fetchJson(url, env = process.env) {
 
 async function downloadFile(url, targetFile, env = process.env) {
   const headers = { 'User-Agent': 'Pixcode Live View' };
-  if (env.GITHUB_TOKEN && url.includes('github.com')) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+  if (env.GITHUB_TOKEN && isGitHubUrl(url)) headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
 
   const response = await fetch(url, { headers });
   if (!response.ok) {
@@ -131,31 +140,28 @@ function runProcess(command, args, options = {}) {
   });
 }
 
+function buildPowerShellExpandArchiveArgs(archivePath, targetDir) {
+  return [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    '& { param([string]$archive, [string]$destination) Expand-Archive -Force -LiteralPath $archive -DestinationPath $destination }',
+    archivePath,
+    targetDir,
+  ];
+}
+
 async function extractZip(archivePath, targetDir, env = process.env) {
   if (process.platform === 'win32') {
     const shell = env.ComSpec || process.env.ComSpec || 'powershell.exe';
     const isCmd = shell.toLowerCase().endsWith('cmd.exe');
+    const expandArgs = buildPowerShellExpandArchiveArgs(archivePath, targetDir);
     if (isCmd) {
-      await runProcess('powershell.exe', [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        'Expand-Archive -Force -LiteralPath $args[0] -DestinationPath $args[1]',
-        archivePath,
-        targetDir,
-      ], { env });
+      await runProcess('powershell.exe', expandArgs, { env });
       return;
     }
-    await runProcess(shell, [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-Command',
-      'Expand-Archive -Force -LiteralPath $args[0] -DestinationPath $args[1]',
-      archivePath,
-      targetDir,
-    ], { env });
+    await runProcess(shell, expandArgs, { env });
     return;
   }
 
@@ -197,7 +203,9 @@ async function findRuntimeExecutable(searchRoot, binaryName) {
 async function installFrankenPhp(env = process.env) {
   const releaseApiUrl = env.PIXCODE_FRANKENPHP_RELEASE_API
     || 'https://api.github.com/repos/php/frankenphp/releases/latest';
-  const release = env.PIXCODE_FRANKENPHP_URL ? null : await fetchJson(releaseApiUrl, env);
+  const release = env.PIXCODE_FRANKENPHP_URL
+    ? null
+    : await fetchJson(releaseApiUrl, env, { accept: 'application/vnd.github+json' });
   const asset = env.PIXCODE_FRANKENPHP_URL
     ? {
       name: path.basename(new URL(env.PIXCODE_FRANKENPHP_URL).pathname),
@@ -264,7 +272,7 @@ async function installFrankenPhp(env = process.env) {
 async function installNpmRuntime(env = process.env) {
   const registryUrl = env.PIXCODE_NPM_RUNTIME_REGISTRY
     || 'https://registry.npmjs.org/npm/latest';
-  const metadata = await fetchJson(registryUrl, env);
+  const metadata = await fetchJson(registryUrl, env, { accept: 'application/json' });
   const tarballUrl = metadata?.dist?.tarball;
   if (!tarballUrl) {
     throw new Error('No npm runtime tarball is available from the npm registry.');

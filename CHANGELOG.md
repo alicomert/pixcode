@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.6](https://github.com/alicomert/pixcode/compare/v1.40.5...v1.40.6) (2026-05-11)
+
+Pixcode 1.40.6 fixes the managed runtime bootstrap paths reported from Live View after the 1.40.5 rollout.
+
+### Bug Fixes
+
+* **live-view:** request npm runtime metadata with an npm-compatible JSON `Accept` header instead of GitHub's media type, preventing HTTP 406 failures when starting Vite and package-script projects.
+* **live-view:** only attach GitHub bearer auth to GitHub runtime URLs, keeping npm registry and custom runtime downloads clean.
+* **live-view:** pass Windows `Expand-Archive` paths through an explicit PowerShell param block so FrankenPHP zip extraction receives the archive and target directory reliably.
+
+### Tests
+
+* extend Live View smoke coverage for managed npm metadata headers, local npm runtime installation, and Windows PowerShell archive extraction command construction.
+
 ## [1.40.5](https://github.com/alicomert/pixcode/compare/v1.40.4...v1.40.5) (2026-05-11)
 
 Pixcode 1.40.5 hardens Live View runtime startup so PHP and Vite projects can start from the app without relying on a fragile system `PATH`.

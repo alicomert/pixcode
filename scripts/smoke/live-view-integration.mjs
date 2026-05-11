@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -113,6 +113,12 @@ assert.ok(
   managedRuntimes.includes("id === 'npm'") && managedRuntimes.includes('installNpmRuntime'),
   'Managed runtimes should include a Pixcode-owned npm runner for JavaScript projects when npm is not on PATH.',
 );
+assert.ok(
+  managedRuntimes.includes('buildPowerShellExpandArchiveArgs')
+    && managedRuntimes.includes('param([string]$archive, [string]$destination)')
+    && !managedRuntimes.includes('LiteralPath $args[0]'),
+  'Windows zip extraction should pass archive paths through a PowerShell param block instead of unreliable $args indexing.',
+);
 
 const serverIndex = await read('server/index.js');
 assert.ok(
@@ -134,6 +140,7 @@ const {
   startLiveView,
   stopLiveView,
 } = await import('../../server/services/live-view.js');
+const { ensureManagedRuntime } = await import('../../server/services/managed-runtimes.js');
 const workspace = await mkdtemp(path.join(tmpdir(), 'pixcode-live-view-smoke-'));
 const staticProject = path.join(workspace, 'static');
 const viteProject = path.join(workspace, 'vite');
@@ -216,6 +223,56 @@ const phpSystemRuntimeTarget = await detectLiveViewTarget(phpProject, {
 assert.equal(phpSystemRuntimeTarget.available, true, 'PHP projects should stay runnable when php exists on PATH.');
 assert.equal(phpSystemRuntimeTarget.command?.id, 'frankenphp-php-server', 'PHP projects should still use the Pixcode-managed runtime even when external php exists.');
 assert.equal(phpSystemRuntimeTarget.managedRuntime?.id, 'frankenphp', 'PHP projects should prefer the Pixcode-owned FrankenPHP runtime instead of external php.');
+
+const tar = await import('tar');
+const npmPackageRoot = path.join(workspace, 'npm-package-root');
+const npmPackageDir = path.join(npmPackageRoot, 'package');
+await mkdir(path.join(npmPackageDir, 'bin'), { recursive: true });
+await writeFile(path.join(npmPackageDir, 'package.json'), JSON.stringify({ name: 'npm', version: '10.0.0' }));
+await writeFile(path.join(npmPackageDir, 'bin', 'npm-cli.js'), '#!/usr/bin/env node\nconsole.log("npm smoke");\n');
+const npmTarball = path.join(workspace, 'npm-runtime.tgz');
+await tar.c({ cwd: npmPackageRoot, file: npmTarball, gzip: true }, ['package']);
+const npmTarballBuffer = await readFile(npmTarball);
+const originalFetch = globalThis.fetch;
+const metadataAcceptHeaders = [];
+globalThis.fetch = async (url, options = {}) => {
+  const requestUrl = String(url);
+  const headers = options.headers || {};
+  const accept = typeof headers.get === 'function' ? headers.get('Accept') : headers.Accept;
+  if (requestUrl === 'https://registry.test/npm/latest') {
+    metadataAcceptHeaders.push(String(accept || ''));
+    if (!String(accept || '').includes('application/json')) {
+      return new Response(JSON.stringify({ error: 'not acceptable' }), { status: 406 });
+    }
+    return new Response(JSON.stringify({
+      version: '10.0.0',
+      dist: { tarball: 'https://registry.test/npm/-/npm-10.0.0.tgz' },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (requestUrl === 'https://registry.test/npm/-/npm-10.0.0.tgz') {
+    return new Response(npmTarballBuffer, { status: 200 });
+  }
+  return originalFetch(url, options);
+};
+try {
+  const npmRuntime = await ensureManagedRuntime('npm', {
+    preferManaged: true,
+    env: {
+      ...process.env,
+      PATH: '',
+      Path: '',
+      PIXCODE_MANAGED_RUNTIMES_HOME: path.join(workspace, 'managed-runtimes'),
+      PIXCODE_NPM_RUNTIME_REGISTRY: 'https://registry.test/npm/latest',
+    },
+  });
+  assert.equal(npmRuntime.status, 'installed', 'Managed npm runtime should install from npm registry metadata.');
+  assert.ok(
+    metadataAcceptHeaders.every((accept) => accept.includes('application/json')),
+    'Managed npm runtime metadata requests should use an npm-compatible JSON Accept header.',
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+}
 
 const staticSession = await startLiveView('static-smoke', staticProject);
 assert.equal(staticSession.status, 'running', 'Static Live View should start without a child process.');
