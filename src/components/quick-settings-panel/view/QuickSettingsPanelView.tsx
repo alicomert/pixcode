@@ -4,6 +4,7 @@ import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useTheme } from '../../../contexts/ThemeContext';
+import type { ChangedFilesTrackingMode } from '../../../hooks/useChangedFilesMonitor';
 import type { Project } from '../../../types/app';
 import type { ChangedFileEntry } from '../../../utils/changedFiles';
 import { useQuickSettingsDrag } from '../hooks/useQuickSettingsDrag';
@@ -20,6 +21,8 @@ type QuickSettingsPanelViewProps = {
   changedFilesError?: string | null;
   latestChangedFilePath?: string | null;
   lastChangedFilesCheckedAt?: number | null;
+  changedFilesTrackingMode?: ChangedFilesTrackingMode;
+  onChangedFilesTrackingModeChange?: (mode: ChangedFilesTrackingMode) => void;
   onRefreshChangedFiles?: () => void;
   onFocusChangedFile?: (filePath: string) => void;
 };
@@ -31,6 +34,8 @@ export default function QuickSettingsPanelView({
   changedFilesError = null,
   latestChangedFilePath = null,
   lastChangedFilesCheckedAt = null,
+  changedFilesTrackingMode = 'local',
+  onChangedFilesTrackingModeChange,
   onRefreshChangedFiles,
   onFocusChangedFile,
 }: QuickSettingsPanelViewProps) {
@@ -106,6 +111,8 @@ export default function QuickSettingsPanelView({
             changedFilesError={changedFilesError}
             latestChangedFilePath={latestChangedFilePath}
             lastChangedFilesCheckedAt={lastChangedFilesCheckedAt}
+            changedFilesTrackingMode={changedFilesTrackingMode}
+            onChangedFilesTrackingModeChange={onChangedFilesTrackingModeChange}
             onPreferenceChange={handlePreferenceChange}
             onRefreshChangedFiles={onRefreshChangedFiles}
             onFocusChangedFile={onFocusChangedFile}

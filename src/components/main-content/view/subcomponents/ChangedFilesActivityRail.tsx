@@ -1,3 +1,4 @@
+import type { ChangedFilesTrackingMode } from '../../../../hooks/useChangedFilesMonitor';
 import type { ChangedFileEntry, ChangedFileStatus } from '../../../../utils/changedFiles';
 
 import { FileCode, Loader2, RefreshCw } from '@/lib/icons';
@@ -8,6 +9,8 @@ type ChangedFilesActivityRailProps = {
   error: string | null;
   latestChangedFilePath: string | null;
   lastCheckedAt: number | null;
+  trackingMode: ChangedFilesTrackingMode;
+  onTrackingModeChange: (mode: ChangedFilesTrackingMode) => void;
   onRefresh: () => void;
   onOpenFile: (file: ChangedFileEntry) => void;
 };
@@ -41,6 +44,8 @@ export default function ChangedFilesActivityRail({
   error,
   latestChangedFilePath,
   lastCheckedAt,
+  trackingMode,
+  onTrackingModeChange,
   onRefresh,
   onOpenFile,
 }: ChangedFilesActivityRailProps) {
@@ -67,6 +72,35 @@ export default function ChangedFilesActivityRail({
         >
           {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
         </button>
+      </div>
+
+      <div className="border-b border-border/60 px-3 py-2">
+        <div className="grid grid-cols-2 rounded-md border border-border bg-background p-0.5 text-[11px] font-medium">
+          <button
+            type="button"
+            onClick={() => onTrackingModeChange('local')}
+            className={`rounded px-2 py-1 transition-colors ${
+              trackingMode === 'local'
+                ? 'bg-foreground text-background shadow-sm'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+            title="Local changes: agent writes and filesystem edits"
+          >
+            Local changes
+          </button>
+          <button
+            type="button"
+            onClick={() => onTrackingModeChange('git')}
+            className={`rounded px-2 py-1 transition-colors ${
+              trackingMode === 'git'
+                ? 'bg-foreground text-background shadow-sm'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+            title="Git changes: git status only"
+          >
+            Git changes
+          </button>
+        </div>
       </div>
 
       {error && (

@@ -25,6 +25,8 @@ export type DetectedChangedFile = ChangedFileEntry & {
   detectedAt: number;
 };
 
+export type ChangedFilesTrackingMode = 'local' | 'git';
+
 const POLL_INTERVAL_MS = 4000;
 const MAX_DIRECT_AGENT_FILES = 80;
 
@@ -72,6 +74,7 @@ export function useChangedFilesMonitor(
   selectedProject: Project | null,
   enabled: boolean,
   latestMessage?: unknown,
+  trackingMode: ChangedFilesTrackingMode = 'local',
 ) {
   const [changedFiles, setChangedFiles] = useState<ChangedFileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -96,7 +99,7 @@ export function useChangedFilesMonitor(
     setError(null);
     setLastCheckedAt(null);
     setLatestDetectedFile(null);
-  }, [selectedProject?.name]);
+  }, [selectedProject?.name, trackingMode]);
 
   const refresh = useCallback(async (reason: 'initial' | 'poll' | 'manual' | 'focus' = 'manual') => {
     if (!enabled || !selectedProject) {
@@ -112,10 +115,11 @@ export function useChangedFilesMonitor(
     }
 
     try {
-      const response = await authenticatedFetch(
-        `/api/git/status?project=${encodeURIComponent(projectName)}`,
-        { cache: 'no-store' },
-      );
+      const params = new URLSearchParams({
+        project: projectName,
+        mode: trackingMode,
+      });
+      const response = await authenticatedFetch(`/api/git/status?${params.toString()}`, { cache: 'no-store' });
       const data = (await response.json()) as GitStatusResponse;
 
       if (requestIdRef.current !== requestId || selectedProjectNameRef.current !== projectName) {
@@ -125,17 +129,30 @@ export function useChangedFilesMonitor(
       if (!response.ok || data.error) {
         const errorMessage = data.details ?? data.error ?? `Git status failed (${response.status})`;
         setError(errorMessage);
+        if (trackingMode === 'git') {
+          polledChangedFilesRef.current = [];
+          setChangedFiles([]);
+        }
         return;
       }
 
-      const nextChangedFiles = normalizeChangedFiles(data)
+      const detectedChangedFiles = normalizeChangedFiles(data)
         .map((file) => normalizeFileForProject(file, selectedProject));
+      const nextChangedFiles = trackingMode === 'local' && data.trackingMode === 'filesystem'
+        ? mergeChangedFiles(polledChangedFilesRef.current, detectedChangedFiles)
+        : detectedChangedFiles;
       const nextPaths = new Set(nextChangedFiles.map((file) => file.path));
-      const newlyChangedFiles = findNewChangedFiles(previousPathsRef.current, nextChangedFiles);
+      const newlyChangedFiles = trackingMode === 'local' && data.trackingMode === 'filesystem'
+        ? detectedChangedFiles
+        : findNewChangedFiles(previousPathsRef.current, nextChangedFiles);
 
       previousPathsRef.current = nextPaths;
       polledChangedFilesRef.current = nextChangedFiles;
-      setChangedFiles(mergeChangedFiles(directAgentFilesRef.current, nextChangedFiles));
+      setChangedFiles(
+        trackingMode === 'local'
+          ? mergeChangedFiles(directAgentFilesRef.current, nextChangedFiles)
+          : nextChangedFiles,
+      );
       setLastCheckedAt(Date.now());
       setError(null);
 
@@ -156,10 +173,10 @@ export function useChangedFilesMonitor(
         setIsLoading(false);
       }
     }
-  }, [enabled, selectedProject]);
+  }, [enabled, selectedProject, trackingMode]);
 
   useEffect(() => {
-    if (!enabled || !selectedProject || !latestMessage) {
+    if (!enabled || !selectedProject || !latestMessage || trackingMode !== 'local') {
       return;
     }
 
@@ -189,7 +206,7 @@ export function useChangedFilesMonitor(
     });
     setLastCheckedAt(detectedAt);
     setError(null);
-  }, [enabled, latestMessage, selectedProject]);
+  }, [enabled, latestMessage, selectedProject, trackingMode]);
 
   useEffect(() => {
     if (!enabled || !selectedProject) {

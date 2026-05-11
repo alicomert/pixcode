@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import { DarkModeToggle } from '../../../shared/view/ui';
 import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
+import type { ChangedFilesTrackingMode } from '../../../hooks/useChangedFilesMonitor';
 import type { Project } from '../../../types/app';
 import type { ChangedFileEntry } from '../../../utils/changedFiles';
 import {
@@ -30,6 +31,8 @@ type QuickSettingsContentProps = {
   changedFilesError: string | null;
   latestChangedFilePath: string | null;
   lastChangedFilesCheckedAt: number | null;
+  changedFilesTrackingMode: ChangedFilesTrackingMode;
+  onChangedFilesTrackingModeChange?: (mode: ChangedFilesTrackingMode) => void;
   onPreferenceChange: (key: PreferenceToggleKey, value: boolean) => void;
   onRefreshChangedFiles?: () => void;
   onFocusChangedFile?: (filePath: string) => void;
@@ -56,6 +59,8 @@ export default function QuickSettingsContent({
   changedFilesError,
   latestChangedFilePath,
   lastChangedFilesCheckedAt,
+  changedFilesTrackingMode,
+  onChangedFilesTrackingModeChange,
   onPreferenceChange,
   onRefreshChangedFiles,
   onFocusChangedFile,
@@ -114,6 +119,31 @@ export default function QuickSettingsContent({
         />
 
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3">
+          <div className="mb-3 grid grid-cols-2 rounded-md border border-border bg-background p-0.5 text-[11px] font-medium">
+            <button
+              type="button"
+              onClick={() => onChangedFilesTrackingModeChange?.('local')}
+              className={`rounded px-2 py-1 transition-colors ${
+                changedFilesTrackingMode === 'local'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              Local changes
+            </button>
+            <button
+              type="button"
+              onClick={() => onChangedFilesTrackingModeChange?.('git')}
+              className={`rounded px-2 py-1 transition-colors ${
+                changedFilesTrackingMode === 'git'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              Git changes
+            </button>
+          </div>
+
           <div className="mb-2 flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-xs font-medium text-foreground">

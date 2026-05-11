@@ -15,6 +15,12 @@ import { createNormalizedMessage } from './shared/utils.js';
 // Use cross-spawn on Windows for correct .cmd resolution (same pattern as cursor-cli.js)
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 let activeGeminiProcesses = new Map(); // Track active processes by session ID
+const DEFAULT_CLI_IDLE_TIMEOUT_MS = 600000;
+
+function readCliIdleTimeoutMs() {
+    const configured = Number.parseInt(process.env.PIXCODE_CLI_IDLE_TIMEOUT_MS || '', 10);
+    return Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_CLI_IDLE_TIMEOUT_MS;
+}
 
 /**
  * Auto-create `~/.gemini/settings.json` when the user has signed in via OAuth
@@ -287,11 +293,12 @@ async function spawnGemini(command, options = {}, ws) {
         geminiProcess.stdin.end();
 
         // Add timeout handler
-        const timeoutMs = 120000; // 120 seconds for slower models
+        const timeoutMs = readCliIdleTimeoutMs();
         let timeout;
 
         const startTimeout = () => {
             if (timeout) clearTimeout(timeout);
+            if (timeoutMs === 0) return;
             timeout = setTimeout(() => {
                 const socketSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : (capturedSessionId || sessionId || processKey);
                 terminalFailureReason = `Gemini CLI timeout - no response received for ${timeoutMs / 1000} seconds`;
@@ -400,6 +407,7 @@ async function spawnGemini(command, options = {}, ws) {
         // Handle stderr
         geminiProcess.stderr.on('data', (data) => {
             const errorMsg = data.toString();
+            startTimeout();
 
             // Filter out deprecation warnings and "Loaded cached credentials" message
             if (errorMsg.includes('[DEP0040]') ||

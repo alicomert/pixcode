@@ -15,11 +15,12 @@ import type { AppTab, Project } from '../../../types/app';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
-import { useChangedFilesMonitor } from '../../../hooks/useChangedFilesMonitor';
+import { useChangedFilesMonitor, type ChangedFilesTrackingMode } from '../../../hooks/useChangedFilesMonitor';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
 import { TaskMasterPanel } from '../../task-master';
 import type { ChangedFileEntry } from '../../../utils/changedFiles';
+import { api, authenticatedFetch } from '../../../utils/api';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
@@ -37,10 +38,17 @@ type TasksSettingsContextValue = {
   isTaskMasterReady: boolean | null;
 };
 
+type FileWithDiffResponse = {
+  currentContent?: string;
+  oldContent?: string;
+  error?: string;
+};
+
 const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git']);
 const SIDE_PANEL_MIN_WIDTH = 40;
 const SIDE_PANEL_MAX_WIDTH = 50;
 const SIDE_PANEL_DEFAULT_WIDTH = 46;
+const COMMAND_CENTER_MODE_STORAGE_KEY = 'command-center-tracking-mode';
 
 function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' {
   return sidePanelTabs.has(tab);
@@ -94,6 +102,13 @@ function MainContent({
   const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
   const [sidePanelWidth, setSidePanelWidth] = useState(SIDE_PANEL_DEFAULT_WIDTH);
   const [isDraggingSidePanel, setIsDraggingSidePanel] = useState(false);
+  const [changeTrackingMode, setChangeTrackingMode] = useState<ChangedFilesTrackingMode>(() => {
+    if (typeof window === 'undefined') {
+      return 'local';
+    }
+
+    return window.localStorage.getItem(COMMAND_CENTER_MODE_STORAGE_KEY) === 'git' ? 'git' : 'local';
+  });
   const [mainSurfaceTab, setMainSurfaceTab] = useState<AppTab>(() => (isSidePanelTab(activeTab) ? 'chat' : activeTab));
   const [canUseSidePanelSplit, setCanUseSidePanelSplit] = useState(() => (
     typeof window !== 'undefined' && window.innerWidth >= 1024
@@ -141,10 +156,62 @@ function MainContent({
     lastCheckedAt: lastChangedFilesCheckedAt,
     latestDetectedFile,
     refresh: refreshChangedFiles,
-  } = useChangedFilesMonitor(selectedProject, changeAwareness, latestMessage);
+  } = useChangedFilesMonitor(selectedProject, changeAwareness, latestMessage, changeTrackingMode);
   const [focusedChangedFilePath, setFocusedChangedFilePath] = useState<string | null>(null);
   const lastHandledDetectedAtRef = useRef(0);
   const changedFilePaths = useMemo(() => changedFiles.map((file) => file.path), [changedFiles]);
+
+  const hydrateChangedFileDiffInfo = useCallback(async (file: ChangedFileEntry) => {
+    if (file.diffInfo) {
+      return file.diffInfo;
+    }
+
+    if (!selectedProject) {
+      return null;
+    }
+
+    try {
+      const response = await authenticatedFetch(
+        `/api/git/file-with-diff?project=${encodeURIComponent(selectedProject.name)}&file=${encodeURIComponent(file.path)}`,
+        { cache: 'no-store' },
+      );
+      const data = (await response.json()) as FileWithDiffResponse;
+      if (
+        response.ok
+        && !data.error
+        && typeof data.currentContent === 'string'
+        && typeof data.oldContent === 'string'
+      ) {
+        return {
+          old_string: data.oldContent,
+          new_string: data.currentContent,
+        };
+      }
+    } catch {
+      // Non-git projects fall back to showing newly-created file content below.
+    }
+
+    if (file.status === 'A' || file.status === 'U') {
+      try {
+        const response = await api.readFile(selectedProject.name, file.path);
+        if (!response.ok) {
+          return null;
+        }
+
+        const data = (await response.json()) as { content?: unknown };
+        if (typeof data.content === 'string') {
+          return {
+            old_string: '',
+            new_string: data.content,
+          };
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }, [selectedProject]);
 
   const handleChangedFileOpen = useCallback((file: ChangedFileEntry) => {
     setFocusedChangedFilePath(file.path);
@@ -155,7 +222,15 @@ function MainContent({
     }
 
     setActiveTab('files');
-  }, [canUseSidePanelSplit, handleFileOpen, isMobile, setActiveTab]);
+
+    if (!file.diffInfo) {
+      void hydrateChangedFileDiffInfo(file).then((diffInfo) => {
+        if (diffInfo) {
+          handleFileOpen(file.path, diffInfo);
+        }
+      });
+    }
+  }, [canUseSidePanelSplit, handleFileOpen, hydrateChangedFileDiffInfo, isMobile, setActiveTab]);
 
   const focusChangedFile = useCallback((filePath: string) => {
     const file = changedFiles.find((entry) => entry.path === filePath) ?? {
@@ -257,6 +332,14 @@ function MainContent({
       window.removeEventListener('resize', updateSplitCapability);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(COMMAND_CENTER_MODE_STORAGE_KEY, changeTrackingMode);
+  }, [changeTrackingMode]);
 
   useEffect(() => {
     if (!isSidePanelTab(activeTab)) {
@@ -522,6 +605,8 @@ function MainContent({
                         error={changedFilesError}
                         latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
                         lastCheckedAt={lastChangedFilesCheckedAt}
+                        trackingMode={changeTrackingMode}
+                        onTrackingModeChange={setChangeTrackingMode}
                         onRefresh={() => { void refreshChangedFiles('manual'); }}
                         onOpenFile={handleChangedFileOpen}
                       />
@@ -551,6 +636,8 @@ function MainContent({
                         error={changedFilesError}
                         latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
                         lastCheckedAt={lastChangedFilesCheckedAt}
+                        trackingMode={changeTrackingMode}
+                        onTrackingModeChange={setChangeTrackingMode}
                         onRefresh={() => { void refreshChangedFiles('manual'); }}
                         onOpenFile={handleChangedFileOpen}
                       />
@@ -606,6 +693,8 @@ function MainContent({
                   error={changedFilesError}
                   latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
                   lastCheckedAt={lastChangedFilesCheckedAt}
+                  trackingMode={changeTrackingMode}
+                  onTrackingModeChange={setChangeTrackingMode}
                   onRefresh={() => { void refreshChangedFiles('manual'); }}
                   onOpenFile={handleChangedFileOpen}
                 />
@@ -651,6 +740,8 @@ function MainContent({
         changedFilesError={changedFilesError}
         latestChangedFilePath={latestDetectedFile?.path ?? focusedChangedFilePath}
         lastChangedFilesCheckedAt={lastChangedFilesCheckedAt}
+        changedFilesTrackingMode={changeTrackingMode}
+        onChangedFilesTrackingModeChange={setChangeTrackingMode}
         onRefreshChangedFiles={() => { void refreshChangedFiles('manual'); }}
         onFocusChangedFile={focusChangedFile}
       />

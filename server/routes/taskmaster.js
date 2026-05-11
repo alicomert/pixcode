@@ -26,6 +26,11 @@ import {
     getInstallJob,
     snapshotDonePayload
 } from '../services/install-jobs.js';
+import {
+    buildTaskMasterEnv,
+    getTaskMasterConfigSummary,
+    saveTaskMasterConfig
+} from '../services/taskmaster-config.js';
 import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
 import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
 
@@ -35,22 +40,42 @@ const router = express.Router();
  * Check if TaskMaster CLI is installed globally
  * @returns {Promise<Object>} Installation status result
  */
-async function checkTaskMasterInstallation() {
-    return new Promise((resolve) => {
-        const env = buildCliSpawnEnv();
-        const taskMasterPath = findExecutableOnPath('task-master', env);
+async function buildTaskMasterCliEnv(baseEnv = process.env) {
+    return buildTaskMasterEnv(buildCliSpawnEnv(baseEnv));
+}
 
-        if (!taskMasterPath) {
+function findTaskMasterExecutable(env) {
+    const taskMasterPath = findExecutableOnPath('task-master', env);
+    if (taskMasterPath) {
+        return { path: taskMasterPath, name: 'task-master' };
+    }
+
+    const legacyPath = findExecutableOnPath('task-master-ai', env);
+    if (legacyPath) {
+        return { path: legacyPath, name: 'task-master-ai' };
+    }
+
+    return null;
+}
+
+async function checkTaskMasterInstallation() {
+    const env = await buildTaskMasterCliEnv();
+
+    return new Promise((resolve) => {
+        const executable = findTaskMasterExecutable(env);
+
+        if (!executable) {
             resolve({
                 isInstalled: false,
                 installPath: null,
                 version: null,
+                binary: null,
                 reason: 'TaskMaster CLI not found in PATH'
             });
             return;
         }
 
-        const versionChild = crossSpawn(taskMasterPath, ['--version'], {
+        const versionChild = crossSpawn(executable.path, ['--version'], {
             stdio: ['ignore', 'pipe', 'pipe'],
             env,
             windowsHide: true,
@@ -65,7 +90,8 @@ async function checkTaskMasterInstallation() {
         versionChild.on('close', (versionCode) => {
             resolve({
                 isInstalled: true,
-                installPath: taskMasterPath,
+                installPath: executable.path,
+                binary: executable.name,
                 version: versionCode === 0 ? versionOutput.trim() : 'unknown',
                 reason: null
             });
@@ -74,7 +100,8 @@ async function checkTaskMasterInstallation() {
         versionChild.on('error', () => {
             resolve({
                 isInstalled: true,
-                installPath: taskMasterPath,
+                installPath: executable.path,
+                binary: executable.name,
                 version: 'unknown',
                 reason: null
             });
@@ -164,6 +191,46 @@ function buildTaskMasterQueueSummary(projectName, projectPath, tasks) {
 }
 
 // API Routes
+
+/**
+ * GET /api/taskmaster/config
+ * Return redacted TaskMaster provider env configuration.
+ */
+router.get('/config', async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            config: await getTaskMasterConfigSummary()
+        });
+    } catch (error) {
+        console.error('Error reading TaskMaster config:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to read TaskMaster configuration',
+            message: error.message
+        });
+    }
+});
+
+/**
+ * PUT /api/taskmaster/config
+ * Persist TaskMaster provider env configuration.
+ */
+router.put('/config', async (req, res) => {
+    try {
+        res.json({
+            success: true,
+            config: await saveTaskMasterConfig(req.body || {})
+        });
+    } catch (error) {
+        console.error('Error saving TaskMaster config:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to save TaskMaster configuration',
+            message: error.message
+        });
+    }
+});
 
 /**
  * GET /api/taskmaster/installation-status
@@ -814,7 +881,8 @@ router.post('/init/:projectName', async (req, res) => {
         // Run taskmaster init command
         const initProcess = spawn('npx', ['task-master', 'init'], {
             cwd: projectPath,
-            stdio: ['pipe', 'pipe', 'pipe']
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: await buildTaskMasterCliEnv()
         });
 
         let stdout = '';
@@ -917,7 +985,8 @@ router.post('/add-task/:projectName', async (req, res) => {
         // Run task-master add-task command
         const addTaskProcess = spawn('npx', args, {
             cwd: projectPath,
-            stdio: ['pipe', 'pipe', 'pipe']
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: await buildTaskMasterCliEnv()
         });
 
         let stdout = '';
@@ -997,7 +1066,8 @@ router.put('/update-task/:projectName/:taskId', async (req, res) => {
         if (status && Object.keys(req.body).length === 1) {
             const setStatusProcess = spawn('npx', ['task-master-ai', 'set-status', `--id=${taskId}`, `--status=${status}`], {
                 cwd: projectPath,
-                stdio: ['pipe', 'pipe', 'pipe']
+                stdio: ['pipe', 'pipe', 'pipe'],
+                env: await buildTaskMasterCliEnv()
             });
 
             let stdout = '';
@@ -1049,7 +1119,8 @@ router.put('/update-task/:projectName/:taskId', async (req, res) => {
 
             const updateProcess = spawn('npx', ['task-master-ai', 'update-task', `--id=${taskId}`, `--prompt=${prompt}`], {
                 cwd: projectPath,
-                stdio: ['pipe', 'pipe', 'pipe']
+                stdio: ['pipe', 'pipe', 'pipe'],
+                env: await buildTaskMasterCliEnv()
             });
 
             let stdout = '';
@@ -1148,7 +1219,8 @@ router.post('/parse-prd/:projectName', async (req, res) => {
         // Run task-master parse-prd command
         const parsePRDProcess = spawn('npx', args, {
             cwd: projectPath,
-            stdio: ['pipe', 'pipe', 'pipe']
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: await buildTaskMasterCliEnv()
         });
 
         let stdout = '';

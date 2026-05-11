@@ -179,21 +179,23 @@ async function finalizeTerminalTask(task: Task): Promise<void> {
   try {
     if (workspace) {
       const diff = await workspace.diff();
-      a2aBus.publish({
-        kind: 'artifact',
-        taskId: task.id,
-        artifact: {
-          artifactId: newId('art'),
-          type: 'file-diff',
-          parts: [{ kind: 'text', text: diff }],
-          metadata: {
-            source: 'workspace-diff',
-            workspaceId: workspace.id,
-            workspaceKind: workspace.kind,
-            baseRef: workspace.baseRef,
+      if (diff.trim()) {
+        a2aBus.publish({
+          kind: 'artifact',
+          taskId: task.id,
+          artifact: {
+            artifactId: newId('art'),
+            type: 'file-diff',
+            parts: [{ kind: 'text', text: diff }],
+            metadata: {
+              source: 'workspace-diff',
+              workspaceId: workspace.id,
+              workspaceKind: workspace.kind,
+              baseRef: workspace.baseRef,
+            },
           },
-        },
-      });
+        });
+      }
 
       const keepAfterCompletion = task.metadata?.workspace &&
         typeof task.metadata.workspace === 'object' &&

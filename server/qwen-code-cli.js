@@ -26,6 +26,12 @@ import { createNormalizedMessage } from './shared/utils.js';
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 
 const activeQwenProcesses = new Map();
+const DEFAULT_CLI_IDLE_TIMEOUT_MS = 600000;
+
+function readCliIdleTimeoutMs() {
+    const configured = Number.parseInt(process.env.PIXCODE_CLI_IDLE_TIMEOUT_MS || '', 10);
+    return Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_CLI_IDLE_TIMEOUT_MS;
+}
 
 async function spawnQwen(command, options = {}, ws) {
     const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary } = options;
@@ -170,10 +176,11 @@ async function spawnQwen(command, options = {}, ws) {
 
         qwenProcess.stdin.end();
 
-        const timeoutMs = 120000;
+        const timeoutMs = readCliIdleTimeoutMs();
         let timeout;
         const startTimeout = () => {
             if (timeout) clearTimeout(timeout);
+            if (timeoutMs === 0) return;
             timeout = setTimeout(() => {
                 const socketSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : (capturedSessionId || sessionId || processKey);
                 terminalFailureReason = `Qwen Code CLI timeout - no response received for ${timeoutMs / 1000} seconds`;
@@ -267,6 +274,7 @@ async function spawnQwen(command, options = {}, ws) {
 
         qwenProcess.stderr.on('data', (data) => {
             const errorMsg = data.toString();
+            startTimeout();
             if (errorMsg.includes('[DEP0040]') ||
                 errorMsg.includes('DeprecationWarning') ||
                 errorMsg.includes('--trace-deprecation') ||

@@ -29,18 +29,44 @@ assert.ok(
 );
 
 assert.ok(
+  changedFilesHook.includes("ChangedFilesTrackingMode = 'local' | 'git'")
+    && changedFilesHook.includes('mode: trackingMode')
+    && changedFilesHook.includes("trackingMode !== 'local'"),
+  'Changed-files monitor should support separate Local changes and Git changes modes.',
+);
+
+assert.ok(
   changedFilesHook.includes('mergeChangedFiles'),
   'Changed-files monitor should merge direct agent writes with polled git/filesystem changes instead of replacing them.',
 );
 
 assert.ok(
-  mainContent.includes('useChangedFilesMonitor(selectedProject, changeAwareness, latestMessage)'),
+  changedFilesHook.includes("data.trackingMode === 'filesystem'")
+    && changedFilesHook.includes('mergeChangedFiles(polledChangedFilesRef.current, detectedChangedFiles)'),
+  'Filesystem tracking should keep detected files visible after the next empty poll instead of flashing for one interval.',
+);
+
+assert.ok(
+  mainContent.includes('useChangedFilesMonitor(selectedProject, changeAwareness, latestMessage, changeTrackingMode)'),
   'MainContent should pass latestMessage into the changed-files monitor.',
 );
 
 assert.ok(
   mainContent.includes('handleChangedFileOpen') && mainContent.includes('handleFileOpen(file.path, file.diffInfo'),
   'Clicking a changed file should open the editor with diff context, not only focus the Files panel.',
+);
+
+assert.ok(
+  mainContent.includes('/api/git/file-with-diff') && mainContent.includes('old_string') && mainContent.includes('new_string'),
+  'Clicking a changed file without realtime diff metadata should hydrate editor diff context before focusing the changed chunk.',
+);
+
+assert.ok(
+  rail.includes('trackingMode: ChangedFilesTrackingMode')
+    && rail.includes('Local changes')
+    && rail.includes('Git changes')
+    && rail.includes('onTrackingModeChange'),
+  'Command Center rail should expose a visible switch between Local changes and Git changes.',
 );
 
 assert.ok(

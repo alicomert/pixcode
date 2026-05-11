@@ -436,6 +436,8 @@ async function resolveRepositoryFilePath(projectPath, filePath) {
 // Get git status for a project
 router.get('/status', async (req, res) => {
   const { project } = req.query;
+  const requestedTrackingMode = String(req.query.mode || req.query.trackingMode || '').toLowerCase();
+  const gitOnly = requestedTrackingMode === 'git';
 
   if (!project) {
     return res.status(400).json({ error: 'Project name is required' });
@@ -477,6 +479,8 @@ router.get('/status', async (req, res) => {
     });
 
     res.json({
+      isGitRepository: true,
+      trackingMode: 'git',
       branch,
       hasCommits,
       modified,
@@ -485,7 +489,7 @@ router.get('/status', async (req, res) => {
       untracked
     });
   } catch (error) {
-    if (projectPath && isNotGitRepositoryMessage(error.message)) {
+    if (projectPath && !gitOnly && isNotGitRepositoryMessage(error.message)) {
       try {
         res.json(await buildFilesystemStatus(projectPath));
         return;
@@ -496,6 +500,8 @@ router.get('/status', async (req, res) => {
 
     console.error('Git status error:', error);
     res.json({
+      isGitRepository: false,
+      trackingMode: gitOnly ? 'git' : undefined,
       error: error.message.includes('not a git repository') || error.message.includes('Project directory is not a git repository')
         ? error.message
         : 'Git operation failed',

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect } from 'react';
 
 import { useAuth } from '../components/auth/context/AuthContext';
 import { IS_PLATFORM } from '../constants/config';
@@ -11,7 +11,8 @@ const TasksSettingsContext = createContext({
   isTaskMasterInstalled: null,
   isTaskMasterReady: null,
   installationStatus: null,
-  isCheckingInstallation: true
+  isCheckingInstallation: true,
+  refreshTaskMasterInstallation: async () => {}
 });
 
 export const useTasksSettings = () => {
@@ -41,10 +42,9 @@ export const TasksSettingsProvider = ({ children }) => {
     localStorage.setItem('tasks-enabled', JSON.stringify(tasksEnabled));
   }, [tasksEnabled]);
 
-  // Check TaskMaster installation status asynchronously on component mount
-  useEffect(() => {
+  const refreshTaskMasterInstallation = useCallback(async ({ signal } = {}) => {
     if (isAuthLoading) {
-      return undefined;
+      return;
     }
 
     if (!canCheckInstallation) {
@@ -52,53 +52,57 @@ export const TasksSettingsProvider = ({ children }) => {
       setIsTaskMasterInstalled(null);
       setIsTaskMasterReady(null);
       setIsCheckingInstallation(false);
-      return undefined;
+      return;
     }
 
     setIsCheckingInstallation(true);
 
-    let canceled = false;
-    const checkInstallation = async () => {
-      try {
-        const response = await api.get('/taskmaster/installation-status');
-        if (canceled) return;
-        if (response.ok) {
-          const data = await response.json();
-          if (canceled) return;
-          setInstallationStatus(data);
-          setIsTaskMasterInstalled(data.installation?.isInstalled || false);
-          setIsTaskMasterReady(data.isReady || false);
-          
-          // If TaskMaster is not installed and user hasn't explicitly enabled tasks,
-          // disable tasks automatically
-          const userEnabledTasks = localStorage.getItem('tasks-enabled');
-          if (!data.installation?.isInstalled && !userEnabledTasks) {
-            setTasksEnabled(false);
-          }
-        } else {
-          console.error('Failed to check TaskMaster installation status');
-          setIsTaskMasterInstalled(false);
-          setIsTaskMasterReady(false);
+    try {
+      const response = await api.get('/taskmaster/installation-status');
+      if (signal?.aborted) return;
+      if (response.ok) {
+        const data = await response.json();
+        if (signal?.aborted) return;
+        setInstallationStatus(data);
+        setIsTaskMasterInstalled(data.installation?.isInstalled || false);
+        setIsTaskMasterReady(data.isReady || false);
+
+        // If TaskMaster is not installed and user hasn't explicitly enabled tasks,
+        // disable tasks automatically
+        const userEnabledTasks = localStorage.getItem('tasks-enabled');
+        if (!data.installation?.isInstalled && !userEnabledTasks) {
+          setTasksEnabled(false);
         }
-      } catch (error) {
-        if (canceled) return;
-        console.error('Error checking TaskMaster installation:', error);
+      } else {
+        console.error('Failed to check TaskMaster installation status');
         setIsTaskMasterInstalled(false);
         setIsTaskMasterReady(false);
-      } finally {
-        if (!canceled) {
-          setIsCheckingInstallation(false);
-        }
       }
-    };
+    } catch (error) {
+      if (signal?.aborted) return;
+      console.error('Error checking TaskMaster installation:', error);
+      setIsTaskMasterInstalled(false);
+      setIsTaskMasterReady(false);
+    } finally {
+      if (!signal?.aborted) {
+        setIsCheckingInstallation(false);
+      }
+    }
+  }, [canCheckInstallation, isAuthLoading]);
+
+  // Check TaskMaster installation status asynchronously on component mount.
+  useEffect(() => {
+    const controller = new AbortController();
 
     // Run check asynchronously without blocking initial render
-    const timer = setTimeout(checkInstallation, 0);
+    const timer = setTimeout(() => {
+      void refreshTaskMasterInstallation({ signal: controller.signal });
+    }, 0);
     return () => {
-      canceled = true;
+      controller.abort();
       clearTimeout(timer);
     };
-  }, [canCheckInstallation, isAuthLoading]);
+  }, [refreshTaskMasterInstallation]);
 
   const toggleTasksEnabled = () => {
     setTasksEnabled(prev => !prev);
@@ -111,7 +115,8 @@ export const TasksSettingsProvider = ({ children }) => {
     isTaskMasterInstalled,
     isTaskMasterReady,
     installationStatus,
-    isCheckingInstallation
+    isCheckingInstallation,
+    refreshTaskMasterInstallation
   };
 
   return (

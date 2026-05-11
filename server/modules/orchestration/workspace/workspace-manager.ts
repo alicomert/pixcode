@@ -56,6 +56,11 @@ class HostWorkspace implements WorkspaceHandle {
   }
 
   async diff(): Promise<string> {
+    const insideWorkTree = await this.exec('git', ['rev-parse', '--is-inside-work-tree']);
+    if (insideWorkTree.exitCode !== 0 || insideWorkTree.stdout.trim() !== 'true') {
+      return '';
+    }
+
     const result = await this.exec('git', ['diff', `${this.baseRef}...HEAD`]);
     return result.exitCode === 0 ? result.stdout : result.stderr || result.stdout;
   }

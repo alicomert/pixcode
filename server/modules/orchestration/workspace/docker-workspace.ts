@@ -125,7 +125,8 @@ export class DockerWorkspace implements WorkspaceHandle {
       return String(stdout);
     } catch (error) {
       const err = error as Error & { stderr?: string };
-      return String(err.stderr ?? err.message);
+      const output = String(err.stderr ?? err.message);
+      return /not a git repository|usage: git diff --no-index/i.test(output) ? '' : output;
     }
   }
 

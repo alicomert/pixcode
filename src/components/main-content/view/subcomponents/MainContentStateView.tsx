@@ -96,13 +96,17 @@ export default function MainContentStateView({
                 </p>
               </button>
 
-              <div className="rounded-md border border-border p-4">
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('pixcode:create-project'))}
+                className="rounded-md border border-border p-4 text-left transition-colors hover:bg-muted/40"
+              >
                 <ClipboardCheck className="mb-3 h-5 w-5 text-foreground" />
                 <div className="text-sm font-semibold">{t('mainContent.landing.taskSystem')}</div>
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">
                   {t('mainContent.landing.taskSystemDescription')}
                 </p>
-              </div>
+              </button>
             </div>
 
             <div className="mt-5 rounded-md border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">

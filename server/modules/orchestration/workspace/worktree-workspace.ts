@@ -109,7 +109,8 @@ export class WorktreeWorkspace implements WorkspaceHandle {
   async diff(): Promise<string> {
     const result = await run('git', ['diff', `${this.baseRef}...HEAD`], this.path);
     if (result.exitCode !== 0) {
-      return result.stderr || result.stdout;
+      const output = result.stderr || result.stdout;
+      return /not a git repository|usage: git diff --no-index/i.test(output) ? '' : output;
     }
     return result.stdout;
   }
