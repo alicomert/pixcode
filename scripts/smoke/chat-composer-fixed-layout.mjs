@@ -38,6 +38,16 @@ assert.ok(
 );
 
 assert.ok(
+  /<div className="min-h-0 min-w-0 flex-1 overflow-hidden">\s*<ErrorBoundary/.test(mainContent),
+  'Chat content should sit inside a flex-1 wrapper so removing the Changes rail does not leave a right-side gap.',
+);
+
+assert.ok(
+  /<div className="min-h-0 min-w-0 flex-1 overflow-hidden">\s*<OrchestrationPage/.test(mainContent),
+  'Orchestration content should sit inside a flex-1 wrapper so removing the Changes rail does not leave a right-side gap.',
+);
+
+assert.ok(
   !mainContent.includes("showChangedFilesRail && 'flex gap-3'"),
   'Chat layout must not rely on the old Command Center rail to keep the composer pinned.',
 );

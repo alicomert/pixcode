@@ -576,32 +576,34 @@ function MainContent({
                   style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
                 >
                   <div className="flex h-full min-h-0 min-w-0 flex-1">
-                    <ErrorBoundary showDetails>
-                      <ChatInterface
-                        selectedProject={selectedProject}
-                        selectedSession={selectedSession}
-                        ws={ws}
-                        sendMessage={sendMessage}
-                        latestMessage={latestMessage}
-                        onFileOpen={handleFileOpen}
-                        onInputFocusChange={onInputFocusChange}
-                        onSessionActive={onSessionActive}
-                        onSessionInactive={onSessionInactive}
-                        onSessionProcessing={onSessionProcessing}
-                        onSessionNotProcessing={onSessionNotProcessing}
-                        processingSessions={processingSessions}
-                        onReplaceTemporarySession={onReplaceTemporarySession}
-                        onNavigateToSession={onNavigateToSession}
-                        onShowSettings={onShowSettings}
-                        autoExpandTools={autoExpandTools}
-                        showRawParameters={showRawParameters}
-                        showThinking={showThinking}
-                        autoScrollToBottom={autoScrollToBottom}
-                        sendByCtrlEnter={sendByCtrlEnter}
-                        externalMessageUpdate={externalMessageUpdate}
-                        onShowAllTasks={tasksEnabled ? () => handleActiveTabChange('tasks') : null}
-                      />
-                    </ErrorBoundary>
+                    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                      <ErrorBoundary showDetails>
+                        <ChatInterface
+                          selectedProject={selectedProject}
+                          selectedSession={selectedSession}
+                          ws={ws}
+                          sendMessage={sendMessage}
+                          latestMessage={latestMessage}
+                          onFileOpen={handleFileOpen}
+                          onInputFocusChange={onInputFocusChange}
+                          onSessionActive={onSessionActive}
+                          onSessionInactive={onSessionInactive}
+                          onSessionProcessing={onSessionProcessing}
+                          onSessionNotProcessing={onSessionNotProcessing}
+                          processingSessions={processingSessions}
+                          onReplaceTemporarySession={onReplaceTemporarySession}
+                          onNavigateToSession={onNavigateToSession}
+                          onShowSettings={onShowSettings}
+                          autoExpandTools={autoExpandTools}
+                          showRawParameters={showRawParameters}
+                          showThinking={showThinking}
+                          autoScrollToBottom={autoScrollToBottom}
+                          sendByCtrlEnter={sendByCtrlEnter}
+                          externalMessageUpdate={externalMessageUpdate}
+                          onShowAllTasks={tasksEnabled ? () => handleActiveTabChange('tasks') : null}
+                        />
+                      </ErrorBoundary>
+                    </div>
                   </div>
                 </div>
               )}
@@ -617,7 +619,9 @@ function MainContent({
                   style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
                 >
                   <div className="flex h-full min-h-0 min-w-0 flex-1">
-                    <OrchestrationPage selectedProject={selectedProject} />
+                    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                      <OrchestrationPage selectedProject={selectedProject} />
+                    </div>
                   </div>
                 </div>
               )}
@@ -659,7 +663,9 @@ function MainContent({
 
           {!activeSidePanelTab && activeTab === 'orchestration' && (
             <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
-              <OrchestrationPage selectedProject={selectedProject} />
+              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <OrchestrationPage selectedProject={selectedProject} />
+              </div>
             </div>
           )}
 

@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.39.2](https://github.com/alicomert/pixcode/compare/v1.39.1...v1.39.2) (2026-05-11)
+
+Pixcode 1.39.2 removes the last empty layout gap left behind by the old Command Center rail.
+
+### Bug Fixes
+
+* **chat:** restore the full-width flex wrapper around the chat surface so the composer and messages no longer leave a blank right-side reservation when `Changes` is closed.
+* **orchestration:** restore the same full-width flex wrapper around orchestration surfaces so the run/setup layout fills the available area without the removed Command Center rail.
+
+### Tests
+
+* extend chat composer layout smoke coverage to require the full-width `flex-1` content wrappers.
+* re-run Changes panel smoke, chat composer layout smoke, orchestration mobile scroll smoke, typecheck, lint, production build, diff whitespace check, and npm pack dry-run before publishing.
+
 ## [1.39.1](https://github.com/alicomert/pixcode/compare/v1.39.0...v1.39.1) (2026-05-11)
 
 Pixcode 1.39.1 fixes the chat and orchestration layout regression from 1.39.0 and moves changed-file awareness into a normal top navigation panel.
