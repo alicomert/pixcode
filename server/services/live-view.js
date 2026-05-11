@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 
+import { buildCliSpawnEnv } from './install-jobs.js';
 import { ensureManagedRuntime, getManagedRuntimeStatus } from './managed-runtimes.js';
 
 const sessionsByProject = new Map();
@@ -99,7 +100,7 @@ function runtimeMissingReason(command, framework) {
     return 'Pixcode can prepare a local PHP runtime automatically before starting this project.';
   }
   if (command === 'npm' || command === 'pnpm' || command === 'yarn' || command === 'bun') {
-    return `${base} Pixcode will use its bundled Node runtime when possible; otherwise install the package manager or use a custom command.`;
+    return `${base} Pixcode can prepare a local Node package runner automatically before starting this project.`;
   }
   if (command === 'python' || command === 'python3') {
     return `${base} Pixcode does not have a managed Python runtime for this stack yet.`;
@@ -169,9 +170,41 @@ function buildPackageCommand(packageManager, scriptName, id, label, framework, e
     id,
     label,
     framework,
+    packageManager,
+    scriptName,
+    extraArgs,
     command: packageManager,
     args,
     displayCommand: buildDisplayCommand(packageManager, args),
+  };
+}
+
+function isPackageManagerCommand(command) {
+  return command === 'npm' || command === 'pnpm' || command === 'yarn' || command === 'bun';
+}
+
+function buildManagedPackageCommand(command, runtimeStatus) {
+  const npmArgs = command.scriptName
+    ? packageRunArgs('npm', command.scriptName, command.extraArgs || [])
+    : command.args;
+  const runtimeExecutable = runtimeStatus?.executablePath || null;
+  const commandExecutable = runtimeExecutable
+    ? (runtimeStatus?.runner === 'node' || runtimeExecutable.endsWith('.js') ? process.execPath : runtimeExecutable)
+    : command.command;
+  const args = runtimeExecutable && (runtimeStatus?.runner === 'node' || runtimeExecutable.endsWith('.js'))
+    ? [runtimeExecutable, ...npmArgs]
+    : npmArgs;
+
+  return {
+    ...command,
+    packageManager: 'npm',
+    command: commandExecutable,
+    args,
+    displayCommand: buildDisplayCommand('npm', npmArgs),
+    managedRuntime: {
+      id: 'npm',
+      status: runtimeStatus?.status || 'missing',
+    },
   };
 }
 
@@ -414,24 +447,46 @@ export async function detectLiveViewTarget(projectPath, options = {}) {
 
   const processCommand = await detectProcessCommand(projectPath);
   if (processCommand) {
+    if (isPackageManagerCommand(processCommand.command)) {
+      const managedRuntime = await getManagedRuntimeStatus('npm', {
+        env: options.env || process.env,
+        preferManaged: true,
+      });
+      const command = buildManagedPackageCommand(processCommand, managedRuntime);
+      return {
+        available: true,
+        kind: 'process',
+        label: processCommand.label,
+        framework: processCommand.framework,
+        command,
+        managedRuntime,
+        reason: managedRuntime.status === 'missing'
+          ? 'Pixcode will prepare a local Node package runner automatically before starting this project.'
+          : 'Pixcode will run this project with its managed Node package runner.',
+      };
+    }
+
+    if (processCommand.framework === 'PHP' || processCommand.command === 'php') {
+      const managedRuntime = await getManagedRuntimeStatus('frankenphp', {
+        env: options.env || process.env,
+        preferManaged: true,
+      });
+      const command = buildManagedPhpCommand(managedRuntime);
+      return {
+        available: true,
+        kind: 'process',
+        label: command.label,
+        framework: command.framework,
+        command,
+        managedRuntime,
+        reason: managedRuntime.status === 'missing'
+          ? 'Pixcode will prepare a local PHP runtime automatically before starting this project.'
+          : 'Pixcode will run this project with its managed PHP runtime.',
+      };
+    }
+
     const runtimeAvailable = await checkCommandAvailability(processCommand.command, options.env || process.env);
     if (!runtimeAvailable) {
-      if (processCommand.framework === 'PHP' || processCommand.command === 'php') {
-        const managedRuntime = await getManagedRuntimeStatus('frankenphp', { env: options.env || process.env });
-        const command = buildManagedPhpCommand(managedRuntime);
-        return {
-          available: true,
-          kind: 'process',
-          label: command.label,
-          framework: command.framework,
-          command,
-          managedRuntime,
-          reason: managedRuntime.status === 'missing'
-            ? 'Pixcode will prepare a local PHP runtime automatically before starting this project.'
-            : 'Pixcode will run this project with its managed PHP runtime.',
-        };
-      }
-
       return {
         available: false,
         kind: 'process',
@@ -618,9 +673,13 @@ export async function startLiveView(projectName, projectPath, options = {}) {
   let runtimeStatus = target.managedRuntime || target.command?.managedRuntime || null;
   let targetCommand = target.command;
   if (runtimeStatus?.id && runtimeStatus.status !== 'system' && runtimeStatus.status !== 'installed') {
-    runtimeStatus = await ensureManagedRuntime(runtimeStatus.id);
+    runtimeStatus = await ensureManagedRuntime(runtimeStatus.id, {
+      preferManaged: runtimeStatus.id === 'frankenphp' || runtimeStatus.id === 'npm',
+    });
     if (runtimeStatus.id === 'frankenphp') {
       targetCommand = buildManagedPhpCommand(runtimeStatus);
+    } else if (runtimeStatus.id === 'npm') {
+      targetCommand = buildManagedPackageCommand(targetCommand, runtimeStatus);
     }
   }
 
@@ -649,8 +708,9 @@ export async function startLiveView(projectName, projectPath, options = {}) {
   };
 
   const env = {
-    ...process.env,
+    ...buildCliSpawnEnv(process.env),
     ...(command.env || {}),
+    ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
     PORT: String(port),
     HOST: '127.0.0.1',
     VITE_HOST: '127.0.0.1',

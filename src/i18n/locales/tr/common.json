@@ -546,6 +546,8 @@
     "runnerUnavailable": "Çalıştırıcı yok",
     "managedRuntimePreparing": "Pixcode runtime'ı hazırlayacak",
     "managedRuntimeDescription": "Başlat'a basınca Pixcode gereken yerel runtime'ı otomatik hazırlar.",
+    "preparingRuntime": "Runtime hazırlanıyor…",
+    "preparingRuntimeDescription": "Pixcode runtime'ı yerel olarak indirip kuruyor. İlk kullanımda biraz sürebilir.",
     "runnerErrorFallback": "Önizleme hazır olmadan çalıştırıcı durdu.",
     "detecting": "Proje çalıştırıcısı algılanıyor…",
     "noRunner": "Çalıştırıcı algılanmadı",

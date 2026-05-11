@@ -459,7 +459,7 @@ export function findExecutableOnPath(name, env = process.env) {
  * more reliable than trusting PATH — when Pixcode runs as a daemon, PATH
  * is often minimal and doesn't include the user's node install.
  */
-function resolveNpmCommand(env = process.env) {
+export function resolveNpmCommand(env = process.env) {
     const nodeDir = path.dirname(process.execPath);
     const isWindows = process.platform === 'win32';
     const candidates = isWindows

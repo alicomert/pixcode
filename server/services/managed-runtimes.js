@@ -3,7 +3,9 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { buildCliSpawnEnv, findExecutableOnPath } from './install-jobs.js';
+import * as tar from 'tar';
+
+import { buildCliSpawnEnv, findExecutableOnPath, resolveNpmCommand } from './install-jobs.js';
 
 const DEFAULT_RUNTIMES_HOME = path.join(os.homedir(), '.pixcode', 'runtimes');
 const MANIFEST_FILE = 'pixcode-runtime.json';
@@ -161,7 +163,11 @@ async function extractZip(archivePath, targetDir, env = process.env) {
 }
 
 async function extractTarGz(archivePath, targetDir, env = process.env) {
-  await runProcess('tar', ['-xzf', archivePath, '-C', targetDir], { env });
+  void env;
+  await tar.x({
+    file: archivePath,
+    cwd: targetDir,
+  });
 }
 
 async function findRuntimeExecutable(searchRoot, binaryName) {
@@ -255,9 +261,53 @@ async function installFrankenPhp(env = process.env) {
   return manifest;
 }
 
+async function installNpmRuntime(env = process.env) {
+  const registryUrl = env.PIXCODE_NPM_RUNTIME_REGISTRY
+    || 'https://registry.npmjs.org/npm/latest';
+  const metadata = await fetchJson(registryUrl, env);
+  const tarballUrl = metadata?.dist?.tarball;
+  if (!tarballUrl) {
+    throw new Error('No npm runtime tarball is available from the npm registry.');
+  }
+
+  const baseDir = runtimeDir('npm', env);
+  const stagingDir = path.join(baseDir, `.staging-${Date.now()}`);
+  const currentDir = path.join(baseDir, 'current');
+  await fs.mkdir(stagingDir, { recursive: true });
+
+  const archivePath = path.join(stagingDir, 'npm-runtime.tgz');
+  await downloadFile(tarballUrl, archivePath, env);
+  await extractTarGz(archivePath, stagingDir, env);
+
+  const packageDir = path.join(stagingDir, 'package');
+  const executablePath = path.join(packageDir, 'bin', 'npm-cli.js');
+  if (!(await fileExists(executablePath))) {
+    throw new Error('Downloaded npm runtime did not contain bin/npm-cli.js.');
+  }
+
+  await fs.rm(currentDir, { recursive: true, force: true });
+  await fs.cp(packageDir, currentDir, { recursive: true, force: true });
+
+  const finalExecutable = path.join(currentDir, 'bin', 'npm-cli.js');
+  const manifest = {
+    id: 'npm',
+    label: 'Pixcode Node package runner',
+    provider: 'npm',
+    version: metadata?.version || 'latest',
+    executablePath: finalExecutable,
+    runner: 'node',
+    sourceUrl: tarballUrl,
+    installedAt: new Date().toISOString(),
+  };
+  await fs.writeFile(manifestPath('npm', env), JSON.stringify(manifest, null, 2));
+  await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
+  return manifest;
+}
+
 export async function getManagedRuntimeStatus(id, options = {}) {
   const env = options.env || process.env;
-  if (id !== 'frankenphp') {
+  const preferManaged = Boolean(options.preferManaged);
+  if (id !== 'frankenphp' && id !== 'npm') {
     return {
       id,
       status: 'unsupported',
@@ -266,16 +316,57 @@ export async function getManagedRuntimeStatus(id, options = {}) {
     };
   }
 
-  const spawnEnv = buildCliSpawnEnv(env);
-  const systemExecutable = findExecutableOnPath('frankenphp', spawnEnv);
-  if (systemExecutable) {
+  if (id === 'npm') {
+    if (!preferManaged) {
+      const spawnEnv = buildCliSpawnEnv(env);
+      const npmExecutable = resolveNpmCommand(spawnEnv);
+      if (npmExecutable) {
+        return {
+          id,
+          label: 'npm',
+          status: 'system',
+          installable: true,
+          executablePath: npmExecutable,
+          runner: npmExecutable.endsWith('.js') ? 'node' : undefined,
+        };
+      }
+    }
+
+    const manifest = await readManifest(id, env);
+    if (manifest) {
+      return {
+        id,
+        label: manifest.label || 'Pixcode Node package runner',
+        status: 'installed',
+        installable: true,
+        executablePath: manifest.executablePath,
+        runner: manifest.runner || 'node',
+        version: manifest.version,
+      };
+    }
+
     return {
       id,
-      label: 'FrankenPHP',
-      status: 'system',
+      label: 'Pixcode Node package runner',
+      provider: 'npm',
+      status: 'missing',
       installable: true,
-      executablePath: systemExecutable,
+      reason: 'Pixcode will prepare a local Node package runner automatically before starting this project.',
     };
+  }
+
+  if (!preferManaged) {
+    const spawnEnv = buildCliSpawnEnv(env);
+    const systemExecutable = findExecutableOnPath('frankenphp', spawnEnv);
+    if (systemExecutable) {
+      return {
+        id,
+        label: 'FrankenPHP',
+        status: 'system',
+        installable: true,
+        executablePath: systemExecutable,
+      };
+    }
   }
 
   const manifest = await readManifest(id, env);
@@ -302,7 +393,10 @@ export async function getManagedRuntimeStatus(id, options = {}) {
 
 export async function ensureManagedRuntime(id, options = {}) {
   const env = options.env || process.env;
-  const status = await getManagedRuntimeStatus(id, { env });
+  const status = await getManagedRuntimeStatus(id, {
+    env,
+    preferManaged: options.preferManaged,
+  });
   if (status.executablePath) return status;
   if (!status.installable) {
     throw new Error(status.reason || 'This runtime cannot be prepared automatically.');
@@ -320,6 +414,18 @@ export async function ensureManagedRuntime(id, options = {}) {
         status: 'installed',
         installable: true,
         executablePath: manifest.executablePath,
+        version: manifest.version,
+      };
+    }
+    if (id === 'npm') {
+      const manifest = await installNpmRuntime(env);
+      return {
+        id,
+        label: manifest.label,
+        status: 'installed',
+        installable: true,
+        executablePath: manifest.executablePath,
+        runner: manifest.runner || 'node',
         version: manifest.version,
       };
     }

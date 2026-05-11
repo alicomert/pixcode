@@ -199,6 +199,7 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
   const targetUnavailableReason = !status?.target?.available ? status?.target?.reason || null : null;
   const managedRuntime = status?.target?.managedRuntime || status?.session?.managedRuntime || null;
   const managedRuntimePending = Boolean(managedRuntime?.installable && managedRuntime.status === 'missing' && !status?.session);
+  const isPreparingManagedRuntime = Boolean(isBusy && managedRuntimePending);
   const sessionError = status?.session?.status === 'error'
     ? status.session.error || t('liveView.runnerErrorFallback', { defaultValue: 'The runner stopped before the preview became available.' })
     : null;
@@ -267,7 +268,9 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
           ) : (
             <Button type="button" size="sm" onClick={() => void runAction('start')} disabled={!canStart || isBusy}>
               {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {t('liveView.start', { defaultValue: 'Start' })}
+              {isPreparingManagedRuntime
+                ? t('liveView.preparingRuntime', { defaultValue: 'Preparing runtime…' })
+                : t('liveView.start', { defaultValue: 'Start' })}
             </Button>
           )}
         </div>
@@ -315,6 +318,26 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Button>
+                </div>
+              )}
+
+              {isPreparingManagedRuntime && (
+                <div className="rounded-lg border border-sky-500/35 bg-sky-500/10 p-3 text-sm">
+                  <div className="flex items-center gap-2 font-medium text-sky-700 dark:text-sky-300">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('liveView.preparingRuntime', { defaultValue: 'Preparing runtime…' })}
+                  </div>
+                  <p className="mt-2 text-xs text-sky-800/90 dark:text-sky-200/90">
+                    {t('liveView.preparingRuntimeDescription', {
+                      defaultValue: 'Pixcode is downloading and installing the runtime locally. This can take a moment on first use.',
+                    })}
+                  </p>
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  {error}
                 </div>
               )}
 
@@ -482,12 +505,6 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
                 )}
 
                 {copied && <p className="text-xs text-emerald-500">{t('buttons.copied', { defaultValue: 'Copied' })}</p>}
-
-                {error && (
-                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                    {error}
-                  </div>
-                )}
 
                 {status?.session?.log?.length ? (
                   <pre className="max-h-32 overflow-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">

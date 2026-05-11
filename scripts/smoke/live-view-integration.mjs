@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -88,6 +88,10 @@ assert.ok(
   'Live View panel should explain that Pixcode can prepare managed runtimes automatically.',
 );
 assert.ok(
+  liveViewPanel.includes('isPreparingManagedRuntime') && liveViewPanel.includes('liveView.preparingRuntime'),
+  'Live View panel should show a visible in-progress state while Pixcode downloads and installs a managed runtime.',
+);
+assert.ok(
   liveViewPanel.includes("runAction('restart')"),
   'Live View panel should expose a restart action for failed process runners.',
 );
@@ -100,6 +104,14 @@ assert.ok(
 assert.ok(
   managedRuntimes.includes('extractZip') && managedRuntimes.includes('extractTarGz'),
   'Managed runtime installation should handle common Windows zip and macOS/Linux tarball assets.',
+);
+assert.ok(
+  managedRuntimes.includes('preferManaged'),
+  'Managed PHP Live View should be able to skip external runtimes and prefer Pixcode-owned binaries.',
+);
+assert.ok(
+  managedRuntimes.includes("id === 'npm'") && managedRuntimes.includes('installNpmRuntime'),
+  'Managed runtimes should include a Pixcode-owned npm runner for JavaScript projects when npm is not on PATH.',
 );
 
 const serverIndex = await read('server/index.js');
@@ -152,6 +164,18 @@ const viteTarget = await detectLiveViewTarget(viteProject);
 assert.equal(viteTarget.available, true, 'Vite projects should be detected.');
 assert.equal(viteTarget.command?.id, 'npm-dev-vite', 'Vite projects should get a Vite-aware command.');
 
+const viteMissingNpmTarget = await detectLiveViewTarget(viteProject, {
+  env: {
+    ...process.env,
+    PATH: '',
+    Path: '',
+  },
+});
+assert.equal(viteMissingNpmTarget.available, true, 'Vite projects should remain runnable through a Pixcode-managed package runner when npm is missing from PATH.');
+assert.equal(viteMissingNpmTarget.command?.id, 'npm-dev-vite', 'Vite projects should keep the original Vite command identity.');
+assert.equal(viteMissingNpmTarget.managedRuntime?.id, 'npm', 'Missing npm should select the Pixcode-managed npm runner.');
+assert.equal(viteMissingNpmTarget.managedRuntime?.status, 'missing', 'Missing npm should report that the managed package runner still needs preparation.');
+
 const djangoTarget = await detectLiveViewTarget(djangoProject);
 assert.equal(djangoTarget.available, true, 'Django projects should be detected from manage.py.');
 assert.equal(djangoTarget.command?.id, 'python-django', 'Django projects should get a runserver command.');
@@ -171,6 +195,27 @@ assert.ok(
   !/PATH/i.test(phpMissingRuntimeTarget.reason || ''),
   'Missing PHP should use product language instead of exposing PATH setup as the primary message.',
 );
+
+const fakeBin = path.join(workspace, 'fake-bin');
+await mkdir(fakeBin, { recursive: true });
+const fakePhp = path.join(fakeBin, process.platform === 'win32' ? 'php.cmd' : 'php');
+await writeFile(fakePhp, process.platform === 'win32' ? '@echo off\r\nexit /b 0\r\n' : '#!/bin/sh\nexit 0\n');
+if (process.platform !== 'win32') {
+  await chmod(fakePhp, 0o755);
+}
+const fakePath = process.platform === 'win32'
+  ? `${fakeBin};${process.env.PATH || ''}`
+  : `${fakeBin}:${process.env.PATH || ''}`;
+const phpSystemRuntimeTarget = await detectLiveViewTarget(phpProject, {
+  env: {
+    ...process.env,
+    PATH: fakePath,
+    Path: fakePath,
+  },
+});
+assert.equal(phpSystemRuntimeTarget.available, true, 'PHP projects should stay runnable when php exists on PATH.');
+assert.equal(phpSystemRuntimeTarget.command?.id, 'frankenphp-php-server', 'PHP projects should still use the Pixcode-managed runtime even when external php exists.');
+assert.equal(phpSystemRuntimeTarget.managedRuntime?.id, 'frankenphp', 'PHP projects should prefer the Pixcode-owned FrankenPHP runtime instead of external php.');
 
 const staticSession = await startLiveView('static-smoke', staticProject);
 assert.equal(staticSession.status, 'running', 'Static Live View should start without a child process.');

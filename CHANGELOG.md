@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.5](https://github.com/alicomert/pixcode/compare/v1.40.4...v1.40.5) (2026-05-11)
+
+Pixcode 1.40.5 hardens Live View runtime startup so PHP and Vite projects can start from the app without relying on a fragile system `PATH`.
+
+### Bug Fixes
+
+* **live-view:** always route PHP previews through Pixcode's managed FrankenPHP runtime instead of trusting an external `php` binary.
+* **live-view:** add a Pixcode-managed npm runner so Vite, React, Next.js, Nuxt, Astro, and package-script projects stay runnable even when `npm` is not visible to the desktop/server process.
+* **live-view:** show an explicit runtime preparation state while Pixcode downloads and installs the required runtime locally.
+* **live-view:** use a cross-platform JavaScript tar extractor for managed runtime archives instead of depending on a host `tar` command.
+
+### Tests
+
+* extend Live View integration smoke coverage for missing npm, external PHP avoidance, managed runtime progress UI, and runtime extraction support.
+* re-run Live View integration smoke, typecheck, lint, production build, and npm pack dry-run before publishing.
+
 ## [1.40.4](https://github.com/alicomert/pixcode/compare/v1.40.3...v1.40.4) (2026-05-11)
 
 Pixcode 1.40.4 starts the Live View managed-runtime layer so users do not have to manually install PHP just to preview a PHP project.
