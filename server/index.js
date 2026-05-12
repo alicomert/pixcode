@@ -79,6 +79,7 @@ import diagnosticsRoutes from './routes/diagnostics.js';
 import remoteRoutes from './routes/remote.js';
 import publicApiRoutes from './routes/public-api.js';
 import webhooksRoutes from './routes/webhooks.js';
+import productionAgentLoopRoutes from './routes/production-agent-loop.js';
 import liveViewRoutes, { createLiveViewPublicRouter } from './routes/live-view.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import {
@@ -409,6 +410,9 @@ app.use('/api/public', authenticateToken, publicApiRoutes);
 
 // Outbound webhook automation (protected)
 app.use('/api/webhooks', authenticateToken, webhooksRoutes);
+
+// Production agent loop APIs (protected)
+app.use('/api/production-agent-loop', authenticateToken, productionAgentLoopRoutes);
 
 // Project Live View (protected control API + public share proxy)
 app.use('/api/live-view', authenticateToken, liveViewRoutes);

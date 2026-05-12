@@ -1,5 +1,6 @@
 import type { ChangedFilesTrackingMode } from '../../../../hooks/useChangedFilesMonitor';
 import type { ChangedFileEntry, ChangedFileStatus } from '../../../../utils/changedFiles';
+import { buildDiffLineHref, firstChangedLine } from '../../../../utils/diffAnchors';
 import { cn } from '../../../../lib/utils';
 
 import { FileCode, Loader2, RefreshCw } from '@/lib/icons';
@@ -133,6 +134,9 @@ export default function ChangedFilesActivityRail({
           <div className="space-y-1">
             {changedFiles.slice(0, 12).map((file) => {
               const isLatest = latestChangedFilePath === file.path;
+              const changedLine = firstChangedLine(file.diffInfo);
+              const lineHint = changedLine ? `L${changedLine}` : null;
+              const diffLineHref = buildDiffLineHref(file.path, changedLine);
               return (
                 <button
                   key={`${file.status}:${file.path}`}
@@ -143,7 +147,7 @@ export default function ChangedFilesActivityRail({
                       ? 'changed-file-flash border-emerald-500/60 bg-emerald-500/15'
                       : 'border-border/60 bg-background/70 hover:border-emerald-500/35 hover:bg-emerald-500/10'
                   }`}
-                  title={file.path}
+                  title={diffLineHref}
                 >
                   <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded border px-1 text-[10px] font-semibold ${STATUS_CLASS[file.status]}`}>
                     {STATUS_LABEL[file.status]}
@@ -151,6 +155,11 @@ export default function ChangedFilesActivityRail({
                   <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
                     {file.path}
                   </span>
+                  {lineHint && (
+                    <span className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {lineHint}
+                    </span>
+                  )}
                 </button>
               );
             })}
