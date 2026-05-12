@@ -294,6 +294,91 @@ function buildManagedPhpCommand(runtimeStatus) {
   };
 }
 
+function publicCommand(command) {
+  if (!command) return null;
+  return {
+    id: command.id,
+    label: command.label,
+    displayCommand: command.displayCommand,
+    custom: command.custom === true || command.id === 'custom',
+  };
+}
+
+function liveViewEnvironmentMode(target, session) {
+  const kind = session?.kind || target?.kind || 'none';
+  if (kind === 'static') return 'static';
+  if (kind === 'process') return 'local-process';
+  return 'unavailable';
+}
+
+function liveViewEnvironmentStatus(target, session) {
+  if (session?.status) return session.status;
+  if (target?.available) return 'ready';
+  return 'unavailable';
+}
+
+function liveViewEnvironmentCommand(target, session) {
+  return publicCommand(session?.command) || publicCommand(target?.command);
+}
+
+function liveViewEnvironmentLogs(session) {
+  return Array.isArray(session?.log) ? session.log.slice(-40) : [];
+}
+
+function liveViewEnvironmentRuntime(target, session) {
+  return session?.runtime || target?.runtime || null;
+}
+
+function liveViewEnvironmentManagedRuntime(target, session) {
+  return session?.managedRuntime || target?.managedRuntime || target?.command?.managedRuntime || null;
+}
+
+export function buildLiveViewEnvironment({ target = null, session = null } = {}) {
+  const mode = liveViewEnvironmentMode(target, session);
+  const status = liveViewEnvironmentStatus(target, session);
+  const command = liveViewEnvironmentCommand(target, session);
+  const framework = session?.framework || target?.framework || null;
+  const label = session?.label || target?.label || framework || 'Live View';
+  const runtime = liveViewEnvironmentRuntime(target, session);
+  const managedRuntime = liveViewEnvironmentManagedRuntime(target, session);
+  const logs = liveViewEnvironmentLogs(session);
+  const reason = session?.error || target?.reason || null;
+
+  return {
+    id: mode === 'unavailable' ? 'live-view-unavailable' : `live-view-${mode}`,
+    mode,
+    status,
+    framework,
+    label,
+    command,
+    runtime,
+    managedRuntime,
+    port: session?.port ?? null,
+    upstreamUrl: session?.upstreamUrl ?? null,
+    sharePath: session?.sharePath ?? null,
+    logs,
+    diagnostics: {
+      runnerKind: session?.kind || target?.kind || 'none',
+      targetAvailable: Boolean(target?.available || session),
+      reason,
+      error: session?.error || null,
+      exitCode: session?.exitCode ?? null,
+      exitSignal: session?.exitSignal ?? null,
+      spawnErrorCode: session?.spawnErrorCode ?? null,
+      startedAt: session?.startedAt || null,
+      stoppedAt: session?.stoppedAt || null,
+      readyTimeoutMs: READY_TIMEOUT_MS,
+      staticServing: mode === 'static',
+      customCommand: command?.custom === true,
+      publicTunnelReady: false,
+    },
+    tunnel: {
+      status: 'local-only',
+      url: null,
+    },
+  };
+}
+
 function detectPackageCommand(packageJson, packageManager) {
   const scripts = packageJson.scripts || {};
   const devScript = String(scripts.dev || '');
@@ -648,11 +733,7 @@ function publicSession(session) {
     kind: session.kind,
     framework: session.framework,
     label: session.label,
-    command: session.command ? {
-      id: session.command.id,
-      label: session.command.label,
-      displayCommand: session.command.displayCommand,
-    } : null,
+    command: publicCommand(session.command),
     runtime: session.runtime || null,
     managedRuntime: session.managedRuntime || null,
     port: session.port,
@@ -670,9 +751,11 @@ function publicSession(session) {
 export async function getLiveViewState(projectName, projectPath) {
   const target = await detectLiveViewTarget(projectPath);
   const session = sessionsByProject.get(projectName) ?? null;
+  const publicLiveViewSession = publicSession(session);
   return {
     target,
-    session: publicSession(session),
+    session: publicLiveViewSession,
+    environment: buildLiveViewEnvironment({ target, session: publicLiveViewSession }),
   };
 }
 
@@ -697,6 +780,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
         command: customCommand,
         args: [],
         displayCommand: customCommand,
+        custom: true,
         shell: true,
       },
     }

@@ -31,6 +31,29 @@ function buildUrls(req, session) {
   };
 }
 
+function buildEnvironmentTunnel(tunnel, urls) {
+  const active = Boolean(tunnel?.running && urls?.external);
+  return {
+    status: active ? 'active' : 'local-only',
+    url: active ? urls.external : null,
+    localUrl: urls?.local || null,
+    preferredUrl: urls?.preferred || urls?.local || null,
+  };
+}
+
+function attachEnvironmentRuntimeState(environment, urls, tunnel) {
+  if (!environment) return environment;
+  return {
+    ...environment,
+    urls,
+    tunnel: buildEnvironmentTunnel(tunnel, urls),
+    diagnostics: {
+      ...environment.diagnostics,
+      publicTunnelReady: Boolean(tunnel?.running && urls?.external),
+    },
+  };
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -202,10 +225,13 @@ router.get('/:projectName/status', async (req, res) => {
     const { projectName } = req.params;
     const projectPath = await resolveProjectPath(projectName);
     const state = await getLiveViewState(projectName, projectPath);
+    const urls = buildUrls(req, state.session);
+    const tunnel = getTunnelState();
     res.json({
       ...state,
-      urls: buildUrls(req, state.session),
-      tunnel: getTunnelState(),
+      urls,
+      tunnel,
+      environment: attachEnvironmentRuntimeState(state.environment, urls, tunnel),
     });
   } catch (error) {
     res.status(error.statusCode || 500).json({ error: error.message || 'Failed to read Live View state' });
@@ -217,11 +243,15 @@ router.post('/:projectName/start', async (req, res) => {
     const { projectName } = req.params;
     const projectPath = await resolveProjectPath(projectName);
     const session = await startLiveView(projectName, projectPath, req.body || {});
+    const state = await getLiveViewState(projectName, projectPath);
+    const urls = buildUrls(req, session);
+    const tunnel = getTunnelState();
     res.json({
       success: true,
       session,
-      urls: buildUrls(req, session),
-      tunnel: getTunnelState(),
+      urls,
+      tunnel,
+      environment: attachEnvironmentRuntimeState(state.environment, urls, tunnel),
     });
   } catch (error) {
     const status = error.code === 'LIVE_VIEW_NOT_AVAILABLE' ? 422 : 500;
@@ -234,11 +264,15 @@ router.post('/:projectName/restart', async (req, res) => {
     const { projectName } = req.params;
     const projectPath = await resolveProjectPath(projectName);
     const session = await restartLiveView(projectName, projectPath, req.body || {});
+    const state = await getLiveViewState(projectName, projectPath);
+    const urls = buildUrls(req, session);
+    const tunnel = getTunnelState();
     res.json({
       success: true,
       session,
-      urls: buildUrls(req, session),
-      tunnel: getTunnelState(),
+      urls,
+      tunnel,
+      environment: attachEnvironmentRuntimeState(state.environment, urls, tunnel),
     });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to restart Live View' });
@@ -248,11 +282,14 @@ router.post('/:projectName/restart', async (req, res) => {
 router.post('/:projectName/stop', async (req, res) => {
   try {
     const session = await stopLiveView(req.params.projectName);
+    const urls = buildUrls(req, session);
+    const tunnel = getTunnelState();
     res.json({
       success: true,
       session,
-      urls: buildUrls(req, session),
-      tunnel: getTunnelState(),
+      urls,
+      tunnel,
+      environment: attachEnvironmentRuntimeState(null, urls, tunnel),
     });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Failed to stop Live View' });

@@ -34,6 +34,7 @@ type LiveViewTarget = {
     id: string;
     label: string;
     displayCommand: string;
+    custom?: boolean;
   };
 };
 
@@ -48,6 +49,7 @@ type LiveViewSession = {
     id: string;
     label: string;
     displayCommand: string;
+    custom?: boolean;
   } | null;
   port?: number | null;
   upstreamUrl?: string | null;
@@ -56,9 +58,63 @@ type LiveViewSession = {
   managedRuntime?: LiveViewTarget['managedRuntime'];
 };
 
+type LiveViewEnvironment = {
+  id: string;
+  mode: 'local-process' | 'static' | 'unavailable';
+  status: 'ready' | LiveViewSession['status'] | 'unavailable';
+  framework?: string | null;
+  label?: string | null;
+  command?: {
+    id: string;
+    label: string;
+    displayCommand: string;
+    custom?: boolean;
+  } | null;
+  runtime?: {
+    id?: string;
+    label?: string;
+    version?: string | null;
+    path?: string | null;
+    status?: string;
+    source?: string;
+  } | null;
+  managedRuntime?: LiveViewTarget['managedRuntime'];
+  port?: number | null;
+  upstreamUrl?: string | null;
+  sharePath?: string | null;
+  urls?: {
+    local?: string | null;
+    external?: string | null;
+    preferred?: string | null;
+  };
+  tunnel?: {
+    status?: 'active' | 'local-only' | string;
+    url?: string | null;
+    localUrl?: string | null;
+    preferredUrl?: string | null;
+  };
+  logs: string[];
+  diagnostics: {
+    runnerKind?: 'process' | 'static' | 'none' | string;
+    targetAvailable?: boolean;
+    reason?: string | null;
+    error?: string | null;
+    exitCode?: number | null;
+    exitSignal?: string | null;
+    spawnErrorCode?: string | null;
+    startedAt?: string | null;
+    stoppedAt?: string | null;
+    readyTimeoutMs?: number;
+    staticServing?: boolean;
+    customCommand?: boolean;
+    publicTunnelReady?: boolean;
+  };
+};
+
 type LiveViewStatus = {
   target: LiveViewTarget;
   session: LiveViewSession | null;
+  environment?: LiveViewEnvironment;
   urls?: {
     local?: string | null;
     external?: string | null;
@@ -194,17 +250,33 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
 
   const shareUrl = status?.urls?.preferred || status?.urls?.local || status?.session?.sharePath || '';
   const frameSrc = status?.session?.sharePath || null;
+  const environment = status?.environment || null;
+  const environmentDiagnostics = environment ? environment.diagnostics : null;
+  const command = environment?.command || status?.session?.command || status?.target?.command || null;
+  const isCustomCommand = Boolean(command && command.custom);
+  const environmentLogs = environment ? environment.logs?.slice(-10) || [] : status?.session?.log?.slice(-10) || [];
   const isRunning = status?.session?.status === 'running';
   const isStarting = status?.session?.status === 'starting';
-  const targetUnavailableReason = !status?.target?.available ? status?.target?.reason || null : null;
-  const managedRuntime = status?.target?.managedRuntime || status?.session?.managedRuntime || null;
+  const targetUnavailableReason = !status?.target?.available ? environmentDiagnostics?.reason || status?.target?.reason || null : null;
+  const managedRuntime = environment?.managedRuntime || status?.target?.managedRuntime || status?.session?.managedRuntime || null;
   const managedRuntimePending = Boolean(managedRuntime?.installable && managedRuntime.status === 'missing' && !status?.session);
   const isPreparingManagedRuntime = Boolean(isBusy && managedRuntimePending);
   const sessionError = status?.session?.status === 'error'
     ? status.session.error || t('liveView.runnerErrorFallback', { defaultValue: 'The runner stopped before the preview became available.' })
     : null;
-  const sessionLogs = status?.session?.log?.slice(-8) || [];
+  const sessionLogs = environmentLogs.slice(-8);
   const canStart = Boolean(status?.target?.available || customCommand.trim());
+  const environmentModeLabel = environment?.mode === 'local-process'
+    ? t('liveView.environmentLocalProcess', { defaultValue: 'Local process' })
+    : environment?.mode === 'static'
+      ? t('liveView.environmentStatic', { defaultValue: 'Static files' })
+      : t('liveView.environmentUnavailable', { defaultValue: 'Unavailable' });
+  const environmentStatusLabel = environment?.status
+    ? t(`liveView.status.${environment.status}`, { defaultValue: environment.status })
+    : t('status.pending', { defaultValue: 'Pending' });
+  const environmentTunnelLabel = environment?.tunnel?.status === 'active'
+    ? t('liveView.tunnelActive', { defaultValue: 'Tunnel active' })
+    : t('liveView.tunnelLocalOnly', { defaultValue: 'Local only' });
 
   const copyShareUrl = useCallback(async () => {
     if (!shareUrl) return;
@@ -236,9 +308,9 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
             <h2 className="truncate text-sm font-semibold text-foreground">
               {t('liveView.title', { defaultValue: 'Live View' })}
             </h2>
-            {status?.target?.available && (
+            {(environment?.framework || status?.target?.available) && (
               <Badge variant="outline" className="border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                {status.target.framework || status.target.label}
+                {environment?.framework || status?.target?.framework || status?.target?.label}
               </Badge>
             )}
           </div>
@@ -292,11 +364,11 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
                   <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
                 )}
                 <span className="truncate">
-                  {status?.target?.label || t('liveView.noRunner', { defaultValue: 'No runner detected' })}
+                  {environment?.label || status?.target?.label || t('liveView.noRunner', { defaultValue: 'No runner detected' })}
                 </span>
-                {status?.session && (
+                {(environment || status?.session) && (
                   <Badge variant={isRunning ? 'default' : 'outline'} className="ml-auto shrink-0">
-                    {isStarting ? t('liveView.starting', { defaultValue: 'Starting' }) : status.session.status}
+                    {isStarting ? t('liveView.starting', { defaultValue: 'Starting' }) : environmentStatusLabel}
                   </Badge>
                 )}
               </div>
@@ -425,11 +497,55 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
                 {t('liveView.controls', { defaultValue: 'Runner, share and logs' })}
               </summary>
               <div className="max-h-64 space-y-3 overflow-auto px-3 pb-3">
-                <p className="text-xs text-muted-foreground">
-                  {status?.target?.command?.displayCommand
-                    || status?.target?.reason
-                    || t('liveView.staticHint', { defaultValue: 'Static HTML will be served directly when index.html exists.' })}
-                </p>
+                {environment && (
+                  <div aria-label={t('liveView.environment', { defaultValue: 'Environment' })} className="grid gap-2 rounded-md border border-border/60 bg-muted/25 p-3 text-xs">
+                    <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                      <span className="text-muted-foreground">{t('liveView.environment', { defaultValue: 'Environment' })}</span>
+                      <span className="font-medium text-foreground">{environmentModeLabel}</span>
+                    </div>
+                    <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                      <span className="text-muted-foreground">{t('liveView.statusLabel', { defaultValue: 'Status' })}</span>
+                      <span className="font-medium text-foreground">{environmentStatusLabel}</span>
+                    </div>
+                    {environment.framework && (
+                      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                        <span className="text-muted-foreground">{t('liveView.framework', { defaultValue: 'Framework' })}</span>
+                        <span className="font-medium text-foreground">{environment.framework}</span>
+                      </div>
+                    )}
+                    {command && (
+                      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                        <span className="text-muted-foreground">{t('liveView.command', { defaultValue: 'Command' })}</span>
+                        <span className="min-w-0 break-all font-mono text-[11px] text-foreground">
+                          {command.displayCommand}
+                          {isCustomCommand && (
+                            <Badge variant="outline" className="ml-2 align-middle">
+                              {t('liveView.custom', { defaultValue: 'Custom' })}
+                            </Badge>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {(environment.port || environment.upstreamUrl) && (
+                      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                        <span className="text-muted-foreground">{t('liveView.upstream', { defaultValue: 'Upstream' })}</span>
+                        <span className="min-w-0 break-all font-mono text-[11px] text-foreground">
+                          {environment.upstreamUrl || `:${environment.port}`}
+                        </span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                      <span className="text-muted-foreground">{t('liveView.publicTunnel', { defaultValue: 'Public tunnel' })}</span>
+                      <span className="font-medium text-foreground">{environmentTunnelLabel}</span>
+                    </div>
+                    {environmentDiagnostics?.reason && (
+                      <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-2">
+                        <span className="text-muted-foreground">{t('liveView.diagnostics', { defaultValue: 'Diagnostics' })}</span>
+                        <span className="min-w-0 break-words text-muted-foreground">{environmentDiagnostics.reason}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -506,9 +622,9 @@ export default function LiveViewPanel({ selectedProject, onAvailabilityChange }:
 
                 {copied && <p className="text-xs text-emerald-500">{t('buttons.copied', { defaultValue: 'Copied' })}</p>}
 
-                {status?.session?.log?.length ? (
+                {environmentLogs.length ? (
                   <pre className="max-h-32 overflow-auto rounded-lg border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
-                    {status.session.log.slice(-10).join('\n')}
+                    {environmentLogs.join('\n')}
                   </pre>
                 ) : null}
               </div>

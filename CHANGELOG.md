@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.41.5](https://github.com/alicomert/pixcode/compare/v1.41.4...v1.41.5) (2026-05-12)
+
+Pixcode 1.41.5 unifies Live View into a single preview environment model for framework detection, custom commands, runtime diagnostics, logs, responsive preview, and future tunnel state.
+
+### New Features
+
+* **live-view:** add a preview environment contract that joins target detection, active session status, runner command, runtime state, logs, diagnostics, and tunnel readiness.
+* **live-view:** expose framework and custom-command state through the same environment payload used by status, start, and restart responses.
+* **live-view:** render the environment model in the panel so framework, command, upstream, tunnel state, diagnostics, logs, and responsive preview controls stay in one surface.
+
+### Tests
+
+* add smoke coverage for the Live View environment contract and UI wiring.
+
 ## [1.41.4](https://github.com/alicomert/pixcode/compare/v1.41.3...v1.41.4) (2026-05-12)
 
 Pixcode 1.41.4 introduces the shared runtime manager boundary used by Live View runtime checks.
