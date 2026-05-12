@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.8](https://github.com/alicomert/pixcode/compare/v1.40.7...v1.40.8) (2026-05-12)
+
+Pixcode 1.40.8 fixes the remaining Live View managed-runtime failures across desktop/server installs. The runtime preparation path is kept cross-platform for Windows, macOS, and Linux.
+
+### Bug Fixes
+
+* **live-view:** preserve sidecar files from the FrankenPHP archive instead of copying only `frankenphp.exe`, fixing Windows launches that exited with `3221225781` / `0xC0000135`.
+* **live-view:** keep managed FrankenPHP selection and install paths OS/architecture aware for Windows, macOS, and Linux rather than using a Windows-only runtime assumption.
+* **live-view:** treat an installed managed FrankenPHP binary that cannot start as missing so Pixcode can reinstall a complete runtime automatically.
+* **live-view:** prepare missing JavaScript project dependencies before starting package-script previews, so Vite/React projects without `node_modules` no longer fail with `'vite' is not recognized`.
+* **live-view:** surface dependency preparation in the Live View log before launching the project server.
+
+### Tests
+
+* extend Live View smoke coverage for missing Vite dependency installation, FrankenPHP sidecar preservation, and broken managed runtime reinstallation.
+
 ## [1.40.7](https://github.com/alicomert/pixcode/compare/v1.40.6...v1.40.7) (2026-05-11)
 
 Pixcode 1.40.7 fixes orchestration model drift and makes debate/team workflows keep the real user request in front of every agent.

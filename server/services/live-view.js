@@ -208,6 +208,120 @@ function buildManagedPackageCommand(command, runtimeStatus) {
   };
 }
 
+function packageBinCandidates(binName) {
+  return process.platform === 'win32'
+    ? [binName, `${binName}.cmd`, `${binName}.ps1`, `${binName}.exe`]
+    : [binName];
+}
+
+function expectedPackageBin(command) {
+  if (command.framework === 'Vite' || command.id === 'npm-dev-vite') return 'vite';
+  if (command.framework === 'Next.js' || command.id === 'npm-dev-next') return 'next';
+  if (command.framework === 'Nuxt' || command.id === 'npm-dev-nuxt') return 'nuxt';
+  if (command.framework === 'Astro' || command.id === 'npm-dev-astro') return 'astro';
+  return null;
+}
+
+async function packageDependenciesReady(projectPath, command) {
+  if (!command?.scriptName && !command?.packageManager) return true;
+  if (!(await dirExists(path.join(projectPath, 'node_modules')))) return false;
+
+  const binName = expectedPackageBin(command);
+  if (!binName) return true;
+
+  const binDir = path.join(projectPath, 'node_modules', '.bin');
+  for (const candidate of packageBinCandidates(binName)) {
+    if (await fileExists(path.join(binDir, candidate))) return true;
+  }
+  return false;
+}
+
+function packageInstallInvocation(command) {
+  if (!command || command.packageManager !== 'npm') return null;
+
+  if (
+    command.managedRuntime?.id === 'npm'
+    && command.args?.[0]
+    && String(command.args[0]).endsWith('npm-cli.js')
+  ) {
+    return {
+      command: command.command,
+      args: [command.args[0], 'install', '--no-audit', '--no-fund'],
+      displayCommand: 'npm install --no-audit --no-fund',
+    };
+  }
+
+  if (command.command === 'npm' || path.basename(command.command || '').startsWith('npm')) {
+    return {
+      command: command.command,
+      args: ['install', '--no-audit', '--no-fund'],
+      displayCommand: 'npm install --no-audit --no-fund',
+    };
+  }
+
+  return null;
+}
+
+function runPrepProcess(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      shell: shouldUseShell({ command }),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    const timeoutMs = Number.parseInt(process.env.PIXCODE_LIVE_VIEW_INSTALL_TIMEOUT_MS || '', 10) || 300000;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      callback(value);
+    };
+    const timer = setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        // Process may already be gone.
+      }
+      finish(reject, new Error(`Dependency install timed out after ${Math.round(timeoutMs / 1000)}s.`));
+    }, timeoutMs);
+
+    child.stdout.on('data', (chunk) => {
+      chunk.toString().split(/\r?\n/).forEach((line) => options.onLog?.(line));
+    });
+    child.stderr.on('data', (chunk) => {
+      chunk.toString().split(/\r?\n/).forEach((line) => options.onLog?.(line));
+    });
+    child.on('error', (error) => finish(reject, error));
+    child.on('exit', (code, signal) => {
+      if (code === 0) {
+        finish(resolve);
+        return;
+      }
+      finish(reject, new Error(`Dependency install exited with ${signal || `code ${code}`}.`));
+    });
+  });
+}
+
+export async function preparePackageDependencies(projectPath, command, env = process.env, onLog = () => {}) {
+  if (!command || command.packageManager !== 'npm') return false;
+  if (await packageDependenciesReady(projectPath, command)) return false;
+
+  const install = packageInstallInvocation(command);
+  if (!install) return false;
+
+  onLog(`Installing project dependencies: ${install.displayCommand}`);
+  await runPrepProcess(install.command, install.args, {
+    cwd: projectPath,
+    env,
+    onLog,
+  });
+  onLog('Project dependencies are ready.');
+  return true;
+}
+
 function buildManagedPhpCommand(runtimeStatus) {
   const executable = runtimeStatus?.executablePath || 'frankenphp';
   return {
@@ -718,6 +832,20 @@ export async function startLiveView(projectName, projectPath, options = {}) {
     BROWSER: 'none',
     NEXT_TELEMETRY_DISABLED: '1',
   };
+
+  sessionsByProject.set(projectName, session);
+  sessionsByShareId.set(shareId, session);
+
+  try {
+    await preparePackageDependencies(projectPath, command, env, (line) => appendLog(session, line));
+  } catch (error) {
+    session.status = 'error';
+    session.stoppedAt = new Date().toISOString();
+    session.error = error instanceof Error ? error.message : String(error);
+    appendLog(session, session.error);
+    return publicSession(session);
+  }
+
   const child = spawn(command.command, command.args, {
     cwd: projectPath,
     env,
@@ -726,8 +854,6 @@ export async function startLiveView(projectName, projectPath, options = {}) {
   });
 
   session.child = child;
-  sessionsByProject.set(projectName, session);
-  sessionsByShareId.set(shareId, session);
 
   child.stdout.on('data', (chunk) => {
     chunk.toString().split(/\r?\n/).forEach((line) => appendLog(session, line));

@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ const read = async (relativePath) => {
   const { readFile } = await import('node:fs/promises');
   return readFile(path.join(repoRoot, relativePath), 'utf8');
 };
+const fileExists = async (filePath) => access(filePath).then(() => true, () => false);
 
 const appTypes = await read('src/types/app.ts');
 assert.ok(
@@ -140,7 +141,7 @@ const {
   startLiveView,
   stopLiveView,
 } = await import('../../server/services/live-view.js');
-const { ensureManagedRuntime } = await import('../../server/services/managed-runtimes.js');
+const { ensureManagedRuntime, getManagedRuntimeStatus } = await import('../../server/services/managed-runtimes.js');
 const workspace = await mkdtemp(path.join(tmpdir(), 'pixcode-live-view-smoke-'));
 const staticProject = path.join(workspace, 'static');
 const viteProject = path.join(workspace, 'vite');
@@ -273,6 +274,114 @@ try {
 } finally {
   globalThis.fetch = originalFetch;
 }
+
+const depsProject = path.join(workspace, 'vite-needs-install');
+await mkdir(depsProject, { recursive: true });
+await writeFile(path.join(depsProject, 'package.json'), JSON.stringify({
+  scripts: { dev: 'vite --host 127.0.0.1' },
+  dependencies: { vite: '^7.0.0' },
+}, null, 2));
+const fakeNpmCli = path.join(workspace, 'fake-npm-cli.js');
+await writeFile(fakeNpmCli, [
+  '#!/usr/bin/env node',
+  'const fs = require("node:fs");',
+  'const path = require("node:path");',
+  'if (process.argv[2] === "install") {',
+  '  fs.mkdirSync(path.join(process.cwd(), "node_modules", ".bin"), { recursive: true });',
+  '  fs.writeFileSync(path.join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "vite.cmd" : "vite"), "ok");',
+  '  process.exit(0);',
+  '}',
+  'process.exit(0);',
+  '',
+].join('\n'));
+if (process.platform !== 'win32') {
+  await chmod(fakeNpmCli, 0o755);
+}
+const { preparePackageDependencies } = await import('../../server/services/live-view.js');
+const prepLogs = [];
+await preparePackageDependencies(
+  depsProject,
+  {
+    id: 'npm-dev-vite',
+    label: 'Vite dev server',
+    framework: 'Vite',
+    packageManager: 'npm',
+    scriptName: 'dev',
+    command: process.execPath,
+    args: [fakeNpmCli, 'run', 'dev'],
+    displayCommand: 'npm run dev',
+    managedRuntime: { id: 'npm', status: 'installed' },
+  },
+  process.env,
+  (line) => prepLogs.push(line),
+);
+assert.ok(
+  await fileExists(path.join(depsProject, 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite')),
+  'Live View should install missing Vite project dependencies before running npm dev.',
+);
+assert.ok(
+  prepLogs.some((line) => line.includes('Installing project dependencies')),
+  'Live View should log dependency preparation before launching package scripts.',
+);
+
+const frankenPackageRoot = path.join(workspace, 'frankenphp-package-root');
+const frankenPackageDir = path.join(frankenPackageRoot, 'package');
+await mkdir(frankenPackageDir, { recursive: true });
+await writeFile(path.join(frankenPackageDir, process.platform === 'win32' ? 'frankenphp.exe' : 'frankenphp'), '#!/bin/sh\nexit 0\n');
+await writeFile(path.join(frankenPackageDir, 'sidecar-runtime.dll'), 'sidecar');
+if (process.platform !== 'win32') {
+  await chmod(path.join(frankenPackageDir, 'frankenphp'), 0o755);
+}
+const frankenTarball = path.join(workspace, 'frankenphp-runtime.tgz');
+await tar.c({ cwd: frankenPackageRoot, file: frankenTarball, gzip: true }, ['package']);
+const frankenTarballBuffer = await readFile(frankenTarball);
+globalThis.fetch = async (url) => {
+  if (String(url) === 'https://runtime.test/frankenphp-runtime.tgz') {
+    return new Response(frankenTarballBuffer, { status: 200 });
+  }
+  return originalFetch(url);
+};
+try {
+  const frankenHome = path.join(workspace, 'managed-frankenphp');
+  const frankenRuntime = await ensureManagedRuntime('frankenphp', {
+    preferManaged: true,
+    env: {
+      ...process.env,
+      PIXCODE_MANAGED_RUNTIMES_HOME: frankenHome,
+      PIXCODE_FRANKENPHP_URL: 'https://runtime.test/frankenphp-runtime.tgz',
+    },
+  });
+  assert.equal(frankenRuntime.status, 'installed', 'Managed FrankenPHP runtime should install from the downloaded archive.');
+  assert.ok(
+    await fileExists(path.join(frankenHome, 'frankenphp', 'current', 'sidecar-runtime.dll')),
+    'Managed FrankenPHP install should preserve sidecar DLLs/files next to the executable.',
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+}
+
+const brokenRuntimeHome = path.join(workspace, 'broken-frankenphp');
+const brokenCurrent = path.join(brokenRuntimeHome, 'frankenphp', 'current');
+await mkdir(brokenCurrent, { recursive: true });
+const brokenExecutable = path.join(brokenCurrent, process.platform === 'win32' ? 'frankenphp.cmd' : 'frankenphp');
+await writeFile(brokenExecutable, process.platform === 'win32' ? '@echo off\r\nexit /b 1\r\n' : '#!/bin/sh\nexit 1\n');
+if (process.platform !== 'win32') {
+  await chmod(brokenExecutable, 0o755);
+}
+await writeFile(path.join(brokenRuntimeHome, 'frankenphp', 'pixcode-runtime.json'), JSON.stringify({
+  id: 'frankenphp',
+  label: 'Pixcode PHP runtime',
+  executablePath: brokenExecutable,
+  version: 'broken',
+}, null, 2));
+const brokenStatus = await getManagedRuntimeStatus('frankenphp', {
+  preferManaged: true,
+  env: {
+    ...process.env,
+    PIXCODE_MANAGED_RUNTIMES_HOME: brokenRuntimeHome,
+  },
+});
+assert.equal(brokenStatus.status, 'missing', 'Broken managed FrankenPHP manifests should be treated as missing so Pixcode can reinstall them.');
 
 const staticSession = await startLiveView('static-smoke', staticProject);
 assert.equal(staticSession.status, 'running', 'Static Live View should start without a child process.');

@@ -121,21 +121,39 @@ async function downloadFile(url, targetFile, env = process.env) {
 function runProcess(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     let stderr = '';
+    let settled = false;
+    const { timeoutMs, ...spawnOptions } = options;
     const child = spawn(command, args, {
-      ...options,
+      ...spawnOptions,
       stdio: ['ignore', 'ignore', 'pipe'],
       windowsHide: true,
     });
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      callback(value);
+    };
+    const timer = timeoutMs
+      ? setTimeout(() => {
+        try {
+          child.kill();
+        } catch {
+          // Process may have exited between timeout scheduling and kill.
+        }
+        finish(reject, new Error(`${command} timed out after ${timeoutMs}ms`));
+      }, timeoutMs)
+      : null;
     child.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
     });
-    child.on('error', reject);
+    child.on('error', (error) => finish(reject, error));
     child.on('close', (code) => {
       if (code === 0) {
-        resolve();
+        finish(resolve);
         return;
       }
-      reject(new Error(`${command} exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}`));
+      finish(reject, new Error(`${command} exited with code ${code}${stderr ? `: ${stderr.trim()}` : ''}`));
     });
   });
 }
@@ -200,6 +218,27 @@ async function findRuntimeExecutable(searchRoot, binaryName) {
   return null;
 }
 
+async function copyRuntimeWithSidecars(executablePath, currentDir) {
+  const executableDir = path.dirname(executablePath);
+  await fs.rm(currentDir, { recursive: true, force: true });
+  await fs.mkdir(currentDir, { recursive: true });
+  await fs.cp(executableDir, currentDir, { recursive: true, force: true });
+  return path.join(currentDir, path.basename(executablePath));
+}
+
+async function validateManagedRuntimeExecutable(id, executablePath, env = process.env) {
+  if (id !== 'frankenphp') return true;
+  try {
+    await runProcess(executablePath, ['version'], {
+      env,
+      timeoutMs: 5000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function installFrankenPhp(env = process.env) {
   const releaseApiUrl = env.PIXCODE_FRANKENPHP_RELEASE_API
     || 'https://api.github.com/repos/php/frankenphp/releases/latest';
@@ -245,12 +284,7 @@ async function installFrankenPhp(env = process.env) {
     await fs.chmod(executablePath, 0o755).catch(() => undefined);
   }
 
-  await fs.rm(currentDir, { recursive: true, force: true });
-  await fs.mkdir(currentDir, { recursive: true });
-
-  const finalName = process.platform === 'win32' ? 'frankenphp.exe' : 'frankenphp';
-  const finalExecutable = path.join(currentDir, finalName);
-  await fs.copyFile(executablePath, finalExecutable);
+  const finalExecutable = await copyRuntimeWithSidecars(executablePath, currentDir);
   if (process.platform !== 'win32') {
     await fs.chmod(finalExecutable, 0o755).catch(() => undefined);
   }
@@ -379,6 +413,18 @@ export async function getManagedRuntimeStatus(id, options = {}) {
 
   const manifest = await readManifest(id, env);
   if (manifest) {
+    const valid = await validateManagedRuntimeExecutable(id, manifest.executablePath, env);
+    if (!valid) {
+      return {
+        id,
+        label: 'Pixcode PHP runtime',
+        provider: 'FrankenPHP',
+        status: 'missing',
+        installable: true,
+        reason: 'The existing Pixcode PHP runtime is incomplete or cannot start. Pixcode will reinstall it automatically.',
+      };
+    }
+
     return {
       id,
       label: manifest.label || 'Pixcode PHP runtime',
