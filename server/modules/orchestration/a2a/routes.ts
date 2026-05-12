@@ -31,6 +31,10 @@ import type {
   WorkspaceMetadata,
 } from '@/modules/orchestration/workspace/types.js';
 import { WorkspaceError } from '@/modules/orchestration/workspace/types.js';
+import type {
+  PermissionPolicy,
+  PermissionPolicyContext,
+} from '@/modules/orchestration/security/permission-policy.js';
 
 type RoutingHints = {
   preferredAdapterId?: string;
@@ -475,6 +479,8 @@ export function createA2ARouter(): Router {
         workspace,
         model: readString(metadata?.model),
         permissionMode: readString(metadata?.permissionMode),
+        permissionPolicy: readObject(metadata?.permissionPolicy) as PermissionPolicy | undefined,
+        permissionPolicyContext: readObject(metadata?.permissionPolicyContext) as PermissionPolicyContext | undefined,
         toolsSettings: readObject(metadata?.toolsSettings),
       });
     } catch (err) {

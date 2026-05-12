@@ -9,6 +9,14 @@ import {
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
 import { buildWorkflowTrace } from '@/modules/orchestration/workflows/workflow-trace.js';
 import { findPixcodeAppRoot } from '@/modules/orchestration/workflows/workspace-target.js';
+import {
+  DEFAULT_PERMISSION_POLICY,
+  PERMISSION_CAPABILITIES,
+  PERMISSION_POLICY_MODES,
+  PIXCODE_PERMISSION_POLICY_PROTOCOL,
+  evaluatePermissionRequest,
+  normalizePermissionPolicy,
+} from '@/modules/orchestration/security/permission-policy.js';
 
 const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
 
@@ -71,6 +79,36 @@ function replayOptions(req: express.Request): {
     fromNodeId: readOptionalString(req.body?.fromNodeId ?? req.query.fromNodeId),
     approveReplay: readBooleanFlag(req.body?.approveReplay ?? req.query.approveReplay),
   };
+}
+
+function readRunArray(run: { metadata?: Record<string, unknown> }, key: string): Array<Record<string, unknown>> {
+  const value = run.metadata?.[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    : [];
+}
+
+function updateApproval(
+  run: { metadata?: Record<string, unknown> },
+  requestId: string,
+  patch: Record<string, unknown>,
+): boolean {
+  const approvals = readRunArray(run, 'pendingPermissionApprovals');
+  let changed = false;
+  const nextApprovals = approvals.map((approval) => {
+    if (approval.id !== requestId) return approval;
+    changed = true;
+    return {
+      ...approval,
+      ...patch,
+    };
+  });
+  if (!changed) return false;
+  run.metadata = {
+    ...run.metadata,
+    pendingPermissionApprovals: nextApprovals,
+  };
+  return true;
 }
 
 function sendRunSnapshot(res: express.Response, runId: string): boolean {
@@ -159,6 +197,89 @@ export function createWorkflowRouter(): Router {
     res.json({
       runId: run.id,
       trace: buildWorkflowTrace(run),
+    });
+  });
+
+  router.get('/workflows/permission-policy', (_req, res) => {
+    res.json({
+      protocol: PIXCODE_PERMISSION_POLICY_PROTOCOL,
+      capabilities: PERMISSION_CAPABILITIES,
+      modes: PERMISSION_POLICY_MODES,
+      defaultPolicy: DEFAULT_PERMISSION_POLICY,
+    });
+  });
+
+  router.post('/workflows/permission-policy/evaluate', (req, res) => {
+    try {
+      res.json({
+        decision: evaluatePermissionRequest({
+          policy: normalizePermissionPolicy(req.body?.policy),
+          request: req.body?.request ?? { source: 'api' },
+        }),
+      });
+    } catch (error) {
+      res.status(400).json({
+        error: {
+          code: 'PERMISSION_POLICY_INVALID',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.get('/workflows/runs/:runId/permission-approvals', (req, res) => {
+    const run = workflowStore.getRun(req.params.runId);
+    if (!run) {
+      res.status(404).json({ error: { code: 'RUN_NOT_FOUND', message: req.params.runId } });
+      return;
+    }
+
+    res.json({
+      runId: run.id,
+      pendingApprovals: readRunArray(run, 'pendingPermissionApprovals')
+        .filter((approval) => approval.status === 'pending'),
+      approvalHistory: readRunArray(run, 'pendingPermissionApprovals')
+        .filter((approval) => approval.status !== 'pending'),
+    });
+  });
+
+  router.post('/workflows/runs/:runId/permission-approvals/:requestId', (req, res) => {
+    const run = workflowStore.getRun(req.params.runId);
+    if (!run) {
+      res.status(404).json({ error: { code: 'RUN_NOT_FOUND', message: req.params.runId } });
+      return;
+    }
+
+    const allow = req.body?.allow === true;
+    const deny = req.body?.allow === false;
+    if (!allow && !deny) {
+      res.status(400).json({
+        error: {
+          code: 'PERMISSION_DECISION_REQUIRED',
+          message: 'Permission approval requires allow=true or allow=false.',
+        },
+      });
+      return;
+    }
+
+    const updated = updateApproval(run, req.params.requestId, {
+      status: allow ? 'allowed' : 'denied',
+      resolvedAt: Date.now(),
+      resolvedBy: readRequestUserId(req),
+      resolutionMessage: readOptionalString(req.body?.message),
+    });
+    if (!updated) {
+      res.status(404).json({ error: { code: 'APPROVAL_NOT_FOUND', message: req.params.requestId } });
+      return;
+    }
+
+    workflowStore.setRun(run);
+    res.json({
+      runId: run.id,
+      pendingApprovals: readRunArray(run, 'pendingPermissionApprovals')
+        .filter((approval) => approval.status === 'pending'),
+      approvalHistory: readRunArray(run, 'pendingPermissionApprovals')
+        .filter((approval) => approval.status !== 'pending'),
     });
   });
 

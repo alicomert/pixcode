@@ -216,6 +216,38 @@ export function buildWorkflowTrace(run: WorkflowRun): WorkflowTraceEvent[] {
     });
   });
 
+  const permissionPolicyEvents = Array.isArray(run.metadata?.permissionPolicyEvents)
+    ? run.metadata.permissionPolicyEvents
+    : [];
+  permissionPolicyEvents.forEach((event, index) => {
+    const record = readRecord(event);
+    if (!record) return;
+    const behavior = readString(record.behavior);
+    const capabilities = Array.isArray(record.capabilities)
+      ? record.capabilities.filter((item): item is string => typeof item === 'string')
+      : [];
+    pushEvent(events, {
+      id: traceId([run.id, 'permission-policy', readString(record.id) ?? index]),
+      type: 'permission_policy',
+      severity: behavior === 'deny' ? 'error' : behavior === 'prompt' ? 'warning' : 'info',
+      status: behavior === 'deny' ? 'failed' : behavior === 'prompt' ? 'submitted' : 'completed',
+      timestamp: typeof record.createdAt === 'number' ? record.createdAt : run.startedAt + 0.85 + index,
+      actor: 'Pixcode',
+      nodeId: readString(record.nodeId),
+      adapterId: readString(record.adapterId),
+      agentLabel: readString(record.agentLabel),
+      title: 'Permission policy decision',
+      titleKey: 'workflow.trace.permissionPolicy',
+      summary: redactTraceText([
+        `Decision: ${behavior ?? readString(record.status) ?? 'unknown'}`,
+        capabilities.length > 0 ? `Capabilities: ${capabilities.join(', ')}` : undefined,
+        readString(record.summary),
+        readString(record.message),
+      ].filter(Boolean).join('\n'), run),
+      metadata: record,
+    });
+  });
+
   run.nodeRuns.forEach((node, index) => {
     const base = eventBase(node);
     const timestamp = nodeTimestamp(run, node, index);

@@ -13,6 +13,10 @@ import type {
   TaskState,
 } from '@/modules/orchestration/a2a/types.js';
 import type { WorkspaceHandle } from '@/modules/orchestration/workspace/types.js';
+import type {
+  PermissionPolicy,
+  PermissionPolicyContext,
+} from '@/modules/orchestration/security/permission-policy.js';
 
 export interface AdapterContext {
   /** Isolated execution workspace for the task. */
@@ -21,6 +25,10 @@ export interface AdapterContext {
   cwd: string;
   /** pixcode permission mode passed through to the underlying CLI. */
   permissionMode?: string;
+  /** Provider-independent permission/sandbox policy evaluated before runtime tool use. */
+  permissionPolicy?: PermissionPolicy;
+  /** Run context preserved when the policy needs a human approval. */
+  permissionPolicyContext?: PermissionPolicyContext;
   /** Provider model selected by the user in Pixcode. */
   model?: string;
   /** Provider-specific tool / permission settings from Pixcode Settings. */

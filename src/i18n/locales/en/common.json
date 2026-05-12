@@ -170,6 +170,7 @@
       "message": "Message",
       "artifact": "Artifact",
       "file": "File edit",
+      "permission_policy": "Permission policy",
       "error": "Error"
     },
     "traceSeverityLevels": {
@@ -178,6 +179,7 @@
       "error": "Error"
     },
     "teamHistory": "Team history",
+    "permissionApprovalsPending": "{{count}} permission approval pending",
     "agentSteps": "Agent steps",
     "changeSummary": "Change summary",
     "noChangeSummary": "The final summary is not ready yet. A readable Markdown summary appears here when the agents finish.",

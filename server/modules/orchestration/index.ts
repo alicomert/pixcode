@@ -19,6 +19,15 @@ export { AbstractA2AAdapter } from './a2a/adapters/abstract-a2a.adapter.js';
 export { a2aBus } from './a2a/bus.js';
 export { portWatcher } from './preview/port-watcher.js';
 export { createPreviewProxyRouter } from './preview/preview-proxy.js';
+export {
+  DEFAULT_PERMISSION_POLICY,
+  PERMISSION_CAPABILITIES,
+  PERMISSION_POLICY_MODES,
+  PIXCODE_PERMISSION_POLICY_PROTOCOL,
+  evaluatePermissionRequest,
+  normalizePermissionPolicy,
+  resolvePermissionPolicyFromMetadata,
+} from './security/permission-policy.js';
 export { createOrchestrationTaskRouter } from './tasks/orchestration-task.routes.js';
 export { orchestrationTaskService } from './tasks/orchestration-task.service.js';
 export { createWorkflowRouter } from './workflows/workflow.routes.js';
@@ -42,6 +51,15 @@ export type {
   PortEvent,
   PreviewArtifactData,
 } from './preview/types.js';
+export type {
+  PermissionApprovalRequest,
+  PermissionCapability,
+  PermissionDecision,
+  PermissionPolicy,
+  PermissionPolicyContext,
+  PermissionPolicyEvent,
+  PermissionPolicyMode,
+} from './security/permission-policy.js';
 export type {
   CreateOrchestrationTaskInput,
   DispatchOrchestrationTaskInput,

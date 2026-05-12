@@ -29,6 +29,7 @@ import { sessionsService } from './modules/providers/services/sessions.service.j
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { resolveClaudeExecutable, resolveGitBashPath } from './services/install-jobs.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { evaluatePermissionRequest } from './modules/orchestration/security/permission-policy.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -184,7 +185,7 @@ function loadClaudeSettingsEnv(cwd) {
  * @returns {Object} SDK-compatible options
  */
 function mapCliOptionsToSDK(options = {}) {
-  const { sessionId, cwd, toolsSettings, permissionMode } = options;
+  const { sessionId, cwd, toolsSettings, permissionMode, permissionPolicy, permissionPolicyContext } = options;
 
   const sdkOptions = {};
 
@@ -231,6 +232,8 @@ function mapCliOptionsToSDK(options = {}) {
   if (permissionMode && permissionMode !== 'default') {
     sdkOptions.permissionMode = permissionMode;
   }
+  sdkOptions.permissionPolicy = permissionPolicy;
+  sdkOptions.permissionPolicyContext = permissionPolicyContext;
 
   // Map tool settings
   const settings = toolsSettings || {
@@ -595,8 +598,27 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     sdkOptions.canUseTool = async (toolName, input, context) => {
       const requiresInteraction = TOOLS_REQUIRING_INTERACTION.has(toolName);
+      const policyDecision = evaluatePermissionRequest({
+        policy: sdkOptions.permissionPolicy,
+        request: {
+          source: 'provider_tool',
+          toolName,
+          input,
+          command: input && typeof input === 'object' && typeof input.command === 'string'
+            ? input.command
+            : undefined,
+          cwd: options.cwd,
+          workspacePath: options.cwd,
+          summary: `${toolName} tool request`,
+        },
+        context: sdkOptions.permissionPolicyContext,
+      });
 
-      if (!requiresInteraction) {
+      if (policyDecision.behavior === 'deny') {
+        return { behavior: 'deny', message: policyDecision.message };
+      }
+
+      if (!requiresInteraction && policyDecision.behavior !== 'prompt') {
         if (sdkOptions.permissionMode === 'bypassPermissions') {
           return { behavior: 'allow', updatedInput: input };
         }

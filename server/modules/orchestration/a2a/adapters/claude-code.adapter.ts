@@ -99,6 +99,8 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
           {
             cwd: ctx.cwd,
             permissionMode: ctx.permissionMode ?? 'default',
+            permissionPolicy: ctx.permissionPolicy,
+            permissionPolicyContext: ctx.permissionPolicyContext,
             toolsSettings: ctx.toolsSettings,
           },
           fakeWS,

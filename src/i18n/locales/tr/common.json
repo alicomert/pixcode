@@ -170,6 +170,7 @@
       "message": "Mesaj",
       "artifact": "Artifact",
       "file": "Dosya değişikliği",
+      "permission_policy": "İzin politikası",
       "error": "Hata"
     },
     "traceSeverityLevels": {
@@ -178,6 +179,7 @@
       "error": "Hata"
     },
     "teamHistory": "Takım geçmişi",
+    "permissionApprovalsPending": "{{count}} izin onayı bekliyor",
     "agentSteps": "Ajan adımları",
     "changeSummary": "Değişiklik özeti",
     "noChangeSummary": "Final özet henüz oluşmadı. Ajanlar tamamlandığında burada okunabilir Markdown özeti görünecek.",

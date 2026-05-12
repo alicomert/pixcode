@@ -8,7 +8,7 @@ import { Markdown } from '../../chat/view/subcomponents/Markdown';
 
 import WorkflowNodeStream from './WorkflowNodeStream';
 
-import { AlertTriangle, Bot, Clock, FileText, Filter, ListChecks, MessageSquare, RotateCcw, SquareIcon, Workflow } from '@/lib/icons';
+import { AlertTriangle, Bot, Clock, FileText, Filter, ListChecks, MessageSquare, RotateCcw, Shield, SquareIcon, Workflow } from '@/lib/icons';
 
 type WorkflowNodeRun = {
   nodeId: string;
@@ -25,6 +25,8 @@ type WorkflowNodeRun = {
   finishedAt?: number;
   error?: string;
   outputText?: string;
+  permissionPolicy?: Record<string, unknown>;
+  permissionDecisions?: Array<Record<string, unknown>>;
   messages?: Array<{ role: string; text: string }>;
   artifacts?: Array<{
     type: string;
@@ -65,7 +67,7 @@ type WorkflowReplayPlan = {
 
 type WorkflowTraceEvent = {
   id: string;
-  type: 'run' | 'node' | 'provider' | 'message' | 'artifact' | 'file' | 'error';
+  type: 'run' | 'node' | 'provider' | 'message' | 'artifact' | 'file' | 'error' | 'permission_policy';
   severity: 'info' | 'warning' | 'error';
   status: string;
   timestamp: number;
@@ -184,6 +186,14 @@ function hasUsefulOutput(node: WorkflowNodeRun): boolean {
     || node.messages?.some((message) => message.role !== 'user' && message.text.trim())
     || node.artifacts?.length,
   );
+}
+
+function pendingPermissionApprovals(run: WorkflowRun): Array<Record<string, unknown>> {
+  return Array.isArray(run.metadata?.pendingPermissionApprovals)
+    ? run.metadata.pendingPermissionApprovals.filter((approval): approval is Record<string, unknown> =>
+      Boolean(approval && typeof approval === 'object' && approval.status === 'pending'),
+    )
+    : [];
 }
 
 function defaultReplayNodeId(run: WorkflowRun): string | undefined {
@@ -701,6 +711,7 @@ export default function WorkflowRunPanel({
   const canReplay = Boolean(replayPlan && terminalRunStatuses.has(run.status));
   const taskmasterId = typeof run.metadata?.taskmasterId === 'string' ? run.metadata.taskmasterId : undefined;
   const linkedTaskTitle = typeof run.metadata?.taskmasterTaskTitle === 'string' ? run.metadata.taskmasterTaskTitle : undefined;
+  const pendingApprovals = pendingPermissionApprovals(run);
 
   return (
     <div className="flex min-h-[70vh] flex-col xl:h-full xl:min-h-0">
@@ -758,6 +769,24 @@ export default function WorkflowRunPanel({
             <span className="font-medium text-foreground">{t('orchestration.linkedTask')}:</span>{' '}
             <span>TaskMaster #{taskmasterId}</span>
             {linkedTaskTitle ? <span> · {linkedTaskTitle}</span> : null}
+          </div>
+        ) : null}
+        {pendingApprovals.length > 0 ? (
+          <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 font-medium text-foreground">
+              <Shield className="h-4 w-4" />
+              {t('orchestration.permissionApprovalsPending', { count: pendingApprovals.length })}
+            </div>
+            <div className="mt-2 line-clamp-3">
+              {pendingApprovals
+                .map((approval) =>
+                  [approval.agentLabel, approval.message, approval.summary]
+                    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+                    .join(' · '),
+                )
+                .filter(Boolean)
+                .join(' / ')}
+            </div>
           </div>
         ) : null}
         {typeof run.metadata?.error === 'string' ? (

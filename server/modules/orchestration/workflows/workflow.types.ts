@@ -1,6 +1,10 @@
 import type { WorkflowContextPacket } from '@/modules/orchestration/workflows/context-packet.js';
 import type { WorkflowFallbackTrigger } from '@/modules/orchestration/workflows/workflow-fallback-policy.js';
 import type { WorkflowHandoffArtifact } from '@/modules/orchestration/workflows/handoff-artifact.js';
+import type {
+  PermissionDecision,
+  PermissionPolicy,
+} from '@/modules/orchestration/security/permission-policy.js';
 
 export type WorkflowRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 export type WorkflowNodeStatus = WorkflowRunStatus | 'skipped';
@@ -18,6 +22,8 @@ export interface WorkflowNode {
   assignment?: string;
   model?: string;
   permissionMode?: string;
+  permissionPolicy?: PermissionPolicy;
+  permissionDecisions?: PermissionDecision[];
   toolsSettings?: Record<string, unknown>;
   isolation?: 'host' | 'worktree' | 'docker';
   timeoutMs?: number;
@@ -44,6 +50,8 @@ export interface WorkflowNodeRun {
   promptPreview?: string;
   model?: string;
   permissionMode?: string;
+  permissionPolicy?: PermissionPolicy;
+  permissionDecisions?: PermissionDecision[];
   timeoutMs?: number;
   stage?: string;
   internal?: boolean;
@@ -84,7 +92,7 @@ export interface WorkflowRun {
 
 export interface WorkflowTraceEvent {
   id: string;
-  type: 'run' | 'node' | 'provider' | 'message' | 'artifact' | 'file' | 'error';
+  type: 'run' | 'node' | 'provider' | 'message' | 'artifact' | 'file' | 'error' | 'permission_policy';
   severity: 'info' | 'warning' | 'error';
   status: WorkflowRunStatus | WorkflowNodeStatus | 'submitted';
   timestamp: number;

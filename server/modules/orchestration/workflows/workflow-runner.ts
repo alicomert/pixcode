@@ -22,6 +22,13 @@ import {
   resolveWorkflowFallbackDecision,
 } from '@/modules/orchestration/workflows/workflow-fallback-policy.js';
 import {
+  evaluatePermissionRequest,
+  resolvePermissionPolicyFromMetadata,
+  type PermissionDecision,
+  type PermissionPolicy,
+  type PermissionPolicyEvent,
+} from '@/modules/orchestration/security/permission-policy.js';
+import {
   type ResolvedWorkspaceTarget,
   resolveWorkflowWorkspace,
   workspaceContextPrompt,
@@ -36,7 +43,12 @@ import {
   getStaticProviderModels,
 } from '@/services/model-registry.js';
 // @ts-ignore — plain-JS service
-import { notifyRunFailed, notifyRunStopped } from '@/services/notification-orchestrator.js';
+import {
+  createNotificationEvent,
+  notifyRunFailed,
+  notifyRunStopped,
+  notifyUserIfEnabled,
+} from '@/services/notification-orchestrator.js';
 
 const TERMINAL = new Set(['completed', 'failed', 'canceled']);
 const SKIPPED = 'skipped';
@@ -243,6 +255,49 @@ function notifyWorkflowRunFinished(run: WorkflowRun): void {
       error: readString(run.metadata?.error) ?? 'Orchestration failed',
     });
   }
+}
+
+function permissionPolicyFromRun(run: WorkflowRun): PermissionPolicy {
+  return resolvePermissionPolicyFromMetadata(run.metadata);
+}
+
+function permissionPolicyEvents(run: WorkflowRun): PermissionPolicyEvent[] {
+  return Array.isArray(run.metadata?.permissionPolicyEvents)
+    ? run.metadata.permissionPolicyEvents.filter((event): event is PermissionPolicyEvent =>
+      Boolean(event && typeof event === 'object'),
+    )
+    : [];
+}
+
+function permissionApprovalRequests(run: WorkflowRun): Array<Record<string, unknown>> {
+  return Array.isArray(run.metadata?.pendingPermissionApprovals)
+    ? run.metadata.pendingPermissionApprovals.filter((event): event is Record<string, unknown> =>
+      Boolean(event && typeof event === 'object'),
+    )
+    : [];
+}
+
+function notifyPermissionApprovalRequested(run: WorkflowRun, decision: PermissionDecision): void {
+  const userId = readNotificationUserId(run.metadata);
+  if (!userId || !decision.approvalRequest) return;
+
+  const event = (createNotificationEvent as unknown as (payload: Record<string, unknown>) => unknown)({
+    provider: 'system',
+    sessionId: run.id,
+    kind: 'action_required',
+    code: 'permission.required',
+    meta: {
+      toolName: decision.capabilities.join(', '),
+      sessionName: workflowNotificationTitle(run),
+    },
+    severity: 'warning',
+    requiresUserAction: true,
+    dedupeKey: `workflow:permission:${run.id}:${decision.requestId}`,
+  });
+  (notifyUserIfEnabled as (payload: { userId: string | number; event: unknown }) => void)({
+    userId,
+    event,
+  });
 }
 
 function readBoolean(value: unknown): boolean | undefined {
@@ -1216,8 +1271,10 @@ class WorkflowRunner {
     const runtimeWorkflow = expandWorkflowForRun(workflow, metadata);
     validateWorkflow(runtimeWorkflow);
     const workspaceTarget = resolveWorkflowWorkspace(metadata);
+    const permissionPolicy = resolvePermissionPolicyFromMetadata(metadata);
     const runMetadata: Record<string, unknown> = {
       ...metadata,
+      permissionPolicy,
       projectPath: workspaceTarget.projectPath,
       selectedProjectPath: workspaceTarget.selectedProjectPath,
       workspaceTarget: workspaceTargetMetadata(workspaceTarget),
@@ -1602,6 +1659,37 @@ class WorkflowRunner {
     }
   }
 
+  private recordPermissionDecision(
+    run: WorkflowRun,
+    nodeRun: WorkflowNodeRun,
+    decision: PermissionDecision,
+  ): void {
+    nodeRun.permissionDecisions = [
+      ...(nodeRun.permissionDecisions ?? []),
+      decision,
+    ];
+
+    const existingApprovals = permissionApprovalRequests(run)
+      .filter((approval) => approval.id !== decision.approvalRequest?.id);
+    run.metadata = {
+      ...run.metadata,
+      permissionPolicyEvents: [
+        ...permissionPolicyEvents(run),
+        decision.event,
+      ],
+      pendingPermissionApprovals: decision.approvalRequest
+        ? [
+          ...existingApprovals,
+          decision.approvalRequest,
+        ]
+        : existingApprovals,
+    };
+
+    if (decision.approvalRequest) {
+      notifyPermissionApprovalRequested(run, decision);
+    }
+  }
+
   private async executeNode(
     node: WorkflowNode,
     workflow: Workflow,
@@ -1680,6 +1768,49 @@ class WorkflowRunner {
       };
       workflowStore.setRun(run);
     }
+    const permissionPolicy = permissionPolicyFromRun(run);
+    nodeRun.permissionPolicy = permissionPolicy;
+    const permissionDecision = evaluatePermissionRequest({
+      policy: permissionPolicy,
+      request: {
+        source: 'workflow_node',
+        toolName: node.adapterId,
+        input: {
+          assignment: node.assignment,
+          stage: node.stage,
+          toolsSettings: node.toolsSettings,
+        },
+        cwd: projectPath,
+        workspacePath: workspaceTarget.appRoot,
+        targetPaths: [projectPath],
+        summary: [
+          node.agentLabel || node.id,
+          node.stage ? `stage=${node.stage}` : undefined,
+          node.assignment,
+        ].filter(Boolean).join(' / '),
+      },
+      context: {
+        runId: run.id,
+        nodeId: node.id,
+        workflowId: run.workflowId,
+        adapterId: node.adapterId,
+        agentLabel: node.agentLabel,
+        userId: readNotificationUserId(run.metadata),
+      },
+    });
+    this.recordPermissionDecision(run, nodeRun, permissionDecision);
+    workflowStore.setRun(run);
+    if (permissionDecision.behavior === 'deny') {
+      nodeRun.finishedAt = Date.now();
+      nodeRun.status = 'failed';
+      nodeRun.error = permissionDecision.message;
+      workflowStore.setRun(run);
+      if (node.onFail === 'continue') {
+        completed.add(node.id);
+        return;
+      }
+      throw new Error(permissionDecision.message);
+    }
     let body: { id?: string; error?: { message?: string } };
     try {
       const submit = await fetch(`${localA2ABaseUrl()}/tasks`, {
@@ -1701,6 +1832,15 @@ class WorkflowRunner {
             assignment: node.assignment,
             model: effectiveModel,
             permissionMode: effectivePermissionMode,
+            permissionPolicy,
+            permissionPolicyContext: {
+              runId: run.id,
+              nodeId: node.id,
+              workflowId: run.workflowId,
+              adapterId: node.adapterId,
+              agentLabel: node.agentLabel,
+              userId: readNotificationUserId(run.metadata),
+            },
             toolsSettings: node.toolsSettings,
             projectPath,
             workspaceTarget: workspaceTargetMetadata(workspaceTarget),
