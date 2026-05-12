@@ -87,6 +87,7 @@ function artifactTitleKey(type: string): string {
   if (type === 'file-diff') return 'workflow.trace.fileChanged';
   if (type === 'preview-url') return 'workflow.trace.previewReady';
   if (type === 'command-output') return 'workflow.trace.commandOutput';
+  if (type === 'handoff-artifact') return 'workflow.trace.handoffArtifact';
   return 'workflow.trace.artifact';
 }
 
@@ -98,6 +99,7 @@ function artifactTitle(type: string): string {
   if (type === 'file-diff') return 'File changes captured';
   if (type === 'preview-url') return 'Preview output captured';
   if (type === 'command-output') return 'Command output captured';
+  if (type === 'handoff-artifact') return 'Handoff artifact captured';
   return 'Artifact captured';
 }
 

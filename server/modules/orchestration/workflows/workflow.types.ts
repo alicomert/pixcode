@@ -1,3 +1,5 @@
+import type { WorkflowHandoffArtifact } from '@/modules/orchestration/workflows/handoff-artifact.js';
+
 export type WorkflowRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 export type WorkflowNodeStatus = WorkflowRunStatus | 'skipped';
 
@@ -47,6 +49,7 @@ export interface WorkflowNodeRun {
   finishedAt?: number;
   error?: string;
   outputText?: string;
+  handoffArtifact?: WorkflowHandoffArtifact;
   messages?: Array<{
     role: string;
     text: string;

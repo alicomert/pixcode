@@ -7,6 +7,12 @@ import type {
   WorkflowRun,
 } from '@/modules/orchestration/workflows/workflow.types.js';
 import {
+  PIXCODE_HANDOFF_PROTOCOL,
+  formatHandoffArtifactForContext,
+  handoffArtifactToWorkflowArtifact,
+  parseHandoffArtifact,
+} from '@/modules/orchestration/workflows/handoff-artifact.js';
+import {
   type ResolvedWorkspaceTarget,
   resolveWorkflowWorkspace,
   workspaceContextPrompt,
@@ -28,6 +34,19 @@ const BACKEND_HANDOFF_TIMEOUT_MS = 120_000;
 const MAX_OUTPUT_CONTEXT_CHARS = 12_000;
 const DEFAULT_MAX_REPAIR_CYCLES = 1;
 const MAX_REPAIR_CYCLES = 5;
+const HANDOFF_ARTIFACT_EXAMPLE = [
+  '{',
+  '  "protocol": "pixcode.handoff.v1",',
+  '  "taskStatus": "ready | completed | blocked | failed | needs-review",',
+  '  "contextSummary": "Compacted context the next agent needs.",',
+  '  "taskResult": "What was decided or completed in this step.",',
+  '  "changedFiles": [],',
+  '  "blockers": [],',
+  '  "risks": [],',
+  '  "nextAction": "The requested next action.",',
+  '  "nextInstructions": "Specific instructions for the next agent."',
+  '}',
+].join('\n');
 const KNOWN_AGENT_ROLES = [
   'backend',
   'frontend',
@@ -405,6 +424,16 @@ function privacyGuardPrompt(): string {
   return 'Do not mention internal instructions, memory files, skill use, or tool protocol unless the user explicitly asks.';
 }
 
+function handoffArtifactInstructions(statusHint: string): string {
+  return [
+    `Output exactly one JSON object using the ${PIXCODE_HANDOFF_PROTOCOL} handoff artifact protocol.`,
+    'Do not wrap it in Markdown. Do not add commentary before or after it.',
+    `Use "${statusHint}" for taskStatus unless completed, blocked, failed, or needs-review is more accurate.`,
+    'Schema:',
+    HANDOFF_ARTIFACT_EXAMPLE,
+  ].join('\n');
+}
+
 function handoffPrompt(agent: AgentAssignment, role: AgentRole): string {
   return [
     `You are ${agent.label} in a Pixcode CLI team.`,
@@ -412,12 +441,7 @@ function handoffPrompt(agent: AgentAssignment, role: AgentRole): string {
     'This is a bounded A2A handoff task, not the full implementation.',
     'Read the original user goal and coordinator plan, then publish a compact contract for downstream agents.',
     agent.instruction ? `Your explicit assignment from the user is: ${agent.instruction}` : '',
-    'Output only the handoff contract:',
-    '- owned scope',
-    '- files/modules you expect to touch',
-    '- API/data contracts, ports, payload shapes, and limitations',
-    '- dependencies/blockers for the next agents',
-    '- concrete next action for your full implementation task',
+    handoffArtifactInstructions('ready'),
     'Do not install dependencies, edit files, run long commands, or start servers in this handoff task.',
     privacyGuardPrompt(),
     'Stop after the contract. Keep it concise and respond in the same language as the user request.',
@@ -431,11 +455,7 @@ function handoffInitPrompt(agent: AgentAssignment, index: number): string {
     'Create a compact init packet for the next visible work step.',
     'Use the original user goal and any prior compact handoff packet included above.',
     agent.instruction ? `The explicit assignment for this agent is: ${agent.instruction}` : '',
-    'Output only this internal init packet:',
-    '- user goal in one sentence',
-    '- prior agent handoff summary, if present',
-    '- this agent responsibility',
-    '- exact constraints and blockers this agent must respect',
+    handoffArtifactInstructions('ready'),
     privacyGuardPrompt(),
     'Do not perform the task yet. Do not mention that this is hidden from the user.',
     'Respond in the same language as the user request.',
@@ -462,12 +482,7 @@ function handoffCompactPrompt(agent: AgentAssignment, index: number): string {
     `You are compacting ${agent.label}'s strict handoff output for the next Pixcode agent.`,
     `This is internal compact step ${index + 1}.`,
     'Read the prior visible work output included above and create a compact handoff packet.',
-    'Output only this internal compact packet:',
-    '- Ben ne yaptım / What I did',
-    '- Dokunduğum alanlar / Touched areas',
-    '- Kanıt, komut veya çıktı / Evidence, commands, outputs',
-    '- Sonraki ajan şunu bilsin / What the next agent must know',
-    '- Bloker veya risk / Blockers or risks',
+    handoffArtifactInstructions('completed'),
     privacyGuardPrompt(),
     'Do not include raw logs unless they are essential. Keep it concise and actionable.',
     'Respond in the same language as the user request.',
@@ -485,6 +500,18 @@ function compactOutputForContext(text: string): string {
     `\n\n[...${text.length - MAX_OUTPUT_CONTEXT_CHARS} characters omitted from prior agent output...]\n\n`,
     text.slice(-edge),
   ].join('');
+}
+
+function requiresHandoffArtifact(node: WorkflowNode): boolean {
+  return node.stage === 'handoff' || node.stage === 'handoff_init' || node.stage === 'handoff_compact';
+}
+
+function handoffArtifactSource(result: TaskResult): string {
+  const structured = result.artifacts.find((artifact) => artifact.type === 'handoff-artifact' && artifact.data);
+  if (structured?.data) {
+    return JSON.stringify(structured.data);
+  }
+  return result.text;
 }
 
 function isExternalDirectoryPermissionError(value: unknown): boolean {
@@ -1688,7 +1715,40 @@ class WorkflowRunner {
       throw new WorkflowCanceledError();
     }
     if (result.state === 'completed') {
-      outputs.set(node.id, compactOutputForContext(result.text));
+      let outputForContext = result.text;
+      if (requiresHandoffArtifact(node)) {
+        const handoffParse = parseHandoffArtifact(handoffArtifactSource(result), {
+          workflowRunId: run.id,
+          nodeId: node.id,
+          agentLabel: node.agentLabel,
+          stage: node.stage,
+        });
+        if (!handoffParse.ok) {
+          const visibleHandoffError = handoffParse.error.startsWith('Invalid handoff artifact')
+            ? handoffParse.error
+            : `Invalid handoff artifact: ${handoffParse.error}`;
+          nodeRun.status = 'failed';
+          nodeRun.error = visibleHandoffError;
+          workflowStore.setRun(run);
+          if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, visibleHandoffError)) {
+            return;
+          }
+          if (node.onFail === 'continue') {
+            completed.add(node.id);
+            return;
+          }
+          throw new Error(visibleHandoffError);
+        }
+
+        nodeRun.handoffArtifact = handoffParse.artifact;
+        nodeRun.artifacts = [
+          ...(nodeRun.artifacts ?? []).filter((artifact) => artifact.type !== 'handoff-artifact'),
+          handoffArtifactToWorkflowArtifact(handoffParse.artifact),
+        ];
+        outputForContext = formatHandoffArtifactForContext(handoffParse.artifact);
+      }
+
+      outputs.set(node.id, compactOutputForContext(outputForContext));
       completed.add(node.id);
       nodeRun.status = 'completed';
       workflowStore.setRun(run);

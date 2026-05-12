@@ -40,6 +40,7 @@ function artifactLabelKey(type: string): string {
   if (type === 'file-diff') return 'orchestration.artifact.fileDiff';
   if (type === 'preview-url') return 'orchestration.artifact.previewUrl';
   if (type === 'command-output') return 'orchestration.artifact.commandOutput';
+  if (type === 'handoff-artifact') return 'orchestration.artifact.handoff';
   return type;
 }
 

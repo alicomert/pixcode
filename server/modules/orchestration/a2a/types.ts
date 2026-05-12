@@ -47,6 +47,7 @@ export type ArtifactType =
   | 'file-diff'
   | 'command-output'
   | 'preview-url'
+  | 'handoff-artifact'
   | 'data';
 
 // Note: Artifact and AuthScheme use `type` discriminator (matches A2A

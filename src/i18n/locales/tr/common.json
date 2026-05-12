@@ -199,7 +199,8 @@
     "artifact": {
       "fileDiff": "Değişiklik özeti",
       "previewUrl": "Önizleme",
-      "commandOutput": "Komut çıktısı"
+      "commandOutput": "Komut çıktısı",
+      "handoff": "Handoff artifact"
     },
     "role": {
       "user": "Kullanıcı",

@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.42.0](https://github.com/alicomert/pixcode/compare/v1.41.5...v1.42.0) (2026-05-12)
+
+Pixcode 1.42.0 starts the real orchestration roadmap with a structured handoff artifact protocol between agents.
+
+### New Features
+
+* **orchestration:** add the `pixcode.handoff.v1` artifact schema with task status, compacted context, task result, changed files, blockers, risks, next action, and next instructions.
+* **orchestration:** require handoff, init, and compact nodes to produce a validated handoff artifact instead of relying only on prompt text.
+* **orchestration:** persist validated handoff artifacts on workflow node runs and pass the structured artifact forward as downstream context.
+* **orchestration:** surface handoff artifacts in workflow outputs and trace timelines.
+
+### Reliability
+
+* fail invalid handoff artifacts visibly with a recoverable workflow node error.
+* add smoke coverage for the handoff schema, runner validation, trace labeling, and UI artifact rendering.
+
 ## [1.41.5](https://github.com/alicomert/pixcode/compare/v1.41.4...v1.41.5) (2026-05-12)
 
 Pixcode 1.41.5 unifies Live View into a single preview environment model for framework detection, custom commands, runtime diagnostics, logs, responsive preview, and future tunnel state.
