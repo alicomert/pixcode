@@ -14,18 +14,13 @@ import {
 } from '@/modules/orchestration/workflows/workspace-target.js';
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
 // @ts-ignore — plain-JS service
-import { getProviderModels } from '@/services/provider-models.js';
+import {
+  getDefaultProviderModel,
+  getProviderModelRegistryEntry,
+  getStaticProviderModels,
+} from '@/services/model-registry.js';
 // @ts-ignore — plain-JS service
 import { notifyRunFailed, notifyRunStopped } from '@/services/notification-orchestrator.js';
-
-import {
-  CLAUDE_MODELS,
-  CODEX_MODELS,
-  CURSOR_MODELS,
-  GEMINI_MODELS,
-  OPENCODE_MODELS,
-  QWEN_MODELS,
-} from '../../../../shared/modelConstants.js';
 
 const TERMINAL = new Set(['completed', 'failed', 'canceled']);
 const SKIPPED = 'skipped';
@@ -153,18 +148,6 @@ const adapterProviderMap: Record<string, ProviderId | undefined> = {
   opencode: 'opencode',
 };
 
-const modelCatalogsByProvider: Record<ProviderId, {
-  staticList: ProviderModel[];
-  defaultModel?: string;
-}> = {
-  claude: { staticList: CLAUDE_MODELS.OPTIONS, defaultModel: CLAUDE_MODELS.DEFAULT },
-  cursor: { staticList: CURSOR_MODELS.OPTIONS, defaultModel: CURSOR_MODELS.DEFAULT },
-  codex: { staticList: CODEX_MODELS.OPTIONS, defaultModel: CODEX_MODELS.DEFAULT },
-  gemini: { staticList: GEMINI_MODELS.OPTIONS, defaultModel: GEMINI_MODELS.DEFAULT },
-  qwen: { staticList: QWEN_MODELS.OPTIONS, defaultModel: QWEN_MODELS.DEFAULT },
-  opencode: { staticList: OPENCODE_MODELS.OPTIONS, defaultModel: OPENCODE_MODELS.DEFAULT },
-};
-
 function readAgentRole(value: unknown): AgentRole | undefined {
   return typeof value === 'string' && value.trim() && value.trim() !== 'auto'
     ? value.trim()
@@ -255,23 +238,22 @@ async function resolveWorkflowModel(adapterId: string, requestedModel?: string):
   const provider = adapterProviderMap[adapterId];
   if (!provider) return requestedModel;
 
-  const catalog = modelCatalogsByProvider[provider];
-  if (!requestedModel) return catalog.defaultModel;
+  const defaultModel = getDefaultProviderModel(provider);
+  if (!requestedModel) return defaultModel;
 
   try {
-    const result = await getProviderModels(provider, {
-      staticList: catalog.staticList,
-    });
+    const result = await getProviderModelRegistryEntry(provider);
     const models = Array.isArray(result?.models) ? result.models as ProviderModel[] : [];
     if (modelValueSet(models).has(requestedModel)) {
       return requestedModel;
     }
-    return preferredFallbackModel(models, catalog.defaultModel) ?? requestedModel;
+    return preferredFallbackModel(models, defaultModel) ?? requestedModel;
   } catch {
-    const staticValues = modelValueSet(catalog.staticList);
+    const staticModels = getStaticProviderModels(provider) as ProviderModel[];
+    const staticValues = modelValueSet(staticModels);
     return staticValues.has(requestedModel)
       ? requestedModel
-      : preferredFallbackModel(catalog.staticList, catalog.defaultModel) ?? requestedModel;
+      : preferredFallbackModel(staticModels, defaultModel) ?? requestedModel;
   }
 }
 

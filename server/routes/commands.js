@@ -4,7 +4,12 @@ import os from 'os';
 
 import express from 'express';
 
-import { CLAUDE_MODELS, CURSOR_MODELS, CODEX_MODELS } from '../../shared/modelConstants.js';
+import {
+  MODEL_REGISTRY_PROVIDERS,
+  getDefaultProviderModel,
+  getProviderModelRegistryEntry,
+  getStaticProviderModels,
+} from '../services/model-registry.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { findAppRoot, getModuleDir } from '../utils/runtime-paths.js';
 
@@ -133,6 +138,26 @@ const builtInCommands = [
   }
 ];
 
+async function readAvailableModelValues() {
+  const entries = await Promise.all(
+    MODEL_REGISTRY_PROVIDERS.map(async (provider) => {
+      try {
+        const catalog = await getProviderModelRegistryEntry(provider);
+        const models = Array.isArray(catalog?.models) ? catalog.models : [];
+        return [provider, models.map((model) => model.value).filter(Boolean)];
+      } catch {
+        return [provider, getStaticProviderModels(provider).map((model) => model.value)];
+      }
+    }),
+  );
+
+  return Object.fromEntries(entries);
+}
+
+function getProviderDefaultModel(provider) {
+  return getDefaultProviderModel(provider) || getDefaultProviderModel('claude');
+}
+
 /**
  * Built-in command handlers
  * Each handler returns { type: 'builtin', action: string, data: any }
@@ -187,15 +212,10 @@ Custom commands can be created in:
   },
 
   '/model': async (args, context) => {
-    // Read available models from centralized constants
-    const availableModels = {
-      claude: CLAUDE_MODELS.OPTIONS.map(o => o.value),
-      cursor: CURSOR_MODELS.OPTIONS.map(o => o.value),
-      codex: CODEX_MODELS.OPTIONS.map(o => o.value)
-    };
+    const availableModels = await readAvailableModelValues();
 
     const currentProvider = context?.provider || 'claude';
-    const currentModel = context?.model || CLAUDE_MODELS.DEFAULT;
+    const currentModel = context?.model || getProviderDefaultModel(currentProvider);
 
     return {
       type: 'builtin',
@@ -216,13 +236,7 @@ Custom commands can be created in:
   '/cost': async (args, context) => {
     const tokenUsage = context?.tokenUsage || {};
     const provider = context?.provider || 'claude';
-    const model =
-      context?.model ||
-      (provider === 'cursor'
-        ? CURSOR_MODELS.DEFAULT
-        : provider === 'codex'
-          ? CODEX_MODELS.DEFAULT
-          : CLAUDE_MODELS.DEFAULT);
+    const model = context?.model || getProviderDefaultModel(provider);
 
     const used = Number(tokenUsage.used ?? tokenUsage.totalUsed ?? tokenUsage.total_tokens ?? 0) || 0;
     const total =

@@ -4,9 +4,15 @@ import os from 'os';
 
 import express from 'express';
 
-import { CURSOR_MODELS } from '../../shared/modelConstants.js';
+import { getDefaultProviderModel, getStaticProviderModels } from '../services/model-registry.js';
 
 const router = express.Router();
+
+function readCursorDefaultModel() {
+  const modelId = getDefaultProviderModel('cursor');
+  const displayName = getStaticProviderModels('cursor').find((model) => model.value === modelId)?.label || modelId;
+  return { modelId, displayName };
+}
 
 // GET /api/cursor/config - Read Cursor CLI configuration.
 router.get('/config', async (req, res) => {
@@ -25,14 +31,15 @@ router.get('/config', async (req, res) => {
     } catch (error) {
       // Config doesn't exist or is invalid, so return the UI default shape.
       console.log('Cursor config not found or invalid:', error.message);
+      const defaultModel = readCursorDefaultModel();
 
       res.json({
         success: true,
         config: {
           version: 1,
           model: {
-            modelId: CURSOR_MODELS.DEFAULT,
-            displayName: 'GPT-5',
+            modelId: defaultModel.modelId,
+            displayName: defaultModel.displayName,
           },
           permissions: {
             allow: [],

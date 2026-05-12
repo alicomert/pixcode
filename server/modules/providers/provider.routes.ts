@@ -13,7 +13,10 @@ import {
 } from '@/services/provider-credentials.js';
  
 // @ts-ignore — plain-JS service
-import { getProviderModels, clearProviderModelCache } from '@/services/provider-models.js';
+import {
+  clearProviderModelRegistryCache,
+  getProviderModelRegistryEntry,
+} from '@/services/model-registry.js';
 // @ts-ignore — plain-JS service
 import { getProviderCliVersionStatus } from '@/services/provider-cli-versions.js';
  
@@ -35,23 +38,6 @@ import {
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import type { LLMProvider, McpScope, McpTransport, UpsertProviderMcpServerInput } from '@/shared/types.js';
 
-import {
-  CLAUDE_MODELS,
-  CODEX_MODELS,
-  GEMINI_MODELS,
-  QWEN_MODELS,
-  CURSOR_MODELS,
-  OPENCODE_MODELS,
-} from '../../../shared/modelConstants.js';
-
-const STATIC_MODELS_BY_PROVIDER: Record<LLMProvider, Array<{ value: string; label: string }>> = {
-  claude: CLAUDE_MODELS.OPTIONS,
-  codex: CODEX_MODELS.OPTIONS,
-  cursor: CURSOR_MODELS.OPTIONS,
-  gemini: GEMINI_MODELS.OPTIONS,
-  qwen: QWEN_MODELS.OPTIONS,
-  opencode: OPENCODE_MODELS.OPTIONS,
-};
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
@@ -440,21 +426,16 @@ router.post(
 
 /**
  * GET /api/providers/:provider/models?refresh=1
- * Merged model catalog: hardcoded defaults + live API discovery when an
- * API key is configured. Ships a stable baseline so dropdowns never sit
- * empty, then overlays whatever the upstream API reports so users get
- * new models without a Pixcode release. 6-hour cache; pass `refresh=1`
- * to force an upstream hit.
+ * Provider model registry entry: central static fallback + live API discovery
+ * with freshness/degraded metadata. 6-hour cache; pass `refresh=1` to force an
+ * upstream hit.
  */
 router.get(
   '/:provider/models',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const forceRefresh = String(req.query.refresh || '').toLowerCase() === '1';
-    const result = await getProviderModels(provider, {
-      forceRefresh,
-      staticList: STATIC_MODELS_BY_PROVIDER[provider] ?? [],
-    });
+    const result = await getProviderModelRegistryEntry(provider, { forceRefresh });
     res.json(createApiSuccessResponse(result));
   }),
 );
@@ -463,7 +444,7 @@ router.delete(
   '/:provider/models/cache',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
-    await clearProviderModelCache(provider);
+    await clearProviderModelRegistryCache(provider);
     res.json(createApiSuccessResponse({ cleared: true, provider }));
   }),
 );

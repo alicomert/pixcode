@@ -15,8 +15,8 @@ import { queryCodex } from '../openai-codex.js';
 import { spawnGemini } from '../gemini-cli.js';
 import { spawnQwen } from '../qwen-code-cli.js';
 import { spawnOpencode } from '../opencode-cli.js';
-import { CODEX_MODELS } from '../../shared/modelConstants.js';
 import { IS_PLATFORM } from '../constants/config.js';
+import { getDefaultProviderModel } from '../services/model-registry.js';
 
 const router = express.Router();
 const isPixcodeApiKey = (token) => typeof token === 'string' && (token.startsWith('px_') || token.startsWith('ck_'));
@@ -1095,7 +1095,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         projectPath: finalProjectPath,
         cwd: finalProjectPath,
         sessionId: sessionId || null,
-        model: model || CODEX_MODELS.DEFAULT,
+        model: model || getDefaultProviderModel('codex'),
         permissionMode: 'bypassPermissions'
       }, writer);
     } else if (provider === 'gemini') {

@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.41.1](https://github.com/alicomert/pixcode/compare/v1.41.0...v1.41.1) (2026-05-12)
+
+Pixcode 1.41.1 moves provider model selection behind a shared server registry so chat, orchestration, Telegram, and API consumers stop drifting across stale static lists.
+
+### New Features
+
+* **models:** add a provider model registry service with defaults, static fallbacks, live catalog results, and freshness/degraded metadata.
+* **models:** return `defaultModel`, `error`, and `freshness` from `/api/providers/:provider/models` so catalog fallback reasons stay visible.
+
+### Maintenance
+
+* route orchestration model validation, Telegram model fallback, slash command model lists, and legacy API defaults through the shared registry.
+* document the registry contract and add smoke coverage for provider support, fallback markers, defaults, and degraded metadata.
+
 ## [1.41.0](https://github.com/alicomert/pixcode/compare/v1.40.10...v1.41.0) (2026-05-12)
 
 Pixcode 1.41.0 starts the reliability and observability roadmap by centralizing notification event naming and delivery metadata across chat, orchestration, approvals, failures, updates, and Live View diagnostics.

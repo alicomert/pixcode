@@ -2,14 +2,7 @@ import crypto from 'node:crypto';
 
 import { apiKeysDb, telegramLinksDb } from '../../database/db.js';
 import { getProjects } from '../../projects.js';
-import {
-  CLAUDE_MODELS,
-  CODEX_MODELS,
-  CURSOR_MODELS,
-  GEMINI_MODELS,
-  OPENCODE_MODELS,
-  QWEN_MODELS,
-} from '../../../shared/modelConstants.js';
+import { getStaticProviderModels } from '../model-registry.js';
 
 import { SUPPORTED_LANGUAGES, t } from './translations.js';
 
@@ -20,14 +13,9 @@ const MAX_TELEGRAM_TEXT = 3600;
 const callbackActions = new Map();
 const runMonitors = new Map();
 
-const MODEL_FALLBACKS = {
-  claude: CLAUDE_MODELS.OPTIONS,
-  codex: CODEX_MODELS.OPTIONS,
-  cursor: CURSOR_MODELS.OPTIONS,
-  gemini: GEMINI_MODELS.OPTIONS,
-  qwen: QWEN_MODELS.OPTIONS,
-  opencode: OPENCODE_MODELS.OPTIONS,
-};
+const MODEL_FALLBACKS = Object.fromEntries(
+  PROVIDERS.map((provider) => [provider, getStaticProviderModels(provider)]),
+);
 
 const AUTH_HELP = {
   claude: '`claude login`',
