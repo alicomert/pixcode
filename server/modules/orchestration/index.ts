@@ -31,6 +31,12 @@ export {
 export { createOrchestrationTaskRouter } from './tasks/orchestration-task.routes.js';
 export { orchestrationTaskService } from './tasks/orchestration-task.service.js';
 export { createWorkflowRouter } from './workflows/workflow.routes.js';
+export {
+  PIXCODE_WORKFLOW_TEMPLATE_PROTOCOL,
+  applyWorkflowTemplateToMetadata,
+  builtInWorkflowTemplates,
+  getWorkflowTemplate,
+} from './workflows/workflow-templates.js';
 export { workflowRunner } from './workflows/workflow-runner.js';
 export { workflowStore } from './workflows/workflow-store.js';
 export { workspaceManager } from './workspace/workspace-manager.js';
@@ -66,6 +72,10 @@ export type {
   OrchestrationTask,
   OrchestrationTaskState,
 } from './tasks/orchestration-task.types.js';
+export type {
+  WorkflowTemplate,
+  WorkflowTemplateAgentSlot,
+} from './workflows/workflow-templates.js';
 export type {
   Workflow,
   WorkflowNode,

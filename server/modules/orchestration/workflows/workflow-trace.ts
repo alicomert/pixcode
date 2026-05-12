@@ -165,6 +165,28 @@ export function buildWorkflowTrace(run: WorkflowRun): WorkflowTraceEvent[] {
     });
   }
 
+  const workflowTemplate = readRecord(run.metadata?.workflowTemplate);
+  if (workflowTemplate) {
+    pushEvent(events, {
+      id: traceId([run.id, 'workflow-template']),
+      type: 'run',
+      severity: 'info',
+      status: run.status,
+      timestamp: run.startedAt + 0.3,
+      actor: 'Pixcode',
+      title: 'Workflow template applied',
+      titleKey: 'workflow.trace.template',
+      summary: redactTraceText([
+        `Template: ${readString(workflowTemplate.name) ?? readString(workflowTemplate.id) ?? 'unknown'}`,
+        `Protocol: ${readString(workflowTemplate.protocol) ?? 'unknown'}`,
+        Array.isArray(workflowTemplate.acceptanceCriteria)
+          ? `Acceptance criteria:\n- ${workflowTemplate.acceptanceCriteria.filter((item) => typeof item === 'string').join('\n- ')}`
+          : undefined,
+      ].filter(Boolean).join('\n'), run),
+      metadata: workflowTemplate,
+    });
+  }
+
   const fallbackEvents = Array.isArray(run.metadata?.fallbackEvents)
     ? run.metadata.fallbackEvents
     : [];

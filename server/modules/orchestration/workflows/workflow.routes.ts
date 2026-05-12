@@ -6,6 +6,11 @@ import {
   type WorkflowReplayScope,
   buildWorkflowReplayPlan,
 } from '@/modules/orchestration/workflows/workflow-replay.js';
+import {
+  applyWorkflowTemplateToMetadata,
+  builtInWorkflowTemplates,
+  getWorkflowTemplate,
+} from '@/modules/orchestration/workflows/workflow-templates.js';
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
 import { buildWorkflowTrace } from '@/modules/orchestration/workflows/workflow-trace.js';
 import { findPixcodeAppRoot } from '@/modules/orchestration/workflows/workspace-target.js';
@@ -128,6 +133,12 @@ export function createWorkflowRouter(): Router {
 
   router.get('/workflows', (_req, res) => {
     res.json({ workflows: workflowStore.listWorkflows() });
+  });
+
+  router.get('/workflows/templates', (_req, res) => {
+    res.json({
+      templates: builtInWorkflowTemplates,
+    });
   });
 
   router.get('/workflows/context', (_req, res) => {
@@ -437,6 +448,39 @@ export function createWorkflowRouter(): Router {
       res.status(400).json({
         error: {
           code: 'WORKFLOW_INVALID',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.post('/workflows/templates/:templateId/runs', (req, res) => {
+    const template = getWorkflowTemplate(req.params.templateId);
+    if (!template) {
+      res.status(404).json({ error: { code: 'WORKFLOW_TEMPLATE_NOT_FOUND', message: req.params.templateId } });
+      return;
+    }
+    const workflow = workflowStore.getWorkflow(template.workflowId);
+    if (!workflow) {
+      res.status(404).json({ error: { code: 'WORKFLOW_NOT_FOUND', message: template.workflowId } });
+      return;
+    }
+
+    try {
+      const run = workflowRunner.start(
+        workflow,
+        typeof req.body?.input === 'string' ? req.body.input : '',
+        {
+          ...applyWorkflowTemplateToMetadata(template, readMetadata(req.body)),
+          userId: readRequestUserId(req),
+          workflowName: workflow.name,
+        },
+      );
+      res.status(202).json(run);
+    } catch (error) {
+      res.status(400).json({
+        error: {
+          code: 'WORKFLOW_TEMPLATE_START_FAILED',
           message: error instanceof Error ? error.message : String(error),
         },
       });

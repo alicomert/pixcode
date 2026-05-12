@@ -42,6 +42,27 @@ type BuiltInWorkflow = {
   nodes?: Array<{ id: string; adapterId: string }>;
 };
 
+type WorkflowTemplate = {
+  id: string;
+  protocol: string;
+  version: number;
+  workflowId: string;
+  name: string;
+  description: string;
+  inputPlaceholder: string;
+  agentSlots: Array<{
+    id: string;
+    role: string;
+    label: string;
+    instruction: string;
+  }>;
+  acceptanceCriteria: string[];
+  defaultSettings?: {
+    maxParallelAgents?: number;
+    maxRepairCycles?: number;
+  };
+};
+
 type WorkflowRunSummary = {
   id: string;
   workflowId: string;
@@ -193,6 +214,8 @@ const fallbackWorkflows: BuiltInWorkflow[] = [
     description: 'Agents propose, critique, respond, and produce a final recommendation.',
   },
 ];
+
+const noWorkflowTemplateValue = '__none__';
 
 function isAdapterId(value: unknown): value is AdapterId {
   return typeof value === 'string' && (allAdapterIds as readonly string[]).includes(value);
@@ -415,6 +438,8 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const loadRunsInFlightRef = useRef(false);
   const terminalRunRefreshIdsRef = useRef(new Set<string>());
   const [workflows, setWorkflows] = useState<BuiltInWorkflow[]>([]);
+  const [workflowTemplates, setWorkflowTemplates] = useState<WorkflowTemplate[]>([]);
+  const [templateId, setTemplateId] = useState(noWorkflowTemplateValue);
   const [orchestrationContext, setOrchestrationContext] = useState<OrchestrationContext>({});
   const [runs, setRuns] = useState<WorkflowRunSummary[]>([]);
   const [runId, setRunId] = useState<string | undefined>();
@@ -451,6 +476,10 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const selectedWorkflow = useMemo(
     () => availableWorkflows.find((workflow) => workflow.id === workflowId),
     [availableWorkflows, workflowId],
+  );
+  const selectedTemplate = useMemo(
+    () => workflowTemplates.find((template) => template.id === templateId),
+    [templateId, workflowTemplates],
   );
   const enabledAgents = useMemo(
     () => settings.agents.filter((agent) => agent.enabled),
@@ -625,8 +654,15 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     setWorkflowId((current) =>
       nextAvailableWorkflows.some((workflow) => workflow.id === current)
         ? current
-        : nextAvailableWorkflows[0]?.id || 'agent_team',
+      : nextAvailableWorkflows[0]?.id || 'agent_team',
     );
+  }, []);
+
+  const loadWorkflowTemplates = useCallback(async () => {
+    const response = await authenticatedFetch('/api/orchestration/workflows/templates');
+    if (!response.ok) return;
+    const data = await response.json() as { templates?: WorkflowTemplate[] };
+    setWorkflowTemplates(data.templates ?? []);
   }, []);
 
   const loadOrchestrationContext = useCallback(async () => {
@@ -659,12 +695,13 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   useEffect(() => {
     void loadOrchestrationContext();
     void loadWorkflows();
+    void loadWorkflowTemplates();
     void loadRuns();
     const timer = window.setInterval(() => {
       void loadRuns();
     }, runsRefreshIntervalMs);
     return () => window.clearInterval(timer);
-  }, [loadOrchestrationContext, loadRuns, loadWorkflows, runsRefreshIntervalMs]);
+  }, [loadOrchestrationContext, loadRuns, loadWorkflowTemplates, loadWorkflows, runsRefreshIntervalMs]);
 
   useEffect(() => {
     localStorage.setItem(settingsStorageKey, JSON.stringify(settings));
@@ -754,6 +791,30 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     }
   }, [adjustPaneWidth]);
 
+  const applyTemplate = (template: WorkflowTemplate) => {
+    setWorkflowId(template.workflowId);
+    setTemplateId(template.id);
+    setSettings((prev) => {
+      let enabledSlotIndex = 0;
+      return {
+        ...prev,
+        maxParallelAgents: template.defaultSettings?.maxParallelAgents ?? prev.maxParallelAgents,
+        agents: prev.agents.map((agent) => {
+          if (!agent.enabled) return agent;
+          const slot = template.agentSlots[enabledSlotIndex];
+          enabledSlotIndex += 1;
+          if (!slot) return agent;
+          return {
+            ...agent,
+            role: slot.role,
+            instruction: agent.instruction.trim() ? agent.instruction : slot.instruction,
+          };
+        }),
+      };
+    });
+    setGoal((current) => current.trim() ? current : template.inputPlaceholder);
+  };
+
   const start = async () => {
     const trimmedGoal = goal.trim();
     if (!workflowId || !trimmedGoal || starting) return;
@@ -789,6 +850,21 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
           metadata: {
             projectId: selectedProject.name,
             projectName: selectedProject.displayName,
+            workflowTemplate: selectedTemplate
+              ? {
+                protocol: selectedTemplate.protocol,
+                id: selectedTemplate.id,
+                version: selectedTemplate.version,
+                name: selectedTemplate.name,
+                workflowId: selectedTemplate.workflowId,
+                acceptanceCriteria: selectedTemplate.acceptanceCriteria,
+                agentSlots: selectedTemplate.agentSlots.map((slot) => ({
+                  id: slot.id,
+                  role: slot.role,
+                  label: slot.label,
+                })),
+              }
+              : undefined,
             selectedProjectPath: projectPath,
             projectPath: effectiveWorkspacePath || projectPath,
             workspaceTarget: {
@@ -981,11 +1057,44 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
             ) : null}
 
             <div className="mt-3 grid gap-3">
+              <div className="rounded-md border border-border/70 bg-background/60 p-3">
+                <label className="space-y-1">
+                  <span className="text-xs font-medium text-muted-foreground">{t('orchestration.templates')}</span>
+                  <select
+                    value={templateId}
+                    onChange={(event) => {
+                      const nextTemplateId = event.target.value;
+                      setTemplateId(nextTemplateId);
+                      const template = workflowTemplates.find((item) => item.id === nextTemplateId);
+                      if (template) {
+                        applyTemplate(template);
+                      }
+                    }}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value={noWorkflowTemplateValue}>{t('orchestration.noTemplate')}</option>
+                    {workflowTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {selectedTemplate?.description || t('orchestration.templateHint')}
+                </p>
+              </div>
+
               <label className="space-y-1">
                 <span className="text-xs font-medium text-muted-foreground">{t('orchestration.mode')}</span>
                 <select
                   value={workflowId}
-                  onChange={(event) => setWorkflowId(event.target.value)}
+                  onChange={(event) => {
+                    setWorkflowId(event.target.value);
+                    if (selectedTemplate && event.target.value !== selectedTemplate.workflowId) {
+                      setTemplateId(noWorkflowTemplateValue);
+                    }
+                  }}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   {availableWorkflows.map((workflow) => (

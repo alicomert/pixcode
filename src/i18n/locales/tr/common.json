@@ -353,6 +353,9 @@
     "cliSettings": "CLI ayarları",
     "waitingForStream": "Akış bekleniyor...",
     "workflow": "Workflow",
+    "templates": "Şablonlar",
+    "noTemplate": "Şablon yok",
+    "templateHint": "Başlatmadan önce workflow, ajan rolleri ve kabul kriterlerini doldurmak için bir başlangıç şablonu seç.",
     "input": "Girdi",
     "taskStates": {
       "todo": "Yapılacak",

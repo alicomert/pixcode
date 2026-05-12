@@ -353,6 +353,9 @@
     "cliSettings": "CLI settings",
     "waitingForStream": "Waiting for stream...",
     "workflow": "Workflow",
+    "templates": "Templates",
+    "noTemplate": "No template",
+    "templateHint": "Pick a starter template to fill the workflow, agent roles, and acceptance criteria before launch.",
     "input": "Input",
     "taskStates": {
       "todo": "To Do",
