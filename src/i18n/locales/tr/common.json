@@ -126,6 +126,7 @@
     "stop": "Takımı durdur",
     "stopping": "Durduruluyor",
     "cancelFailed": "Workflow durdurulamadı.",
+    "linkedTask": "Bağlı görev",
     "replayRun": "Replay",
     "replaying": "Replay başlıyor",
     "approveReplay": "Replay onayla",

@@ -56,6 +56,12 @@ function getPriorityBadgeClass(priority?: string): string {
   return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800';
 }
 
+function getCriterionBadgeClass(status: string): string {
+  if (status === 'passed') return 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300';
+  if (status === 'failed') return 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300';
+  return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+}
+
 export default function TaskDetailModal({
   task,
   isOpen = true,
@@ -79,6 +85,7 @@ export default function TaskDetailModal({
   }, [task]);
 
   const StatusIcon = useMemo(() => getStatusIcon(task?.status), [task?.status]);
+  const taskGraph = task?.taskGraph;
 
   if (!isOpen || !task || !editableTask) {
     return null;
@@ -265,6 +272,69 @@ export default function TaskDetailModal({
               )}
             </div>
           </div>
+
+          {taskGraph ? (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">Associated runs</div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {taskGraph.status.totalRuns} runs · {taskGraph.status.completedRuns} completed · {taskGraph.status.failedRuns} failed
+                </div>
+              </div>
+              <div className="grid gap-4 p-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Associated runs</div>
+                  {taskGraph.workflowRuns.length > 0 ? (
+                    <div className="space-y-2">
+                      {taskGraph.workflowRuns.slice(0, 4).map((run) => (
+                        <div key={run.id} className="rounded-md border border-gray-200 p-2 text-xs dark:border-gray-700">
+                          <div className="font-medium text-gray-900 dark:text-white">{run.workflowId}</div>
+                          <div className="mt-1 text-gray-500 dark:text-gray-400">
+                            {run.status} · {new Date(run.startedAt).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">No associated runs yet</div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Changed files</div>
+                  {taskGraph.changedFiles.length > 0 ? (
+                    <div className="space-y-1">
+                      {taskGraph.changedFiles.slice(0, 6).map((file) => (
+                        <div key={file} className="truncate rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                          {file}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">No changed files recorded</div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Acceptance criteria</div>
+                  {taskGraph.acceptanceCriteria.length > 0 ? (
+                    <div className="space-y-2">
+                      {taskGraph.acceptanceCriteria.slice(0, 6).map((criterion) => (
+                        <div key={criterion.id} className="rounded-md border border-gray-200 p-2 text-xs dark:border-gray-700">
+                          <span className={`mr-2 inline-flex rounded px-1.5 py-0.5 font-medium ${getCriterionBadgeClass(criterion.status)}`}>
+                            {criterion.status}
+                          </span>
+                          <span className="text-gray-700 dark:text-gray-300">{criterion.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">No acceptance criteria recorded</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>

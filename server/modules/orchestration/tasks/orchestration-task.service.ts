@@ -2,12 +2,59 @@ import { OrchestrationTaskStore } from '@/modules/orchestration/tasks/orchestrat
 import type { CreateOrchestrationTaskInput, DispatchOrchestrationTaskInput, OrchestrationTask } from '@/modules/orchestration/tasks/orchestration-task.types.js';
 import { a2aBus } from '@/modules/orchestration/a2a/bus.js';
 import type { TaskState } from '@/modules/orchestration/a2a/types.js';
+import type { WorkflowNodeRun, WorkflowRun } from '@/modules/orchestration/workflows/workflow.types.js';
 
 function newId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 const TERMINAL_A2A_STATES: TaskState[] = ['completed', 'canceled', 'failed'];
+
+function uniqueStrings(values: Array<string | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value?.trim())))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function changedFilesFromNode(node: WorkflowNodeRun): string[] {
+  const files: string[] = [];
+  if (node.handoffArtifact?.changedFiles) {
+    files.push(...node.handoffArtifact.changedFiles);
+  }
+  for (const artifact of node.artifacts ?? []) {
+    const data = readRecord(artifact.data);
+    const metadata = readRecord(artifact.metadata);
+    files.push(
+      ...[readString(data?.path), readString(data?.file), readString(metadata?.path), readString(metadata?.file)]
+        .filter((value): value is string => Boolean(value)),
+    );
+    for (const key of ['files', 'changedFiles']) {
+      const value = data?.[key] ?? metadata?.[key];
+      if (Array.isArray(value)) {
+        files.push(...value.map((entry) => readString(entry)).filter((entry): entry is string => Boolean(entry)));
+      }
+    }
+  }
+  return uniqueStrings(files);
+}
+
+function changedFilesFromWorkflowRun(run: WorkflowRun): string[] {
+  return uniqueStrings(run.nodeRuns.flatMap((node) => changedFilesFromNode(node)));
+}
+
+function workflowRunState(run: WorkflowRun): OrchestrationTask['state'] {
+  if (run.status === 'completed') return 'done';
+  if (run.status === 'failed') return 'failed';
+  if (run.status === 'canceled') return 'canceled';
+  return 'in_progress';
+}
 
 class OrchestrationTaskService {
   private store: OrchestrationTaskStore;
@@ -33,6 +80,8 @@ class OrchestrationTaskService {
       title: input.title,
       description: input.description,
       taskmasterId: input.taskmasterId,
+      acceptanceCriteria: input.acceptanceCriteria,
+      changedFiles: input.changedFiles,
       state: 'todo',
       createdAt: now,
       updatedAt: now,
@@ -48,6 +97,8 @@ class OrchestrationTaskService {
     if (existing) {
       existing.title = input.title;
       existing.description = input.description;
+      existing.acceptanceCriteria = input.acceptanceCriteria ?? existing.acceptanceCriteria;
+      existing.changedFiles = uniqueStrings([...(existing.changedFiles ?? []), ...(input.changedFiles ?? [])]);
       existing.updatedAt = Date.now();
       this.store.set(existing);
       return existing;
@@ -96,6 +147,49 @@ class OrchestrationTaskService {
     task.state = 'in_progress';
     task.updatedAt = Date.now();
     this.store.set(task);
+    return task;
+  }
+
+  linkWorkflowRun(taskId: string, run: WorkflowRun): OrchestrationTask | undefined {
+    const task = this.store.get(taskId);
+    if (!task) return undefined;
+    task.workflowRunIds = uniqueStrings([...(task.workflowRunIds ?? []), run.id]);
+    task.state = workflowRunState(run);
+    task.updatedAt = Date.now();
+    this.store.set(task);
+    return task;
+  }
+
+  updateFromWorkflowRun(run: WorkflowRun): OrchestrationTask | undefined {
+    const metadata = run.metadata ?? {};
+    const taskId = readString(metadata.orchestrationTaskId);
+    const taskmasterId = readString(metadata.taskmasterId);
+    const task = taskId
+      ? this.store.get(taskId)
+      : taskmasterId
+        ? this.store.list(readString(metadata.projectId)).find((candidate) => candidate.taskmasterId === taskmasterId)
+        : undefined;
+    if (!task) return undefined;
+
+    const changedFiles = changedFilesFromWorkflowRun(run);
+    task.workflowRunIds = uniqueStrings([...(task.workflowRunIds ?? []), run.id]);
+    task.changedFiles = uniqueStrings([...(task.changedFiles ?? []), ...changedFiles]);
+    task.state = workflowRunState(run);
+    task.acceptanceCriteria = [
+      ...(task.acceptanceCriteria ?? []).filter((criterion) => criterion.id !== `run-${run.id}`),
+      {
+        id: `run-${run.id}`,
+        label: `Workflow ${run.workflowId} ${run.status}`,
+        status: run.status === 'completed' ? 'passed' : run.status === 'failed' || run.status === 'canceled' ? 'failed' : 'pending',
+        source: 'workflow',
+      },
+    ];
+    task.updatedAt = Date.now();
+    this.store.set(task);
+
+    if (task.taskmasterId && task.state === 'done') {
+      this.syncTaskMasterStatus(task.taskmasterId, 'done');
+    }
     return task;
   }
 

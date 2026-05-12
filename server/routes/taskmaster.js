@@ -16,6 +16,9 @@ import express from 'express';
 import crossSpawn from 'cross-spawn';
 
 import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
+import { buildTaskRunGraph } from '@/modules/orchestration/tasks/task-run-graph.js';
+import { workflowRunner } from '@/modules/orchestration/workflows/workflow-runner.js';
+import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
 
 import { extractProjectDirectory } from '../projects.js';
 import {
@@ -165,6 +168,21 @@ function taskMasterExecutionDescription(task) {
             ? `Dependencies: ${task.dependencies.join(', ')}`
             : '',
     ].filter(Boolean).join('\n\n');
+}
+
+function taskGraphForTask(projectId, task) {
+    return buildTaskRunGraph({
+        projectId,
+        taskmasterId: String(task.id),
+        taskmasterTask: task,
+    });
+}
+
+function attachTaskGraph(projectId, task) {
+    return {
+        ...task,
+        taskGraph: taskGraphForTask(projectId, task),
+    };
 }
 
 function buildTaskMasterQueueSummary(projectName, projectPath, tasks) {
@@ -389,22 +407,26 @@ router.delete('/install/:jobId', async (req, res) => {
 router.get('/tasks/:projectName', async (req, res) => {
     try {
         const { projectName } = req.params;
+        const projectId = typeof req.query.projectId === 'string' && req.query.projectId.trim()
+            ? req.query.projectId.trim()
+            : projectName;
 
         const { projectPath, transformedTasks, currentTag } = await readTaskMasterTasks(projectName);
+        const tasksWithGraph = transformedTasks.map((task) => attachTaskGraph(projectId, task));
 
         res.json({
             projectName,
             projectPath,
-            tasks: transformedTasks,
+            tasks: tasksWithGraph,
             currentTag,
-            totalTasks: transformedTasks.length,
+            totalTasks: tasksWithGraph.length,
             tasksByStatus: {
-                pending: transformedTasks.filter(t => t.status === 'pending').length,
-                'in-progress': transformedTasks.filter(t => t.status === 'in-progress').length,
-                done: transformedTasks.filter(t => t.status === 'done').length,
-                review: transformedTasks.filter(t => t.status === 'review').length,
-                deferred: transformedTasks.filter(t => t.status === 'deferred').length,
-                cancelled: transformedTasks.filter(t => t.status === 'cancelled').length
+                pending: tasksWithGraph.filter(t => t.status === 'pending').length,
+                'in-progress': tasksWithGraph.filter(t => t.status === 'in-progress').length,
+                done: tasksWithGraph.filter(t => t.status === 'done').length,
+                review: tasksWithGraph.filter(t => t.status === 'review').length,
+                deferred: tasksWithGraph.filter(t => t.status === 'deferred').length,
+                cancelled: tasksWithGraph.filter(t => t.status === 'cancelled').length
             },
             timestamp: new Date().toISOString()
         });
@@ -459,6 +481,9 @@ router.get('/queue/:projectName', async (req, res) => {
 router.get('/task/:projectName/:taskId', async (req, res) => {
     try {
         const { projectName, taskId } = req.params;
+        const projectId = typeof req.query.projectId === 'string' && req.query.projectId.trim()
+            ? req.query.projectId.trim()
+            : projectName;
         const { projectPath, transformedTasks } = await readTaskMasterTasks(projectName);
         const task = transformedTasks.find((candidate) => String(candidate.id) === String(taskId));
         if (!task) {
@@ -472,7 +497,8 @@ router.get('/task/:projectName/:taskId', async (req, res) => {
             success: true,
             projectName,
             projectPath,
-            task,
+            task: attachTaskGraph(projectId, task),
+            taskGraph: taskGraphForTask(projectId, task),
             execution: {
                 supportsProvider: true,
                 supportsModel: true,
@@ -505,6 +531,7 @@ router.post('/execute/:projectName/:taskId', async (req, res) => {
                 : '';
         const model = typeof req.body?.model === 'string' ? req.body.model : undefined;
         const permissionMode = typeof req.body?.permissionMode === 'string' ? req.body.permissionMode : undefined;
+        const workflowId = typeof req.body?.workflowId === 'string' ? req.body.workflowId : undefined;
         const fallbackProvider = typeof req.body?.fallbackProvider === 'string' ? req.body.fallbackProvider : undefined;
         const workerSlot = Number.isInteger(req.body?.workerSlot) ? req.body.workerSlot : undefined;
         const isolation = ['host', 'worktree', 'docker'].includes(req.body?.isolation)
@@ -544,15 +571,49 @@ router.post('/execute/:projectName/:taskId', async (req, res) => {
             },
         });
 
-        const dispatchedTask = await orchestrationTaskService.dispatch(orchestrationTask.id, {
-            adapterId,
-            isolation,
-            projectPath,
-            model,
-            permissionMode,
-            fallbackProvider,
-            workerSlot,
-        });
+        let dispatchedTask;
+        let workflowRun;
+        if (workflowId) {
+            const workflow = workflowStore.getWorkflow(workflowId);
+            if (!workflow) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Workflow not found',
+                    message: `Workflow "${workflowId}" was not found`
+                });
+            }
+            workflowRun = workflowRunner.start(workflow, taskMasterExecutionDescription(task), {
+                projectId,
+                projectName,
+                projectPath,
+                selectedProjectPath: projectPath,
+                taskmasterId: String(task.id),
+                taskmasterTaskTitle: task.title,
+                orchestrationTaskId: orchestrationTask.id,
+                workflowName: workflow.name,
+                settings: {
+                    isolation,
+                    keepWorkspace: true,
+                    baseRef: 'HEAD',
+                },
+                taskGraph: {
+                    taskmasterId: String(task.id),
+                    orchestrationTaskId: orchestrationTask.id,
+                    source: 'taskmaster',
+                },
+            });
+            dispatchedTask = orchestrationTaskService.linkWorkflowRun(orchestrationTask.id, workflowRun) ?? orchestrationTask;
+        } else {
+            dispatchedTask = await orchestrationTaskService.dispatch(orchestrationTask.id, {
+                adapterId,
+                isolation,
+                projectPath,
+                model,
+                permissionMode,
+                fallbackProvider,
+                workerSlot,
+            });
+        }
 
         res.json({
             success: true,
@@ -565,8 +626,11 @@ router.post('/execute/:projectName/:taskId', async (req, res) => {
                 permissionMode,
                 fallbackProvider,
                 workerSlot,
+                workflowId,
             },
-            task: dispatchedTask
+            task: dispatchedTask,
+            run: workflowRun,
+            taskGraph: taskGraphForTask(projectId, task),
         });
     } catch (error) {
         console.error('TaskMaster execute error:', error);
@@ -591,14 +655,17 @@ router.post('/sync-orchestration/:projectName', async (req, res) => {
             ? req.body.projectId.trim()
             : projectName;
 
-        const syncedTasks = transformedTasks.map((task) =>
-            orchestrationTaskService.upsertFromTaskMaster({
+        const syncedTasks = transformedTasks.map((task) => {
+            const taskGraph = taskGraphForTask(projectId, task);
+            return orchestrationTaskService.upsertFromTaskMaster({
                 projectId,
                 taskmasterId: String(task.id),
                 title: task.title,
                 description: task.description,
-            })
-        );
+                acceptanceCriteria: taskGraph.acceptanceCriteria,
+                changedFiles: taskGraph.changedFiles,
+            });
+        });
 
         res.json({
             success: true,

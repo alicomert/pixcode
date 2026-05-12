@@ -28,6 +28,7 @@ import {
   workspaceTargetMetadata,
 } from '@/modules/orchestration/workflows/workspace-target.js';
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
+import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
 // @ts-ignore — plain-JS service
 import {
   getDefaultProviderModel,
@@ -1215,7 +1216,7 @@ class WorkflowRunner {
     const runtimeWorkflow = expandWorkflowForRun(workflow, metadata);
     validateWorkflow(runtimeWorkflow);
     const workspaceTarget = resolveWorkflowWorkspace(metadata);
-    const runMetadata = {
+    const runMetadata: Record<string, unknown> = {
       ...metadata,
       projectPath: workspaceTarget.projectPath,
       selectedProjectPath: workspaceTarget.selectedProjectPath,
@@ -1232,6 +1233,10 @@ class WorkflowRunner {
       metadata: runMetadata,
     };
     workflowStore.setRun(run);
+    const orchestrationTaskId = readString(runMetadata.orchestrationTaskId);
+    if (orchestrationTaskId) {
+      orchestrationTaskService.linkWorkflowRun(orchestrationTaskId, run);
+    }
     void this.execute(runtimeWorkflow, run);
     return run;
   }
@@ -1591,6 +1596,7 @@ class WorkflowRunner {
     } finally {
       run.finishedAt = run.finishedAt ?? Date.now();
       workflowStore.setRun(run);
+      orchestrationTaskService.updateFromWorkflowRun(run);
       notifyWorkflowRunFinished(run);
       this.cancelingRuns.delete(run.id);
     }

@@ -699,6 +699,8 @@ export default function WorkflowRunPanel({
 
   const replayRequiresApproval = Boolean(replayPlan?.requiresApproval);
   const canReplay = Boolean(replayPlan && terminalRunStatuses.has(run.status));
+  const taskmasterId = typeof run.metadata?.taskmasterId === 'string' ? run.metadata.taskmasterId : undefined;
+  const linkedTaskTitle = typeof run.metadata?.taskmasterTaskTitle === 'string' ? run.metadata.taskmasterTaskTitle : undefined;
 
   return (
     <div className="flex min-h-[70vh] flex-col xl:h-full xl:min-h-0">
@@ -749,6 +751,13 @@ export default function WorkflowRunPanel({
         {run.input ? (
           <div className="mt-3 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-sm leading-6">
             {run.input}
+          </div>
+        ) : null}
+        {taskmasterId ? (
+          <div className="mt-3 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">{t('orchestration.linkedTask')}:</span>{' '}
+            <span>TaskMaster #{taskmasterId}</span>
+            {linkedTaskTitle ? <span> · {linkedTaskTitle}</span> : null}
           </div>
         ) : null}
         {typeof run.metadata?.error === 'string' ? (

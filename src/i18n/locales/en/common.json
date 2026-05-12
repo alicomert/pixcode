@@ -126,6 +126,7 @@
     "stop": "Stop team",
     "stopping": "Stopping",
     "cancelFailed": "Workflow could not be stopped.",
+    "linkedTask": "Linked task",
     "replayRun": "Replay",
     "replaying": "Replaying",
     "approveReplay": "Approve replay",

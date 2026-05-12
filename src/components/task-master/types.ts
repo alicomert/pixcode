@@ -27,7 +27,37 @@ export type TaskMasterTask = {
   subtasks?: TaskMasterTask[];
   createdAt?: string;
   updatedAt?: string;
+  taskGraph?: TaskRunGraph;
   [key: string]: unknown;
+};
+
+export type TaskRunGraph = {
+  protocol: string;
+  projectId: string;
+  taskmasterId?: string;
+  orchestrationTaskId?: string;
+  workflowRuns: Array<{
+    id: string;
+    workflowId: string;
+    status: string;
+    startedAt: number;
+    finishedAt?: number;
+    changedFiles: string[];
+  }>;
+  changedFiles: string[];
+  acceptanceCriteria: Array<{
+    id: string;
+    label: string;
+    status: 'pending' | 'passed' | 'failed';
+    source: 'taskmaster' | 'workflow';
+  }>;
+  status: {
+    totalRuns: number;
+    completedRuns: number;
+    failedRuns: number;
+    passedCriteria: number;
+    failedCriteria: number;
+  };
 };
 
 export type TaskReference = {
