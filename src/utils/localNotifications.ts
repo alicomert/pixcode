@@ -12,10 +12,20 @@ type NotifyOnceOptions = {
 
 const EVENT_KEY_MAP: Record<string, string> = {
   action_required: 'actionRequired',
+  'approval.needed': 'actionRequired',
   stop: 'stop',
+  'chat.done': 'stop',
+  'orchestration.done': 'stop',
+  'run.stopped': 'stop',
   error: 'error',
+  'run.failed': 'error',
+  'test.failed': 'error',
+  'live_view.failed': 'error',
   update: 'updates',
   updates: 'updates',
+  'push.enabled': 'updates',
+  'app.update.available': 'updates',
+  'cli.update.available': 'updates',
 };
 
 function eventEnabledByPreference(event = 'updates'): boolean {

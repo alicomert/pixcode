@@ -12,6 +12,9 @@ type NotificationItem = {
   id: string;
   title: string;
   body: string;
+  eventType?: string;
+  category?: string;
+  preferenceKey?: string;
   kind?: string;
   code?: string;
   severity?: 'info' | 'warning' | 'error' | string;
@@ -71,6 +74,9 @@ function toNotificationItem(value: unknown): NotificationItem | null {
     id: item.id,
     title: item.title,
     body: item.body,
+    eventType: item.eventType,
+    category: item.category,
+    preferenceKey: item.preferenceKey,
     kind: item.kind,
     code: item.code,
     severity: item.severity || 'info',
@@ -143,7 +149,7 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
       key: nextItem.id,
       title: nextItem.title,
       body: nextItem.body,
-      event: nextItem.kind || 'updates',
+      event: nextItem.eventType || nextItem.kind || 'updates',
       tag: typeof nextItem.data?.tag === 'string' ? nextItem.data.tag : nextItem.id,
       data: nextItem.data,
     });

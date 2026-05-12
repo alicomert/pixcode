@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.41.0](https://github.com/alicomert/pixcode/compare/v1.40.10...v1.41.0) (2026-05-12)
+
+Pixcode 1.41.0 starts the reliability and observability roadmap by centralizing notification event naming and delivery metadata across chat, orchestration, approvals, failures, updates, and Live View diagnostics.
+
+### New Features
+
+* **notifications:** add a shared notification taxonomy with stable `eventType`, `category`, `preferenceKey`, `kind`, `severity`, and `requiresUserAction` metadata.
+* **notifications:** expose `GET /api/settings/notification-taxonomy` so UI, Telegram, API, and future webhook consumers can subscribe to the same contract.
+* **notifications:** represent the required roadmap event types: `chat.done`, `orchestration.done`, `approval.needed`, `error`, `test.failed`, and `live_view.failed`.
+
+### Maintenance
+
+* document the notification taxonomy and preserve backward-compatible preference keys for existing user settings.
+* add smoke coverage for notification event normalization and preference mapping.
+
 ## [1.40.10](https://github.com/alicomert/pixcode/compare/v1.40.9...v1.40.10) (2026-05-12)
 
 Pixcode 1.40.10 cleans the repository release surface before the next roadmap work and keeps personal project workspaces out of published source history.

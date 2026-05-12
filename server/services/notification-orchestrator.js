@@ -3,13 +3,12 @@ import webPush from 'web-push';
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionNamesDb } from '../database/db.js';
 
 import { notifyUser as notifyTelegramUser } from './telegram/bot.js';
-
-const KIND_TO_PREF_KEY = {
-  action_required: 'actionRequired',
-  stop: 'stop',
-  error: 'error',
-  update: 'updates'
-};
+import {
+  NOTIFICATION_EVENT_TYPES,
+  createNotificationEventContract,
+  getNotificationPreferenceKey,
+  normalizeNotificationEvent
+} from './notification-taxonomy.js';
 
 const PROVIDER_LABELS = {
   claude: 'Claude',
@@ -40,7 +39,7 @@ const cleanupOldEventKeys = () => {
 
 function shouldSendPush(preferences, event) {
   const webPushEnabled = Boolean(preferences?.channels?.webPush);
-  const prefEventKey = KIND_TO_PREF_KEY[event.kind];
+  const prefEventKey = getNotificationPreferenceKey(event);
   const eventEnabled = prefEventKey ? Boolean(preferences?.events?.[prefEventKey]) : true;
 
   return webPushEnabled && eventEnabled;
@@ -48,7 +47,7 @@ function shouldSendPush(preferences, event) {
 
 function shouldSendInApp(preferences, event) {
   const inAppEnabled = preferences?.channels?.inApp !== false;
-  const prefEventKey = KIND_TO_PREF_KEY[event.kind];
+  const prefEventKey = getNotificationPreferenceKey(event);
   const eventEnabled = prefEventKey ? preferences?.events?.[prefEventKey] !== false : true;
 
   return inAppEnabled && eventEnabled;
@@ -56,7 +55,7 @@ function shouldSendInApp(preferences, event) {
 
 function shouldSendTelegram(preferences, event) {
   const telegramEnabled = preferences?.channels?.telegram !== false;
-  const prefEventKey = KIND_TO_PREF_KEY[event.kind];
+  const prefEventKey = getNotificationPreferenceKey(event);
   const eventEnabled = prefEventKey ? preferences?.events?.[prefEventKey] !== false : true;
 
   return telegramEnabled && eventEnabled;
@@ -75,6 +74,7 @@ function isDuplicate(event) {
 function createNotificationEvent({
   provider,
   sessionId = null,
+  eventType = null,
   kind = 'info',
   code = 'generic.info',
   meta = {},
@@ -82,9 +82,10 @@ function createNotificationEvent({
   dedupeKey = null,
   requiresUserAction = false
 }) {
-  return {
+  return normalizeNotificationEvent({
     provider,
     sessionId,
+    eventType,
     kind,
     code,
     meta,
@@ -92,7 +93,7 @@ function createNotificationEvent({
     requiresUserAction,
     dedupeKey,
     createdAt: new Date().toISOString()
-  };
+  });
 }
 
 function normalizeErrorMessage(error) {
@@ -138,6 +139,16 @@ function resolveSessionName(event) {
 }
 
 function buildPushBody(event) {
+  const EVENT_TYPE_MAP = {
+    [NOTIFICATION_EVENT_TYPES.CHAT_DONE]: event.meta?.stopReason || 'Chat run completed',
+    [NOTIFICATION_EVENT_TYPES.ORCHESTRATION_DONE]: event.meta?.stopReason || 'Orchestration completed',
+    [NOTIFICATION_EVENT_TYPES.APPROVAL_NEEDED]: event.meta?.toolName
+      ? `Action Required: Tool "${event.meta.toolName}" needs approval`
+      : 'Action Required: A run needs your approval',
+    [NOTIFICATION_EVENT_TYPES.ERROR]: event.meta?.error ? `Error: ${event.meta.error}` : 'Pixcode encountered an error',
+    [NOTIFICATION_EVENT_TYPES.TEST_FAILED]: event.meta?.error ? `Test Failed: ${event.meta.error}` : 'A verification command failed',
+    [NOTIFICATION_EVENT_TYPES.LIVE_VIEW_FAILED]: event.meta?.error ? `Live View Failed: ${event.meta.error}` : 'Live View failed'
+  };
   const CODE_MAP = {
     'permission.required': event.meta?.toolName
       ? `Action Required: Tool "${event.meta.toolName}" needs approval`
@@ -155,16 +166,19 @@ function buildPushBody(event) {
   };
   const providerLabel = PROVIDER_LABELS[event.provider] || 'Assistant';
   const sessionName = resolveSessionName(event);
-  const message = CODE_MAP[event.code] || 'You have a new notification';
+  const message = EVENT_TYPE_MAP[event.eventType] || CODE_MAP[event.code] || 'You have a new notification';
 
   return {
     title: sessionName || 'Pixcode',
     body: `${providerLabel}: ${message}`,
     data: {
       sessionId: event.sessionId || null,
+      eventType: event.eventType || null,
       code: event.code,
       provider: event.provider || null,
       sessionName,
+      category: event.category || null,
+      preferenceKey: event.preferenceKey || getNotificationPreferenceKey(event),
       tag: `${event.provider || 'assistant'}:${event.sessionId || 'none'}:${event.code}`
     }
   };
@@ -172,11 +186,15 @@ function buildPushBody(event) {
 
 function buildNotificationPayload(event) {
   const pushBody = buildPushBody(event);
+  const contract = createNotificationEventContract(event);
   const baseId = event.dedupeKey || `${event.provider || 'system'}:${event.kind || 'info'}:${event.code || 'generic'}:${event.sessionId || 'none'}`;
   return {
     id: `${baseId}:${event.createdAt}`,
     title: pushBody.title,
     body: pushBody.body,
+    eventType: contract.eventType,
+    category: contract.category,
+    preferenceKey: contract.preferenceKey,
     kind: event.kind || 'info',
     code: event.code || 'generic.info',
     severity: event.severity || 'info',
@@ -186,6 +204,28 @@ function buildNotificationPayload(event) {
     requiresUserAction: Boolean(event.requiresUserAction),
     data: pushBody.data
   };
+}
+
+function inferRunStoppedEventType({ provider, stopReason }) {
+  const reason = typeof stopReason === 'string' ? stopReason.toLowerCase() : '';
+  if (provider === 'system' && reason.includes('orchestration')) {
+    return NOTIFICATION_EVENT_TYPES.ORCHESTRATION_DONE;
+  }
+
+  return NOTIFICATION_EVENT_TYPES.CHAT_DONE;
+}
+
+function inferRunFailedEventType({ provider, error }) {
+  const message = normalizeErrorMessage(error).toLowerCase();
+  if (message.includes('live view')) {
+    return NOTIFICATION_EVENT_TYPES.LIVE_VIEW_FAILED;
+  }
+
+  if (message.includes('test') || message.includes('typecheck') || message.includes('lint') || message.includes('build')) {
+    return NOTIFICATION_EVENT_TYPES.TEST_FAILED;
+  }
+
+  return provider === 'system' ? NOTIFICATION_EVENT_TYPES.ERROR : NOTIFICATION_EVENT_TYPES.RUN_FAILED;
 }
 
 function broadcastInAppNotification(userId, event) {
@@ -280,12 +320,13 @@ function notifyUserIfEnabled({ userId, event }) {
   }
 }
 
-function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'completed', sessionName = null }) {
+function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'completed', sessionName = null, eventType = null }) {
   notifyUserIfEnabled({
     userId,
     event: createNotificationEvent({
       provider,
       sessionId,
+      eventType: eventType || inferRunStoppedEventType({ provider, stopReason }),
       kind: 'stop',
       code: 'run.stopped',
       meta: { stopReason, sessionName },
@@ -295,7 +336,7 @@ function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'co
   });
 }
 
-function notifyRunFailed({ userId, provider, sessionId = null, error, sessionName = null }) {
+function notifyRunFailed({ userId, provider, sessionId = null, error, sessionName = null, eventType = null }) {
   const errorMessage = normalizeErrorMessage(error);
 
   notifyUserIfEnabled({
@@ -303,6 +344,7 @@ function notifyRunFailed({ userId, provider, sessionId = null, error, sessionNam
     event: createNotificationEvent({
       provider,
       sessionId,
+      eventType: eventType || inferRunFailedEventType({ provider, error }),
       kind: 'error',
       code: 'run.failed',
       meta: { error: errorMessage, sessionName },
@@ -314,6 +356,7 @@ function notifyRunFailed({ userId, provider, sessionId = null, error, sessionNam
 
 export {
   createNotificationEvent,
+  createNotificationEventContract,
   setNotificationWebSocketServer,
   broadcastInAppNotification,
   notifyUserIfEnabled,

@@ -3,6 +3,7 @@ import express from 'express';
 import { apiKeysDb, credentialsDb, notificationPreferencesDb, pushSubscriptionsDb } from '../database/db.js';
 import { getPublicKey } from '../services/vapid-keys.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '../services/notification-orchestrator.js';
+import { listNotificationTaxonomy } from '../services/notification-taxonomy.js';
 
 const router = express.Router();
 
@@ -225,6 +226,15 @@ router.put('/notification-preferences', async (req, res) => {
   }
 });
 
+router.get('/notification-taxonomy', async (req, res) => {
+  try {
+    res.json({ success: true, events: listNotificationTaxonomy() });
+  } catch (error) {
+    console.error('Error fetching notification taxonomy:', error);
+    res.status(500).json({ error: 'Failed to fetch notification taxonomy' });
+  }
+});
+
 // ===============================
 // Push Subscription Management
 // ===============================
@@ -261,6 +271,7 @@ router.post('/push/subscribe', async (req, res) => {
     // Send a confirmation push through the full notification pipeline
     const event = createNotificationEvent({
       provider: 'system',
+      eventType: 'push.enabled',
       kind: 'info',
       code: 'push.enabled',
       meta: { message: 'Push notifications are now enabled!' },
