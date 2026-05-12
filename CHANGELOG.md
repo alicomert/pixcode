@@ -2,6 +2,17 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.10](https://github.com/alicomert/pixcode/compare/v1.40.9...v1.40.10) (2026-05-12)
+
+Pixcode 1.40.10 cleans the repository release surface before the next roadmap work and keeps personal project workspaces out of published source history.
+
+### Maintenance
+
+* remove committed per-version release note/tracking files from the repository root.
+* remove the committed personal `projects/pixcode-project-12` workspace from the repository.
+* ignore future `RELEASE_NOTES_*`, `RELEASE_TRACKING_*`, and local `projects/` workspace files.
+* document that every GitHub release must include the desktop installer assets (`.deb`, `.dmg`, `.AppImage`, `.exe`), copied from the last complete asset set when a desktop rebuild is not needed.
+
 ## [1.40.9](https://github.com/alicomert/pixcode/compare/v1.40.8...v1.40.9) (2026-05-12)
 
 Pixcode 1.40.9 fixes the remaining Live View startup regressions and restores reliable completion notifications for chat and orchestration runs.

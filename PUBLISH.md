@@ -66,6 +66,18 @@ Constraints baked into `.release-it.json`:
 - `before:init` hook runs `npm run build` before anything else.
 - `npm.publishArgs: ["--access public"]` — scoped package is published publicly.
 
+### Desktop assets on every GitHub release
+
+Every GitHub release must include the desktop installer assets:
+
+- `Pixcode-${VERSION}-amd64.deb`
+- `Pixcode-${VERSION}-arm64.dmg`
+- `Pixcode-${VERSION}-x64.dmg`
+- `Pixcode-${VERSION}-x86_64.AppImage`
+- `Pixcode-Setup-${VERSION}.exe`
+
+If the desktop app itself did not need a rebuild, copy the assets from the last release that has the complete desktop asset set and rename only the version segment before upload. The in-app updater is driven by the latest GitHub release/tag, so do not publish a release with empty assets.
+
 ### Option A — guided release with `release-it`
 
 ```bash

@@ -13,6 +13,13 @@ dist-ssr/
 build/
 out/
 
+# Release notes are generated in GitHub releases, not stored as root files
+RELEASE_NOTES_*.md
+RELEASE_TRACKING_*.md
+
+# User-created Pixcode project workspaces are local data
+projects/
+
 # Environment variables
 .env
 .env.local
