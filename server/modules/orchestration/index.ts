@@ -32,6 +32,10 @@ export { createOrchestrationTaskRouter } from './tasks/orchestration-task.routes
 export { orchestrationTaskService } from './tasks/orchestration-task.service.js';
 export { createWorkflowRouter } from './workflows/workflow.routes.js';
 export {
+  listPendingApprovals,
+  resolvePermissionApproval,
+} from './workflows/approval-queue.js';
+export {
   PIXCODE_WORKFLOW_TEMPLATE_PROTOCOL,
   applyWorkflowTemplateToMetadata,
   builtInWorkflowTemplates,

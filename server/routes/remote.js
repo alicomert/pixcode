@@ -5,6 +5,10 @@ import {
   getPublicRemoteConnectionConfig,
   saveRemoteConnectionConfig,
 } from '../services/remote-connection.js';
+import {
+  buildControlRoomSnapshot,
+  buildMobileConsoleLayout,
+} from '../services/control-room.js';
 
 const router = express.Router();
 
@@ -28,6 +32,24 @@ router.post('/check', async (req, res) => {
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
+});
+
+router.get('/control-room', async (_req, res) => {
+  try {
+    res.json({
+      success: true,
+      controlRoom: await buildControlRoomSnapshot(),
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/console-layout', (_req, res) => {
+  res.json({
+    success: true,
+    layout: buildMobileConsoleLayout(),
+  });
 });
 
 export default router;

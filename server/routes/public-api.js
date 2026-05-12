@@ -1,6 +1,11 @@
 import express from 'express';
 
-import { buildOpenApiFragment, buildPublicApiManifest } from '../services/public-api-manifest.js';
+import {
+  buildCurlCookbook,
+  buildOpenApiFragment,
+  buildPublicApiManifest,
+  buildTypeScriptSdkStarter,
+} from '../services/public-api-manifest.js';
 
 const router = express.Router();
 
@@ -16,6 +21,14 @@ router.get('/manifest', (req, res) => {
 
 router.get('/openapi', (req, res) => {
   res.json(buildOpenApiFragment({ baseUrl: requestBaseUrl(req) }));
+});
+
+router.get('/sdk/typescript', (req, res) => {
+  res.type('text/typescript').send(buildTypeScriptSdkStarter({ baseUrl: requestBaseUrl(req) }));
+});
+
+router.get('/cookbook', (req, res) => {
+  res.json(buildCurlCookbook({ baseUrl: requestBaseUrl(req) }));
 });
 
 export default router;

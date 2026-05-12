@@ -24,6 +24,10 @@ function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: st
     return t('tabs.orchestration');
   }
 
+  if (activeTab === 'remote') {
+    return t('tabs.remote');
+  }
+
   if (activeTab === 'git') {
     return t('tabs.git');
   }

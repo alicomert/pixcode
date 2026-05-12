@@ -15,6 +15,11 @@ import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.
 import { buildWorkflowTrace } from '@/modules/orchestration/workflows/workflow-trace.js';
 import { findPixcodeAppRoot } from '@/modules/orchestration/workflows/workspace-target.js';
 import {
+  listPendingApprovals,
+  resolvePermissionApproval,
+  type ApprovalDecisionSource,
+} from '@/modules/orchestration/workflows/approval-queue.js';
+import {
   DEFAULT_PERMISSION_POLICY,
   PERMISSION_CAPABILITIES,
   PERMISSION_POLICY_MODES,
@@ -22,6 +27,7 @@ import {
   evaluatePermissionRequest,
   normalizePermissionPolicy,
 } from '@/modules/orchestration/security/permission-policy.js';
+import { dispatchWebhookEvent } from '@/services/webhooks.js';
 
 const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
 
@@ -254,6 +260,55 @@ export function createWorkflowRouter(): Router {
     });
   });
 
+  router.get('/workflows/approvals', (req, res) => {
+    res.json({
+      pendingApprovals: listPendingApprovals({
+        projectId: readOptionalString(req.query.projectId),
+        includeResolved: readBooleanFlag(req.query.includeResolved),
+      }),
+    });
+  });
+
+  router.post('/workflows/approvals/:approvalId', (req, res) => {
+    const allow = req.body?.allow === true;
+    const deny = req.body?.allow === false;
+    if (!allow && !deny) {
+      res.status(400).json({
+        error: {
+          code: 'PERMISSION_DECISION_REQUIRED',
+          message: 'Approval queue decisions require allow=true or allow=false.',
+        },
+      });
+      return;
+    }
+
+    const source = ['ui', 'telegram', 'api'].includes(req.body?.source)
+      ? req.body.source as ApprovalDecisionSource
+      : 'api';
+    const result = resolvePermissionApproval({
+      approvalId: req.params.approvalId,
+      allow,
+      source,
+      resolvedBy: readRequestUserId(req),
+      message: readOptionalString(req.body?.message),
+    });
+    if (!result) {
+      res.status(404).json({ error: { code: 'APPROVAL_NOT_FOUND', message: req.params.approvalId } });
+      return;
+    }
+
+    dispatchWebhookEvent({
+      type: 'approval.resolved',
+      payload: {
+        approvalId: req.params.approvalId,
+        allow,
+        source,
+        runId: result.runId,
+      },
+    });
+    res.json(result);
+  });
+
   router.post('/workflows/runs/:runId/permission-approvals/:requestId', (req, res) => {
     const run = workflowStore.getRun(req.params.runId);
     if (!run) {
@@ -285,6 +340,15 @@ export function createWorkflowRouter(): Router {
     }
 
     workflowStore.setRun(run);
+    dispatchWebhookEvent({
+      type: 'approval.resolved',
+      payload: {
+        approvalId: req.params.requestId,
+        allow,
+        source: 'ui',
+        runId: run.id,
+      },
+    });
     res.json({
       runId: run.id,
       pendingApprovals: readRunArray(run, 'pendingPermissionApprovals')
@@ -359,6 +423,14 @@ export function createWorkflowRouter(): Router {
           },
         },
       );
+      dispatchWebhookEvent({
+        type: 'run.started',
+        payload: {
+          runId: replayRun.id,
+          workflowId: replayRun.workflowId,
+          replayOf: run.id,
+        },
+      });
       res.status(202).json({
         run: replayRun,
         replayPlan,
@@ -424,6 +496,13 @@ export function createWorkflowRouter(): Router {
       res.status(404).json({ error: { code: 'RUN_NOT_FOUND', message: req.params.runId } });
       return;
     }
+    dispatchWebhookEvent({
+      type: 'run.canceled',
+      payload: {
+        runId: run.id,
+        workflowId: run.workflowId,
+      },
+    });
     res.json(run);
   });
 
@@ -443,6 +522,14 @@ export function createWorkflowRouter(): Router {
           workflowName: workflow.name,
         },
       );
+      dispatchWebhookEvent({
+        type: 'run.started',
+        payload: {
+          runId: run.id,
+          workflowId: run.workflowId,
+          workflowName: workflow.name,
+        },
+      });
       res.status(202).json(run);
     } catch (error) {
       res.status(400).json({
@@ -476,6 +563,14 @@ export function createWorkflowRouter(): Router {
           workflowName: workflow.name,
         },
       );
+      dispatchWebhookEvent({
+        type: 'run.started',
+        payload: {
+          runId: run.id,
+          workflowId: run.workflowId,
+          templateId: template.id,
+        },
+      });
       res.status(202).json(run);
     } catch (error) {
       res.status(400).json({

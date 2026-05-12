@@ -37,6 +37,10 @@ const CONTROL_COMMANDS = new Set([
   '/workflows',
   '/orchestration',
   '/runs',
+  '/approvals',
+  '/controlroom',
+  '/control-room',
+  '/webhooks',
   '/sessions',
   '/newchat',
   '/tasks',
@@ -203,6 +207,8 @@ function mainMenuKeyboard(lang) {
     [button(t(lang, 'control.button.projects'), 'projects'), button(t(lang, 'control.button.provider'), 'providers')],
     [button(t(lang, 'control.button.models'), 'models'), button(t(lang, 'control.button.workflows'), 'workflows')],
     [button(t(lang, 'control.button.tasks'), 'tasks'), button(t(lang, 'control.button.runs'), 'runs')],
+    [button(t(lang, 'control.button.approvals'), 'approvals'), button(t(lang, 'control.button.controlRoom'), 'control_room')],
+    [button(t(lang, 'control.button.webhooks'), 'webhooks')],
     [button(t(lang, 'control.button.sessions'), 'sessions'), button(t(lang, 'control.button.newChat'), 'new_chat')],
     [button(t(lang, 'control.button.install'), 'install_menu'), button(t(lang, 'control.button.auth'), 'auth_menu')],
     [button(t(lang, 'control.button.settings'), 'settings')],
@@ -335,6 +341,82 @@ async function showRuns({ bot, chatId, link, editMessageId }) {
   await send(bot, chatId, t(lang, 'control.recentRuns'), {
     editMessageId,
     reply_markup: { inline_keyboard: rows(buttons, 1) },
+  });
+}
+
+async function showApprovalQueue({ bot, chatId, link, editMessageId }) {
+  const lang = languageFor(link);
+  const data = await localApi(link.user_id, '/api/orchestration/workflows/approvals');
+  const approvals = Array.isArray(data?.pendingApprovals) ? data.pendingApprovals : [];
+  if (approvals.length === 0) {
+    await send(bot, chatId, t(lang, 'control.noApprovals'), { editMessageId });
+    return;
+  }
+
+  const keyboard = [];
+  const lines = approvals.slice(0, 8).map((approval, index) => {
+    const label = compact(approval.summary || approval.reason || approval.id, 70);
+    keyboard.push([
+      button(t(lang, 'control.button.approve'), 'approval_decide', { approvalId: approval.id, allow: true }),
+      button(t(lang, 'control.button.deny'), 'approval_decide', { approvalId: approval.id, allow: false }),
+    ]);
+    return `${index + 1}. ${label}\nRun: ${approval.runId}`;
+  });
+  keyboard.push([button(t(lang, 'control.button.refresh'), 'approvals'), button(t(lang, 'control.button.mainMenu'), 'menu')]);
+  await send(bot, chatId, `${t(lang, 'control.approvalQueue')}\n\n${lines.join('\n\n')}`, {
+    editMessageId,
+    reply_markup: { inline_keyboard: keyboard },
+  });
+}
+
+async function showControlRoom({ bot, chatId, link, editMessageId }) {
+  const lang = languageFor(link);
+  const data = await localApi(link.user_id, '/api/remote/control-room');
+  const snapshot = data?.controlRoom || data;
+  const projects = Array.isArray(snapshot?.projects) ? snapshot.projects : [];
+  const totals = snapshot?.totals || {};
+  const lines = projects.map((project, index) => [
+    `${index + 1}. ${compact(project.name || project.id, 44)}`,
+    `Runs: ${project.activeRunCount || 0} active / ${project.failedRunCount || 0} failed`,
+    `Approvals: ${project.pendingApprovalCount || 0}`,
+  ].join('\n'));
+  await send(bot, chatId, [
+    t(lang, 'control.controlRoomTitle'),
+    '',
+    `Projects: ${totals.projects || 0}`,
+    `Active runs: ${totals.activeRuns || 0}`,
+    `Pending approvals: ${totals.pendingApprovals || 0}`,
+    '',
+    lines.join('\n\n') || t(lang, 'control.noProjects'),
+  ].join('\n'), {
+    editMessageId,
+    reply_markup: {
+      inline_keyboard: [
+        [button(t(lang, 'control.button.approvals'), 'approvals'), button(t(lang, 'control.button.runs'), 'runs')],
+        [button(t(lang, 'control.button.mainMenu'), 'menu')],
+      ],
+    },
+  });
+}
+
+async function showWebhookMenu({ bot, chatId, link, editMessageId }) {
+  const lang = languageFor(link);
+  const data = await localApi(link.user_id, '/api/webhooks');
+  const webhooks = Array.isArray(data?.webhooks) ? data.webhooks : [];
+  const lines = webhooks.slice(0, 10).map((webhook, index) => (
+    `${index + 1}. ${webhook.enabled ? 'on' : 'off'} ${compact(webhook.name || webhook.url, 50)}\n${compact(webhook.events?.join(', ') || webhook.url, 90)}`
+  ));
+  await send(bot, chatId, [
+    t(lang, 'control.webhookTitle'),
+    '',
+    lines.join('\n\n') || t(lang, 'control.noWebhooks'),
+  ].join('\n'), {
+    editMessageId,
+    reply_markup: {
+      inline_keyboard: [
+        [button(t(lang, 'control.button.refresh'), 'webhooks'), button(t(lang, 'control.button.mainMenu'), 'menu')],
+      ],
+    },
   });
 }
 
@@ -783,6 +865,18 @@ async function handleCommand({ bot, chatId, link, text }) {
     await showRuns({ bot, chatId, link });
     return true;
   }
+  if (command === '/approvals') {
+    await showApprovalQueue({ bot, chatId, link });
+    return true;
+  }
+  if (command === '/controlroom' || command === '/control-room') {
+    await showControlRoom({ bot, chatId, link });
+    return true;
+  }
+  if (command === '/webhooks') {
+    await showWebhookMenu({ bot, chatId, link });
+    return true;
+  }
   if (command === '/sessions') {
     await showSessions({ bot, chatId, link });
     return true;
@@ -927,6 +1021,9 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
   if (action === 'models_refresh') return showModelMenu({ bot, chatId, link, refresh: true, editMessageId });
   if (action === 'workflows') return showWorkflowMenu({ bot, chatId, link, editMessageId });
   if (action === 'runs') return showRuns({ bot, chatId, link, editMessageId });
+  if (action === 'approvals') return showApprovalQueue({ bot, chatId, link, editMessageId });
+  if (action === 'control_room') return showControlRoom({ bot, chatId, link, editMessageId });
+  if (action === 'webhooks') return showWebhookMenu({ bot, chatId, link, editMessageId });
   if (action === 'sessions') return showSessions({ bot, chatId, link, editMessageId });
   if (action === 'new_chat') return startNewChat({ bot, chatId, link, editMessageId });
   if (action === 'tasks') return showTaskMasterTasks({ bot, chatId, link, editMessageId });
@@ -988,6 +1085,22 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
     });
     await send(bot, chatId, t(languageFor(link), 'control.runStatus', { runId: run.id, status: run.status }), { editMessageId });
     return;
+  }
+  if (action === 'approval_decide') {
+    const result = await localApi(link.user_id, `/api/orchestration/workflows/approvals/${encodeURIComponent(payload.approvalId)}`, {
+      method: 'POST',
+      body: {
+        allow: payload.allow === true,
+        source: 'telegram',
+      },
+    });
+    const lang = languageFor(link);
+    await send(bot, chatId, t(lang, 'control.approvalDecided', {
+      approvalId: payload.approvalId,
+      status: payload.allow === true ? 'approved' : 'denied',
+      runId: result?.runId || '',
+    }), { editMessageId });
+    return showApprovalQueue({ bot, chatId, link });
   }
   if (action === 'task_run') return runTaskMasterTask({ bot, chatId, link, taskId: payload.taskId });
   if (action === 'install_provider') return startCliInstall({ bot, chatId, link, provider: payload.provider });

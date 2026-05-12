@@ -25,6 +25,7 @@
     "changes": "Changes",
     "liveView": "Live View",
     "tasks": "Tasks",
+    "remote": "Remote",
     "orchestration": "Orchestration"
   },
   "status": {

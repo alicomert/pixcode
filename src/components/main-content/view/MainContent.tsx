@@ -9,6 +9,7 @@ import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import GitPanel from '../../git-panel/view/GitPanel';
 import OrchestrationPage from '../../orchestration/OrchestrationPage';
 import LiveViewPanel from '../../live-view/LiveViewPanel';
+import RemoteConsole from '../../remote-console/RemoteConsole';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
@@ -592,6 +593,7 @@ function MainContent({
             !editingFile && activeSidePanelTab && !showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
+            !editingFile && activeTab === 'remote' && 'max-w-none px-0 md:px-0',
           )}
         >
           {(showChatColumn || showOrchestrationColumn || activeSidePanelTab) && (
@@ -704,6 +706,14 @@ function MainContent({
             <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
               <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
                 <OrchestrationPage selectedProject={selectedProject} />
+              </div>
+            </div>
+          )}
+
+          {!activeSidePanelTab && activeTab === 'remote' && (
+            <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <RemoteConsole />
               </div>
             </div>
           )}

@@ -49,6 +49,8 @@ import {
   notifyRunStopped,
   notifyUserIfEnabled,
 } from '@/services/notification-orchestrator.js';
+// @ts-ignore — plain-JS service
+import { dispatchWebhookEvent } from '@/services/webhooks.js';
 
 const TERMINAL = new Set(['completed', 'failed', 'canceled']);
 const SKIPPED = 'skipped';
@@ -1655,6 +1657,20 @@ class WorkflowRunner {
       workflowStore.setRun(run);
       orchestrationTaskService.updateFromWorkflowRun(run);
       notifyWorkflowRunFinished(run);
+      const webhookRunStatus = String(run.status);
+      dispatchWebhookEvent({
+        type: webhookRunStatus === 'completed'
+          ? 'run.completed'
+          : webhookRunStatus === 'canceled'
+            ? 'run.canceled'
+            : 'run.failed',
+        payload: {
+          runId: run.id,
+          workflowId: run.workflowId,
+          status: webhookRunStatus,
+          error: readString(run.metadata?.error),
+        },
+      });
       this.cancelingRuns.delete(run.id);
     }
   }
@@ -1687,6 +1703,15 @@ class WorkflowRunner {
 
     if (decision.approvalRequest) {
       notifyPermissionApprovalRequested(run, decision);
+      dispatchWebhookEvent({
+        type: 'approval.needed',
+        payload: {
+          runId: run.id,
+          workflowId: run.workflowId,
+          approvalId: decision.approvalRequest.id,
+          capabilities: decision.capabilities,
+        },
+      });
     }
   }
 

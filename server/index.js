@@ -78,6 +78,7 @@ import messagesRoutes from './routes/messages.js';
 import diagnosticsRoutes from './routes/diagnostics.js';
 import remoteRoutes from './routes/remote.js';
 import publicApiRoutes from './routes/public-api.js';
+import webhooksRoutes from './routes/webhooks.js';
 import liveViewRoutes, { createLiveViewPublicRouter } from './routes/live-view.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import {
@@ -405,6 +406,9 @@ app.use('/api/remote', authenticateToken, remoteRoutes);
 
 // Public automation manifest (protected so private host details only go to signed-in clients)
 app.use('/api/public', authenticateToken, publicApiRoutes);
+
+// Outbound webhook automation (protected)
+app.use('/api/webhooks', authenticateToken, webhooksRoutes);
 
 // Project Live View (protected control API + public share proxy)
 app.use('/api/live-view', authenticateToken, liveViewRoutes);
