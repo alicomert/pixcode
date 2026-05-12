@@ -17,6 +17,11 @@ import {
   formatContextPacketForPrompt,
 } from '@/modules/orchestration/workflows/context-packet.js';
 import {
+  type WorkflowFallbackTrigger,
+  classifyWorkflowFailure,
+  resolveWorkflowFallbackDecision,
+} from '@/modules/orchestration/workflows/workflow-fallback-policy.js';
+import {
   type ResolvedWorkspaceTarget,
   resolveWorkflowWorkspace,
   workspaceContextPrompt,
@@ -1123,6 +1128,8 @@ function nodeRunFromNode(node: WorkflowNode): WorkflowNodeRun {
     timeoutMs: node.timeoutMs,
     stage: node.stage,
     internal: node.internal,
+    fallbackTrigger: node.fallbackTrigger,
+    fallbackSourceNodeId: node.fallbackSourceNodeId,
     status: 'queued',
   };
 }
@@ -1276,7 +1283,12 @@ class WorkflowRunner {
     return readAgentAssignments(run.metadata).find((agent) => agent.instanceId === fallbackAgentInstanceId);
   }
 
-  private createFallbackNode(node: WorkflowNode, fallbackAgent: AgentAssignment, reason: string): WorkflowNode {
+  private createFallbackNode(
+    node: WorkflowNode,
+    fallbackAgent: AgentAssignment,
+    reason: string,
+    fallbackTrigger: WorkflowFallbackTrigger,
+  ): WorkflowNode {
     const fallbackSuffix = safeNodeId(fallbackAgent.instanceId, 'fallback');
     return {
       ...node,
@@ -1289,9 +1301,12 @@ class WorkflowRunner {
       model: fallbackAgent.model,
       permissionMode: fallbackAgent.permissionMode,
       toolsSettings: fallbackAgent.toolsSettings,
+      fallbackTrigger,
+      fallbackSourceNodeId: node.id,
       prompt: [
         'The previous CLI agent failed on this orchestration step.',
         `Failed step: ${node.agentLabel || node.id}`,
+        `Fallback trigger: ${fallbackTrigger}`,
         `Failure: ${reason}`,
         'Take over the same assignment as the backup CLI. Use the original goal and upstream context.',
         'Do not repeat unrelated work; complete the failed step and report what you did.',
@@ -1299,6 +1314,32 @@ class WorkflowRunner {
       ].join('\n'),
       onFail: 'continue',
     };
+  }
+
+  private recordFallbackSkipped(
+    run: WorkflowRun,
+    node: WorkflowNode,
+    reason: string,
+    fallbackTrigger: WorkflowFallbackTrigger,
+    skippedReason: string,
+  ): void {
+    const fallbackSkippedEvents = Array.isArray(run.metadata?.fallbackSkippedEvents)
+      ? run.metadata.fallbackSkippedEvents
+      : [];
+    run.metadata = {
+      ...run.metadata,
+      fallbackSkippedEvents: [
+        ...fallbackSkippedEvents,
+        {
+          nodeId: node.id,
+          trigger: fallbackTrigger,
+          reason,
+          skippedReason,
+          createdAt: Date.now(),
+        },
+      ],
+    };
+    workflowStore.setRun(run);
   }
 
   private async runFallbackAfterFailure(
@@ -1309,9 +1350,29 @@ class WorkflowRunner {
     started: Set<string>,
     completed: Set<string>,
     reason: string,
+    trigger?: WorkflowFallbackTrigger,
   ): Promise<boolean> {
+    const fallbackTrigger = classifyWorkflowFailure(reason, trigger);
     const fallbackAgent = this.fallbackAgentFor(run, node);
     if (!fallbackAgent) {
+      this.recordFallbackSkipped(run, node, reason, fallbackTrigger, 'No fallback agent is configured for this run.');
+      return false;
+    }
+    const decision = resolveWorkflowFallbackDecision({
+      run,
+      node,
+      reason,
+      trigger: fallbackTrigger,
+      fallbackAgentInstanceId: fallbackAgent.instanceId,
+    });
+    if (!decision.shouldFallback) {
+      this.recordFallbackSkipped(
+        run,
+        node,
+        reason,
+        decision.trigger,
+        decision.skippedReason ?? 'Fallback policy skipped this failure.',
+      );
       return false;
     }
     if (workflow.nodes.length + 1 > 64) {
@@ -1323,7 +1384,7 @@ class WorkflowRunner {
       return false;
     }
 
-    let fallbackNode = this.createFallbackNode(node, fallbackAgent, reason);
+    let fallbackNode = this.createFallbackNode(node, fallbackAgent, reason, decision.trigger);
     let collision = 1;
     while (workflow.nodes.some((candidate) => candidate.id === fallbackNode.id)) {
       collision += 1;
@@ -1357,6 +1418,8 @@ class WorkflowRunner {
           nodeId: node.id,
           fallbackNodeId: fallbackNode.id,
           fallbackAgentInstanceId: fallbackAgent.instanceId,
+          trigger: decision.trigger,
+          policy: decision.policy,
           reason,
           startedAt: Date.now(),
         },
@@ -1658,7 +1721,16 @@ class WorkflowRunner {
         workflowStore.setRun(run);
         return;
       }
-      if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
+      if (await this.runFallbackAfterFailure(
+        node,
+        workflow,
+        run,
+        outputs,
+        started,
+        completed,
+        nodeRun.error,
+        'provider_failure',
+      )) {
         return;
       }
       if (node.onFail === 'continue') {
@@ -1710,7 +1782,16 @@ class WorkflowRunner {
         workflowStore.setRun(run);
         return;
       }
-      if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
+      if (await this.runFallbackAfterFailure(
+        node,
+        workflow,
+        run,
+        outputs,
+        started,
+        completed,
+        nodeRun.error,
+        'timeout',
+      )) {
         return;
       }
       if (node.onFail === 'continue') {
@@ -1744,7 +1825,16 @@ class WorkflowRunner {
           nodeRun.status = 'failed';
           nodeRun.error = visibleHandoffError;
           workflowStore.setRun(run);
-          if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, visibleHandoffError)) {
+          if (await this.runFallbackAfterFailure(
+            node,
+            workflow,
+            run,
+            outputs,
+            started,
+            completed,
+            visibleHandoffError,
+            'invalid_output',
+          )) {
             return;
           }
           if (node.onFail === 'continue') {
@@ -1783,7 +1873,16 @@ class WorkflowRunner {
       workflowStore.setRun(run);
       return;
     }
-    if (await this.runFallbackAfterFailure(node, workflow, run, outputs, started, completed, nodeRun.error)) {
+    if (await this.runFallbackAfterFailure(
+      node,
+      workflow,
+      run,
+      outputs,
+      started,
+      completed,
+      nodeRun.error,
+      classifyWorkflowFailure(`${nodeRun.error}\n${nodeRun.outputText ?? ''}`),
+    )) {
       return;
     }
     if (node.onFail === 'continue') {

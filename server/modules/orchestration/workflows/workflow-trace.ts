@@ -22,6 +22,10 @@ function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
 function redactionValues(run: WorkflowRun): string[] {
   const metadata = run.metadata ?? {};
   const workspaceTarget = metadata.workspaceTarget && typeof metadata.workspaceTarget === 'object'
@@ -138,6 +142,78 @@ export function buildWorkflowTrace(run: WorkflowRun): WorkflowTraceEvent[] {
       workflowId: run.workflowId,
       contextId: run.contextId,
     },
+  });
+
+  const replay = readRecord(run.metadata?.replay);
+  if (replay) {
+    pushEvent(events, {
+      id: traceId([run.id, 'replay']),
+      type: 'run',
+      severity: replay.requiresApproval ? 'warning' : 'info',
+      status: run.status,
+      timestamp: run.startedAt + 0.25,
+      actor: 'Pixcode',
+      title: 'Workflow replay prepared',
+      titleKey: 'workflow.trace.replay',
+      summary: redactTraceText([
+        `Source run: ${readString(replay.sourceRunId) ?? 'unknown'}`,
+        `Scope: ${readString(replay.scope) ?? 'unknown'}`,
+        Array.isArray(replay.selectedNodeIds) ? `Selected steps: ${replay.selectedNodeIds.join(', ')}` : undefined,
+        replay.requiresApproval ? 'Replay required approval for prior shell, network, or file-write activity.' : undefined,
+      ].filter(Boolean).join('\n'), run),
+      metadata: replay,
+    });
+  }
+
+  const fallbackEvents = Array.isArray(run.metadata?.fallbackEvents)
+    ? run.metadata.fallbackEvents
+    : [];
+  fallbackEvents.forEach((event, index) => {
+    const record = readRecord(event);
+    if (!record) return;
+    pushEvent(events, {
+      id: traceId([run.id, 'fallback', index]),
+      type: 'node',
+      severity: 'warning',
+      status: 'submitted',
+      timestamp: typeof record.startedAt === 'number' ? record.startedAt : run.startedAt + 0.5 + index,
+      actor: 'Pixcode',
+      nodeId: readString(record.nodeId),
+      title: 'Fallback agent started',
+      titleKey: 'workflow.trace.fallback',
+      summary: redactTraceText([
+        `Trigger: ${readString(record.trigger) ?? 'unknown'}`,
+        `Source node: ${readString(record.nodeId) ?? 'unknown'}`,
+        `Fallback node: ${readString(record.fallbackNodeId) ?? 'unknown'}`,
+        readString(record.reason) ? `Reason: ${readString(record.reason)}` : undefined,
+      ].filter(Boolean).join('\n'), run),
+      metadata: record,
+    });
+  });
+
+  const fallbackSkippedEvents = Array.isArray(run.metadata?.fallbackSkippedEvents)
+    ? run.metadata.fallbackSkippedEvents
+    : [];
+  fallbackSkippedEvents.forEach((event, index) => {
+    const record = readRecord(event);
+    if (!record) return;
+    pushEvent(events, {
+      id: traceId([run.id, 'fallback-skipped', index]),
+      type: 'node',
+      severity: 'info',
+      status: 'skipped',
+      timestamp: typeof record.createdAt === 'number' ? record.createdAt : run.startedAt + 0.75 + index,
+      actor: 'Pixcode',
+      nodeId: readString(record.nodeId),
+      title: 'Fallback skipped',
+      titleKey: 'workflow.trace.fallback',
+      summary: redactTraceText([
+        `Trigger: ${readString(record.trigger) ?? 'unknown'}`,
+        `Skipped: ${readString(record.skippedReason) ?? 'policy did not allow fallback'}`,
+        readString(record.reason) ? `Reason: ${readString(record.reason)}` : undefined,
+      ].filter(Boolean).join('\n'), run),
+      metadata: record,
+    });
   });
 
   run.nodeRuns.forEach((node, index) => {

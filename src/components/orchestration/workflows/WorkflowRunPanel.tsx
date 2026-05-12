@@ -8,7 +8,7 @@ import { Markdown } from '../../chat/view/subcomponents/Markdown';
 
 import WorkflowNodeStream from './WorkflowNodeStream';
 
-import { AlertTriangle, Bot, Clock, FileText, Filter, ListChecks, MessageSquare, SquareIcon, Workflow } from '@/lib/icons';
+import { AlertTriangle, Bot, Clock, FileText, Filter, ListChecks, MessageSquare, RotateCcw, SquareIcon, Workflow } from '@/lib/icons';
 
 type WorkflowNodeRun = {
   nodeId: string;
@@ -46,6 +46,23 @@ type WorkflowRun = {
   nodeRuns: WorkflowNodeRun[];
 };
 
+type WorkflowReplayPlan = {
+  protocol: string;
+  sourceRunId: string;
+  sourceWorkflowId: string;
+  scope: 'run' | 'node';
+  fromNodeId?: string;
+  selectedNodeIds: string[];
+  requiresApproval: boolean;
+  approvalReasons: string[];
+  destructiveOperations: Array<{
+    kind: string;
+    nodeId?: string;
+    summary: string;
+  }>;
+  limitations: string[];
+};
+
 type WorkflowTraceEvent = {
   id: string;
   type: 'run' | 'node' | 'provider' | 'message' | 'artifact' | 'file' | 'error';
@@ -76,6 +93,7 @@ type TraceFilters = {
 type WorkflowRunPanelProps = {
   runId?: string;
   onRunSnapshot?: (run: WorkflowRun) => void;
+  onReplayStarted?: (run: WorkflowRun) => void;
   onPrepareTeamFromSummary?: (summary: string) => void;
 };
 
@@ -166,6 +184,11 @@ function hasUsefulOutput(node: WorkflowNodeRun): boolean {
     || node.messages?.some((message) => message.role !== 'user' && message.text.trim())
     || node.artifacts?.length,
   );
+}
+
+function defaultReplayNodeId(run: WorkflowRun): string | undefined {
+  return visibleNodeRuns(run).find((node) => node.status === 'failed')?.nodeId
+    ?? [...visibleNodeRuns(run)].reverse().find((node) => node.status !== 'skipped')?.nodeId;
 }
 
 function WorkflowTraceTimeline({
@@ -470,7 +493,12 @@ function WorkflowTeamHistory({
   );
 }
 
-export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFromSummary }: WorkflowRunPanelProps) {
+export default function WorkflowRunPanel({
+  runId,
+  onRunSnapshot,
+  onReplayStarted,
+  onPrepareTeamFromSummary,
+}: WorkflowRunPanelProps) {
   const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement>(null);
   const [run, setRun] = useState<WorkflowRun | null>(null);
@@ -478,6 +506,9 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
   const [traceEvents, setTraceEvents] = useState<WorkflowTraceEvent[]>([]);
   const [traceFilters, setTraceFilters] = useState<TraceFilters>(defaultTraceFilters);
   const [traceLoadError, setTraceLoadError] = useState<string | null>(null);
+  const [replayPlan, setReplayPlan] = useState<WorkflowReplayPlan | null>(null);
+  const [replayError, setReplayError] = useState<string | null>(null);
+  const [replaying, setReplaying] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
 
@@ -487,11 +518,35 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
       setSelectedNodeId(teamHistoryId);
       setTraceEvents([]);
       setTraceLoadError(null);
+      setReplayPlan(null);
+      setReplayError(null);
       return undefined;
     }
 
     let canceled = false;
     let timer: number | undefined;
+    const loadReplayPlan = async (nextRun: WorkflowRun) => {
+      if (!terminalRunStatuses.has(nextRun.status)) {
+        setReplayPlan(null);
+        setReplayError(null);
+        return;
+      }
+      const fromNodeId = defaultReplayNodeId(nextRun);
+      const search = new URLSearchParams({
+        scope: fromNodeId ? 'node' : 'run',
+      });
+      if (fromNodeId) search.set('fromNodeId', fromNodeId);
+      const response = await authenticatedFetch(`/api/orchestration/workflows/runs/${encodeURIComponent(runId)}/replay-plan?${search.toString()}`);
+      if (canceled) return;
+      if (!response.ok) {
+        setReplayPlan(null);
+        return;
+      }
+      const body = await response.json() as { replayPlan?: WorkflowReplayPlan };
+      if (canceled) return;
+      setReplayPlan(body.replayPlan ?? null);
+      setReplayError(null);
+    };
     const loadTrace = async () => {
       const response = await authenticatedFetch(`/api/orchestration/workflows/runs/${encodeURIComponent(runId)}/trace`);
       if (canceled) return;
@@ -516,6 +571,7 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
       setRun(nextRun);
       onRunSnapshot?.(nextRun);
       void loadTrace();
+      void loadReplayPlan(nextRun);
       setLoadError(null);
       setSelectedNodeId((current) => current || teamHistoryId);
 
@@ -571,6 +627,46 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
     }
   };
 
+  const replayRun = async (approveReplay = false) => {
+    if (!runId || !run || replaying || isActiveRun) return;
+    setReplaying(true);
+    setReplayError(null);
+    try {
+      const fromNodeId = replayPlan?.fromNodeId ?? defaultReplayNodeId(run);
+      const scope = replayPlan?.scope ?? (fromNodeId ? 'node' : 'run');
+      const response = await authenticatedFetch(`/api/orchestration/workflows/runs/${encodeURIComponent(runId)}/replay`, {
+        method: 'POST',
+        body: JSON.stringify({
+          scope,
+          fromNodeId,
+          approveReplay,
+        }),
+      });
+      const body = await response.json().catch(() => ({})) as {
+        run?: WorkflowRun;
+        replayPlan?: WorkflowReplayPlan;
+        error?: { code?: string; message?: string };
+      };
+      if (response.status === 409 && body.replayPlan) {
+        setReplayPlan(body.replayPlan);
+        setReplayError(t('orchestration.replayApprovalRequired'));
+        return;
+      }
+      if (!response.ok || !body.run?.id) {
+        throw new Error(body.error?.message ?? t('orchestration.replayFailed'));
+      }
+      setRun(body.run);
+      onRunSnapshot?.(body.run);
+      onReplayStarted?.(body.run);
+      setReplayPlan(null);
+      setReplayError(null);
+    } catch (err) {
+      setReplayError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setReplaying(false);
+    }
+  };
+
   if (!runId) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -601,6 +697,9 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
     );
   }
 
+  const replayRequiresApproval = Boolean(replayPlan?.requiresApproval);
+  const canReplay = Boolean(replayPlan && terminalRunStatuses.has(run.status));
+
   return (
     <div className="flex min-h-[70vh] flex-col xl:h-full xl:min-h-0">
       <header className="border-b border-border px-4 py-3 md:px-5">
@@ -617,6 +716,18 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
             <div className="mt-1 truncate text-xs text-muted-foreground">{run.contextId}</div>
           </div>
           <div className="flex items-center gap-2">
+            {canReplay ? (
+              <Button
+                type="button"
+                variant={replayRequiresApproval ? 'secondary' : 'outline'}
+                size="sm"
+                disabled={replaying}
+                onClick={() => void replayRun(false)}
+              >
+                <RotateCcw className="h-4 w-4" />
+                {replaying ? t('orchestration.replaying') : t('orchestration.replayRun')}
+              </Button>
+            ) : null}
             {isActiveRun ? (
               <Button
                 type="button"
@@ -644,6 +755,30 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
           <div className="mt-3 flex gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{run.metadata.error}</span>
+          </div>
+        ) : null}
+        {replayError ? (
+          <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-foreground" />
+              <span className="font-medium text-foreground">{replayError}</span>
+              {replayRequiresApproval ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={replaying}
+                  onClick={() => void replayRun(true)}
+                >
+                  {t('orchestration.approveReplay')}
+                </Button>
+              ) : null}
+            </div>
+            {replayPlan?.approvalReasons.length ? (
+              <div className="mt-2 line-clamp-3">
+                {replayPlan.approvalReasons.join(' · ')}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </header>

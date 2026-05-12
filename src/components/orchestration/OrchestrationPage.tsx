@@ -860,6 +860,20 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
     }
   };
 
+  const handleReplayStarted = useCallback((run: WorkflowRunSummary) => {
+    setRunId(run.id);
+    mergeRunSnapshot(run);
+    terminalRunRefreshIdsRef.current.delete(run.id);
+    dispatchRunStateRefresh({
+      source: 'orchestration',
+      reason: 'run-started',
+      projectName: selectedProject.name,
+      runId: run.id,
+    });
+    localStorage.setItem('pixcode.orchestration.selectedRunId', run.id);
+    void loadRuns();
+  }, [loadRuns, mergeRunSnapshot, selectedProject.name]);
+
   const prepareTeamFromSummary = (summary: string) => {
     setPreparedPrompt([
       t('orchestration.reportToPromptPrefix'),
@@ -1400,6 +1414,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
           <WorkflowRunPanel
             runId={runId}
             onRunSnapshot={mergeRunSnapshot}
+            onReplayStarted={handleReplayStarted}
             onPrepareTeamFromSummary={prepareTeamFromSummary}
           />
         </section>

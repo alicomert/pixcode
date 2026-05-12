@@ -1,4 +1,5 @@
 import type { WorkflowContextPacket } from '@/modules/orchestration/workflows/context-packet.js';
+import type { WorkflowFallbackTrigger } from '@/modules/orchestration/workflows/workflow-fallback-policy.js';
 import type { WorkflowHandoffArtifact } from '@/modules/orchestration/workflows/handoff-artifact.js';
 
 export type WorkflowRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
@@ -21,6 +22,8 @@ export interface WorkflowNode {
   isolation?: 'host' | 'worktree' | 'docker';
   timeoutMs?: number;
   internal?: boolean;
+  fallbackTrigger?: WorkflowFallbackTrigger;
+  fallbackSourceNodeId?: string;
 }
 
 export interface Workflow {
@@ -44,6 +47,8 @@ export interface WorkflowNodeRun {
   timeoutMs?: number;
   stage?: string;
   internal?: boolean;
+  fallbackTrigger?: WorkflowFallbackTrigger;
+  fallbackSourceNodeId?: string;
   status: WorkflowNodeStatus;
   a2aTaskId?: string;
   startedAt?: number;

@@ -2,6 +2,10 @@ import type { Router } from 'express';
 import express from 'express';
 
 import { workflowRunner } from '@/modules/orchestration/workflows/workflow-runner.js';
+import {
+  type WorkflowReplayScope,
+  buildWorkflowReplayPlan,
+} from '@/modules/orchestration/workflows/workflow-replay.js';
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
 import { buildWorkflowTrace } from '@/modules/orchestration/workflows/workflow-trace.js';
 import { findPixcodeAppRoot } from '@/modules/orchestration/workflows/workspace-target.js';
@@ -43,6 +47,30 @@ function readMetadata(body: unknown): Record<string, unknown> | undefined {
 function readRequestUserId(req: express.Request): string | number | null {
   const user = (req as express.Request & { user?: { id?: string | number; userId?: string | number } }).user;
   return user?.id ?? user?.userId ?? null;
+}
+
+function readReplayScope(value: unknown): WorkflowReplayScope {
+  return value === 'run' ? 'run' : 'node';
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function readBooleanFlag(value: unknown): boolean {
+  return value === true || value === 'true' || value === '1';
+}
+
+function replayOptions(req: express.Request): {
+  scope: WorkflowReplayScope;
+  fromNodeId?: string;
+  approveReplay: boolean;
+} {
+  return {
+    scope: readReplayScope(req.body?.scope ?? req.query.scope),
+    fromNodeId: readOptionalString(req.body?.fromNodeId ?? req.query.fromNodeId),
+    approveReplay: readBooleanFlag(req.body?.approveReplay ?? req.query.approveReplay),
+  };
 }
 
 function sendRunSnapshot(res: express.Response, runId: string): boolean {
@@ -132,6 +160,85 @@ export function createWorkflowRouter(): Router {
       runId: run.id,
       trace: buildWorkflowTrace(run),
     });
+  });
+
+  router.get('/workflows/runs/:runId/replay-plan', (req, res) => {
+    const run = workflowStore.getRun(req.params.runId);
+    if (!run) {
+      res.status(404).json({ error: { code: 'RUN_NOT_FOUND', message: req.params.runId } });
+      return;
+    }
+
+    try {
+      const options = replayOptions(req);
+      res.json({
+        replayPlan: buildWorkflowReplayPlan(run, {
+          scope: options.scope,
+          fromNodeId: options.fromNodeId,
+        }),
+      });
+    } catch (error) {
+      res.status(400).json({
+        error: {
+          code: 'REPLAY_PLAN_INVALID',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.post('/workflows/runs/:runId/replay', (req, res) => {
+    const run = workflowStore.getRun(req.params.runId);
+    if (!run) {
+      res.status(404).json({ error: { code: 'RUN_NOT_FOUND', message: req.params.runId } });
+      return;
+    }
+
+    try {
+      const options = replayOptions(req);
+      const replayPlan = buildWorkflowReplayPlan(run, {
+        scope: options.scope,
+        fromNodeId: options.fromNodeId,
+      });
+
+      if (replayPlan.requiresApproval && !options.approveReplay) {
+        res.status(409).json({
+          error: {
+            code: 'REPLAY_APPROVAL_REQUIRED',
+            message: 'Replay requires explicit approval because prior shell, network, or file-write activity was detected.',
+          },
+          replayPlan,
+        });
+        return;
+      }
+
+      const replayRun = workflowRunner.start(
+        replayPlan.workflow,
+        replayPlan.input,
+        {
+          ...replayPlan.metadata,
+          userId: readRequestUserId(req) ?? run.metadata?.userId,
+          replay: {
+            ...(replayPlan.metadata.replay && typeof replayPlan.metadata.replay === 'object'
+              ? replayPlan.metadata.replay as Record<string, unknown>
+              : {}),
+            approved: options.approveReplay,
+            approvedAt: options.approveReplay ? Date.now() : undefined,
+          },
+        },
+      );
+      res.status(202).json({
+        run: replayRun,
+        replayPlan,
+      });
+    } catch (error) {
+      res.status(400).json({
+        error: {
+          code: 'REPLAY_START_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
   });
 
   router.get('/workflows/runs/:runId', (req, res) => {
