@@ -1,3 +1,4 @@
+import type { WorkflowContextPacket } from '@/modules/orchestration/workflows/context-packet.js';
 import type { WorkflowHandoffArtifact } from '@/modules/orchestration/workflows/handoff-artifact.js';
 
 export type WorkflowRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
@@ -49,6 +50,7 @@ export interface WorkflowNodeRun {
   finishedAt?: number;
   error?: string;
   outputText?: string;
+  contextPacket?: WorkflowContextPacket;
   handoffArtifact?: WorkflowHandoffArtifact;
   messages?: Array<{
     role: string;

@@ -13,6 +13,10 @@ import {
   parseHandoffArtifact,
 } from '@/modules/orchestration/workflows/handoff-artifact.js';
 import {
+  buildWorkflowContextPacket,
+  formatContextPacketForPrompt,
+} from '@/modules/orchestration/workflows/context-packet.js';
+import {
   type ResolvedWorkspaceTarget,
   resolveWorkflowWorkspace,
   workspaceContextPrompt,
@@ -1561,9 +1565,19 @@ class WorkflowRunner {
 
     const inputContext = node.inputs.map((input) => outputs.get(input)).filter(Boolean).join('\n\n');
     const workspaceTarget = resolveWorkflowWorkspace(run.metadata);
+    const contextPacket = buildWorkflowContextPacket({
+      run,
+      node,
+      workspaceTarget,
+      inputContext,
+      inputNodeIds: node.inputs,
+    });
+    nodeRun.contextPacket = contextPacket;
+    workflowStore.setRun(run);
     const prompt = [
       'Original user request (primary task; answer this directly even if the workspace is empty):',
       run.input?.trim() || '(No original user request was provided.)',
+      formatContextPacketForPrompt(contextPacket),
       inputContext
         ? `Upstream workflow context from prior agents:\n${inputContext}`
         : '',

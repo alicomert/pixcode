@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.42.1](https://github.com/alicomert/pixcode/compare/v1.42.0...v1.42.1) (2026-05-12)
+
+Pixcode 1.42.1 standardizes the orchestration init context packet every workflow agent receives.
+
+### New Features
+
+* **orchestration:** add the `pixcode.context.v1` context packet contract with original request, project metadata, task metadata, constraints, upstream artifacts, run state, and compaction metadata.
+* **orchestration:** persist the context packet on workflow node runs so init context is inspectable.
+* **orchestration:** inject the structured context packet after the original user request and before derived workspace context.
+* **orchestration:** surface context packet preparation and compaction metadata in workflow traces.
+
+### Tests
+
+* add smoke coverage for context packet schema, prompt ordering, persisted node-run context, and trace visibility.
+
 ## [1.42.0](https://github.com/alicomert/pixcode/compare/v1.41.5...v1.42.0) (2026-05-12)
 
 Pixcode 1.42.0 starts the real orchestration roadmap with a structured handoff artifact protocol between agents.

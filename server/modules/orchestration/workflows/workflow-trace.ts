@@ -176,6 +176,28 @@ export function buildWorkflowTrace(run: WorkflowRun): WorkflowTraceEvent[] {
       });
     }
 
+    if (node.contextPacket) {
+      pushEvent(events, {
+        id: traceId([run.id, node.nodeId, 'context-packet']),
+        type: 'message',
+        severity: node.contextPacket.compaction.wasCompacted ? 'warning' : 'info',
+        status: node.status,
+        timestamp: timestamp + 1.5,
+        ...base,
+        title: 'Context packet prepared',
+        titleKey: 'workflow.trace.contextPacket',
+        summary: node.contextPacket.compaction.wasCompacted
+          ? `Context compacted by ${node.contextPacket.compaction.omittedChars} characters`
+          : 'Context packet prepared without compaction',
+        metadata: {
+          protocol: node.contextPacket.protocol,
+          compaction: node.contextPacket.compaction,
+          upstreamArtifactCount: node.contextPacket.upstreamArtifacts.length,
+          sourceNodeIds: node.contextPacket.upstreamArtifacts.flatMap((artifact) => artifact.sourceNodeIds),
+        },
+      });
+    }
+
     if (node.adapterId || node.model) {
       pushEvent(events, {
         id: traceId([run.id, node.nodeId, 'provider']),
