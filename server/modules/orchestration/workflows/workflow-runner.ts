@@ -1086,6 +1086,7 @@ function nodeRunFromNode(node: WorkflowNode): WorkflowNodeRun {
     agentInstanceId: node.agentInstanceId,
     agentLabel: node.agentLabel,
     assignment: node.assignment,
+    promptPreview: node.prompt,
     model: node.model,
     permissionMode: node.permissionMode,
     timeoutMs: node.timeoutMs,

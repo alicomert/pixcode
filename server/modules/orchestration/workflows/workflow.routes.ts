@@ -3,6 +3,7 @@ import express from 'express';
 
 import { workflowRunner } from '@/modules/orchestration/workflows/workflow-runner.js';
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
+import { buildWorkflowTrace } from '@/modules/orchestration/workflows/workflow-trace.js';
 import { findPixcodeAppRoot } from '@/modules/orchestration/workflows/workspace-target.js';
 
 const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
@@ -117,6 +118,19 @@ export function createWorkflowRouter(): Router {
     req.on('close', () => {
       clearInterval(timer);
       clearInterval(heartbeat);
+    });
+  });
+
+  router.get('/workflows/runs/:runId/trace', (req, res) => {
+    const run = workflowStore.getRun(req.params.runId);
+    if (!run) {
+      res.status(404).json({ error: { code: 'RUN_NOT_FOUND', message: req.params.runId } });
+      return;
+    }
+
+    res.json({
+      runId: run.id,
+      trace: buildWorkflowTrace(run),
     });
   });
 

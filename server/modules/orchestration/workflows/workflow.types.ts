@@ -35,6 +35,7 @@ export interface WorkflowNodeRun {
   agentInstanceId?: string;
   agentLabel?: string;
   assignment?: string;
+  promptPreview?: string;
   model?: string;
   permissionMode?: string;
   timeoutMs?: number;
@@ -68,5 +69,25 @@ export interface WorkflowRun {
   input?: string;
   startedAt: number;
   finishedAt?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface WorkflowTraceEvent {
+  id: string;
+  type: 'run' | 'node' | 'provider' | 'message' | 'artifact' | 'file' | 'error';
+  severity: 'info' | 'warning' | 'error';
+  status: WorkflowRunStatus | WorkflowNodeStatus | 'submitted';
+  timestamp: number;
+  durationMs?: number;
+  actor: string;
+  title: string;
+  titleKey?: string;
+  summary?: string;
+  detail?: string;
+  nodeId?: string;
+  adapterId?: string;
+  agentInstanceId?: string;
+  agentLabel?: string;
+  model?: string;
   metadata?: Record<string, unknown>;
 }

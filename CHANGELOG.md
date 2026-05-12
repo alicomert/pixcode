@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.41.3](https://github.com/alicomert/pixcode/compare/v1.41.2...v1.41.3) (2026-05-12)
+
+Pixcode 1.41.3 adds the first workflow trace timeline so orchestration runs can be inspected step by step without reading raw logs.
+
+### New Features
+
+* **orchestration:** add a provider-independent trace event schema and `/api/orchestration/workflows/runs/:runId/trace` endpoint.
+* **orchestration:** derive timeline events for run start/finish, node execution, provider calls, prompts, agent messages, file-diff artifacts, command/preview artifacts, and errors.
+* **orchestration:** add a trace timeline tab with actor, provider, type, and severity filters in the workflow run panel.
+
+### Maintenance
+
+* redact workspace paths, email addresses, and common token shapes from trace summaries before returning them to the UI.
+* add smoke coverage for the trace event contract, API route, UI timeline wiring, and English/Turkish labels.
+
 ## [1.41.2](https://github.com/alicomert/pixcode/compare/v1.41.1...v1.41.2) (2026-05-12)
 
 Pixcode 1.41.2 stabilizes chat and orchestration state refresh by introducing a shared browser run-state refresh event and wiring terminal run snapshots back into active UI caches.

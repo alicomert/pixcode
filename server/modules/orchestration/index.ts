@@ -55,6 +55,7 @@ export type {
   WorkflowNodeStatus,
   WorkflowRun,
   WorkflowRunStatus,
+  WorkflowTraceEvent,
 } from './workflows/workflow.types.js';
 export type {
   ExecResult,

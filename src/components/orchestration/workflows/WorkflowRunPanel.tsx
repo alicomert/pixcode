@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge, Button } from '../../../shared/view/ui';
@@ -8,7 +8,7 @@ import { Markdown } from '../../chat/view/subcomponents/Markdown';
 
 import WorkflowNodeStream from './WorkflowNodeStream';
 
-import { AlertTriangle, Bot, Clock, FileText, MessageSquare, SquareIcon, Workflow } from '@/lib/icons';
+import { AlertTriangle, Bot, Clock, FileText, Filter, ListChecks, MessageSquare, SquareIcon, Workflow } from '@/lib/icons';
 
 type WorkflowNodeRun = {
   nodeId: string;
@@ -16,6 +16,7 @@ type WorkflowNodeRun = {
   agentInstanceId?: string;
   agentLabel?: string;
   assignment?: string;
+  promptPreview?: string;
   stage?: string;
   internal?: boolean;
   status: string;
@@ -45,6 +46,33 @@ type WorkflowRun = {
   nodeRuns: WorkflowNodeRun[];
 };
 
+type WorkflowTraceEvent = {
+  id: string;
+  type: 'run' | 'node' | 'provider' | 'message' | 'artifact' | 'file' | 'error';
+  severity: 'info' | 'warning' | 'error';
+  status: string;
+  timestamp: number;
+  durationMs?: number;
+  actor: string;
+  title: string;
+  titleKey?: string;
+  summary?: string;
+  detail?: string;
+  nodeId?: string;
+  adapterId?: string;
+  agentInstanceId?: string;
+  agentLabel?: string;
+  model?: string;
+  metadata?: Record<string, unknown>;
+};
+
+type TraceFilters = {
+  actor: string;
+  provider: string;
+  type: string;
+  severity: string;
+};
+
 type WorkflowRunPanelProps = {
   runId?: string;
   onRunSnapshot?: (run: WorkflowRun) => void;
@@ -52,7 +80,15 @@ type WorkflowRunPanelProps = {
 };
 
 const teamHistoryId = '__team_history__';
+const traceTimelineId = '__trace_timeline__';
 const terminalRunStatuses = new Set(['completed', 'failed', 'canceled']);
+const allTraceFilterValue = '__all__';
+const defaultTraceFilters: TraceFilters = {
+  actor: allTraceFilterValue,
+  provider: allTraceFilterValue,
+  type: allTraceFilterValue,
+  severity: allTraceFilterValue,
+};
 
 function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (status === 'completed') return 'default';
@@ -85,6 +121,25 @@ function duration(startedAt?: number, finishedAt?: number): string {
   return `${Math.max(0, Math.round((end - startedAt) / 1000))}s`;
 }
 
+function traceDuration(durationMs?: number): string {
+  if (typeof durationMs !== 'number') return '';
+  if (durationMs < 1000) return `${durationMs}ms`;
+  return `${Math.max(0, Math.round(durationMs / 1000))}s`;
+}
+
+function traceTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function uniqueSorted(values: Array<string | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value?.trim())))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
 function nodeMessages(node: WorkflowNodeRun): Array<{ role: string; text: string }> {
   const agentMessages = (node.messages ?? []).filter((message) => message.role !== 'user');
   if (agentMessages.length) return agentMessages;
@@ -110,6 +165,129 @@ function hasUsefulOutput(node: WorkflowNodeRun): boolean {
     || node.error?.trim()
     || node.messages?.some((message) => message.role !== 'user' && message.text.trim())
     || node.artifacts?.length,
+  );
+}
+
+function WorkflowTraceTimeline({
+  events,
+  filters,
+  setTraceFilters,
+  loadError,
+}: {
+  events: WorkflowTraceEvent[];
+  filters: TraceFilters;
+  setTraceFilters: Dispatch<SetStateAction<TraceFilters>>;
+  loadError: string | null;
+}) {
+  const { t } = useTranslation();
+  const actors = useMemo(() => uniqueSorted(events.map((event) => event.actor)), [events]);
+  const providers = useMemo(() => uniqueSorted(events.map((event) => event.adapterId)), [events]);
+  const types = useMemo(() => uniqueSorted(events.map((event) => event.type)), [events]);
+  const severities = useMemo(() => uniqueSorted(events.map((event) => event.severity)), [events]);
+  const filteredEvents = useMemo(() => events.filter((event) =>
+    (filters.actor === allTraceFilterValue || event.actor === filters.actor)
+    && (filters.provider === allTraceFilterValue || event.adapterId === filters.provider)
+    && (filters.type === allTraceFilterValue || event.type === filters.type)
+    && (filters.severity === allTraceFilterValue || event.severity === filters.severity),
+  ), [events, filters]);
+
+  const renderSelect = (
+    key: keyof TraceFilters,
+    label: string,
+    options: string[],
+    labelForOption: (value: string) => string = (value) => value,
+  ) => (
+    <label className="min-w-0 text-xs font-medium text-muted-foreground">
+      <span className="mb-1 block">{label}</span>
+      <select
+        value={filters[key]}
+        onChange={(event) => setTraceFilters((current) => ({ ...current, [key]: event.target.value }))}
+        className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+      >
+        <option value={allTraceFilterValue}>{t('orchestration.traceAll')}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {labelForOption(option)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  return (
+    <section className="rounded-md border border-border">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <ListChecks className="h-4 w-4" />
+          {t('orchestration.traceTimeline')}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Filter className="h-4 w-4" />
+          {t('orchestration.traceFilters')}
+        </div>
+      </div>
+
+      <div className="grid gap-2 border-b border-border p-4 sm:grid-cols-2 xl:grid-cols-4">
+        {renderSelect('actor', t('orchestration.traceActor'), actors)}
+        {renderSelect('provider', t('orchestration.traceProvider'), providers, (value) => value)}
+        {renderSelect('type', t('orchestration.traceType'), types, (value) =>
+          t(`orchestration.traceTypes.${value}`, { defaultValue: value }),
+        )}
+        {renderSelect('severity', t('orchestration.traceSeverity'), severities, (value) =>
+          t(`orchestration.traceSeverityLevels.${value}`, { defaultValue: value }),
+        )}
+      </div>
+
+      <div className="space-y-3 p-4">
+        {loadError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {loadError}
+          </div>
+        ) : null}
+        {filteredEvents.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+            {t('orchestration.traceEmpty')}
+          </div>
+        ) : filteredEvents.map((event) => (
+          <article key={event.id} className={`rounded-md border border-l-4 border-border/70 p-3 ${event.severity === 'error' ? 'border-l-destructive/70 bg-destructive/5' : statusAccentClass(event.status)}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium">
+                    {event.titleKey ? t(event.titleKey, { defaultValue: event.title }) : event.title}
+                  </span>
+                  <Badge variant={statusVariant(event.status)}>
+                    {t(`orchestration.status.${event.status}`, { defaultValue: event.status })}
+                  </Badge>
+                  <Badge variant="outline">
+                    {t(`orchestration.traceTypes.${event.type}`, { defaultValue: event.type })}
+                  </Badge>
+                  {event.severity !== 'info' ? (
+                    <Badge variant={event.severity === 'error' ? 'destructive' : 'secondary'}>
+                      {t(`orchestration.traceSeverityLevels.${event.severity}`, { defaultValue: event.severity })}
+                    </Badge>
+                  ) : null}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>{traceTime(event.timestamp)}</span>
+                  <span>{event.actor}</span>
+                  {event.adapterId ? <span>{event.adapterId}</span> : null}
+                  {event.model ? <span>{event.model}</span> : null}
+                  {event.durationMs !== undefined ? (
+                    <span>{t('orchestration.traceDuration', { duration: traceDuration(event.durationMs) })}</span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+            {event.summary ? (
+              <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/70 bg-background/70 p-3 font-mono text-xs leading-5">
+                {event.summary}
+              </pre>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -297,6 +475,9 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
   const contentRef = useRef<HTMLDivElement>(null);
   const [run, setRun] = useState<WorkflowRun | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(teamHistoryId);
+  const [traceEvents, setTraceEvents] = useState<WorkflowTraceEvent[]>([]);
+  const [traceFilters, setTraceFilters] = useState<TraceFilters>(defaultTraceFilters);
+  const [traceLoadError, setTraceLoadError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
 
@@ -304,11 +485,25 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
     if (!runId) {
       setRun(null);
       setSelectedNodeId(teamHistoryId);
+      setTraceEvents([]);
+      setTraceLoadError(null);
       return undefined;
     }
 
     let canceled = false;
     let timer: number | undefined;
+    const loadTrace = async () => {
+      const response = await authenticatedFetch(`/api/orchestration/workflows/runs/${encodeURIComponent(runId)}/trace`);
+      if (canceled) return;
+      if (!response.ok) {
+        setTraceLoadError(t('orchestration.traceLoadFailed'));
+        return;
+      }
+      const body = await response.json() as { trace?: WorkflowTraceEvent[] };
+      if (canceled) return;
+      setTraceEvents(Array.isArray(body.trace) ? body.trace : []);
+      setTraceLoadError(null);
+    };
     const load = async () => {
       const response = await authenticatedFetch(`/api/orchestration/workflows/runs/${encodeURIComponent(runId)}`);
       if (canceled) return;
@@ -320,6 +515,7 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
       if (canceled) return;
       setRun(nextRun);
       onRunSnapshot?.(nextRun);
+      void loadTrace();
       setLoadError(null);
       setSelectedNodeId((current) => current || teamHistoryId);
 
@@ -340,7 +536,7 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
   }, [onRunSnapshot, runId, t]);
 
   const selectedNode = useMemo(
-    () => selectedNodeId === teamHistoryId
+    () => selectedNodeId === teamHistoryId || selectedNodeId === traceTimelineId
       ? undefined
       : run?.nodeRuns.find((node) => !node.internal && node.nodeId === selectedNodeId),
     [run, selectedNodeId],
@@ -362,7 +558,14 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
       }
       const nextRun = await response.json() as WorkflowRun;
       setRun(nextRun);
+      onRunSnapshot?.(nextRun);
       setLoadError(null);
+      const traceResponse = await authenticatedFetch(`/api/orchestration/workflows/runs/${encodeURIComponent(runId)}/trace`);
+      if (traceResponse.ok) {
+        const body = await traceResponse.json() as { trace?: WorkflowTraceEvent[] };
+        setTraceEvents(Array.isArray(body.trace) ? body.trace : []);
+        setTraceLoadError(null);
+      }
     } finally {
       setCanceling(false);
     }
@@ -466,6 +669,18 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
                 {t(`orchestration.status.${run.status}`, { defaultValue: run.status })}
               </Badge>
             </Button>
+            <Button
+              type="button"
+              variant={selectedNodeId === traceTimelineId ? 'secondary' : 'ghost'}
+              className={`h-auto w-full justify-start border-l-4 px-3 py-2 ${statusAccentClass(run.status)}`}
+              onClick={() => setSelectedNodeId(traceTimelineId)}
+            >
+              <ListChecks className="mr-2 h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-left">
+                {t('orchestration.traceTimeline')}
+              </span>
+              <Badge variant="outline">{traceEvents.length}</Badge>
+            </Button>
             {visibleNodeRuns(run).map((node) => {
               const stage = node.stage ? t(`orchestration.stages.${node.stage}`, { defaultValue: node.stage }) : undefined;
               return (
@@ -497,6 +712,13 @@ export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFr
         <div ref={contentRef} className="min-h-0 overflow-visible p-4 md:p-5 xl:overflow-auto">
           {selectedNodeId === teamHistoryId ? (
             <WorkflowTeamHistory run={run} onPrepareTeamFromSummary={onPrepareTeamFromSummary} />
+          ) : selectedNodeId === traceTimelineId ? (
+            <WorkflowTraceTimeline
+              events={traceEvents}
+              filters={traceFilters}
+              setTraceFilters={setTraceFilters}
+              loadError={traceLoadError}
+            />
           ) : selectedNode ? (
             <WorkflowNodeStream node={selectedNode} />
           ) : (
