@@ -122,6 +122,7 @@ CLAUDE.md
 *.db
 *.sqlite
 *.sqlite3 
+server/database/auth.json
 
 logs
 dev-debug.log

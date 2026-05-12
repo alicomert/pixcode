@@ -5,13 +5,13 @@ import net from 'node:net';
 import path from 'node:path';
 
 import { buildCliSpawnEnv } from './install-jobs.js';
-import { ensureManagedRuntime, getManagedRuntimeStatus } from './managed-runtimes.js';
+import { ensureManagedRuntime } from './managed-runtimes.js';
+import { resolveLiveViewRuntime } from './runtime-manager.js';
 
 const sessionsByProject = new Map();
 const sessionsByShareId = new Map();
 const READY_TIMEOUT_MS = 12000;
 const LOG_LIMIT = 200;
-const RUNTIME_CHECK_TIMEOUT_MS = 1800;
 
 const localUrlRegex = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[[^\]]+\])(?::(\d+))?[^\s"'<>]*/i;
 
@@ -80,88 +80,6 @@ function packageRunArgs(packageManager, scriptName, extraArgs = []) {
 
 function buildDisplayCommand(command, args) {
   return [command, ...args].join(' ');
-}
-
-function quoteForPosixShell(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
-}
-
-function quoteForWindowsShell(value) {
-  return `"${String(value).replaceAll('"', '""')}"`;
-}
-
-function isPathLikeCommand(command) {
-  return path.isAbsolute(command) || command.includes('/') || command.includes('\\');
-}
-
-function runtimeMissingReason(command, framework) {
-  const base = `${command} is not available on this machine.`;
-  if (framework === 'PHP' || command === 'php') {
-    return 'Pixcode can prepare a local PHP runtime automatically before starting this project.';
-  }
-  if (command === 'npm' || command === 'pnpm' || command === 'yarn' || command === 'bun') {
-    return `${base} Pixcode can prepare a local Node package runner automatically before starting this project.`;
-  }
-  if (command === 'python' || command === 'python3') {
-    return `${base} Pixcode does not have a managed Python runtime for this stack yet.`;
-  }
-  return `${base} Pixcode does not have a managed ${framework || command} runtime for this stack yet.`;
-}
-
-async function checkCommandAvailability(command, env = process.env) {
-  if (!command || command.includes('\n') || command.includes('\r')) return true;
-
-  if (isPathLikeCommand(command)) {
-    try {
-      await fs.access(command);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  const checker = process.platform === 'win32'
-    ? {
-      command: process.env.ComSpec || 'cmd.exe',
-      args: ['/d', '/s', '/c', `where ${quoteForWindowsShell(command)}`],
-    }
-    : {
-      command: '/bin/sh',
-      args: ['-lc', `command -v ${quoteForPosixShell(command)}`],
-    };
-
-  return new Promise((resolve) => {
-    let settled = false;
-    let child = null;
-    const finish = (available) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(available);
-    };
-
-    const timer = setTimeout(() => {
-      try {
-        child?.kill();
-      } catch {
-        // Ignore a raced process exit.
-      }
-      finish(true);
-    }, RUNTIME_CHECK_TIMEOUT_MS);
-
-    child = spawn(checker.command, checker.args, {
-      env,
-      stdio: 'ignore',
-      windowsHide: true,
-    });
-
-    child.on('error', (error) => {
-      finish(error?.code === 'ENOENT' ? false : true);
-    });
-    child.on('exit', (code) => {
-      finish(code === 0);
-    });
-  });
 }
 
 function buildPackageCommand(packageManager, scriptName, id, label, framework, extraArgs = []) {
@@ -596,11 +514,13 @@ export async function detectLiveViewTarget(projectPath, options = {}) {
 
   const processCommand = await detectProcessCommand(projectPath);
   if (processCommand) {
+    const runtimeResolution = await resolveLiveViewRuntime(processCommand, {
+      env: options.env || process.env,
+      preferManaged: true,
+    });
+
     if (isPackageManagerCommand(processCommand.command)) {
-      const managedRuntime = await getManagedRuntimeStatus('npm', {
-        env: options.env || process.env,
-        preferManaged: true,
-      });
+      const managedRuntime = runtimeResolution.managedRuntime;
       const command = buildManagedPackageCommand(processCommand, managedRuntime);
       return {
         available: true,
@@ -609,17 +529,13 @@ export async function detectLiveViewTarget(projectPath, options = {}) {
         framework: processCommand.framework,
         command,
         managedRuntime,
-        reason: managedRuntime.status === 'missing'
-          ? 'Pixcode will prepare a local Node package runner automatically before starting this project.'
-          : 'Pixcode will run this project with its managed Node package runner.',
+        runtime: runtimeResolution.runtime,
+        reason: runtimeResolution.reason,
       };
     }
 
     if (processCommand.framework === 'PHP' || processCommand.command === 'php') {
-      const managedRuntime = await getManagedRuntimeStatus('frankenphp', {
-        env: options.env || process.env,
-        preferManaged: true,
-      });
+      const managedRuntime = runtimeResolution.managedRuntime;
       const command = buildManagedPhpCommand(managedRuntime);
       return {
         available: true,
@@ -628,14 +544,12 @@ export async function detectLiveViewTarget(projectPath, options = {}) {
         framework: command.framework,
         command,
         managedRuntime,
-        reason: managedRuntime.status === 'missing'
-          ? 'Pixcode will prepare a local PHP runtime automatically before starting this project.'
-          : 'Pixcode will run this project with its managed PHP runtime.',
+        runtime: runtimeResolution.runtime,
+        reason: runtimeResolution.reason,
       };
     }
 
-    const runtimeAvailable = await checkCommandAvailability(processCommand.command, options.env || process.env);
-    if (!runtimeAvailable) {
+    if (!runtimeResolution.available) {
       return {
         available: false,
         kind: 'process',
@@ -643,7 +557,8 @@ export async function detectLiveViewTarget(projectPath, options = {}) {
         framework: processCommand.framework,
         command: processCommand,
         missingRuntime: processCommand.command,
-        reason: runtimeMissingReason(processCommand.command, processCommand.framework),
+        runtime: runtimeResolution.runtime,
+        reason: runtimeResolution.reason,
       };
     }
 
@@ -653,6 +568,7 @@ export async function detectLiveViewTarget(projectPath, options = {}) {
       label: processCommand.label,
       framework: processCommand.framework,
       command: processCommand,
+      runtime: runtimeResolution.runtime,
     };
   }
 
@@ -737,6 +653,7 @@ function publicSession(session) {
       label: session.command.label,
       displayCommand: session.command.displayCommand,
     } : null,
+    runtime: session.runtime || null,
     managedRuntime: session.managedRuntime || null,
     port: session.port,
     upstreamUrl: session.upstreamUrl,
@@ -803,6 +720,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
       label: target.label,
       staticRoot: target.staticRoot,
       command: null,
+      runtime: null,
       port: null,
       upstreamUrl: null,
       startedAt: new Date().toISOString(),
@@ -842,6 +760,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
     framework: target.framework,
     label: target.label,
     command,
+    runtime: target.runtime || null,
     managedRuntime: runtimeStatus,
     port,
     host: '127.0.0.1',

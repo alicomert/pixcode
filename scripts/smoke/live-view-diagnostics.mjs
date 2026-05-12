@@ -39,8 +39,8 @@ assert.match(payload.errorDetail, /spawn php ENOENT/);
 assert.ok(payload.diagnostics.command.includes('php -S'), 'Payload should include the attempted PHP command.');
 assert.ok(payload.diagnostics.logs.some((line) => line.includes('spawn php ENOENT')), 'Payload should include process logs.');
 assert.ok(
-  payload.suggestions.some((suggestion) => /php/i.test(suggestion) && /PATH/i.test(suggestion)),
-  'PHP failures should suggest checking the php executable in PATH.',
+  payload.suggestions.some((suggestion) => /php/i.test(suggestion) && /local PHP runtime/i.test(suggestion)),
+  'PHP failures should explain that Pixcode can prepare a local PHP runtime.',
 );
 assert.notEqual(payload.error, 'Live View session not found.', 'Existing failed sessions must not be hidden as missing sessions.');
 

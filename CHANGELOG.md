@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.41.4](https://github.com/alicomert/pixcode/compare/v1.41.3...v1.41.4) (2026-05-12)
+
+Pixcode 1.41.4 introduces the shared runtime manager boundary used by Live View runtime checks.
+
+### New Features
+
+* **runtime:** add a central runtime manager registry for Node.js, PHP, Python, Go, Java, and Rust discovery.
+* **live-view:** route JavaScript package-runner and PHP runtime decisions through the runtime manager while preserving managed npm and FrankenPHP hooks.
+* **live-view:** expose runtime diagnostics on Live View session payloads so the UI/API can grow without changing runtime detection internals.
+
+### Maintenance
+
+* replace duplicated Live View runtime availability checks with reusable runtime manager diagnostics.
+* add smoke coverage for runtime discovery, managed Node package-runner fallback, managed PHP fallback, and Live View integration.
+
 ## [1.41.3](https://github.com/alicomert/pixcode/compare/v1.41.2...v1.41.3) (2026-05-12)
 
 Pixcode 1.41.3 adds the first workflow trace timeline so orchestration runs can be inspected step by step without reading raw logs.

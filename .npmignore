@@ -15,6 +15,7 @@ authdb/
 *.db
 *.sqlite
 *.sqlite3
+server/database/auth.json
 
 
 # IDE and editor files
