@@ -15,6 +15,8 @@ import {
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
 // @ts-ignore — plain-JS service
 import { getProviderModels } from '@/services/provider-models.js';
+// @ts-ignore — plain-JS service
+import { notifyRunFailed, notifyRunStopped } from '@/services/notification-orchestrator.js';
 
 import {
   CLAUDE_MODELS,
@@ -124,6 +126,23 @@ type ProviderModel = {
   source?: 'static' | 'api';
   free?: boolean;
 };
+type RunStoppedNotifier = (payload: {
+  userId: string | number;
+  provider: string;
+  sessionId?: string | null;
+  stopReason?: string;
+  sessionName?: string | null;
+}) => void;
+type RunFailedNotifier = (payload: {
+  userId: string | number;
+  provider: string;
+  sessionId?: string | null;
+  error: unknown;
+  sessionName?: string | null;
+}) => void;
+
+const sendRunStoppedNotification = notifyRunStopped as RunStoppedNotifier;
+const sendRunFailedNotification = notifyRunFailed as RunFailedNotifier;
 
 const adapterProviderMap: Record<string, ProviderId | undefined> = {
   'claude-code': 'claude',
@@ -166,6 +185,52 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function readNotificationUserId(metadata?: Record<string, unknown>): string | number | null {
+  const value = metadata?.userId;
+  return typeof value === 'string' || typeof value === 'number' ? value : null;
+}
+
+function workflowNotificationTitle(run: WorkflowRun): string {
+  return readString(run.metadata?.workflowName) ?? run.workflowId;
+}
+
+function notifyWorkflowRunFinished(run: WorkflowRun): void {
+  const userId = readNotificationUserId(run.metadata);
+  if (!userId) return;
+
+  if (run.status === 'completed') {
+    sendRunStoppedNotification({
+      userId,
+      provider: 'system',
+      sessionId: run.id,
+      sessionName: workflowNotificationTitle(run),
+      stopReason: 'Orchestration completed',
+    });
+    return;
+  }
+
+  if (run.status === 'canceled') {
+    sendRunStoppedNotification({
+      userId,
+      provider: 'system',
+      sessionId: run.id,
+      sessionName: workflowNotificationTitle(run),
+      stopReason: 'Orchestration canceled',
+    });
+    return;
+  }
+
+  if (run.status === 'failed') {
+    sendRunFailedNotification({
+      userId,
+      provider: 'system',
+      sessionId: run.id,
+      sessionName: workflowNotificationTitle(run),
+      error: readString(run.metadata?.error) ?? 'Orchestration failed',
+    });
+  }
 }
 
 function readBoolean(value: unknown): boolean | undefined {
@@ -1449,6 +1514,7 @@ class WorkflowRunner {
     } finally {
       run.finishedAt = run.finishedAt ?? Date.now();
       workflowStore.setRun(run);
+      notifyWorkflowRunFinished(run);
       this.cancelingRuns.delete(run.id);
     }
   }

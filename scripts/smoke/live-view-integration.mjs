@@ -287,6 +287,9 @@ await writeFile(fakeNpmCli, [
   'const fs = require("node:fs");',
   'const path = require("node:path");',
   'if (process.argv[2] === "install") {',
+  '  if (!process.argv.includes("--include=dev") || process.env.NODE_ENV !== "development" || process.env.NPM_CONFIG_PRODUCTION !== "false") {',
+  '    process.exit(0);',
+  '  }',
   '  fs.mkdirSync(path.join(process.cwd(), "node_modules", ".bin"), { recursive: true });',
   '  fs.writeFileSync(path.join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "vite.cmd" : "vite"), "ok");',
   '  process.exit(0);',
@@ -382,6 +385,48 @@ const brokenStatus = await getManagedRuntimeStatus('frankenphp', {
   },
 });
 assert.equal(brokenStatus.status, 'missing', 'Broken managed FrankenPHP manifests should be treated as missing so Pixcode can reinstall them.');
+
+const phpRuntimeEnvHome = path.join(workspace, 'php-runtime-env');
+const phpRuntimeCurrent = path.join(phpRuntimeEnvHome, 'frankenphp', 'current');
+await mkdir(phpRuntimeCurrent, { recursive: true });
+const phpRuntimeExecutable = path.join(phpRuntimeCurrent, process.platform === 'win32' ? 'frankenphp.cmd' : 'frankenphp');
+await writeFile(phpRuntimeExecutable, [
+  '#!/usr/bin/env node',
+  'const http = require("node:http");',
+  'const path = require("node:path");',
+  'const runtimeDir = __dirname;',
+  'if (process.argv.includes("version")) process.exit(0);',
+  'const pathValue = process.env.Path || process.env.PATH || "";',
+  'if (!pathValue.split(path.delimiter).includes(runtimeDir)) {',
+  '  console.error("runtime path missing from PATH");',
+  '  process.exit(1);',
+  '}',
+  'const port = Number(process.env.PORT || 0);',
+  'http.createServer((req, res) => res.end("php runtime ok")).listen(port, "127.0.0.1");',
+  '',
+].join('\n'));
+if (process.platform !== 'win32') {
+  await chmod(phpRuntimeExecutable, 0o755);
+}
+await writeFile(path.join(phpRuntimeEnvHome, 'frankenphp', 'pixcode-runtime.json'), JSON.stringify({
+  id: 'frankenphp',
+  label: 'Pixcode PHP runtime',
+  executablePath: phpRuntimeExecutable,
+  version: 'path-env-smoke',
+}, null, 2));
+const previousRuntimeHome = process.env.PIXCODE_MANAGED_RUNTIMES_HOME;
+process.env.PIXCODE_MANAGED_RUNTIMES_HOME = phpRuntimeEnvHome;
+try {
+  const phpRuntimeSession = await startLiveView('php-runtime-env-smoke', phpProject);
+  assert.equal(phpRuntimeSession.status, 'running', 'Managed PHP Live View should start with the runtime directory on PATH.');
+  await stopLiveView('php-runtime-env-smoke');
+} finally {
+  if (previousRuntimeHome === undefined) {
+    delete process.env.PIXCODE_MANAGED_RUNTIMES_HOME;
+  } else {
+    process.env.PIXCODE_MANAGED_RUNTIMES_HOME = previousRuntimeHome;
+  }
+}
 
 const staticSession = await startLiveView('static-smoke', staticProject);
 assert.equal(staticSession.status, 'running', 'Static Live View should start without a child process.');

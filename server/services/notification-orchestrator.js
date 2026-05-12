@@ -172,8 +172,9 @@ function buildPushBody(event) {
 
 function buildNotificationPayload(event) {
   const pushBody = buildPushBody(event);
+  const baseId = event.dedupeKey || `${event.provider || 'system'}:${event.kind || 'info'}:${event.code || 'generic'}:${event.sessionId || 'none'}`;
   return {
-    id: event.dedupeKey || `${event.provider || 'system'}:${event.kind || 'info'}:${event.code || 'generic'}:${event.sessionId || 'none'}:${event.createdAt}`,
+    id: `${baseId}:${event.createdAt}`,
     title: pushBody.title,
     body: pushBody.body,
     kind: event.kind || 'info',

@@ -39,6 +39,11 @@ function readMetadata(body: unknown): Record<string, unknown> | undefined {
   return metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : undefined;
 }
 
+function readRequestUserId(req: express.Request): string | number | null {
+  const user = (req as express.Request & { user?: { id?: string | number; userId?: string | number } }).user;
+  return user?.id ?? user?.userId ?? null;
+}
+
 function sendRunSnapshot(res: express.Response, runId: string): boolean {
   const run = workflowStore.getRun(runId);
   if (!run) {
@@ -179,7 +184,11 @@ export function createWorkflowRouter(): Router {
       const run = workflowRunner.start(
         workflow,
         typeof req.body?.input === 'string' ? req.body.input : '',
-        readMetadata(req.body),
+        {
+          ...readMetadata(req.body),
+          userId: readRequestUserId(req),
+          workflowName: workflow.name,
+        },
       );
       res.status(202).json(run);
     } catch (error) {

@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.40.9](https://github.com/alicomert/pixcode/compare/v1.40.8...v1.40.9) (2026-05-12)
+
+Pixcode 1.40.9 fixes the remaining Live View startup regressions and restores reliable completion notifications for chat and orchestration runs.
+
+### Bug Fixes
+
+* **live-view:** install JavaScript project dependencies with dev dependencies included, fixing Vite projects that installed packages but still failed with `'vite' is not recognized`.
+* **live-view:** add the managed FrankenPHP runtime directory and extension directory to the spawned process PATH, fixing Windows PHP launches that still exited with `3221225781` after runtime install.
+* **notifications:** make local notification ids unique per run event while keeping server dedupe intact, so completed chat sessions can notify more than once per session.
+* **orchestration:** attach the authenticated user id to workflow runs and emit completion/failure notifications when orchestration runs finish.
+
+### Tests
+
+* extend Live View smoke coverage for dev dependency installation and managed PHP runtime PATH propagation.
+* extend notification smoke coverage for repeated completion notifications and orchestration terminal notifications.
+
 ## [1.40.8](https://github.com/alicomert/pixcode/compare/v1.40.7...v1.40.8) (2026-05-12)
 
 Pixcode 1.40.8 fixes the remaining Live View managed-runtime failures across desktop/server installs. The runtime preparation path is kept cross-platform for Windows, macOS, and Linux.

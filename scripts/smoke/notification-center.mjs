@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 
 const orchestrator = readFileSync('server/services/notification-orchestrator.js', 'utf8');
 const server = readFileSync('server/index.js', 'utf8');
+const workflowRoutes = readFileSync('server/modules/orchestration/workflows/workflow.routes.ts', 'utf8');
+const workflowRunner = readFileSync('server/modules/orchestration/workflows/workflow-runner.ts', 'utf8');
 const appContent = readFileSync('src/components/app/AppContent.tsx', 'utf8');
 const notificationCenter = readFileSync('src/components/notifications/InAppNotificationCenter.tsx', 'utf8');
 const localNotifications = readFileSync('src/utils/localNotifications.ts', 'utf8');
@@ -26,6 +28,16 @@ assert.ok(
 );
 
 assert.ok(
+  !orchestrator.includes('id: event.dedupeKey ||'),
+  'Notification payload ids should not reuse the dedupe key forever; repeated completed runs for the same session need fresh local notifications.',
+);
+
+assert.ok(
+  orchestrator.includes('event.createdAt') && orchestrator.includes('dedupeKey'),
+  'Notification payloads should preserve dedupe metadata while still carrying a per-event timestamp.',
+);
+
+assert.ok(
   server.includes('setNotificationWebSocketServer(wss)'),
   'Server should attach the WebSocket server to notification orchestrator.',
 );
@@ -33,6 +45,18 @@ assert.ok(
 assert.ok(
   server.includes('ws.userId = request?.user?.id ?? request?.user?.userId ?? null'),
   'Chat WebSocket connections should carry user id for targeted notification delivery.',
+);
+
+assert.ok(
+  workflowRoutes.includes('readRequestUserId') && workflowRoutes.includes('userId: readRequestUserId(req)'),
+  'Orchestration run creation should carry the authenticated user id into workflow metadata.',
+);
+
+assert.ok(
+  workflowRunner.includes('notifyWorkflowRunFinished')
+    && workflowRunner.includes('notifyRunStopped')
+    && workflowRunner.includes('notifyRunFailed'),
+  'Workflow runner should notify users when orchestration runs complete or fail.',
 );
 
 assert.ok(

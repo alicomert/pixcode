@@ -238,6 +238,7 @@ async function packageDependenciesReady(projectPath, command) {
 
 function packageInstallInvocation(command) {
   if (!command || command.packageManager !== 'npm') return null;
+  const installArgs = ['install', '--no-audit', '--no-fund', '--include=dev'];
 
   if (
     command.managedRuntime?.id === 'npm'
@@ -246,16 +247,16 @@ function packageInstallInvocation(command) {
   ) {
     return {
       command: command.command,
-      args: [command.args[0], 'install', '--no-audit', '--no-fund'],
-      displayCommand: 'npm install --no-audit --no-fund',
+      args: [command.args[0], ...installArgs],
+      displayCommand: 'npm install --no-audit --no-fund --include=dev',
     };
   }
 
   if (command.command === 'npm' || path.basename(command.command || '').startsWith('npm')) {
     return {
       command: command.command,
-      args: ['install', '--no-audit', '--no-fund'],
-      displayCommand: 'npm install --no-audit --no-fund',
+      args: installArgs,
+      displayCommand: 'npm install --no-audit --no-fund --include=dev',
     };
   }
 
@@ -315,11 +316,45 @@ export async function preparePackageDependencies(projectPath, command, env = pro
   onLog(`Installing project dependencies: ${install.displayCommand}`);
   await runPrepProcess(install.command, install.args, {
     cwd: projectPath,
-    env,
+    env: {
+      ...env,
+      NODE_ENV: 'development',
+      NPM_CONFIG_PRODUCTION: 'false',
+      npm_config_production: 'false',
+    },
     onLog,
   });
+  if (!(await packageDependenciesReady(projectPath, command))) {
+    const binName = expectedPackageBin(command);
+    throw new Error(binName
+      ? `${binName} was not installed. Check package.json dependencies or install output.`
+      : 'Project dependencies were not installed.');
+  }
   onLog('Project dependencies are ready.');
   return true;
+}
+
+function prependPathEntries(env, entries) {
+  const cleanEntries = entries.filter(Boolean);
+  if (!cleanEntries.length) return env;
+
+  const existingPath = env.Path || env.PATH || '';
+  const nextPath = [...cleanEntries, existingPath].filter(Boolean).join(path.delimiter);
+  return process.platform === 'win32'
+    ? { ...env, PATH: nextPath, Path: nextPath }
+    : { ...env, PATH: nextPath };
+}
+
+function applyManagedRuntimeEnv(env, runtimeStatus) {
+  if (runtimeStatus?.id !== 'frankenphp' || !runtimeStatus.executablePath) {
+    return env;
+  }
+
+  const runtimeDir = path.dirname(runtimeStatus.executablePath);
+  return prependPathEntries(env, [
+    runtimeDir,
+    path.join(runtimeDir, 'ext'),
+  ]);
 }
 
 function buildManagedPhpCommand(runtimeStatus) {
@@ -825,6 +860,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
     ...buildCliSpawnEnv(process.env),
     ...(command.env || {}),
     ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+    NODE_ENV: 'development',
     PORT: String(port),
     HOST: '127.0.0.1',
     VITE_HOST: '127.0.0.1',
@@ -832,12 +868,13 @@ export async function startLiveView(projectName, projectPath, options = {}) {
     BROWSER: 'none',
     NEXT_TELEMETRY_DISABLED: '1',
   };
+  const spawnEnv = applyManagedRuntimeEnv(env, runtimeStatus);
 
   sessionsByProject.set(projectName, session);
   sessionsByShareId.set(shareId, session);
 
   try {
-    await preparePackageDependencies(projectPath, command, env, (line) => appendLog(session, line));
+    await preparePackageDependencies(projectPath, command, spawnEnv, (line) => appendLog(session, line));
   } catch (error) {
     session.status = 'error';
     session.stoppedAt = new Date().toISOString();
@@ -848,7 +885,7 @@ export async function startLiveView(projectName, projectPath, options = {}) {
 
   const child = spawn(command.command, command.args, {
     cwd: projectPath,
-    env,
+    env: spawnEnv,
     shell: shouldUseShell(command),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
