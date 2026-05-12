@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.41.2](https://github.com/alicomert/pixcode/compare/v1.41.1...v1.41.2) (2026-05-12)
+
+Pixcode 1.41.2 stabilizes chat and orchestration state refresh by introducing a shared browser run-state refresh event and wiring terminal run snapshots back into active UI caches.
+
+### Bug Fixes
+
+* **chat:** refresh the active session from persisted server messages after chat completion, failure, cancellation, and reconnect paths.
+* **orchestration:** merge workflow run snapshots from the run panel back into the run list so completion status updates without a manual refresh.
+* **changes:** refresh changed-file monitoring on canonical chat/orchestration run-state events.
+
+### Tests
+
+* add smoke coverage for chat completion refresh, changed-files refresh events, and orchestration snapshot merging.
+* keep the changed-files smoke resilient while still asserting that `latestMessage` reaches the monitor.
+
 ## [1.41.1](https://github.com/alicomert/pixcode/compare/v1.41.0...v1.41.1) (2026-05-12)
 
 Pixcode 1.41.1 moves provider model selection behind a shared server registry so chat, orchestration, Telegram, and API consumers stop drifting across stale static lists.

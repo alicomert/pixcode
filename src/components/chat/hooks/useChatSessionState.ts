@@ -803,6 +803,7 @@ export function useChatSessionState({
     scrollContainerRef,
     scrollToBottom,
     scrollToBottomAndReset,
+    refreshActiveSessionMessages,
     isNearBottom,
     handleScroll,
   };

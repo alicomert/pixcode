@@ -4,6 +4,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { PendingPermissionRequest } from '../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
+import { dispatchRunStateRefresh, type PixcodeRunStateRefreshReason } from '../../../utils/runStateRefresh';
 
 type PendingViewSession = {
   sessionId: string | null;
@@ -69,6 +70,7 @@ interface UseChatRealtimeHandlersArgs {
   onReplaceTemporarySession?: (sessionId?: string | null) => void;
   onNavigateToSession?: (sessionId: string) => void;
   onWebSocketReconnect?: () => void;
+  onSessionSettled?: (sessionId?: string | null, reason?: PixcodeRunStateRefreshReason) => void;
   sessionStore: SessionStore;
 }
 
@@ -98,6 +100,7 @@ export function useChatRealtimeHandlers({
   onReplaceTemporarySession,
   onNavigateToSession,
   onWebSocketReconnect,
+  onSessionSettled,
   sessionStore,
 }: UseChatRealtimeHandlersArgs) {
   const lastProcessedMessageRef = useRef<LatestChatMessage | null>(null);
@@ -225,6 +228,17 @@ export function useChatRealtimeHandlers({
 
     // --- UI side effects for specific kinds ---
     switch (msg.kind) {
+      case 'tool_use':
+      case 'tool_result': {
+        dispatchRunStateRefresh({
+          source: 'chat',
+          reason: 'tool-activity',
+          projectName: selectedProject?.name,
+          sessionId: sid,
+        });
+        break;
+      }
+
       case 'session_created': {
         const newSessionId = msg.newSessionId;
         if (!newSessionId) break;
@@ -264,6 +278,19 @@ export function useChatRealtimeHandlers({
         onSessionInactive?.(sid);
         onSessionNotProcessing?.(sid);
 
+        const completionReason: PixcodeRunStateRefreshReason = msg.aborted
+          ? 'canceled'
+          : msg.exitCode && msg.exitCode !== 0
+            ? 'failed'
+            : 'completed';
+        dispatchRunStateRefresh({
+          source: 'chat',
+          reason: completionReason,
+          projectName: selectedProject?.name,
+          sessionId: sid,
+        });
+        onSessionSettled?.(sid, completionReason);
+
         // Handle aborted case
         if (msg.aborted) {
           // Abort was requested — the complete event confirms it
@@ -294,6 +321,13 @@ export function useChatRealtimeHandlers({
         setClaudeStatus(null);
         onSessionInactive?.(sid);
         onSessionNotProcessing?.(sid);
+        dispatchRunStateRefresh({
+          source: 'chat',
+          reason: 'failed',
+          projectName: selectedProject?.name,
+          sessionId: sid,
+        });
+        onSessionSettled?.(sid, 'failed');
         break;
       }
 
@@ -365,6 +399,7 @@ export function useChatRealtimeHandlers({
     onReplaceTemporarySession,
     onNavigateToSession,
     onWebSocketReconnect,
+    onSessionSettled,
     sessionStore,
   ]);
 }

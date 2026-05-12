@@ -15,6 +15,7 @@ import { Badge, Button } from '../../shared/view/ui';
 import { useGsapEntrance } from '../../lib/animations';
 import { authenticatedFetch } from '../../utils/api';
 import { useProviderModels } from '../../hooks/useProviderModels';
+import { dispatchRunStateRefresh } from '../../utils/runStateRefresh';
 import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS, OPENCODE_MODELS, QWEN_MODELS } from '../../../shared/modelConstants';
 
 import WorkflowRunPanel from './workflows/WorkflowRunPanel';
@@ -412,6 +413,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const pageRef = useRef<HTMLElement>(null);
   const layoutRef = useRef<HTMLDivElement>(null);
   const loadRunsInFlightRef = useRef(false);
+  const terminalRunRefreshIdsRef = useRef(new Set<string>());
   const [workflows, setWorkflows] = useState<BuiltInWorkflow[]>([]);
   const [orchestrationContext, setOrchestrationContext] = useState<OrchestrationContext>({});
   const [runs, setRuns] = useState<WorkflowRunSummary[]>([]);
@@ -530,6 +532,22 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
   const isExecutionMode = Boolean(activeRun);
   const runsRefreshIntervalMs = activeRun ? 5_000 : 30_000;
   useGsapEntrance(pageRef, 'fade-up');
+
+  const mergeRunSnapshot = useCallback((run: WorkflowRunSummary) => {
+    setRuns((previous) => [run, ...previous.filter((item) => item.id !== run.id)]);
+    if (run.status === 'completed' || run.status === 'failed' || run.status === 'canceled') {
+      if (!terminalRunRefreshIdsRef.current.has(run.id)) {
+        terminalRunRefreshIdsRef.current.add(run.id);
+        dispatchRunStateRefresh({
+          source: 'orchestration',
+          reason: run.status === 'completed' ? 'completed' : run.status === 'failed' ? 'failed' : 'canceled',
+          projectName: selectedProject.name,
+          runId: run.id,
+        });
+        void window.refreshProjects?.();
+      }
+    }
+  }, [selectedProject.name]);
 
   const adapterName = (adapterId: AdapterId) =>
     t(`orchestration.adapters.${adapterId}.label`);
@@ -800,6 +818,13 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
       }
       setRunId(body.id);
       setRuns((previous) => [body as WorkflowRunSummary, ...previous.filter((run) => run.id !== body.id)]);
+      terminalRunRefreshIdsRef.current.delete(body.id);
+      dispatchRunStateRefresh({
+        source: 'orchestration',
+        reason: 'run-started',
+        projectName: selectedProject.name,
+        runId: body.id,
+      });
       localStorage.setItem('pixcode.orchestration.selectedRunId', body.id);
       setPromptHistory(storePromptHistory(trimmedGoal));
       await loadRuns();
@@ -825,7 +850,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
         throw new Error(body?.error?.message ?? t('orchestration.cancelFailed'));
       }
       setRunId(body.id);
-      setRuns((previous) => [body as WorkflowRunSummary, ...previous.filter((run) => run.id !== body.id)]);
+      mergeRunSnapshot(body as WorkflowRunSummary);
       localStorage.setItem('pixcode.orchestration.selectedRunId', body.id);
       await loadRuns();
     } catch (err) {
@@ -1372,7 +1397,11 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
         ) : null}
 
         <section className="min-h-0 min-w-0 overflow-visible lg:overflow-hidden">
-          <WorkflowRunPanel runId={runId} onPrepareTeamFromSummary={prepareTeamFromSummary} />
+          <WorkflowRunPanel
+            runId={runId}
+            onRunSnapshot={mergeRunSnapshot}
+            onPrepareTeamFromSummary={prepareTeamFromSummary}
+          />
         </section>
       </div>
     </main>

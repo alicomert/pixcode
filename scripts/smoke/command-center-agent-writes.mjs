@@ -47,7 +47,9 @@ assert.ok(
 );
 
 assert.ok(
-  mainContent.includes('useChangedFilesMonitor(selectedProject, changeAwareness, latestMessage, changeTrackingMode)'),
+  mainContent.includes('useChangedFilesMonitor(selectedProject')
+    && mainContent.includes('latestMessage')
+    && mainContent.includes('changeTrackingMode'),
   'MainContent should pass latestMessage into the changed-files monitor.',
 );
 

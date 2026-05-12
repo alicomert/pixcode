@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import PermissionContext from '../../../contexts/PermissionContext';
-import type { ChatInterfaceProps, Provider  } from '../types/types';
-import type { LLMProvider } from '../../../types/app';
+import type { ChatInterfaceProps, Provider } from '../types/types';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
@@ -192,6 +191,7 @@ function ChatInterface({
     scrollContainerRef,
     scrollToBottom,
     scrollToBottomAndReset,
+    refreshActiveSessionMessages,
     handleScroll,
   } = useChatSessionState({
     selectedProject,
@@ -289,15 +289,21 @@ function ChatInterface({
   // so missed streaming events are shown. Also reset isLoading.
   const handleWebSocketReconnect = useCallback(async () => {
     if (!selectedProject || !selectedSession) return;
-    const providerVal = (localStorage.getItem('selected-provider') as LLMProvider) || 'claude';
-    await sessionStore.refreshFromServer(selectedSession.id, {
-      provider: (selectedSession.__provider || providerVal) as LLMProvider,
-      projectName: selectedProject.name,
-      projectPath: selectedProject.fullPath || selectedProject.path || '',
-    });
+    await refreshActiveSessionMessages();
     setIsLoading(false);
     setCanAbortSession(false);
-  }, [selectedProject, selectedSession, sessionStore, setIsLoading, setCanAbortSession]);
+  }, [refreshActiveSessionMessages, selectedProject, selectedSession, setIsLoading, setCanAbortSession]);
+
+  const handleSessionSettled = useCallback((sessionId?: string | null) => {
+    if (!selectedProject) return;
+    const activeViewSessionId = selectedSession?.id || currentSessionId || pendingViewSessionRef.current?.sessionId || null;
+    if (sessionId && activeViewSessionId && sessionId !== activeViewSessionId) return;
+
+    window.setTimeout(() => {
+      void refreshActiveSessionMessages();
+      void window.refreshProjects?.();
+    }, 300);
+  }, [currentSessionId, pendingViewSessionRef, refreshActiveSessionMessages, selectedProject, selectedSession?.id]);
 
   useChatRealtimeHandlers({
     latestMessage,
@@ -321,6 +327,7 @@ function ChatInterface({
     onReplaceTemporarySession,
     onNavigateToSession,
     onWebSocketReconnect: handleWebSocketReconnect,
+    onSessionSettled: handleSessionSettled,
     sessionStore,
   });
 

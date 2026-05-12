@@ -47,6 +47,7 @@ type WorkflowRun = {
 
 type WorkflowRunPanelProps = {
   runId?: string;
+  onRunSnapshot?: (run: WorkflowRun) => void;
   onPrepareTeamFromSummary?: (summary: string) => void;
 };
 
@@ -291,7 +292,7 @@ function WorkflowTeamHistory({
   );
 }
 
-export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: WorkflowRunPanelProps) {
+export default function WorkflowRunPanel({ runId, onRunSnapshot, onPrepareTeamFromSummary }: WorkflowRunPanelProps) {
   const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement>(null);
   const [run, setRun] = useState<WorkflowRun | null>(null);
@@ -318,6 +319,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
       const nextRun = await response.json() as WorkflowRun;
       if (canceled) return;
       setRun(nextRun);
+      onRunSnapshot?.(nextRun);
       setLoadError(null);
       setSelectedNodeId((current) => current || teamHistoryId);
 
@@ -335,7 +337,7 @@ export default function WorkflowRunPanel({ runId, onPrepareTeamFromSummary }: Wo
         window.clearTimeout(timer);
       }
     };
-  }, [runId, t]);
+  }, [onRunSnapshot, runId, t]);
 
   const selectedNode = useMemo(
     () => selectedNodeId === teamHistoryId

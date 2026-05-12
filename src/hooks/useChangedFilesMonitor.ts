@@ -9,6 +9,7 @@ import {
   normalizeChangedFiles,
   type ChangedFileEntry,
 } from '../utils/changedFiles';
+import { PIXCODE_RUN_STATE_REFRESH_EVENT } from '../utils/runStateRefresh';
 
 type GitStatusResponse = {
   isGitRepository?: boolean;
@@ -88,6 +89,7 @@ export function useChangedFilesMonitor(
   const lastIngestedMessageKeyRef = useRef<string | null>(null);
   const selectedProjectNameRef = useRef<string | null>(selectedProject?.name ?? null);
   const requestIdRef = useRef(0);
+  const eventRefreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     selectedProjectNameRef.current = selectedProject?.name ?? null;
@@ -101,7 +103,7 @@ export function useChangedFilesMonitor(
     setLatestDetectedFile(null);
   }, [selectedProject?.name, trackingMode]);
 
-  const refresh = useCallback(async (reason: 'initial' | 'poll' | 'manual' | 'focus' = 'manual') => {
+  const refresh = useCallback(async (reason: 'initial' | 'poll' | 'manual' | 'focus' | 'run-state' = 'manual') => {
     if (!enabled || !selectedProject) {
       return;
     }
@@ -207,6 +209,35 @@ export function useChangedFilesMonitor(
     setLastCheckedAt(detectedAt);
     setError(null);
   }, [enabled, latestMessage, selectedProject, trackingMode]);
+
+  useEffect(() => {
+    if (!enabled || !selectedProject) return undefined;
+
+    const handleRunStateRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectName?: string | null }>).detail;
+      if (detail?.projectName && detail.projectName !== selectedProject.name) {
+        return;
+      }
+
+      if (eventRefreshTimerRef.current) {
+        window.clearTimeout(eventRefreshTimerRef.current);
+      }
+      eventRefreshTimerRef.current = window.setTimeout(() => {
+        eventRefreshTimerRef.current = null;
+        void refresh('run-state');
+      }, 300);
+    };
+
+    window.addEventListener(PIXCODE_RUN_STATE_REFRESH_EVENT, handleRunStateRefresh);
+
+    return () => {
+      window.removeEventListener(PIXCODE_RUN_STATE_REFRESH_EVENT, handleRunStateRefresh);
+      if (eventRefreshTimerRef.current) {
+        window.clearTimeout(eventRefreshTimerRef.current);
+        eventRefreshTimerRef.current = null;
+      }
+    };
+  }, [enabled, refresh, selectedProject]);
 
   useEffect(() => {
     if (!enabled || !selectedProject) {
