@@ -337,9 +337,9 @@ export default function AccessSettingsTab() {
     return (
       <div
         key={entry.key}
-        className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-background p-3"
+        className="flex min-w-0 flex-col gap-4 rounded-md border border-border/60 bg-background p-4 sm:flex-row sm:items-center"
       >
-        <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-md bg-white p-1 sm:h-28 sm:w-28">
+        <div className="flex h-32 w-32 flex-shrink-0 items-center justify-center rounded-md bg-white p-1">
           {entry.dataUrl ? (
             <img src={entry.dataUrl} alt={t('access.qrAlt', { url: entry.url })} className="h-full w-full" />
           ) : (
@@ -352,7 +352,7 @@ export default function AccessSettingsTab() {
             type="button"
             title={entry.url}
             onClick={() => void copyUrl(entry.url)}
-            className="mt-1 block w-full truncate text-left text-sm font-medium text-foreground hover:text-primary"
+            className="mt-1 block w-full break-all text-left font-mono text-sm font-medium leading-relaxed text-foreground hover:text-primary"
           >
             {entry.url}
           </button>
@@ -374,7 +374,7 @@ export default function AccessSettingsTab() {
   const tunnelHint = tunnelInstallHint || external?.tunnel?.installHint || null;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -397,7 +397,7 @@ export default function AccessSettingsTab() {
         </div>
       )}
 
-      <section className="rounded-md border border-primary/20 bg-primary/5 p-3 sm:p-4">
+      <section className="rounded-md border border-primary/20 bg-primary/5 p-4 sm:p-6">
         <div className="flex items-start gap-3">
           <Shield className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
           <div className="min-w-0">
@@ -405,9 +405,9 @@ export default function AccessSettingsTab() {
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t('access.guide.description')}</p>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
           {connectionOptions.map((option, index) => (
-            <div key={option} className="rounded-md border border-border/60 bg-background p-3">
+            <div key={option} className="rounded-md border border-border/60 bg-background p-4">
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {index + 1}
@@ -420,15 +420,15 @@ export default function AccessSettingsTab() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="space-y-5">
         <ConnectionPanel
           icon={<Monitor className="h-5 w-5" />}
           title={t('access.local.title')}
           description={t('access.local.description')}
           badge={sameNetworkLinks.length ? t('access.status.ready') : t('access.status.detecting')}
         >
-          <div className="space-y-3">
-            <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="space-y-4">
+            <div className="rounded-md border border-border/60 bg-muted/20 p-4">
               <div className="text-xs font-medium uppercase text-muted-foreground">{t('access.local.thisDevice')}</div>
               <div className="mt-1 truncate font-mono text-xs text-foreground">{remoteAccess?.localUrl || '-'}</div>
               {remoteAccess?.localUrl && (
@@ -445,11 +445,11 @@ export default function AccessSettingsTab() {
               )}
             </div>
             {networkQrs.length > 0 ? (
-              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 {networkQrs.map(renderQrCard)}
               </div>
             ) : (
-              <div className="rounded-md border border-border/60 bg-background p-3 text-sm text-muted-foreground">
+              <div className="rounded-md border border-border/60 bg-background p-4 text-sm text-muted-foreground">
                 {loading ? t('access.local.loading') : t('access.local.empty')}
               </div>
             )}
@@ -474,13 +474,13 @@ export default function AccessSettingsTab() {
           badge={external?.tunnel?.running ? t('access.tunnel.running') : t('access.status.optional')}
           tone="amber"
         >
-          <div className="space-y-3">
+          <div className="space-y-4">
             {externalError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {externalError}
               </div>
             )}
-            <div className="flex flex-col gap-3 rounded-md border border-border/60 bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 rounded-md border border-border/60 bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-foreground">{t('access.tunnel.secureLink')}</span>
@@ -492,14 +492,14 @@ export default function AccessSettingsTab() {
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('access.tunnel.help')}</p>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={() => void toggleTunnel()} disabled={tunnelBusy}>
+              <Button type="button" variant="outline" size="sm" className="w-full flex-shrink-0 sm:w-auto" onClick={() => void toggleTunnel()} disabled={tunnelBusy}>
                 {tunnelBusy && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
                 {external?.tunnel?.running ? t('access.tunnel.stop') : t('access.tunnel.start')}
               </Button>
             </div>
 
             {externalQrs.length > 0 && (
-              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-2">
                 {externalQrs.map(renderQrCard)}
               </div>
             )}
@@ -528,14 +528,14 @@ export default function AccessSettingsTab() {
         </ConnectionPanel>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <section className="space-y-5">
         <ConnectionPanel
           icon={<Users className="h-5 w-5" />}
           title={t('access.tailscale.title')}
           description={tailscale?.message || t('access.tailscale.description')}
           badge={tailscaleUrl ? t('access.status.ready') : t('access.status.guided')}
         >
-          <div className="space-y-3">
+          <div className="space-y-4">
             {tailscaleUrl ? (
               <>
                 {tailscaleQr && renderQrCard(tailscaleQr)}
@@ -555,7 +555,7 @@ export default function AccessSettingsTab() {
                 </div>
               </>
             ) : (
-              <div className="rounded-md border border-border/60 bg-background p-3">
+              <div className="rounded-md border border-border/60 bg-background p-4">
                 <ol className="list-decimal space-y-2 pl-4 text-sm leading-relaxed text-muted-foreground">
                   <li>{t('access.tailscale.steps.installServer')}</li>
                   <li>{t('access.tailscale.steps.installUserDevice')}</li>
@@ -590,7 +590,7 @@ export default function AccessSettingsTab() {
           description={t('access.advanced.description')}
           badge={t('access.advanced.badge')}
         >
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             <select
               value={form.mode}
               onChange={(event) => setForm({ ...form, mode: event.target.value })}
@@ -626,19 +626,19 @@ export default function AccessSettingsTab() {
       </section>
 
       <section className="rounded-md border border-border/60 bg-background">
-        <div className="border-b border-border/60 bg-muted/20 px-3 py-2">
+        <div className="border-b border-border/60 bg-muted/20 p-4 sm:p-5">
           <h4 className="text-sm font-semibold text-foreground">{t('access.configured.title')}</h4>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t('access.configured.description')}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('access.configured.description')}</p>
         </div>
         <div className="divide-y divide-border/50">
           {(remoteAccess?.configs || []).map((config) => (
-            <div key={config.id} className="px-3 py-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
+            <div key={config.id} className="p-4 sm:p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-foreground">{config.label}</div>
                   <button
                     type="button"
-                    className="mt-1 block max-w-full truncate text-left text-xs text-muted-foreground hover:text-foreground"
+                    className="mt-1 block max-w-full break-all text-left font-mono text-xs leading-relaxed text-muted-foreground hover:text-foreground"
                     onClick={() => config.url && void copyUrl(config.url)}
                   >
                     {config.url || t('access.configured.noUrl')}
@@ -659,12 +659,12 @@ export default function AccessSettingsTab() {
             </div>
           ))}
           {(remoteAccess?.configs || []).length === 0 && (
-            <div className="px-3 py-6 text-sm text-muted-foreground">{t('access.configured.empty')}</div>
+            <div className="p-5 text-sm text-muted-foreground">{t('access.configured.empty')}</div>
           )}
         </div>
       </section>
 
-      <section className="rounded-md border border-primary/20 bg-primary/5 px-3 py-3">
+      <section className="rounded-md border border-primary/20 bg-primary/5 p-4 sm:p-5">
         <div className="flex items-start gap-2">
           <Shield className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
           <div>
@@ -704,10 +704,10 @@ function ConnectionPanel({
 
   return (
     <section className="rounded-md border border-border/60 bg-background">
-      <div className="border-b border-border/60 bg-muted/20 p-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${toneClass}`}>
+      <div className="border-b border-border/60 bg-muted/20 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl ${toneClass}`}>
               {icon}
             </div>
             <div className="min-w-0">
@@ -718,14 +718,14 @@ function ConnectionPanel({
           <Badge variant="secondary" className="w-fit">{badge}</Badge>
         </div>
       </div>
-      <div className="p-3">{children}</div>
+      <div className="p-4 sm:p-5">{children}</div>
     </section>
   );
 }
 
 function InstallHint({ hint, fallbackTitle }: { hint: TunnelInstallHint; fallbackTitle: string }) {
   return (
-    <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-100">
+    <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-100">
       <div className="font-semibold">{hint.title || fallbackTitle}</div>
       {hint.message && <p className="mt-1 leading-5">{hint.message}</p>}
       {Boolean(hint.commands?.length) && (

@@ -95,6 +95,10 @@ for (const phrase of [
 ]) {
   assert.match(accessSettings, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `Access settings should use ${phrase}.`);
 }
+assert.match(accessSettings, /max-w-5xl/, 'Access settings should use a readable constrained content width.');
+assert.match(accessSettings, /space-y-8/, 'Access settings should use generous vertical spacing.');
+assert.doesNotMatch(accessSettings, /xl:grid-cols-\[minmax\(0,1fr\)_minmax\(0,1fr\)\]/, 'Access settings should not squeeze major setup panels into equal half-width columns.');
+assert.doesNotMatch(accessSettings, /2xl:grid-cols-2/, 'Access QR sections should not re-split into cramped nested columns.');
 
 assert.match(controlRoom, /useTranslation/, 'Control Room should use the app i18n system.');
 assert.match(controlRoom, /controlRoom\./, 'Control Room copy should be loaded from translation keys.');
