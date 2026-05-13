@@ -12,6 +12,7 @@ export default function MainContentStateView({
   onMenuClick,
   onQuickStartSession,
   onQuickStartOrchestration,
+  onOpenControlRoom,
 }: MainContentStateViewProps) {
   const { t } = useTranslation();
 
@@ -55,7 +56,23 @@ export default function MainContentStateView({
               </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <button
+                type="button"
+                onClick={onOpenControlRoom}
+                className="rounded-md border border-primary/40 bg-primary/10 p-4 text-left transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <Sparkles className="mb-3 h-5 w-5 text-primary" />
+                <div className="text-sm font-semibold">
+                  {t('mainContent.openControlRoom', { defaultValue: 'Open Control Room' })}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {t('mainContent.openControlRoomDescription', {
+                    defaultValue: 'See admin users, team access, production runs, secrets, audits, usage, and remote access in one place.',
+                  })}
+                </p>
+              </button>
+
               <button
                 type="button"
                 onClick={() => { void onQuickStartOrchestration?.(); }}

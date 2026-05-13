@@ -549,6 +549,32 @@ function MainContent({
     return <MainContentStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
   }
 
+  if (!selectedProject && activeTab === 'controlRoom') {
+    return (
+      <div className="flex h-full flex-col">
+        <MainContentHeader
+          activeTab={activeTab}
+          setActiveTab={handleActiveTabChange}
+          selectedProject={null}
+          selectedSession={null}
+          shouldShowTasksTab={false}
+          liveViewAvailable={false}
+          activeSidePanelTab={null}
+          sidePanelMode={sidePanelMode}
+          canUseSidePanelSplit={canUseSidePanelSplit}
+          isMobile={isMobile}
+          onMenuClick={onMenuClick}
+        />
+
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <ControlRoomPage selectedProject={null} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!selectedProject) {
     return (
       <MainContentStateView
@@ -557,6 +583,7 @@ function MainContent({
         onMenuClick={onMenuClick}
         onQuickStartSession={onQuickStartSession}
         onQuickStartOrchestration={onQuickStartOrchestration}
+        onOpenControlRoom={() => setActiveTab('controlRoom')}
       />
     );
   }

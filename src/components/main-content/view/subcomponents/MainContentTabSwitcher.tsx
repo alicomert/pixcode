@@ -136,7 +136,9 @@ export default function MainContentTabSwitcher({
                     className="flex h-3.5 w-3.5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
                   />
                 )}
-                <span className="hidden lg:inline">{displayLabel}</span>
+                <span className={tab.id === 'controlRoom' ? 'inline' : 'hidden lg:inline'}>
+                  {displayLabel}
+                </span>
                 {tab.id === 'liveView' && liveViewAvailable && (
                   <span
                     className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]"

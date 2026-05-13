@@ -42,6 +42,18 @@ assert.match(tabSwitcher, /tabs\.controlRoom/, 'Tab switcher should expose the C
 
 const mainContent = read('src/components/main-content/view/MainContent.tsx');
 assert.match(mainContent, /ControlRoomPage/, 'Main content should render the Control Room page.');
+assert.match(mainContent, /activeTab === 'controlRoom'/, 'Control Room should render as its own primary tab.');
+assert.match(mainContent, /setActiveTab\('controlRoom'\)/, 'Empty-state users should have a direct Control Room launcher.');
+
+const mainContentTypes = read('src/components/main-content/types/types.ts');
+assert.match(mainContentTypes, /onOpenControlRoom/, 'Main content state should expose a direct Control Room launcher callback.');
+assert.match(mainContentTypes, /selectedProject: Project \| null/, 'Control Room header should support server-level access without requiring a selected project.');
+
+const mainContentHeader = read('src/components/main-content/view/subcomponents/MainContentHeader.tsx');
+assert.match(mainContentHeader, /Open Control Room/, 'Header should include a visible Open Control Room button.');
+
+const emptyState = read('src/components/main-content/view/subcomponents/MainContentStateView.tsx');
+assert.match(emptyState, /Open Control Room/, 'Empty project state should include a visible Open Control Room button.');
 
 const platformService = read('server/services/platformization.js');
 for (const symbol of [

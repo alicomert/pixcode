@@ -63,7 +63,7 @@ export type MainContentProps = {
 export type MainContentHeaderProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  selectedProject: Project;
+  selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   shouldShowTasksTab: boolean;
   liveViewAvailable?: boolean;
@@ -85,6 +85,7 @@ export type MainContentStateViewProps = {
    *  filling out the project creation wizard first. */
   onQuickStartSession?: () => void | Promise<void>;
   onQuickStartOrchestration?: () => void | Promise<void>;
+  onOpenControlRoom?: () => void;
 };
 
 export type MobileMenuButtonProps = {
