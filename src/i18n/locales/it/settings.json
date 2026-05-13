@@ -537,70 +537,120 @@
   },
   "access": {
     "title": "Accesso",
-    "description": "Configura come raggiungere questo server Pixcode self-hosted da browser, telefono, team, Tailscale, Cloudflare Tunnel o dominio personalizzato.",
+    "description": "Scegli come le persone raggiungono questo server Pixcode self-hosted. Parti dalla stessa rete; per accesso remoto usa tunnel, Tailscale o il tuo dominio.",
     "refresh": "Aggiorna",
     "copy": "Copia",
     "copied": "Copiato",
     "save": "Salva percorso",
     "check": "Controlla URL",
-    "cards": {
-      "local": {
-        "title": "LAN and local links",
-        "description": "Use these links when the browser is on the same machine or the same network."
+    "qrAlt": "QR per {{url}}",
+    "guide": {
+      "title": "Scegli prima il percorso di connessione",
+      "description": "Non serve conoscere il networking. Scegli il caso giusto, copia il link o scansiona il QR dal telefono."
+    },
+    "options": {
+      "sameNetwork": {
+        "title": "Stesso Wi-Fi/LAN",
+        "description": "Usalo quando il dispositivo e Pixcode sono sullo stesso router o rete."
+      },
+      "secureTunnel": {
+        "title": "Link pubblico temporaneo",
+        "description": "Avvia un tunnel Cloudflare/ngrok; Pixcode mostra URL pubblico e QR."
       },
       "tailscale": {
-        "title": "Tailscale private access",
-        "description": "Private team access without a fixed public domain. Pixcode detects the URL when Tailscale is available."
+        "title": "Link privato team",
+        "description": "Accesso privato senza dominio pubblico o configurazione router."
       },
-      "public": {
-        "title": "Public domain or tunnel",
-        "description": "Use Cloudflare Tunnel or your own reverse proxy when you want a stable HTTPS URL."
+      "customDomain": {
+        "title": "Dominio proprio",
+        "description": "Per HTTPS, reverse proxy o hostname Cloudflare Tunnel gia pronti."
       }
     },
     "status": {
-      "ready": "Ready",
-      "detecting": "Detecting",
-      "guided": "Guided",
-      "configured": "Configured",
-      "optional": "Optional"
+      "ready": "Pronto",
+      "detecting": "Rilevamento",
+      "guided": "Guidato",
+      "configured": "Configurato",
+      "optional": "Opzionale"
     },
     "links": {
-      "title": "Available links",
-      "description": "Copy the correct URL for the device or teammate that needs to connect.",
-      "local": "Local",
-      "tailscale": "Tailscale",
-      "empty": "No access links detected yet."
+      "title": "Link disponibili",
+      "description": "Copia l URL corretto per dispositivo o collega.",
+      "local": "Locale",
+      "tailscale": "Link privato Tailscale",
+      "empty": "Nessun link rilevato."
+    },
+    "local": {
+      "title": "Accesso stessa rete",
+      "description": "Primo test consigliato: collegati dallo stesso Wi-Fi o LAN. Scansiona il QR o copia il link.",
+      "thisDevice": "Solo questo computer",
+      "loading": "Rilevamento link di rete...",
+      "empty": "Nessun link LAN rilevato. Controlla la rete e aggiorna.",
+      "saveLabel": "Accesso stessa rete",
+      "save": "Salva questo link LAN"
+    },
+    "tunnel": {
+      "title": "Tunnel sicuro",
+      "description": "Senza dominio fisso, Pixcode puo avviare cloudflared o ngrok e mostrare qui l URL pubblico.",
+      "secureLink": "Link pubblico e QR",
+      "help": "Premi avvia. Se cloudflared o ngrok e installato, Pixcode crea HTTPS e QR automaticamente.",
+      "running": "Tunnel attivo",
+      "start": "Avvia tunnel",
+      "stop": "Ferma tunnel",
+      "save": "Salva URL tunnel",
+      "saveLabel": "Accesso tunnel sicuro",
+      "qrLabel": "tunnel sicuro",
+      "installTitle": "Setup tunnel necessario",
+      "installNeeded": "Installa prima cloudflared o ngrok, poi avvia di nuovo il tunnel."
+    },
+    "tailscale": {
+      "title": "Accesso privato Tailscale",
+      "description": "Tailscale e una app opzionale per rete privata. Installa su server e dispositivi, accedi allo stesso team, poi Pixcode rileva l URL privato.",
+      "save": "Salva URL Tailscale",
+      "saveLabel": "Accesso privato Tailscale",
+      "openInstall": "Apri installazione Tailscale",
+      "steps": {
+        "installServer": "Installa Tailscale sul computer o server che esegue Pixcode.",
+        "installUserDevice": "Installa Tailscale su telefono, laptop o dispositivo del collega.",
+        "login": "Accedi con lo stesso account o team Tailscale su entrambi.",
+        "refresh": "Torna qui e premi Aggiorna; Pixcode mostrera l URL privato."
+      }
+    },
+    "advanced": {
+      "title": "Avanzato: dominio stabile",
+      "description": "Usalo quando hai gia LAN URL, Tailscale URL, hostname Cloudflare Tunnel o dominio HTTPS.",
+      "badge": "Avanzato"
     },
     "setup": {
-      "title": "Stable access path",
-      "description": "Save the URL your users will use. This can be a LAN address, Tailscale URL, Cloudflare Tunnel URL, or custom domain."
+      "title": "Percorso di accesso stabile",
+      "description": "Salva l URL che useranno gli utenti. Puo essere LAN, Tailscale, Cloudflare Tunnel o dominio personalizzato."
     },
     "modes": {
       "lan": "LAN",
       "tailscale": "Tailscale",
       "cloudflare_tunnel": "Cloudflare Tunnel",
-      "custom_domain": "Custom domain"
+      "custom_domain": "Dominio personalizzato"
     },
     "fields": {
-      "label": "Label",
+      "label": "Etichetta",
       "url": "URL",
-      "port": "Target port"
+      "port": "Porta target"
     },
     "health": {
-      "reachable": "Pixcode is reachable",
-      "unreachable": "Pixcode is not reachable"
+      "reachable": "Pixcode e raggiungibile",
+      "unreachable": "Pixcode non e raggiungibile"
     },
     "configured": {
-      "title": "Configured access paths",
-      "description": "These paths are available to admins, project partners, and project workers according to their role.",
-      "empty": "No configured access paths yet.",
-      "noUrl": "No URL",
-      "public": "public",
-      "private": "private"
+      "title": "Percorsi di accesso salvati",
+      "description": "Questi percorsi sono disponibili ad admin, partner di progetto e operatori secondo il ruolo.",
+      "empty": "Nessun percorso salvato.",
+      "noUrl": "Nessun URL",
+      "public": "pubblico",
+      "private": "privato"
     },
     "team": {
-      "title": "How users connect",
-      "description": "Create the user in Admin system, assign their project role in Control Room, then share one of these Access URLs. They do not need to be global admins to reach their assigned project."
+      "title": "Come si collegano gli utenti",
+      "description": "Crea l utente nel sistema Admin, assegna il ruolo progetto nel Control Room e condividi una Access URL. Non serve essere admin globali per il progetto assegnato."
     }
   }
 }

@@ -531,70 +531,120 @@
   },
   "access": {
     "title": "アクセス",
-    "description": "このセルフホスト Pixcode サーバーへブラウザ、電話、チーム、Tailscale、Cloudflare Tunnel、custom domain から接続する方法を設定します。",
+    "description": "このセルフホスト Pixcode サーバーへ接続する方法を選びます。まず同じネットワークで確認し、リモート接続には安全なトンネル、Tailscale、または独自ドメインを使います。",
     "refresh": "更新",
     "copy": "コピー",
     "copied": "コピー済み",
     "save": "アクセス経路を保存",
-    "check": "URLを確認",
-    "cards": {
-      "local": {
-        "title": "LAN and local links",
-        "description": "Use these links when the browser is on the same machine or the same network."
+    "check": "URL を確認",
+    "qrAlt": "{{url}} の QR",
+    "guide": {
+      "title": "先に接続方法を選ぶ",
+      "description": "ネットワーク用語を知らなくても使えます。状況に合う項目を選び、リンクをコピーするかスマホで QR を読み取ります。"
+    },
+    "options": {
+      "sameNetwork": {
+        "title": "同じ Wi-Fi/LAN",
+        "description": "端末が Pixcode サーバーと同じルーターや社内ネットワークにある場合に使います。"
+      },
+      "secureTunnel": {
+        "title": "一時公開リンク",
+        "description": "Cloudflare/ngrok トンネルを開始すると、Pixcode が公開 URL と QR を表示します。"
       },
       "tailscale": {
-        "title": "Tailscale private access",
-        "description": "Private team access without a fixed public domain. Pixcode detects the URL when Tailscale is available."
+        "title": "チーム用プライベートリンク",
+        "description": "公開ドメインやルーター設定なしでプライベート接続したい場合に使います。"
       },
-      "public": {
-        "title": "Public domain or tunnel",
-        "description": "Use Cloudflare Tunnel or your own reverse proxy when you want a stable HTTPS URL."
+      "customDomain": {
+        "title": "独自ドメイン",
+        "description": "HTTPS、リバースプロキシ、Cloudflare Tunnel ホスト名が既にある場合に使います。"
       }
     },
     "status": {
-      "ready": "Ready",
-      "detecting": "Detecting",
-      "guided": "Guided",
-      "configured": "Configured",
-      "optional": "Optional"
+      "ready": "準備完了",
+      "detecting": "検出中",
+      "guided": "ガイド",
+      "configured": "設定済み",
+      "optional": "任意"
     },
     "links": {
-      "title": "Available links",
-      "description": "Copy the correct URL for the device or teammate that needs to connect.",
-      "local": "Local",
-      "tailscale": "Tailscale",
-      "empty": "No access links detected yet."
+      "title": "利用可能なリンク",
+      "description": "接続する端末またはメンバー用の正しい URL をコピーします。",
+      "local": "ローカル",
+      "tailscale": "Tailscale プライベートリンク",
+      "empty": "アクセスリンクはまだ検出されていません。"
+    },
+    "local": {
+      "title": "同じネットワークから接続",
+      "description": "最初の確認に最適です。同じ Wi-Fi または LAN から QR を読み取るかリンクをコピーします。",
+      "thisDevice": "このコンピューターのみ",
+      "loading": "同じネットワークのリンクを検出中...",
+      "empty": "LAN リンクが見つかりません。ネットワーク接続を確認して更新してください。",
+      "saveLabel": "同じネットワーク接続",
+      "save": "この LAN リンクを保存"
+    },
+    "tunnel": {
+      "title": "安全なトンネル",
+      "description": "固定ドメインがなくても、Pixcode が cloudflared または ngrok を起動して公開 URL を表示できます。",
+      "secureLink": "公開リンクと QR",
+      "help": "開始を押します。cloudflared または ngrok があれば、Pixcode が一時 HTTPS URL と QR を作成します。",
+      "running": "トンネル実行中",
+      "start": "トンネル開始",
+      "stop": "トンネル停止",
+      "save": "このトンネル URL を保存",
+      "saveLabel": "安全なトンネル接続",
+      "qrLabel": "安全なトンネル",
+      "installTitle": "トンネル設定が必要",
+      "installNeeded": "先に cloudflared または ngrok をインストールしてから、もう一度開始してください。"
+    },
+    "tailscale": {
+      "title": "Tailscale プライベート接続",
+      "description": "Tailscale は任意のプライベートネットワークアプリです。サーバーと利用端末に入れて同じチームでログインすると、Pixcode がプライベート URL を検出します。",
+      "save": "この Tailscale URL を保存",
+      "saveLabel": "Tailscale プライベート接続",
+      "openInstall": "Tailscale インストールを開く",
+      "steps": {
+        "installServer": "Pixcode を実行しているコンピューターまたはサーバーに Tailscale をインストールします。",
+        "installUserDevice": "Pixcode を開くスマホ、ノート PC、またはメンバー端末に Tailscale をインストールします。",
+        "login": "両方の端末で同じ Tailscale アカウントまたはチームにログインします。",
+        "refresh": "ここに戻って更新を押すと、準備できた private URL が表示されます。"
+      }
+    },
+    "advanced": {
+      "title": "詳細: 固定ドメイン",
+      "description": "LAN URL、Tailscale URL、Cloudflare Tunnel ホスト名、または HTTPS ドメインが既にある場合に保存します。",
+      "badge": "詳細"
     },
     "setup": {
-      "title": "Stable access path",
-      "description": "Save the URL your users will use. This can be a LAN address, Tailscale URL, Cloudflare Tunnel URL, or custom domain."
+      "title": "固定アクセス経路",
+      "description": "ユーザーが使う URL を保存します。LAN、Tailscale、Cloudflare Tunnel、独自ドメインを指定できます。"
     },
     "modes": {
       "lan": "LAN",
       "tailscale": "Tailscale",
       "cloudflare_tunnel": "Cloudflare Tunnel",
-      "custom_domain": "Custom domain"
+      "custom_domain": "独自ドメイン"
     },
     "fields": {
-      "label": "Label",
+      "label": "ラベル",
       "url": "URL",
-      "port": "Target port"
+      "port": "対象ポート"
     },
     "health": {
-      "reachable": "Pixcode is reachable",
-      "unreachable": "Pixcode is not reachable"
+      "reachable": "Pixcode に接続できます",
+      "unreachable": "Pixcode に接続できません"
     },
     "configured": {
-      "title": "Configured access paths",
-      "description": "These paths are available to admins, project partners, and project workers according to their role.",
-      "empty": "No configured access paths yet.",
-      "noUrl": "No URL",
-      "public": "public",
-      "private": "private"
+      "title": "保存済みアクセス経路",
+      "description": "これらの経路はロールに応じて管理者、プロジェクトパートナー、プロジェクト作業者が利用できます。",
+      "empty": "保存済みのアクセス経路はありません。",
+      "noUrl": "URL なし",
+      "public": "公開",
+      "private": "非公開"
     },
     "team": {
-      "title": "How users connect",
-      "description": "Create the user in Admin system, assign their project role in Control Room, then share one of these Access URLs. They do not need to be global admins to reach their assigned project."
+      "title": "ユーザーの接続方法",
+      "description": "Admin system でユーザーを作成し、Control Room でプロジェクトロールを割り当て、この Access URL を共有します。割り当て済みプロジェクトにグローバル管理者権限は不要です。"
     }
   }
 }

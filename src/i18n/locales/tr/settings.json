@@ -705,39 +705,89 @@
   },
   "access": {
     "title": "Erisim",
-    "description": "Bu self-hosted Pixcode sunucusuna tarayici, telefon, ekip arkadaslari, Tailscale, Cloudflare Tunnel veya custom domain ile nasil erisilecegini ayarla.",
+    "description": "Bu self-hosted Pixcode sunucusuna kimlerin nasil baglanacagini sec. Once ayni ag ile dene; uzaktan erisim gerekiyorsa guvenli tunnel, Tailscale veya kendi domainini kullan.",
     "refresh": "Yenile",
     "copy": "Kopyala",
     "copied": "Kopyalandi",
     "save": "Erisim yolunu kaydet",
     "check": "URL kontrol et",
-    "cards": {
-      "local": {
-        "title": "LAN ve local linkler",
-        "description": "Tarayici ayni makinede veya ayni agdaysa bu linkleri kullan."
+    "qrAlt": "{{url}} icin QR",
+    "guide": {
+      "title": "Once baglanti yolunu sec",
+      "description": "Network terimi bilmen gerekmiyor. Baglanacak kisi hangi durumda ise onu sec, gosterilen linki kopyala veya telefondan QR kodu okut."
+    },
+    "options": {
+      "sameNetwork": {
+        "title": "Ayni Wi-Fi/LAN",
+        "description": "Cihaz Pixcode sunucusuyla ayni modem, ofis agi veya LAN icindeyse bunu kullan."
+      },
+      "secureTunnel": {
+        "title": "Gecici public link",
+        "description": "Cloudflare/ngrok tunnel baslat; Pixcode public URL ve QR kodu otomatik gostersin."
       },
       "tailscale": {
-        "title": "Tailscale private erisim",
-        "description": "Sabit public domain olmadan private ekip erisimi. Tailscale varsa Pixcode URLyi otomatik algilar."
+        "title": "Private ekip linki",
+        "description": "Public domain veya modem ayari istemeden ozel ekip erisimi icin Tailscale kullan."
       },
-      "public": {
-        "title": "Public domain veya tunnel",
-        "description": "Sabit HTTPS URL istiyorsan Cloudflare Tunnel veya kendi reverse proxy yapini kullan."
+      "customDomain": {
+        "title": "Kendi domainin",
+        "description": "Zaten HTTPS, reverse proxy veya Cloudflare Tunnel hostname varsa bunu kaydet."
       }
     },
     "status": {
-      "ready": "Ready",
-      "detecting": "Detecting",
-      "guided": "Guided",
-      "configured": "Configured",
-      "optional": "Optional"
+      "ready": "Hazir",
+      "detecting": "Algilaniyor",
+      "guided": "Rehberli",
+      "configured": "Ayarlanmis",
+      "optional": "Istege bagli"
     },
     "links": {
       "title": "Kullanilabilir linkler",
       "description": "Baglanacak cihaz veya ekip arkadasi icin dogru URLyi kopyala.",
       "local": "Local",
-      "tailscale": "Tailscale",
+      "tailscale": "Tailscale private link",
       "empty": "Henuz erisim linki algilanmadi."
+    },
+    "local": {
+      "title": "Ayni ag erisimi",
+      "description": "Ilk deneme icin en kolay yol: ayni Wi-Fi veya LAN icinden baglan. Telefonda QR okut veya ayni agdaki ekip arkadasina linki kopyala.",
+      "thisDevice": "Sadece bu bilgisayar",
+      "loading": "Ayni ag linkleri algilaniyor...",
+      "empty": "LAN linki algilanmadi. Sunucunun aga bagli oldugundan emin olup yenile.",
+      "saveLabel": "Ayni ag erisimi",
+      "save": "Bu LAN linkini kaydet"
+    },
+    "tunnel": {
+      "title": "Guvenli tunnel",
+      "description": "Sabit domain olmadan uzaktan erisim icin Pixcode cloudflared veya ngrok baslatip public URLyi burada gosterebilir.",
+      "secureLink": "Public link ve QR",
+      "help": "Baslata tikla. cloudflared veya ngrok kuruluysa Pixcode gecici HTTPS adresini ve QR kodunu otomatik olusturur.",
+      "running": "Tunnel calisiyor",
+      "start": "Tunnel baslat",
+      "stop": "Tunnel durdur",
+      "save": "Bu tunnel URLini kaydet",
+      "saveLabel": "Guvenli tunnel erisimi",
+      "qrLabel": "guvenli tunnel",
+      "installTitle": "Tunnel kurulumu gerekli",
+      "installNeeded": "Once cloudflared veya ngrok kur, sonra Tunnel baslat dugmesine tekrar bas."
+    },
+    "tailscale": {
+      "title": "Tailscale private erisim",
+      "description": "Tailscale istege bagli bir private network uygulamasidir. Sunucuya ve kullanici cihazlarina kur, ayni ekibe giris yap; Pixcode private URLyi algilar.",
+      "save": "Bu Tailscale URLini kaydet",
+      "saveLabel": "Tailscale private erisim",
+      "openInstall": "Tailscale kurulumunu ac",
+      "steps": {
+        "installServer": "Pixcode calisan bilgisayara veya sunucuya Tailscale kur.",
+        "installUserDevice": "Pixcode acacak telefon, laptop veya ekip arkadasi cihazina Tailscale kur.",
+        "login": "Iki cihazda da ayni Tailscale hesabi veya ekibi ile giris yap.",
+        "refresh": "Buraya donup Yenileye bas; hazir olunca Pixcode private URLyi gosterir."
+      }
+    },
+    "advanced": {
+      "title": "Gelismis: sabit domain",
+      "description": "Kullanicilar icin kaydedilecek LAN URL, Tailscale URL, Cloudflare Tunnel hostname veya custom HTTPS domain zaten varsa bunu kullan.",
+      "badge": "Gelismis"
     },
     "setup": {
       "title": "Sabit erisim yolu",
@@ -750,13 +800,13 @@
       "custom_domain": "Custom domain"
     },
     "fields": {
-      "label": "Label",
+      "label": "Etiket",
       "url": "URL",
-      "port": "Target port"
+      "port": "Hedef port"
     },
     "health": {
-      "reachable": "Pixcode is reachable",
-      "unreachable": "Pixcode is not reachable"
+      "reachable": "Pixcode erisilebilir",
+      "unreachable": "Pixcode erisilemiyor"
     },
     "configured": {
       "title": "Kayitli erisim yollari",

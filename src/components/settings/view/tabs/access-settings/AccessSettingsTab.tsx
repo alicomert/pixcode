@@ -1,10 +1,23 @@
+import QRCode from 'qrcode';
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge, Button, Input } from '../../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../../utils/api';
 
-import { CheckCircle, Globe, RefreshCw, Shield } from '@/lib/icons';
+import {
+  CheckCircle,
+  Clipboard,
+  Cloud,
+  ExternalLink,
+  Globe,
+  Monitor,
+  RefreshCw,
+  Shield,
+  Smartphone,
+  Users,
+} from '@/lib/icons';
 
 type NetworkEndpoint = {
   host: string;
@@ -36,7 +49,6 @@ type RemoteAccessState = {
   platform?: string;
   localUrl?: string;
   configs?: RemoteAccessConfig[];
-  recommendations?: Array<{ mode: string; label: string; recommendedWhen: string }>;
 };
 
 type TailscaleState = {
@@ -59,7 +71,34 @@ type HealthState = {
   message?: string;
 };
 
+type TunnelInstallHint = {
+  title?: string;
+  message?: string;
+  commands?: string[];
+  docsUrl?: string;
+};
+
+type TunnelState = {
+  running: boolean;
+  binary: string | null;
+  url: string | null;
+  error: string | null;
+  installHint?: TunnelInstallHint | null;
+};
+
+type ExternalState = {
+  tunnel: TunnelState;
+};
+
+type AccessQr = {
+  key: string;
+  label: string;
+  url: string;
+  dataUrl: string | null;
+};
+
 const accessModes = ['lan', 'tailscale', 'cloudflare_tunnel', 'custom_domain'];
+const connectionOptions = ['sameNetwork', 'secureTunnel', 'tailscale', 'customDomain'] as const;
 
 async function readJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(url, options);
@@ -70,42 +109,90 @@ async function readJson<T>(url: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
+const renderQrDataUrl = async (url: string): Promise<string | null> => {
+  try {
+    return await QRCode.toDataURL(url, { margin: 1, width: 220 });
+  } catch (err) {
+    console.error('QR generation failed for', url, err);
+    return null;
+  }
+};
+
 export default function AccessSettingsTab() {
   const { t } = useTranslation('settings');
   const [endpoints, setEndpoints] = useState<EndpointsResponse | null>(null);
   const [remoteAccess, setRemoteAccess] = useState<RemoteAccessState | null>(null);
   const [tailscale, setTailscale] = useState<TailscaleState | null>(null);
+  const [external, setExternal] = useState<ExternalState | null>(null);
+  const [networkQrs, setNetworkQrs] = useState<AccessQr[]>([]);
+  const [externalQrs, setExternalQrs] = useState<AccessQr[]>([]);
+  const [tailscaleQr, setTailscaleQr] = useState<AccessQr | null>(null);
   const [health, setHealth] = useState<HealthState | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [tunnelBusy, setTunnelBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [externalError, setExternalError] = useState<string | null>(null);
+  const [tunnelInstallHint, setTunnelInstallHint] = useState<TunnelInstallHint | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
-    mode: 'tailscale',
-    label: 'Tailscale private access',
+    mode: 'custom_domain',
+    label: '',
     url: '',
     targetPort: '3001',
   });
 
   const localLinks = useMemo(() => {
-    const lanLinks = endpoints?.endpoints || [];
-    const loopback = remoteAccess?.localUrl ? [{ host: '127.0.0.1', label: t('access.links.local'), family: 'IPv4', url: remoteAccess.localUrl }] : [];
-    return [...loopback, ...lanLinks];
+    const loopback = remoteAccess?.localUrl
+      ? [{ host: '127.0.0.1', label: t('access.local.thisDevice'), family: 'IPv4', url: remoteAccess.localUrl }]
+      : [];
+    return [...loopback, ...(endpoints?.endpoints || [])];
   }, [endpoints?.endpoints, remoteAccess?.localUrl, t]);
+
+  const sameNetworkLinks = useMemo(() => endpoints?.endpoints || [], [endpoints?.endpoints]);
+  const primaryLanUrl = sameNetworkLinks[0]?.url || remoteAccess?.localUrl || '';
+  const tunnelUrl = external?.tunnel?.url || '';
+  const tailscaleUrl = tailscale?.pixcodeUrl || '';
+
+  const hydrateExternalQrs = useCallback(async (externalData: ExternalState | null) => {
+    const urls: Array<{ key: string; label: string; url: string }> = [];
+    if (externalData?.tunnel?.running && externalData.tunnel.url) {
+      urls.push({
+        key: `tunnel:${externalData.tunnel.url}`,
+        label: externalData.tunnel.binary || t('access.tunnel.qrLabel'),
+        url: externalData.tunnel.url,
+      });
+    }
+
+    setExternalQrs(await Promise.all(urls.map(async (entry) => ({
+      ...entry,
+      dataUrl: await renderQrDataUrl(entry.url),
+    }))));
+  }, [t]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [networkData, remoteData, tailscaleData] = await Promise.all([
+      const [networkData, remoteData, tailscaleData, externalData] = await Promise.all([
         readJson<EndpointsResponse>('/api/network/endpoints'),
         readJson<{ remoteAccess: RemoteAccessState }>('/api/platformization/remote-access'),
         readJson<{ tailscale: TailscaleState }>('/api/platformization/remote-access/tailscale'),
+        readJson<ExternalState>('/api/network/external'),
       ]);
       setEndpoints(networkData);
       setRemoteAccess(remoteData.remoteAccess);
       setTailscale(tailscaleData.tailscale);
+      setExternal(externalData);
+      setTunnelInstallHint(externalData.tunnel?.installHint ?? null);
+      await hydrateExternalQrs(externalData);
+      setTailscaleQr(tailscaleData.tailscale.pixcodeUrl ? {
+        key: `tailscale:${tailscaleData.tailscale.pixcodeUrl}`,
+        label: t('access.links.tailscale'),
+        url: tailscaleData.tailscale.pixcodeUrl,
+        dataUrl: await renderQrDataUrl(tailscaleData.tailscale.pixcodeUrl),
+      } : null);
       setForm((current) => ({
         ...current,
         targetPort: String(remoteData.remoteAccess?.configs?.[0]?.targetPort || networkData.port || current.targetPort),
@@ -115,17 +202,36 @@ export default function AccessSettingsTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [hydrateExternalQrs, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const generate = async () => {
+      const generated = await Promise.all(sameNetworkLinks.map(async (endpoint) => ({
+        key: endpoint.url,
+        label: endpoint.label,
+        url: endpoint.url,
+        dataUrl: await renderQrDataUrl(endpoint.url),
+      })));
+      if (!cancelled) {
+        setNetworkQrs(generated);
+      }
+    };
+    void generate();
+    return () => {
+      cancelled = true;
+    };
+  }, [sameNetworkLinks]);
+
   const copyUrl = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
       setCopiedUrl(url);
-      window.setTimeout(() => setCopiedUrl((previous) => previous === url ? null : previous), 1500);
+      window.setTimeout(() => setCopiedUrl((previous) => (previous === url ? null : previous)), 1500);
     } catch {
       setCopiedUrl(null);
     }
@@ -138,6 +244,30 @@ export default function AccessSettingsTab() {
       await readJson('/api/platformization/remote-access/configs', {
         method: 'POST',
         body: JSON.stringify(form),
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveDetectedAccessPath = async (mode: string, label: string, url: string) => {
+    if (!url) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await readJson('/api/platformization/remote-access/configs', {
+        method: 'POST',
+        body: JSON.stringify({
+          mode,
+          label,
+          url,
+          targetPort: endpoints?.port || form.targetPort,
+        }),
       });
       await load();
     } catch (err) {
@@ -166,6 +296,83 @@ export default function AccessSettingsTab() {
     }
   };
 
+  const toggleTunnel = async () => {
+    setTunnelBusy(true);
+    setExternalError(null);
+    try {
+      const isRunning = Boolean(external?.tunnel?.running);
+      const response = await authenticatedFetch('/api/network/tunnel', {
+        method: isRunning ? 'DELETE' : 'POST',
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        installHint?: TunnelInstallHint;
+        tunnel?: TunnelState;
+      };
+
+      if (!response.ok) {
+        setTunnelInstallHint(body.installHint ?? body.tunnel?.installHint ?? null);
+        if (body.tunnel) {
+          const nextExternal = { tunnel: body.tunnel };
+          setExternal(nextExternal);
+          await hydrateExternalQrs(nextExternal);
+        }
+        if (response.status === 424) {
+          setExternalError(t('access.tunnel.installNeeded'));
+          return;
+        }
+        throw new Error(body.error || `HTTP ${response.status}`);
+      }
+
+      await load();
+    } catch (err) {
+      setExternalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTunnelBusy(false);
+    }
+  };
+
+  const renderQrCard = (entry: AccessQr) => {
+    const isCopied = copiedUrl === entry.url;
+    return (
+      <div
+        key={entry.key}
+        className="flex min-w-0 items-center gap-3 rounded-md border border-border/60 bg-background p-3"
+      >
+        <div className="flex h-24 w-24 flex-shrink-0 items-center justify-center rounded-md bg-white p-1 sm:h-28 sm:w-28">
+          {entry.dataUrl ? (
+            <img src={entry.dataUrl} alt={t('access.qrAlt', { url: entry.url })} className="h-full w-full" />
+          ) : (
+            <QrFallback />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-medium uppercase text-muted-foreground">{entry.label}</div>
+          <button
+            type="button"
+            title={entry.url}
+            onClick={() => void copyUrl(entry.url)}
+            className="mt-1 block w-full truncate text-left text-sm font-medium text-foreground hover:text-primary"
+          >
+            {entry.url}
+          </button>
+          <Button
+            type="button"
+            size="sm"
+            variant={isCopied ? 'default' : 'outline'}
+            className="mt-2 h-8 px-2 text-xs"
+            onClick={() => void copyUrl(entry.url)}
+          >
+            <Clipboard className="h-3.5 w-3.5" />
+            {isCopied ? t('access.copied') : t('access.copy')}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const tunnelHint = tunnelInstallHint || external?.tunnel?.installHint || null;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -190,62 +397,200 @@ export default function AccessSettingsTab() {
         </div>
       )}
 
-      <section className="grid gap-3 lg:grid-cols-3">
-        <AccessCard
-          title={t('access.cards.local.title')}
-          description={t('access.cards.local.description')}
-          status={endpoints ? t('access.status.ready') : t('access.status.detecting')}
-        />
-        <AccessCard
-          title={t('access.cards.tailscale.title')}
-          description={tailscale?.message || t('access.cards.tailscale.description')}
-          status={tailscale?.pixcodeUrl ? t('access.status.ready') : t('access.status.guided')}
-        />
-        <AccessCard
-          title={t('access.cards.public.title')}
-          description={t('access.cards.public.description')}
-          status={remoteAccess?.configs?.some((config) => config.public) ? t('access.status.configured') : t('access.status.optional')}
-        />
-      </section>
-
-      <section className="rounded-md border border-border/60 bg-background">
-        <div className="border-b border-border/60 bg-muted/20 px-3 py-2">
-          <h4 className="text-sm font-semibold text-foreground">{t('access.links.title')}</h4>
-          <p className="mt-0.5 text-xs text-muted-foreground">{t('access.links.description')}</p>
+      <section className="rounded-md border border-primary/20 bg-primary/5 p-3 sm:p-4">
+        <div className="flex items-start gap-3">
+          <Shield className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold text-foreground">{t('access.guide.title')}</h4>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t('access.guide.description')}</p>
+          </div>
         </div>
-        <div className="divide-y divide-border/50">
-          {localLinks.map((endpoint) => (
-            <AccessLinkRow
-              key={endpoint.url}
-              label={endpoint.label}
-              url={endpoint.url}
-              badge={endpoint.family}
-              copied={copiedUrl === endpoint.url}
-              onCopy={() => void copyUrl(endpoint.url)}
-              copyLabel={copiedUrl === endpoint.url ? t('access.copied') : t('access.copy')}
-            />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {connectionOptions.map((option, index) => (
+            <div key={option} className="rounded-md border border-border/60 bg-background p-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                  {index + 1}
+                </span>
+                <h5 className="text-sm font-semibold text-foreground">{t(`access.options.${option}.title`)}</h5>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t(`access.options.${option}.description`)}</p>
+            </div>
           ))}
-          {tailscale?.pixcodeUrl && (
-            <AccessLinkRow
-              label={t('access.links.tailscale')}
-              url={tailscale.pixcodeUrl}
-              badge="Tailscale"
-              copied={copiedUrl === tailscale.pixcodeUrl}
-              onCopy={() => void copyUrl(tailscale.pixcodeUrl || '')}
-              copyLabel={copiedUrl === tailscale.pixcodeUrl ? t('access.copied') : t('access.copy')}
-            />
-          )}
-          {localLinks.length === 0 && !tailscale?.pixcodeUrl && (
-            <div className="px-3 py-6 text-sm text-muted-foreground">{t('access.links.empty')}</div>
-          )}
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div className="rounded-md border border-border/60 bg-background px-3 py-3">
-          <h4 className="text-sm font-semibold text-foreground">{t('access.setup.title')}</h4>
-          <p className="mt-1 text-xs text-muted-foreground">{t('access.setup.description')}</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <ConnectionPanel
+          icon={<Monitor className="h-5 w-5" />}
+          title={t('access.local.title')}
+          description={t('access.local.description')}
+          badge={sameNetworkLinks.length ? t('access.status.ready') : t('access.status.detecting')}
+        >
+          <div className="space-y-3">
+            <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+              <div className="text-xs font-medium uppercase text-muted-foreground">{t('access.local.thisDevice')}</div>
+              <div className="mt-1 truncate font-mono text-xs text-foreground">{remoteAccess?.localUrl || '-'}</div>
+              {remoteAccess?.localUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={copiedUrl === remoteAccess.localUrl ? 'default' : 'outline'}
+                  className="mt-2 h-8 px-2 text-xs"
+                  onClick={() => void copyUrl(remoteAccess.localUrl || '')}
+                >
+                  <Clipboard className="h-3.5 w-3.5" />
+                  {copiedUrl === remoteAccess.localUrl ? t('access.copied') : t('access.copy')}
+                </Button>
+              )}
+            </div>
+            {networkQrs.length > 0 ? (
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                {networkQrs.map(renderQrCard)}
+              </div>
+            ) : (
+              <div className="rounded-md border border-border/60 bg-background p-3 text-sm text-muted-foreground">
+                {loading ? t('access.local.loading') : t('access.local.empty')}
+              </div>
+            )}
+            {primaryLanUrl && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void saveDetectedAccessPath('lan', t('access.local.saveLabel'), primaryLanUrl)}
+                disabled={saving}
+              >
+                {t('access.local.save')}
+              </Button>
+            )}
+          </div>
+        </ConnectionPanel>
+
+        <ConnectionPanel
+          icon={<Cloud className="h-5 w-5" />}
+          title={t('access.tunnel.title')}
+          description={t('access.tunnel.description')}
+          badge={external?.tunnel?.running ? t('access.tunnel.running') : t('access.status.optional')}
+          tone="amber"
+        >
+          <div className="space-y-3">
+            {externalError && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {externalError}
+              </div>
+            )}
+            <div className="flex flex-col gap-3 rounded-md border border-border/60 bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">{t('access.tunnel.secureLink')}</span>
+                  {external?.tunnel?.running && (
+                    <Badge variant="secondary">
+                      {t('access.tunnel.running')} · {external.tunnel.binary}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('access.tunnel.help')}</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => void toggleTunnel()} disabled={tunnelBusy}>
+                {tunnelBusy && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                {external?.tunnel?.running ? t('access.tunnel.stop') : t('access.tunnel.start')}
+              </Button>
+            </div>
+
+            {externalQrs.length > 0 && (
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                {externalQrs.map(renderQrCard)}
+              </div>
+            )}
+
+            {tunnelUrl && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void saveDetectedAccessPath('cloudflare_tunnel', t('access.tunnel.saveLabel'), tunnelUrl)}
+                  disabled={saving}
+                >
+                  {t('access.tunnel.save')}
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => void checkUrl(tunnelUrl)} disabled={checking}>
+                  {checking && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                  {t('access.check')}
+                </Button>
+              </div>
+            )}
+
+            {tunnelHint && (
+              <InstallHint hint={tunnelHint} fallbackTitle={t('access.tunnel.installTitle')} />
+            )}
+          </div>
+        </ConnectionPanel>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <ConnectionPanel
+          icon={<Users className="h-5 w-5" />}
+          title={t('access.tailscale.title')}
+          description={tailscale?.message || t('access.tailscale.description')}
+          badge={tailscaleUrl ? t('access.status.ready') : t('access.status.guided')}
+        >
+          <div className="space-y-3">
+            {tailscaleUrl ? (
+              <>
+                {tailscaleQr && renderQrCard(tailscaleQr)}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void saveDetectedAccessPath('tailscale', t('access.tailscale.saveLabel'), tailscaleUrl)}
+                    disabled={saving}
+                  >
+                    {t('access.tailscale.save')}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void checkUrl(tailscaleUrl)} disabled={checking}>
+                    {checking && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                    {t('access.check')}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-md border border-border/60 bg-background p-3">
+                <ol className="list-decimal space-y-2 pl-4 text-sm leading-relaxed text-muted-foreground">
+                  <li>{t('access.tailscale.steps.installServer')}</li>
+                  <li>{t('access.tailscale.steps.installUserDevice')}</li>
+                  <li>{t('access.tailscale.steps.login')}</li>
+                  <li>{t('access.tailscale.steps.refresh')}</li>
+                </ol>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {tailscale?.installUrl && (
+                    <a
+                      href={tailscale.installUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {t('access.tailscale.openInstall')}
+                    </a>
+                  )}
+                  <Button type="button" size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    {t('access.refresh')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </ConnectionPanel>
+
+        <ConnectionPanel
+          icon={<Smartphone className="h-5 w-5" />}
+          title={t('access.advanced.title')}
+          description={t('access.advanced.description')}
+          badge={t('access.advanced.badge')}
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
             <select
               value={form.mode}
               onChange={(event) => setForm({ ...form, mode: event.target.value })}
@@ -258,7 +603,7 @@ export default function AccessSettingsTab() {
             <Input placeholder={t('access.fields.port')} value={form.targetPort} onChange={(event) => setForm({ ...form, targetPort: event.target.value })} />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void saveAccessPath()} disabled={saving}>
+            <Button type="button" onClick={() => void saveAccessPath()} disabled={saving || !form.url.trim()}>
               {saving && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
               {t('access.save')}
             </Button>
@@ -277,45 +622,45 @@ export default function AccessSettingsTab() {
               <div className="mt-1 text-muted-foreground">{health.message}</div>
             </div>
           )}
-        </div>
+        </ConnectionPanel>
+      </section>
 
-        <div className="rounded-md border border-border/60 bg-background">
-          <div className="border-b border-border/60 bg-muted/20 px-3 py-2">
-            <h4 className="text-sm font-semibold text-foreground">{t('access.configured.title')}</h4>
-            <p className="mt-0.5 text-xs text-muted-foreground">{t('access.configured.description')}</p>
-          </div>
-          <div className="divide-y divide-border/50">
-            {(remoteAccess?.configs || []).map((config) => (
-              <div key={config.id} className="px-3 py-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">{config.label}</div>
-                    <button
-                      type="button"
-                      className="mt-1 block max-w-full truncate text-left text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => config.url && void copyUrl(config.url)}
-                    >
-                      {config.url || t('access.configured.noUrl')}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    <Badge variant="secondary">{t(`access.modes.${config.mode}`, { defaultValue: config.mode })}</Badge>
-                    <Badge variant={config.public ? 'destructive' : 'secondary'}>
-                      {config.public ? t('access.configured.public') : t('access.configured.private')}
-                    </Badge>
-                  </div>
+      <section className="rounded-md border border-border/60 bg-background">
+        <div className="border-b border-border/60 bg-muted/20 px-3 py-2">
+          <h4 className="text-sm font-semibold text-foreground">{t('access.configured.title')}</h4>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('access.configured.description')}</p>
+        </div>
+        <div className="divide-y divide-border/50">
+          {(remoteAccess?.configs || []).map((config) => (
+            <div key={config.id} className="px-3 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-foreground">{config.label}</div>
+                  <button
+                    type="button"
+                    className="mt-1 block max-w-full truncate text-left text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => config.url && void copyUrl(config.url)}
+                  >
+                    {config.url || t('access.configured.noUrl')}
+                  </button>
                 </div>
-                {config.url && (
-                  <Button className="mt-2" type="button" size="sm" variant="outline" onClick={() => void checkUrl(config.url || '')}>
-                    {t('access.check')}
-                  </Button>
-                )}
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant="secondary">{t(`access.modes.${config.mode}`, { defaultValue: config.mode })}</Badge>
+                  <Badge variant={config.public ? 'destructive' : 'secondary'}>
+                    {config.public ? t('access.configured.public') : t('access.configured.private')}
+                  </Badge>
+                </div>
               </div>
-            ))}
-            {(remoteAccess?.configs || []).length === 0 && (
-              <div className="px-3 py-6 text-sm text-muted-foreground">{t('access.configured.empty')}</div>
-            )}
-          </div>
+              {config.url && (
+                <Button className="mt-2" type="button" size="sm" variant="outline" onClick={() => void checkUrl(config.url || '')}>
+                  {t('access.check')}
+                </Button>
+              )}
+            </div>
+          ))}
+          {(remoteAccess?.configs || []).length === 0 && (
+            <div className="px-3 py-6 text-sm text-muted-foreground">{t('access.configured.empty')}</div>
+          )}
         </div>
       </section>
 
@@ -328,49 +673,78 @@ export default function AccessSettingsTab() {
           </div>
         </div>
       </section>
-    </div>
-  );
-}
 
-function AccessCard({ title, description, status }: { title: string; description: string; status: string }) {
-  return (
-    <div className="rounded-md border border-border/60 bg-background px-3 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-        <Badge variant="secondary">{status}</Badge>
+      <div className="sr-only">
+        {localLinks.map((endpoint) => (
+          <span key={endpoint.url}>{endpoint.url}</span>
+        ))}
       </div>
-      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{description}</p>
     </div>
   );
 }
 
-function AccessLinkRow({
-  label,
-  url,
+function ConnectionPanel({
+  icon,
+  title,
+  description,
   badge,
-  copied,
-  copyLabel,
-  onCopy,
+  tone = 'primary',
+  children,
 }: {
-  label: string;
-  url: string;
+  icon: ReactNode;
+  title: string;
+  description: string;
   badge: string;
-  copied: boolean;
-  copyLabel: string;
-  onCopy: () => void;
+  tone?: 'primary' | 'amber';
+  children: ReactNode;
 }) {
+  const toneClass = tone === 'amber'
+    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+    : 'bg-primary/10 text-primary';
+
   return (
-    <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">{label}</span>
-          <Badge variant="secondary">{badge}</Badge>
+    <section className="rounded-md border border-border/60 bg-background">
+      <div className="border-b border-border/60 bg-muted/20 p-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${toneClass}`}>
+              {icon}
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+            </div>
+          </div>
+          <Badge variant="secondary" className="w-fit">{badge}</Badge>
         </div>
-        <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{url}</div>
       </div>
-      <Button type="button" size="sm" variant={copied ? 'default' : 'outline'} onClick={onCopy}>
-        {copyLabel}
-      </Button>
+      <div className="p-3">{children}</div>
+    </section>
+  );
+}
+
+function InstallHint({ hint, fallbackTitle }: { hint: TunnelInstallHint; fallbackTitle: string }) {
+  return (
+    <div className="rounded-md border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-100">
+      <div className="font-semibold">{hint.title || fallbackTitle}</div>
+      {hint.message && <p className="mt-1 leading-5">{hint.message}</p>}
+      {Boolean(hint.commands?.length) && (
+        <ul className="mt-2 list-disc space-y-1 pl-4">
+          {hint.commands?.map((command) => (
+            <li key={command} className="font-mono text-[11px]">{command}</li>
+          ))}
+        </ul>
+      )}
+      {hint.docsUrl && (
+        <a href={hint.docsUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-medium underline">
+          <ExternalLink className="h-3 w-3" />
+          {hint.docsUrl}
+        </a>
+      )}
     </div>
   );
+}
+
+function QrFallback() {
+  return <div className="text-xs text-muted-foreground">QR</div>;
 }

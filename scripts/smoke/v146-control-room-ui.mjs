@@ -81,10 +81,17 @@ assert.match(settings, /AccessSettingsTab/, 'Settings should render the Access s
 const accessSettings = read('src/components/settings/view/tabs/access-settings/AccessSettingsTab.tsx');
 for (const phrase of [
   '/api/network/endpoints',
+  '/api/network/external',
+  '/api/network/tunnel',
   '/api/platformization/remote-access',
   '/api/platformization/remote-access/configs',
   '/api/platformization/remote-access/tailscale',
   '/api/platformization/remote-access/health',
+  'QRCode',
+  'renderQrDataUrl',
+  'toggleTunnel',
+  'saveDetectedAccessPath',
+  'connectionOptions',
 ]) {
   assert.match(accessSettings, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `Access settings should use ${phrase}.`);
 }

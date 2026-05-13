@@ -510,71 +510,121 @@
     "runningStatus": "запущен"
   },
   "access": {
-    "title": "Доступ",
-    "description": "Настройте, как подключаться к этому self-hosted серверу Pixcode из браузера, телефона, команды, Tailscale, Cloudflare Tunnel или custom domain.",
-    "refresh": "Обновить",
-    "copy": "Копировать",
-    "copied": "Скопировано",
-    "save": "Сохранить путь доступа",
-    "check": "Проверить URL",
-    "cards": {
-      "local": {
-        "title": "LAN and local links",
-        "description": "Use these links when the browser is on the same machine or the same network."
+    "title": "Dostup",
+    "description": "Vyberite, kak lyudi budut otkryvat etot self-hosted server Pixcode. Nachnite s odnoi seti; dlya udalennogo dostupa ispolzuyte tunnel, Tailscale ili svoi domen.",
+    "refresh": "Obnovit",
+    "copy": "Kopirovat",
+    "copied": "Skopirovano",
+    "save": "Sohranit put dostupa",
+    "check": "Proverit URL",
+    "qrAlt": "QR dlya {{url}}",
+    "guide": {
+      "title": "Snachala vyberite sposob podklyucheniya",
+      "description": "Ne nuzhno znat setevye terminy. Vyberite situatsiyu, skopiruite ssylku ili otskaniruite QR s telefona."
+    },
+    "options": {
+      "sameNetwork": {
+        "title": "Ta zhe Wi-Fi/LAN",
+        "description": "Kogda ustroistvo v toi zhe seti, chto i server Pixcode."
+      },
+      "secureTunnel": {
+        "title": "Vremennaya public ssylka",
+        "description": "Zapustite Cloudflare/ngrok tunnel; Pixcode pokazhet URL i QR."
       },
       "tailscale": {
-        "title": "Tailscale private access",
-        "description": "Private team access without a fixed public domain. Pixcode detects the URL when Tailscale is available."
+        "title": "Privatnaya ssylka komandy",
+        "description": "Privatnyi dostup bez public domena i nastroek routera."
       },
-      "public": {
-        "title": "Public domain or tunnel",
-        "description": "Use Cloudflare Tunnel or your own reverse proxy when you want a stable HTTPS URL."
+      "customDomain": {
+        "title": "Svoi domen",
+        "description": "Kogda u vas uzhe est HTTPS, reverse proxy ili Cloudflare Tunnel hostname."
       }
     },
     "status": {
-      "ready": "Ready",
-      "detecting": "Detecting",
-      "guided": "Guided",
-      "configured": "Configured",
-      "optional": "Optional"
+      "ready": "Gotovo",
+      "detecting": "Poisk",
+      "guided": "S podskazkami",
+      "configured": "Nastroeno",
+      "optional": "Neobyazatelno"
     },
     "links": {
-      "title": "Available links",
-      "description": "Copy the correct URL for the device or teammate that needs to connect.",
-      "local": "Local",
-      "tailscale": "Tailscale",
-      "empty": "No access links detected yet."
+      "title": "Dostupnye ssylki",
+      "description": "Skopiruite pravilnyi URL dlya ustroistva ili uchastnika.",
+      "local": "Lokalno",
+      "tailscale": "Privatnaya ssylka Tailscale",
+      "empty": "Ssylki dostupa poka ne naideny."
+    },
+    "local": {
+      "title": "Dostup iz odnoi seti",
+      "description": "Luchshii pervyi test: podklyuchitsya iz toi zhe Wi-Fi ili LAN. Otskaniruite QR ili skopiruite ssylku.",
+      "thisDevice": "Tolko etot komputer",
+      "loading": "Poisk ssylok v lokalnoi seti...",
+      "empty": "LAN ssylka ne naidena. Proverte set i obnovite.",
+      "saveLabel": "Dostup iz odnoi seti",
+      "save": "Sohranit etu LAN ssylku"
+    },
+    "tunnel": {
+      "title": "Bezopasnyi tunnel",
+      "description": "Bez fiksirovannogo domena Pixcode mozhet zapustit cloudflared ili ngrok i pokazat public URL.",
+      "secureLink": "Public ssylka i QR",
+      "help": "Nazhmite start. Esli cloudflared ili ngrok ustanovlen, Pixcode sozdaet HTTPS adres i QR.",
+      "running": "Tunnel zapushchen",
+      "start": "Zapustit tunnel",
+      "stop": "Ostanovit tunnel",
+      "save": "Sohranit URL tunnelya",
+      "saveLabel": "Dostup cherez bezopasnyi tunnel",
+      "qrLabel": "bezopasnyi tunnel",
+      "installTitle": "Nuzhna ustanovka tunnelya",
+      "installNeeded": "Snachala ustanovite cloudflared ili ngrok, zatem zapustite tunnel snova."
+    },
+    "tailscale": {
+      "title": "Privatnyi dostup Tailscale",
+      "description": "Tailscale eto neobyazatelnoe prilozhenie privatnoi seti. Ustanovite ego na server i ustroistva, voidite v odnu komandu, i Pixcode naidet privatnyi URL.",
+      "save": "Sohranit Tailscale URL",
+      "saveLabel": "Privatnyi dostup Tailscale",
+      "openInstall": "Otkryt ustanovku Tailscale",
+      "steps": {
+        "installServer": "Ustanovite Tailscale na komputer ili server s Pixcode.",
+        "installUserDevice": "Ustanovite Tailscale na telefon, noutbuk ili ustroistvo uchastnika.",
+        "login": "Voidite v odin akkaunt ili komandu Tailscale na oboih ustroistvah.",
+        "refresh": "Vernites syuda i nazhmite Obnovit; Pixcode pokazhet privatnyi URL."
+      }
+    },
+    "advanced": {
+      "title": "Dopolnitelno: stabilnyi domen",
+      "description": "Ispolzuyte, kogda uzhe est LAN URL, Tailscale URL, Cloudflare Tunnel hostname ili HTTPS domen.",
+      "badge": "Dopolnitelno"
     },
     "setup": {
-      "title": "Stable access path",
-      "description": "Save the URL your users will use. This can be a LAN address, Tailscale URL, Cloudflare Tunnel URL, or custom domain."
+      "title": "Stabilnyi put dostupa",
+      "description": "Sohranite URL dlya polzovatelei. Eto mozhet byt LAN, Tailscale, Cloudflare Tunnel ili svoi domen."
     },
     "modes": {
       "lan": "LAN",
       "tailscale": "Tailscale",
       "cloudflare_tunnel": "Cloudflare Tunnel",
-      "custom_domain": "Custom domain"
+      "custom_domain": "Svoi domen"
     },
     "fields": {
-      "label": "Label",
+      "label": "Metka",
       "url": "URL",
-      "port": "Target port"
+      "port": "Tselevoi port"
     },
     "health": {
-      "reachable": "Pixcode is reachable",
-      "unreachable": "Pixcode is not reachable"
+      "reachable": "Pixcode dostupen",
+      "unreachable": "Pixcode nedostupen"
     },
     "configured": {
-      "title": "Configured access paths",
-      "description": "These paths are available to admins, project partners, and project workers according to their role.",
-      "empty": "No configured access paths yet.",
-      "noUrl": "No URL",
+      "title": "Sohranennye puti dostupa",
+      "description": "Eti puti dostupny adminam, partneram proekta i sotrudnikam proekta soglasno roli.",
+      "empty": "Sohranennyh putei dostupa poka net.",
+      "noUrl": "Net URL",
       "public": "public",
       "private": "private"
     },
     "team": {
-      "title": "How users connect",
-      "description": "Create the user in Admin system, assign their project role in Control Room, then share one of these Access URLs. They do not need to be global admins to reach their assigned project."
+      "title": "Kak podklyuchayutsya polzovateli",
+      "description": "Sozdaite polzovatelya v Admin system, naznachte rol proekta v Control Room i otdajte Access URL. Globalnye prava admina dlya naznachennogo proekta ne nuzhny."
     }
   }
 }

@@ -705,24 +705,33 @@
   },
   "access": {
     "title": "Access",
-    "description": "Configure how this self-hosted Pixcode server is reached from your browser, phone, teammates, Tailscale, Cloudflare Tunnel, or a custom domain.",
+    "description": "Choose how people reach this self-hosted Pixcode server. Start with the same network, then use a secure tunnel, Tailscale, or your own domain when you need remote access.",
     "refresh": "Refresh",
     "copy": "Copy",
     "copied": "Copied",
     "save": "Save access path",
     "check": "Check URL",
-    "cards": {
-      "local": {
-        "title": "LAN and local links",
-        "description": "Use these links when the browser is on the same machine or the same network."
+    "qrAlt": "QR for {{url}}",
+    "guide": {
+      "title": "Pick the connection path first",
+      "description": "You do not need to know networking terms. Choose the situation that matches the person connecting, copy the shown link, or scan the QR code from their phone."
+    },
+    "options": {
+      "sameNetwork": {
+        "title": "Same Wi-Fi/LAN",
+        "description": "Use this when the device is on the same router or office network as the Pixcode server."
+      },
+      "secureTunnel": {
+        "title": "Temporary public link",
+        "description": "Start a Cloudflare/ngrok tunnel and Pixcode shows a public URL plus QR automatically."
       },
       "tailscale": {
-        "title": "Tailscale private access",
-        "description": "Private team access without a fixed public domain. Pixcode detects the URL when Tailscale is available."
+        "title": "Private team link",
+        "description": "Use Tailscale when you want private access without a public domain or router setup."
       },
-      "public": {
-        "title": "Public domain or tunnel",
-        "description": "Use Cloudflare Tunnel or your own reverse proxy when you want a stable HTTPS URL."
+      "customDomain": {
+        "title": "Own domain",
+        "description": "Use this when you already have HTTPS, a reverse proxy, or a Cloudflare Tunnel hostname."
       }
     },
     "status": {
@@ -736,8 +745,49 @@
       "title": "Available links",
       "description": "Copy the correct URL for the device or teammate that needs to connect.",
       "local": "Local",
-      "tailscale": "Tailscale",
+      "tailscale": "Tailscale private link",
       "empty": "No access links detected yet."
+    },
+    "local": {
+      "title": "Same network access",
+      "description": "Best first test: connect from the same Wi-Fi or LAN. Scan a QR code on the phone, or copy the link for a teammate on the same network.",
+      "thisDevice": "This computer only",
+      "loading": "Detecting same-network links...",
+      "empty": "No LAN link detected. Make sure the server is connected to a network and refresh.",
+      "saveLabel": "Same network access",
+      "save": "Save this LAN link"
+    },
+    "tunnel": {
+      "title": "Secure tunnel",
+      "description": "For remote access without a fixed domain, Pixcode can start cloudflared or ngrok and show the public URL here.",
+      "secureLink": "Public link and QR",
+      "help": "Click start. If cloudflared or ngrok is installed, Pixcode creates a temporary HTTPS address and QR code automatically.",
+      "running": "Tunnel running",
+      "start": "Start tunnel",
+      "stop": "Stop tunnel",
+      "save": "Save this tunnel URL",
+      "saveLabel": "Secure tunnel access",
+      "qrLabel": "secure tunnel",
+      "installTitle": "Tunnel setup needed",
+      "installNeeded": "Install cloudflared or ngrok first, then press Start tunnel again."
+    },
+    "tailscale": {
+      "title": "Tailscale private access",
+      "description": "Tailscale is an optional private network app. Install it on the server and user devices, sign in to the same team, then Pixcode can detect a private URL.",
+      "save": "Save this Tailscale URL",
+      "saveLabel": "Tailscale private access",
+      "openInstall": "Open Tailscale install",
+      "steps": {
+        "installServer": "Install Tailscale on the computer or server running Pixcode.",
+        "installUserDevice": "Install Tailscale on the phone, laptop, or teammate device that will open Pixcode.",
+        "login": "Sign in to the same Tailscale account or team on both devices.",
+        "refresh": "Return here and press Refresh; Pixcode will show the private URL when it is ready."
+      }
+    },
+    "advanced": {
+      "title": "Advanced: stable domain",
+      "description": "Use this when you already have a LAN URL, Tailscale URL, Cloudflare Tunnel hostname, or custom HTTPS domain that should be saved for users.",
+      "badge": "Advanced"
     },
     "setup": {
       "title": "Stable access path",
@@ -768,7 +818,7 @@
     },
     "team": {
       "title": "How users connect",
-      "description": "Create the user in Admin system, assign their project role in Control Room, then share one of these Access URLs. They do not need to be global admins to reach their assigned project."
+      "description": "Create the user in the Admin system, assign their project role in Control Room, then share one of these Access URLs. They do not need to be global admins to reach their assigned project."
     }
   }
 }
