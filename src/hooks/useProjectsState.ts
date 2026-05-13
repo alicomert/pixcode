@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
 import { api } from '../utils/api';
+import { useTasksSettings } from '../contexts/TasksSettingsContext';
 import type {
   AppSocketMessage,
   AppTab,
@@ -121,10 +122,15 @@ const isUpdateAdditive = (
   );
 };
 
-const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'controlRoom', 'files', 'shell', 'git', 'changes', 'liveView', 'tasks', 'preview']);
+const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'remote', 'controlRoom', 'files', 'shell', 'git', 'changes', 'liveView', 'tasks', 'preview']);
+const NON_RESTORABLE_TABS: Set<AppTab> = new Set(['controlRoom']);
 
 const isValidTab = (tab: string): tab is AppTab => {
   return VALID_TABS.has(tab) || tab.startsWith('plugin:');
+};
+
+const getPersistableTab = (tab: AppTab): AppTab => {
+  return NON_RESTORABLE_TABS.has(tab) ? 'chat' : tab;
 };
 
 const readPersistedTab = (): AppTab => {
@@ -135,7 +141,7 @@ const readPersistedTab = (): AppTab => {
   try {
     const stored = localStorage.getItem('activeTab');
     if (stored && isValidTab(stored)) {
-      return stored as AppTab;
+      return getPersistableTab(stored as AppTab);
     }
   } catch {
     // localStorage unavailable
@@ -150,6 +156,7 @@ export function useProjectsState({
   isMobile,
   activeSessions,
 }: UseProjectsStateArgs) {
+  const { setTasksEnabled } = useTasksSettings() as { setTasksEnabled?: (enabled: boolean) => void };
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedSession, setSelectedSession] = useState<ProjectSession | null>(null);
@@ -157,7 +164,7 @@ export function useProjectsState({
 
   useEffect(() => {
     try {
-      localStorage.setItem('activeTab', activeTab);
+      localStorage.setItem('activeTab', getPersistableTab(activeTab));
     } catch {
       // Silently ignore storage errors
     }
@@ -546,6 +553,11 @@ export function useProjectsState({
    */
   const quickStartIntoTab = useCallback(async (targetTab: AppTab) => {
     try {
+      if (targetTab === 'tasks') {
+        setTasksEnabled?.(true);
+        localStorage.setItem('tasks-enabled', JSON.stringify(true));
+      }
+
       const response = await api.quickStartProject();
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body?.project) {
@@ -569,7 +581,7 @@ export function useProjectsState({
     } catch (err) {
       console.error('[quick-start] error:', err);
     }
-  }, [isMobile, navigate, openProjectChat]);
+  }, [isMobile, navigate, openProjectChat, setTasksEnabled]);
 
   const handleQuickStartSession = useCallback(async () => {
     await quickStartIntoTab('chat');
@@ -577,6 +589,10 @@ export function useProjectsState({
 
   const handleQuickStartOrchestration = useCallback(async () => {
     await quickStartIntoTab('orchestration');
+  }, [quickStartIntoTab]);
+
+  const handleQuickStartTasks = useCallback(async () => {
+    await quickStartIntoTab('tasks');
   }, [quickStartIntoTab]);
 
   const handleOpenOrchestration = useCallback(
@@ -754,6 +770,7 @@ export function useProjectsState({
     handleNewSession,
     handleOpenOrchestration,
     handleQuickStartOrchestration,
+    handleQuickStartTasks,
     handleSessionDelete,
     handleProjectDelete,
     handleSidebarRefresh,

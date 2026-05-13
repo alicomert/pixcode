@@ -89,6 +89,7 @@ function MainContent({
   externalMessageUpdate,
   onQuickStartSession,
   onQuickStartOrchestration,
+  onQuickStartTasks,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
   const {
@@ -100,7 +101,7 @@ function MainContent({
   } = preferences;
 
   const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
-  const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
+  const { tasksEnabled } = useTasksSettings() as TasksSettingsContextValue;
   const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
   const [sidePanelWidth, setSidePanelWidth] = useState(SIDE_PANEL_DEFAULT_WIDTH);
   const [isDraggingSidePanel, setIsDraggingSidePanel] = useState(false);
@@ -117,7 +118,7 @@ function MainContent({
     typeof window !== 'undefined' && window.innerWidth >= 1024
   ));
 
-  const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
+  const shouldShowTasksTab = Boolean(tasksEnabled);
   const activeSidePanelTab = isSidePanelTab(activeTab) ? activeTab : null;
   const showSidePanelSplit = Boolean(activeSidePanelTab && !isMobile && canUseSidePanelSplit && sidePanelMode === 'split');
 
@@ -335,10 +336,10 @@ function MainContent({
   }, [selectedProject, currentProject?.name, setCurrentProject]);
 
   useEffect(() => {
-    if (!shouldShowTasksTab && activeTab === 'tasks') {
+    if (!tasksEnabled && activeTab === 'tasks') {
       setActiveTab('chat');
     }
-  }, [shouldShowTasksTab, activeTab, setActiveTab]);
+  }, [tasksEnabled, activeTab, setActiveTab]);
 
   useEffect(() => {
     if (!selectedProject) {
@@ -583,6 +584,7 @@ function MainContent({
         onMenuClick={onMenuClick}
         onQuickStartSession={onQuickStartSession}
         onQuickStartOrchestration={onQuickStartOrchestration}
+        onQuickStartTasks={onQuickStartTasks}
         onOpenControlRoom={() => setActiveTab('controlRoom')}
       />
     );

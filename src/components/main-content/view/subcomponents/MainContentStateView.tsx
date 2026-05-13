@@ -12,6 +12,7 @@ export default function MainContentStateView({
   onMenuClick,
   onQuickStartSession,
   onQuickStartOrchestration,
+  onQuickStartTasks,
   onOpenControlRoom,
 }: MainContentStateViewProps) {
   const { t } = useTranslation();
@@ -99,7 +100,7 @@ export default function MainContentStateView({
 
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('pixcode:create-project'))}
+                onClick={() => { void onQuickStartTasks?.(); }}
                 className="rounded-md border border-border p-4 text-left transition-colors hover:bg-muted/40"
               >
                 <FolderPlus className="mb-3 h-5 w-5 text-foreground" />
