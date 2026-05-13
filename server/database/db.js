@@ -306,6 +306,18 @@ const db = {
 const userDb = {
     hasUsers: () => store.count('users', (r) => r.is_active) > 0,
 
+    listUsers: () => store.raw.users.map((row) => ({
+        id: row.id,
+        username: row.username,
+        created_at: row.created_at,
+        last_login: row.last_login,
+        is_active: Boolean(row.is_active),
+        git_name: row.git_name || null,
+        git_email: row.git_email || null,
+        has_completed_onboarding: Boolean(row.has_completed_onboarding),
+        role: row.role || null,
+    })),
+
     createUser: (username, passwordHash) => {
         const row = store.insert('users', {
             username,
@@ -318,6 +330,33 @@ const userDb = {
             has_completed_onboarding: false,
         });
         return { id: row.id, username: row.username };
+    },
+
+    createManagedUser: (username, passwordHash, metadata = {}) => {
+        const existing = store.raw.users.find((r) => r.username === username);
+        if (existing) {
+            throw new Error('Username already exists.');
+        }
+
+        const row = store.insert('users', {
+            username,
+            password_hash: passwordHash,
+            created_at: nowIso(),
+            last_login: null,
+            is_active: metadata.is_active !== false,
+            git_name: metadata.git_name || null,
+            git_email: metadata.git_email || null,
+            has_completed_onboarding: false,
+            role: metadata.role || 'member',
+        });
+        return {
+            id: row.id,
+            username: row.username,
+            created_at: row.created_at,
+            last_login: row.last_login,
+            is_active: Boolean(row.is_active),
+            role: row.role || 'member',
+        };
     },
 
     getUserByUsername: (username) =>
@@ -339,6 +378,7 @@ const userDb = {
             username: row.username,
             created_at: row.created_at,
             last_login: row.last_login,
+            role: row.role || null,
         };
     },
 
@@ -350,8 +390,22 @@ const userDb = {
             username: row.username,
             created_at: row.created_at,
             last_login: row.last_login,
+            role: row.role || null,
         };
     },
+
+    updateUser: (userId, patch = {}) => {
+        const allowed = {};
+        if (typeof patch.username === 'string' && patch.username.trim()) allowed.username = patch.username.trim();
+        if (typeof patch.git_name === 'string') allowed.git_name = patch.git_name;
+        if (typeof patch.git_email === 'string') allowed.git_email = patch.git_email;
+        if (typeof patch.role === 'string') allowed.role = patch.role;
+        if (typeof patch.is_active === 'boolean') allowed.is_active = patch.is_active;
+        store.updateWhere('users', (r) => r.id === userId, allowed);
+        return userDb.listUsers().find((user) => user.id === userId) || null;
+    },
+
+    setUserActive: (userId, isActive) => userDb.updateUser(userId, { is_active: Boolean(isActive) }),
 
     updateGitConfig: (userId, gitName, gitEmail) => {
         store.updateWhere('users', (r) => r.id === userId, { git_name: gitName, git_email: gitEmail });

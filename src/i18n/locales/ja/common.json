@@ -25,6 +25,8 @@
     "changes": "変更",
     "liveView": "ライブビュー",
     "tasks": "タスク",
+    "remote": "リモート",
+    "controlRoom": "コントロール",
     "orchestration": "オーケストレーション"
   },
   "status": {

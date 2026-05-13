@@ -25,6 +25,8 @@
     "changes": "更改",
     "liveView": "实时预览",
     "tasks": "任务",
+    "remote": "远程",
+    "controlRoom": "控制",
     "orchestration": "编排"
   },
   "status": {

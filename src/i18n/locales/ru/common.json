@@ -25,6 +25,8 @@
     "changes": "Изменения",
     "liveView": "Live View",
     "tasks": "Задачи",
+    "remote": "Remote",
+    "controlRoom": "Контроль",
     "orchestration": "Оркестрация"
   },
   "status": {

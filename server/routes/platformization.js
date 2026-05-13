@@ -1,17 +1,27 @@
 import express from 'express';
 
 import {
+  checkRemoteAccessHealth,
+  createAdminUser,
   createEvaluationRun,
   createEvaluationSuite,
+  createProjectCollaborator,
   createSecret,
   createSecurityAuditRun,
   createTeamMember,
+  detectTailscaleStatus,
+  exportAuditLog,
+  getAuditLog,
   getPlatformizationState,
+  getRemoteAccessState,
   listSecrets,
   materializeScopedEnv,
   recordUsageEvent,
+  saveRemoteAccessConfig,
   summarizeUsageEvents,
+  updateAdminUser,
   updateMarketplacePluginHealth,
+  updateProjectCollaborator,
   updateTeamMember,
   upsertMarketplacePlugin,
 } from '../services/platformization.js';
@@ -54,6 +64,48 @@ router.patch('/team/members/:id', (req, res) => {
     return;
   }
   res.json({ success: true, member });
+});
+
+router.get('/admin/users', (_req, res) => {
+  res.json({ success: true, users: getPlatformizationState().adminUsers });
+});
+
+router.post('/admin/users', async (req, res) => {
+  try {
+    res.status(201).json({ success: true, user: await createAdminUser(req.body || {}, userId(req)) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.patch('/admin/users/:id', (req, res) => {
+  const user = updateAdminUser(req.params.id, req.body || {}, userId(req));
+  if (!user) {
+    res.status(404).json({ success: false, error: 'Admin user not found.' });
+    return;
+  }
+  res.json({ success: true, user });
+});
+
+router.get('/project-collaborators', (_req, res) => {
+  res.json({ success: true, collaborators: getPlatformizationState().projectCollaborators });
+});
+
+router.post('/project-collaborators', (req, res) => {
+  try {
+    res.status(201).json({ success: true, collaborator: createProjectCollaborator(req.body || {}, userId(req)) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.patch('/project-collaborators/:id', (req, res) => {
+  const collaborator = updateProjectCollaborator(req.params.id, req.body || {}, userId(req));
+  if (!collaborator) {
+    res.status(404).json({ success: false, error: 'Project collaborator not found.' });
+    return;
+  }
+  res.json({ success: true, collaborator });
 });
 
 router.get('/secrets', (_req, res) => {
@@ -122,8 +174,39 @@ router.post('/security/audit-runs', (req, res) => {
   res.status(201).json({ success: true, run: createSecurityAuditRun(req.body || {}, userId(req)) });
 });
 
-router.get('/audit-log', (_req, res) => {
-  res.json({ success: true, auditLog: getPlatformizationState().auditLog });
+router.get('/remote-access', (_req, res) => {
+  res.json({ success: true, remoteAccess: getRemoteAccessState() });
+});
+
+router.post('/remote-access/configs', (req, res) => {
+  try {
+    res.status(201).json({ success: true, config: saveRemoteAccessConfig(req.body || {}, userId(req)) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get('/remote-access/tailscale', async (_req, res) => {
+  res.json({ success: true, tailscale: await detectTailscaleStatus() });
+});
+
+router.post('/remote-access/health', async (req, res) => {
+  try {
+    res.json({ success: true, health: await checkRemoteAccessHealth(req.body || {}, userId(req)) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.get('/audit-log', (req, res) => {
+  res.json({ success: true, auditLog: getAuditLog(req.query || {}) });
+});
+
+router.get('/audit-log/export', (req, res) => {
+  const format = req.query.format === 'csv' ? 'csv' : 'json';
+  const body = exportAuditLog(format, req.query || {});
+  res.setHeader('Content-Type', format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8');
+  res.send(body);
 });
 
 export default router;

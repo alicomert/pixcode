@@ -1,8 +1,14 @@
 import crypto from 'node:crypto';
+import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
-import { appConfigDb } from '../database/db.js';
+import bcrypt from 'bcryptjs';
+
+import { appConfigDb, userDb } from '../database/db.js';
 
 const CONFIG_KEY = 'platformization';
+const execFileAsync = promisify(execFile);
 
 export const TEAM_ROLES = {
   owner: [
@@ -29,6 +35,23 @@ export const TEAM_ROLES = {
     'run:create',
     'secret:use',
     'eval:run',
+    'usage:view',
+  ],
+  project_partner: [
+    'project:write',
+    'run:create',
+    'run:approve',
+    'review:manage',
+    'usage:view',
+  ],
+  project_worker: [
+    'project:write',
+    'run:create',
+    'review:update',
+  ],
+  project_reviewer: [
+    'project:read',
+    'review:manage',
     'usage:view',
   ],
   viewer: [
@@ -61,6 +84,8 @@ function emptyStore() {
     evaluationRuns: [],
     usageEvents: [],
     securityAuditRuns: [],
+    projectCollaborators: [],
+    remoteAccessConfigs: [],
     auditLog: [],
   };
 }
@@ -78,6 +103,8 @@ function readStore() {
       evaluationRuns: Array.isArray(parsed.evaluationRuns) ? parsed.evaluationRuns : [],
       usageEvents: Array.isArray(parsed.usageEvents) ? parsed.usageEvents : [],
       securityAuditRuns: Array.isArray(parsed.securityAuditRuns) ? parsed.securityAuditRuns : [],
+      projectCollaborators: Array.isArray(parsed.projectCollaborators) ? parsed.projectCollaborators : [],
+      remoteAccessConfigs: Array.isArray(parsed.remoteAccessConfigs) ? parsed.remoteAccessConfigs : [],
       auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
     };
   } catch {
@@ -179,6 +206,9 @@ export function getPlatformizationState() {
     evaluationRuns: store.evaluationRuns,
     usageSummary: summarizeUsageEvents(store.usageEvents),
     securityAuditRuns: store.securityAuditRuns,
+    adminUsers: listAdminUsers(),
+    projectCollaborators: store.projectCollaborators,
+    remoteAccessConfigs: store.remoteAccessConfigs,
     auditLog: store.auditLog,
   };
 }
@@ -221,6 +251,151 @@ export function updateTeamMember(memberId, patch = {}, actorId = null) {
   });
   if (updated) {
     addAudit(store, 'team.member.updated', actorId, { memberId, role: updated.role });
+    writeStore(store);
+  }
+  return updated;
+}
+
+export function listAdminUsers() {
+  return userDb.listUsers().map((user) => ({
+    id: user.id,
+    username: user.username,
+    role: user.role || 'member',
+    status: user.is_active ? 'active' : 'disabled',
+    isActive: Boolean(user.is_active),
+    createdAt: user.created_at,
+    lastLogin: user.last_login,
+  }));
+}
+
+export async function createAdminUser(input = {}, actorId = null) {
+  const username = compact(input.username || input.email || '');
+  const password = String(input.password || '');
+  if (!username || password.length < 6) {
+    throw new Error('Admin user creation requires a username and a password with at least 6 characters.');
+  }
+
+  const role = normalizeRole(input.role || 'member');
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = userDb.createManagedUser(username, passwordHash, {
+    role,
+    is_active: input.status !== 'disabled',
+  });
+
+  const store = readStore();
+  const member = {
+    id: crypto.randomUUID(),
+    userId: user.id,
+    email: input.email || username,
+    displayName: compact(input.displayName || username, 80),
+    role,
+    projectScopes: Array.isArray(input.projectScopes) ? input.projectScopes : [],
+    status: input.status || 'active',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    permissions: TEAM_ROLES[role],
+  };
+  store.teamMembers.unshift(member);
+  addAudit(store, 'admin.user.created', actorId, { userId: user.id, username, role });
+  writeStore(store);
+  return {
+    ...user,
+    status: member.status,
+    permissions: member.permissions,
+  };
+}
+
+export function updateAdminUser(userId, patch = {}, actorId = null) {
+  const numericUserId = Number(userId);
+  const role = patch.role ? normalizeRole(patch.role) : undefined;
+  const isActive = patch.status === 'disabled' ? false : patch.status === 'active' ? true : undefined;
+  const user = userDb.updateUser(numericUserId, {
+    username: patch.username,
+    role,
+    is_active: isActive,
+  });
+  if (!user) return null;
+
+  const store = readStore();
+  store.teamMembers = store.teamMembers.map((member) => {
+    if (member.userId !== numericUserId) return member;
+    const nextRole = role || member.role;
+    const nextStatus = patch.status || member.status;
+    return {
+      ...member,
+      role: nextRole,
+      status: nextStatus,
+      permissions: TEAM_ROLES[nextRole] || TEAM_ROLES.viewer,
+      updatedAt: nowIso(),
+    };
+  });
+  addAudit(store, 'admin.user.updated', actorId, { userId: numericUserId, role: role || user.role, status: patch.status });
+  writeStore(store);
+  return {
+    ...user,
+    role: role || user.role || 'member',
+    status: user.is_active ? 'active' : 'disabled',
+  };
+}
+
+export function createProjectCollaborator(input = {}, actorId = null) {
+  const projectName = compact(input.projectName || input.project || '');
+  const projectPath = input.projectPath || null;
+  const userRef = compact(input.userRef || input.email || input.username || '');
+  if (!projectName || !userRef) {
+    throw new Error('Project collaborator requires a project name and user reference.');
+  }
+
+  const role = ['partner', 'worker', 'reviewer', 'viewer'].includes(input.role) ? input.role : 'worker';
+  const capabilities = {
+    chatAgents: input.capabilities?.chatAgents !== false,
+    viewFiles: true,
+    editFiles: role === 'partner' || role === 'worker',
+    useShell: role === 'partner',
+    approveActions: role === 'partner' || role === 'reviewer',
+    manageSecrets: role === 'partner',
+    manageProjectSettings: role === 'partner',
+  };
+  const collaborator = {
+    id: crypto.randomUUID(),
+    projectName,
+    projectPath,
+    userRef,
+    role,
+    capabilities: {
+      ...capabilities,
+      ...(input.capabilities && typeof input.capabilities === 'object' ? input.capabilities : {}),
+    },
+    status: input.status || 'active',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  const store = readStore();
+  store.projectCollaborators.unshift(collaborator);
+  addAudit(store, 'project.collaborator.created', actorId, { collaboratorId: collaborator.id, projectName, userRef, role });
+  writeStore(store);
+  return collaborator;
+}
+
+export function updateProjectCollaborator(collaboratorId, patch = {}, actorId = null) {
+  const store = readStore();
+  let updated = null;
+  store.projectCollaborators = store.projectCollaborators.map((collaborator) => {
+    if (collaborator.id !== collaboratorId) return collaborator;
+    updated = {
+      ...collaborator,
+      ...patch,
+      id: collaborator.id,
+      capabilities: {
+        ...collaborator.capabilities,
+        ...(patch.capabilities && typeof patch.capabilities === 'object' ? patch.capabilities : {}),
+      },
+      updatedAt: nowIso(),
+    };
+    return updated;
+  });
+  if (updated) {
+    addAudit(store, 'project.collaborator.updated', actorId, { collaboratorId, role: updated.role, status: updated.status });
     writeStore(store);
   }
   return updated;
@@ -457,4 +632,179 @@ export function createSecurityAuditRun(input = {}, actorId = null) {
   addAudit(store, 'security.audit.created', actorId, { runId: run.id, checks });
   writeStore(store);
   return run;
+}
+
+export function getAuditLog(filters = {}) {
+  const store = readStore();
+  let entries = store.auditLog;
+  if (filters.userId) {
+    entries = entries.filter((entry) => String(entry.actorId) === String(filters.userId));
+  }
+  if (filters.eventType) {
+    entries = entries.filter((entry) => entry.action === filters.eventType || entry.action.includes(filters.eventType));
+  }
+  if (filters.projectName) {
+    entries = entries.filter((entry) => entry.details?.projectName === filters.projectName);
+  }
+  if (filters.severity) {
+    entries = entries.filter((entry) => entry.details?.severity === filters.severity);
+  }
+  return entries.slice(0, Number(filters.limit || 200));
+}
+
+export function exportAuditLog(format = 'json', filters = {}) {
+  const entries = getAuditLog(filters);
+  if (format === 'csv') {
+    const header = ['id', 'createdAt', 'actorId', 'action', 'details'];
+    const lines = entries.map((entry) => header.map((field) => {
+      const value = field === 'details' ? JSON.stringify(entry.details || {}) : entry[field];
+      return `"${String(value ?? '').replace(/"/g, '""')}"`;
+    }).join(','));
+    return [header.join(','), ...lines].join('\n');
+  }
+  return JSON.stringify(entries, null, 2);
+}
+
+function normalizeAccessMode(mode) {
+  return ['lan', 'tailscale', 'cloudflare_tunnel', 'custom_domain'].includes(mode) ? mode : 'lan';
+}
+
+function normalizePublicUrl(value) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) return null;
+  const url = new URL(raw);
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('Remote access URL must use http or https.');
+  }
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
+}
+
+export function saveRemoteAccessConfig(input = {}, actorId = null) {
+  const mode = normalizeAccessMode(input.mode);
+  const id = input.id || mode;
+  const config = {
+    id,
+    mode,
+    label: compact(input.label || mode.replace(/_/g, ' '), 80),
+    url: input.url ? normalizePublicUrl(input.url) : null,
+    targetPort: Number(input.targetPort || process.env.SERVER_PORT || 3001),
+    public: mode === 'cloudflare_tunnel' || mode === 'custom_domain',
+    tlsRequired: mode === 'cloudflare_tunnel' || mode === 'custom_domain',
+    privateOnly: mode === 'tailscale' || mode === 'lan',
+    status: input.status || 'configured',
+    notes: compact(input.notes || '', 240),
+    updatedAt: nowIso(),
+    createdAt: input.createdAt || nowIso(),
+    lastHealth: input.lastHealth || null,
+  };
+  const store = readStore();
+  store.remoteAccessConfigs = [config, ...store.remoteAccessConfigs.filter((item) => item.id !== id)];
+  addAudit(store, 'remote.access.configured', actorId, { mode, url: config.url, public: config.public });
+  writeStore(store);
+  return config;
+}
+
+export function getRemoteAccessState() {
+  const store = readStore();
+  return {
+    host: os.hostname(),
+    platform: os.platform(),
+    localUrl: `http://127.0.0.1:${process.env.SERVER_PORT || 3001}`,
+    configs: store.remoteAccessConfigs,
+    recommendations: [
+      {
+        mode: 'tailscale',
+        label: 'Tailscale private network',
+        recommendedWhen: 'No stable domain, no public IP, private team access.',
+      },
+      {
+        mode: 'cloudflare_tunnel',
+        label: 'Cloudflare Tunnel',
+        recommendedWhen: 'Stable public HTTPS URL without opening inbound ports.',
+      },
+      {
+        mode: 'custom_domain',
+        label: 'Custom domain / reverse proxy',
+        recommendedWhen: 'Existing domain, reverse proxy, and TLS termination.',
+      },
+    ],
+  };
+}
+
+export async function detectTailscaleStatus() {
+  try {
+    const { stdout } = await execFileAsync('tailscale', ['status', '--json'], { timeout: 5000 });
+    const status = JSON.parse(stdout || '{}');
+    const self = status.Self || {};
+    const tailscaleIps = Array.isArray(self.TailscaleIPs) ? self.TailscaleIPs : [];
+    return {
+      installed: true,
+      loggedIn: Boolean(self.ID || self.DNSName || tailscaleIps.length),
+      backendState: status.BackendState || null,
+      deviceName: self.HostName || os.hostname(),
+      magicDnsName: self.DNSName || null,
+      tailscaleIp: tailscaleIps[0] || null,
+      pixcodeUrl: tailscaleIps[0] ? `http://${tailscaleIps[0]}:${process.env.SERVER_PORT || 3001}` : null,
+      checkedAt: nowIso(),
+      message: tailscaleIps[0] ? 'Tailscale is ready for private Pixcode access.' : 'Tailscale CLI is installed but no device IP was detected.',
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      loggedIn: false,
+      backendState: 'missing',
+      deviceName: os.hostname(),
+      magicDnsName: null,
+      tailscaleIp: null,
+      pixcodeUrl: null,
+      checkedAt: nowIso(),
+      message: error?.code === 'ENOENT' ? 'Tailscale CLI is not installed.' : (error?.message || 'Tailscale status could not be read.'),
+    };
+  }
+}
+
+export async function checkRemoteAccessHealth(input = {}, actorId = null) {
+  const url = normalizePublicUrl(input.url || input.remoteUrl || '');
+  const checkedAt = nowIso();
+  if (!url) {
+    throw new Error('Remote access health check requires a URL.');
+  }
+  const parsed = new URL(url);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(input.timeoutMs || 5000));
+  try {
+    const response = await fetch(`${url}/api/auth/status`, { signal: controller.signal });
+    const health = {
+      url,
+      reachable: response.ok,
+      checkedAt,
+      statusCode: response.status,
+      https: parsed.protocol === 'https:',
+      websocketExpected: true,
+      message: response.ok ? 'Pixcode auth endpoint is reachable.' : `Pixcode returned HTTP ${response.status}.`,
+    };
+    const store = readStore();
+    addAudit(store, 'remote.access.health_checked', actorId, { url, reachable: health.reachable, https: health.https });
+    writeStore(store);
+    return health;
+  } catch (error) {
+    const health = {
+      url,
+      reachable: false,
+      checkedAt,
+      statusCode: null,
+      https: parsed.protocol === 'https:',
+      websocketExpected: true,
+      message: error?.name === 'AbortError' ? 'Health check timed out.' : (error?.message || 'Remote access URL is unreachable.'),
+    };
+    const store = readStore();
+    addAudit(store, 'remote.access.health_checked', actorId, { url, reachable: false, https: health.https });
+    writeStore(store);
+    return health;
+  } finally {
+    clearTimeout(timeout);
+  }
 }

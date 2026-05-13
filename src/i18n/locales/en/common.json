@@ -26,6 +26,7 @@
     "liveView": "Live View",
     "tasks": "Tasks",
     "remote": "Remote",
+    "controlRoom": "Control",
     "orchestration": "Orchestration"
   },
   "status": {
