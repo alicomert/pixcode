@@ -75,7 +75,9 @@
     "reportIssue": "Segnala problema",
     "starOnGithub": "Metti stella su GitHub",
     "starSession": "Preferita",
-    "unstarSession": "Rimuovi preferita"
+    "unstarSession": "Rimuovi preferita",
+    "controlRoom": "Sala di controllo",
+    "controlRoomDescription": "Admin, accesso, run"
   },
   "branding": {
     "openSource": "Open Source"

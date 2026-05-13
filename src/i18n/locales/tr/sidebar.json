@@ -79,7 +79,9 @@
     "reportIssue": "Sorun Bildir",
     "starOnGithub": "GitHub'da Yıldızla",
     "starSession": "Yıldızla",
-    "unstarSession": "Yıldızı kaldır"
+    "unstarSession": "Yıldızı kaldır",
+    "controlRoom": "Kontrol Odası",
+    "controlRoomDescription": "Yönetim, erişim, çalışmalar"
   },
   "branding": {
     "openSource": "Açık Kaynak"

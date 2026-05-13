@@ -620,5 +620,251 @@
     "frameTitle": "Project Live View",
     "emptyTitle": "Start Live View",
     "emptyDescription": "Pixcode will detect the project stack, start the local web server, and expose it here."
+  },
+  "controlRoom": {
+    "title": "Control room",
+    "subtitle": "Production, platform, admin, audit, and self-hosted access for {{target}}",
+    "thisServer": "this server",
+    "refresh": "Refresh",
+    "nav": {
+      "overview": "Overview",
+      "production": "Production",
+      "admin": "Admin",
+      "team": "Team",
+      "secrets": "Secrets",
+      "marketplace": "Marketplace",
+      "eval": "Evaluations",
+      "usage": "Usage",
+      "security": "Security",
+      "access": "Access"
+    },
+    "overview": {
+      "title": "v1.46 launch surface",
+      "description": "Every box below is backed by a v1.44-v1.45 API and is now visible from the UI.",
+      "latestAuditEvents": "Latest audit events",
+      "remoteAccessOptions": "Remote access options"
+    },
+    "metrics": {
+      "issueRuns": "Issue-to-PR runs",
+      "reviewItems": "Review items",
+      "subUsers": "Sub-users",
+      "collaborators": "Project collaborators",
+      "secrets": "Scoped secrets",
+      "marketplace": "Marketplace entries",
+      "evalRuns": "Evaluation runs",
+      "securityAudits": "Security audits"
+    },
+    "sections": {
+      "production": {
+        "title": "Production loop",
+        "description": "Start issue-to-PR runs, parse CI failures, review changes, schedule background jobs, and create checkpoints."
+      },
+      "admin": {
+        "title": "Admin system",
+        "description": "Create sub-users, disable accounts, and inspect activity for a single self-hosted Pixcode server."
+      },
+      "team": {
+        "title": "Project collaborators",
+        "description": "Assign partners, workers, reviewers, and viewers per project without making everyone a global admin."
+      },
+      "secrets": {
+        "title": "Secret vault",
+        "description": "Store scoped env secrets and preview what each provider, project, workflow, Telegram, or API run receives."
+      },
+      "marketplace": {
+        "title": "MCP/plugin marketplace",
+        "description": "Register MCP servers, workflow templates, provider adapters, and notification channels with permission review and health."
+      },
+      "eval": {
+        "title": "Evaluation harness",
+        "description": "Create regression suites and compare provider/model runs with pass rate and latency."
+      },
+      "usage": {
+        "title": "Cost, token, and latency dashboard",
+        "description": "Monitor provider/model/workflow usage for demos and operations."
+      },
+      "security": {
+        "title": "Security audit mode",
+        "description": "Run dependency audit, secret scan, permission audit, and agent output leak detection workflows."
+      },
+      "access": {
+        "title": "Self-hosted access",
+        "description": "Use Tailscale when there is no fixed domain, or configure Cloudflare Tunnel/custom domain for a stable public URL."
+      }
+    },
+    "panels": {
+      "issueToPr": "Issue-to-PR run",
+      "ciRepair": "CI repair parser",
+      "reviewQueue": "Review queue",
+      "schedulerCheckpoints": "Scheduler and checkpoints",
+      "createSubUser": "Create sub-user",
+      "rolePermissions": "Role permissions",
+      "addCollaborator": "Add collaborator",
+      "createSecret": "Create secret",
+      "scopedEnvPreview": "Scoped env preview",
+      "addMarketplaceEntry": "Add marketplace entry",
+      "createSuite": "Create suite",
+      "recordRun": "Record run",
+      "recordUsageEvent": "Record usage event",
+      "createAuditRun": "Create audit run",
+      "auditLog": "Audit log",
+      "remoteAccessSetup": "Remote access setup"
+    },
+    "lists": {
+      "recentJobs": "Recent jobs",
+      "recentCheckpoints": "Recent checkpoints",
+      "subUsers": "Sub-users",
+      "collaborators": "Collaborators",
+      "includedEnvNames": "Included env names",
+      "vaultEntries": "Vault entries",
+      "marketplaceEntries": "Marketplace entries",
+      "suites": "Suites",
+      "runs": "Runs",
+      "auditRuns": "Audit runs",
+      "configuredAccessPaths": "Configured access paths"
+    },
+    "buttons": {
+      "queueRun": "Queue run",
+      "parseFailure": "Parse failure",
+      "createReviewItem": "Create review item",
+      "scheduleJob": "Schedule job",
+      "createCheckpoint": "Create checkpoint",
+      "createUser": "Create user",
+      "disable": "Disable",
+      "enable": "Enable",
+      "addCollaborator": "Add collaborator",
+      "storeSecret": "Store secret",
+      "previewEnv": "Preview env",
+      "saveEntry": "Save entry",
+      "markHealthy": "Mark healthy",
+      "createSuite": "Create suite",
+      "recordRun": "Record run",
+      "recordUsage": "Record usage",
+      "createAudit": "Create audit",
+      "exportJson": "Export JSON",
+      "exportCsv": "Export CSV",
+      "saveAccessPath": "Save access path",
+      "checkUrl": "Check URL",
+      "checkTailscale": "Check Tailscale"
+    },
+    "placeholders": {
+      "githubIssueUrl": "GitHub issue URL",
+      "manualTitle": "Manual title fallback",
+      "model": "Model",
+      "baseBranch": "Base branch",
+      "ciLog": "Paste failing CI, lint, typecheck, or build output",
+      "reviewTitle": "Review title",
+      "notes": "Notes",
+      "changedFiles": "Changed files, one per line",
+      "jobName": "Job name",
+      "cronExpression": "Cron or watch expression",
+      "checkpointReason": "Checkpoint reason",
+      "backgroundPrompt": "Background agent prompt",
+      "checkpointFiles": "Checkpoint changed files, one per line",
+      "usernameEmail": "Username or email",
+      "temporaryPassword": "Temporary password",
+      "userEmailUsername": "User email or username",
+      "secretName": "Secret name",
+      "envName": "ENV_NAME",
+      "secretTarget": "Target project/provider/workflow",
+      "secretValue": "Secret value",
+      "workflowId": "Workflow id",
+      "name": "Name",
+      "pluginSource": "Source package or repository",
+      "installCommand": "Install command",
+      "permissionScopes": "Permission scopes, one per line",
+      "suiteName": "Suite name",
+      "description": "Description",
+      "firstTaskTitle": "First task title",
+      "acceptanceCriteria": "Acceptance criteria, one per line",
+      "suiteId": "Suite id",
+      "latencyMs": "Latency ms",
+      "passedCount": "Passed count",
+      "failedCount": "Failed count",
+      "workflow": "Workflow",
+      "inputTokens": "Input tokens",
+      "outputTokens": "Output tokens",
+      "costUsd": "Cost USD",
+      "optionalFindingTitle": "Optional finding title",
+      "auditFilter": "Filter audit log by user, project, event, or file",
+      "label": "Label",
+      "url": "URL",
+      "targetPort": "Target port"
+    },
+    "labels": {
+      "project": "project",
+      "path": "path",
+      "providerModel": "provider/model",
+      "branch": "branch",
+      "failedCommands": "Failed commands",
+      "files": "Files",
+      "lastActive": "Last active",
+      "role": "role",
+      "tasks": "tasks",
+      "pass": "pass",
+      "health": "Health",
+      "reachable": "reachable",
+      "installed": "installed",
+      "loggedIn": "logged in"
+    },
+    "columns": {
+      "provider": "Provider",
+      "model": "Model",
+      "workflow": "Workflow",
+      "runs": "Runs",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "latency": "Latency",
+      "errorRate": "Error rate"
+    },
+    "fallback": {
+      "selectedProject": "selected project",
+      "projectPath": "project path",
+      "noneDetected": "none detected",
+      "noUrl": "No URL",
+      "global": "global",
+      "noSource": "No source",
+      "regressionSuite": "Regression suite",
+      "demoTask": "Demo task",
+      "provider": "provider",
+      "reviewRequired": "Review required.",
+      "notAvailable": "not available"
+    },
+    "capabilities": {
+      "partner": "can approve actions, manage secrets, and use shell",
+      "projectScoped": "project-scoped access only"
+    },
+    "teamAccess": {
+      "title": "How collaborators get access",
+      "stepUsers": "Create a sub-user",
+      "stepUsersDescription": "Create the person in Admin system with a global role such as member, viewer, project_worker, or project_partner.",
+      "stepRole": "Assign project role",
+      "stepRoleDescription": "Add the same user as a project collaborator so they only see and operate on the projects you choose.",
+      "stepLink": "Share an access path",
+      "stepLinkDescription": "Give them the Tailscale, Cloudflare Tunnel, custom domain, or LAN URL configured in Self-hosted access.",
+      "paths": "Available access links"
+    },
+    "badges": {
+      "public": "public",
+      "private": "private"
+    },
+    "empty": {
+      "noAuditEvents": "No audit events yet.",
+      "noRemoteAccessConfigs": "No remote access configs yet.",
+      "noReviewItems": "No review items yet.",
+      "noRecentJobs": "No recent jobs yet.",
+      "noRecentCheckpoints": "No recent checkpoints yet.",
+      "noSubUsers": "No sub-users yet.",
+      "noCollaborators": "No project collaborators yet.",
+      "noAccessPaths": "No access paths configured yet.",
+      "noIncludedEnvNames": "No included env names yet.",
+      "noSecrets": "No secrets yet.",
+      "noMarketplaceEntries": "No marketplace entries yet.",
+      "noSuites": "No suites yet.",
+      "noRuns": "No runs yet.",
+      "usageSummary": "Usage appears here after provider or workflow events are recorded.",
+      "noSecurityAudits": "No security audits yet.",
+      "noAuditMatches": "No audit entries match the current filter."
+    }
   }
 }

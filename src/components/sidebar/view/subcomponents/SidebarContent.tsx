@@ -58,6 +58,7 @@ type SidebarContentProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onQuickStartSession?: () => void | Promise<void>;
+  onOpenControlRoom?: () => void;
   onCollapseSidebar: () => void;
   updateAvailable: boolean;
   releaseInfo: ReleaseInfo | null;
@@ -90,6 +91,7 @@ export default function SidebarContent({
   isRefreshing,
   onCreateProject,
   onQuickStartSession,
+  onOpenControlRoom,
   onCollapseSidebar,
   updateAvailable,
   releaseInfo,
@@ -242,6 +244,7 @@ export default function SidebarContent({
         latestVersion={latestVersion}
         currentVersion={currentVersion}
         onShowVersionModal={onShowVersionModal}
+        onOpenControlRoom={onOpenControlRoom}
         onShowSettings={onShowSettings}
         t={t}
       />

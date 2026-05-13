@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
 
-import { Settings, ArrowUpCircle, Bug } from '@/lib/icons';
+import { Settings, ArrowUpCircle, Bug, Sparkles } from '@/lib/icons';
 
 const GITHUB_ISSUES_URL = 'https://github.com/alicomert/pixcode/issues/new';
 const GITHUB_REPO_URL = 'https://github.com/alicomert/pixcode';
@@ -24,6 +24,7 @@ type SidebarFooterProps = {
   latestVersion: string | null;
   currentVersion: string;
   onShowVersionModal: () => void;
+  onOpenControlRoom?: () => void;
   onShowSettings: () => void;
   t: TFunction;
 };
@@ -34,6 +35,7 @@ export default function SidebarFooter({
   latestVersion,
   currentVersion,
   onShowVersionModal,
+  onOpenControlRoom,
   onShowSettings,
   t,
 }: SidebarFooterProps) {
@@ -116,6 +118,28 @@ export default function SidebarFooter({
         </a>
       </div>
 
+      {/* Desktop Control Room */}
+      {onOpenControlRoom && (
+        <div className="hidden px-2 pt-1.5 md:block">
+          <button
+            className="group flex w-full items-center gap-2.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-2 text-left transition-colors hover:bg-primary/10"
+            onClick={onOpenControlRoom}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Sparkles className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-foreground">
+                {t('actions.controlRoom', { defaultValue: 'Control Room' })}
+              </span>
+              <span className="block truncate text-[10px] text-muted-foreground">
+                {t('actions.controlRoomDescription', { defaultValue: 'Admin, access, runs' })}
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* Desktop settings */}
       <div className="hidden px-2 py-1.5 md:block">
         <button
@@ -170,6 +194,28 @@ export default function SidebarFooter({
           <span className="text-base font-medium text-foreground">{t('actions.joinCommunity')}</span>
         </a>
       </div>
+
+      {/* Mobile Control Room */}
+      {onOpenControlRoom && (
+        <div className="px-3 pt-2 md:hidden">
+          <button
+            className="flex h-14 w-full items-center gap-3.5 rounded-xl border border-primary/25 bg-primary/10 px-4 transition-all hover:bg-primary/15 active:scale-[0.98]"
+            onClick={onOpenControlRoom}
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
+              <Sparkles className="w-4.5 h-4.5 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-base font-semibold text-foreground">
+                {t('actions.controlRoom', { defaultValue: 'Control Room' })}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {t('actions.controlRoomDescription', { defaultValue: 'Admin, access, runs' })}
+              </span>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Mobile settings */}
       <div className="px-3 pb-3 pt-2 md:hidden">

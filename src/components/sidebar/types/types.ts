@@ -35,6 +35,7 @@ export type SidebarProps = {
    *  SidebarHeader's "New chat" button and to MainContentStateView's
    *  primary CTA in the no-project landing state. */
   onQuickStartSession?: () => void | Promise<void>;
+  onOpenControlRoom?: () => void;
   onSessionDelete?: (sessionId: string) => void;
   onProjectDelete?: (projectName: string) => void;
   isLoading: boolean;

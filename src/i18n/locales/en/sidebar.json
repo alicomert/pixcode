@@ -83,7 +83,9 @@
     "unstarSession": "Remove star",
     "joinCommunity": "Join Community",
     "reportIssue": "Report Issue",
-    "starOnGithub": "Star on GitHub"
+    "starOnGithub": "Star on GitHub",
+    "controlRoom": "Control Room",
+    "controlRoomDescription": "Admin, access, runs"
   },
   "branding": {
     "openSource": "Open Source"

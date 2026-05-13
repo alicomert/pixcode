@@ -68,7 +68,9 @@
     "rename": "重命名",
     "joinCommunity": "加入社区",
     "reportIssue": "报告问题",
-    "starOnGithub": "在GitHub上加星"
+    "starOnGithub": "在GitHub上加星",
+    "controlRoom": "控制室",
+    "controlRoomDescription": "管理、访问、运行"
   },
   "branding": {
     "openSource": "开源"

@@ -16,7 +16,6 @@ import {
   FileCode,
   Globe,
   ClipboardCheck,
-  Sparkles,
   Workflow,
   Smartphone,
   X,
@@ -56,7 +55,6 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'chat',  labelKey: 'tabs.chat',  icon: MessageSquare },
   { kind: 'builtin', id: 'orchestration', labelKey: 'tabs.orchestration', icon: Workflow },
   { kind: 'builtin', id: 'remote', labelKey: 'tabs.remote', icon: Smartphone },
-  { kind: 'builtin', id: 'controlRoom', labelKey: 'tabs.controlRoom', icon: Sparkles },
   { kind: 'builtin', id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
@@ -136,9 +134,7 @@ export default function MainContentTabSwitcher({
                     className="flex h-3.5 w-3.5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
                   />
                 )}
-                <span className={tab.id === 'controlRoom' ? 'inline' : 'hidden lg:inline'}>
-                  {displayLabel}
-                </span>
+                <span className="hidden lg:inline">{displayLabel}</span>
                 {tab.id === 'liveView' && liveViewAvailable && (
                   <span
                     className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]"

@@ -121,7 +121,7 @@ const isUpdateAdditive = (
   );
 };
 
-const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'files', 'shell', 'git', 'changes', 'liveView', 'tasks', 'preview']);
+const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'controlRoom', 'files', 'shell', 'git', 'changes', 'liveView', 'tasks', 'preview']);
 
 const isValidTab = (tab: string): tab is AppTab => {
   return VALID_TABS.has(tab) || tab.startsWith('plugin:');
@@ -595,6 +595,15 @@ export function useProjectsState({
     [isMobile, navigate],
   );
 
+  const handleOpenControlRoom = useCallback(() => {
+    setSelectedSession(null);
+    setActiveTab('controlRoom');
+    navigate('/');
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [isMobile, navigate]);
+
   const handleSessionDelete = useCallback(
     (sessionIdToDelete: string) => {
       if (selectedSession?.id === sessionIdToDelete) {
@@ -685,6 +694,7 @@ export function useProjectsState({
       onNewSession: handleNewSession,
       onProjectCreated: openProjectChat,
       onQuickStartSession: handleQuickStartSession,
+      onOpenControlRoom: handleOpenControlRoom,
       onOpenOrchestration: handleOpenOrchestration,
       onSessionDelete: handleSessionDelete,
       onProjectDelete: handleProjectDelete,
@@ -699,6 +709,7 @@ export function useProjectsState({
     }),
     [
       handleNewSession,
+      handleOpenControlRoom,
       handleOpenOrchestration,
       openProjectChat,
       handleQuickStartSession,

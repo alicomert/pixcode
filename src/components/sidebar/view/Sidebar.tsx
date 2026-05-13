@@ -33,6 +33,7 @@ function Sidebar({
   onProjectCreated,
   onOpenOrchestration,
   onQuickStartSession,
+  onOpenControlRoom,
   onSessionDelete,
   onProjectDelete,
   isLoading,
@@ -313,6 +314,7 @@ function Sidebar({
       {isSidebarCollapsed ? (
         <SidebarCollapsed
           onExpand={handleExpandSidebar}
+          onOpenControlRoom={onOpenControlRoom}
           onShowSettings={onShowSettings}
           updateAvailable={updateAvailable}
           onShowVersionModal={() => setShowVersionModal(true)}
@@ -365,6 +367,7 @@ function Sidebar({
             isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
             onQuickStartSession={onQuickStartSession}
+            onOpenControlRoom={onOpenControlRoom}
             onCollapseSidebar={handleCollapseSidebar}
             updateAvailable={updateAvailable}
             releaseInfo={releaseInfo}

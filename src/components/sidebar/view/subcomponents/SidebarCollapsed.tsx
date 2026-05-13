@@ -15,6 +15,7 @@ function DiscordIcon({ className }: { className?: string }) {
 
 type SidebarCollapsedProps = {
   onExpand: () => void;
+  onOpenControlRoom?: () => void;
   onShowSettings: () => void;
   updateAvailable: boolean;
   onShowVersionModal: () => void;
@@ -23,6 +24,7 @@ type SidebarCollapsedProps = {
 
 export default function SidebarCollapsed({
   onExpand,
+  onOpenControlRoom,
   onShowSettings,
   updateAvailable,
   onShowVersionModal,
@@ -41,6 +43,18 @@ export default function SidebarCollapsed({
       </button>
 
       <div className="nav-divider my-1 w-6" />
+
+      {/* Control Room */}
+      {onOpenControlRoom && (
+        <button
+          onClick={onOpenControlRoom}
+          className="group flex h-8 w-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 transition-colors hover:bg-primary/15"
+          aria-label={t('actions.controlRoom', { defaultValue: 'Control Room' })}
+          title={t('actions.controlRoom', { defaultValue: 'Control Room' })}
+        >
+          <Sparkles className="h-4 w-4 text-primary" />
+        </button>
+      )}
 
       {/* Settings */}
       <button

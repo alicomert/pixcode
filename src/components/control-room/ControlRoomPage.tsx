@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode, type TextareaHTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { Project } from '../../types/app';
 import { Badge, Button, Input } from '../../shared/view/ui';
@@ -74,17 +75,17 @@ type Snapshot = {
   remoteAccess: RemoteAccessState;
 };
 
-const sections: Array<{ id: SectionId; label: string; icon: LucideIcon }> = [
-  { id: 'overview', label: 'Overview', icon: Sparkles },
-  { id: 'production', label: 'Production', icon: GitBranch },
-  { id: 'admin', label: 'Admin', icon: Lock },
-  { id: 'team', label: 'Team', icon: Users },
-  { id: 'secrets', label: 'Secrets', icon: Key },
-  { id: 'marketplace', label: 'Marketplace', icon: Server },
-  { id: 'eval', label: 'Evaluation', icon: Workflow },
-  { id: 'usage', label: 'Usage', icon: BarChart3 },
-  { id: 'security', label: 'Security', icon: ShieldAlert },
-  { id: 'access', label: 'Access', icon: Cloud },
+const sections: Array<{ id: SectionId; label: string; defaultLabel: string; icon: LucideIcon }> = [
+  { id: 'overview', label: 'nav.overview', defaultLabel: 'Overview', icon: Sparkles },
+  { id: 'production', label: 'nav.production', defaultLabel: 'Production', icon: GitBranch },
+  { id: 'admin', label: 'nav.admin', defaultLabel: 'Admin', icon: Lock },
+  { id: 'team', label: 'nav.team', defaultLabel: 'Team', icon: Users },
+  { id: 'secrets', label: 'nav.secrets', defaultLabel: 'Secrets', icon: Key },
+  { id: 'marketplace', label: 'nav.marketplace', defaultLabel: 'Marketplace', icon: Server },
+  { id: 'eval', label: 'nav.eval', defaultLabel: 'Evaluations', icon: Workflow },
+  { id: 'usage', label: 'nav.usage', defaultLabel: 'Usage', icon: BarChart3 },
+  { id: 'security', label: 'nav.security', defaultLabel: 'Security', icon: ShieldAlert },
+  { id: 'access', label: 'nav.access', defaultLabel: 'Access', icon: Cloud },
 ];
 
 const providerOptions = ['opencode', 'claude', 'codex', 'cursor', 'gemini', 'qwen'];
@@ -160,6 +161,7 @@ async function readJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export default function ControlRoomPage({ selectedProject }: ControlRoomPageProps) {
+  const { t } = useTranslation('common');
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
   const [loading, setLoading] = useState(false);
@@ -196,6 +198,9 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
 
   const defaultProjectName = selectedProject?.name || selectedProject?.displayName || '';
   const defaultProjectPath = selectedProject?.path || selectedProject?.fullPath || '';
+  const cr = useCallback((key: string, defaultValue: string, values?: Record<string, unknown>) => (
+    t(`controlRoom.${key}`, { defaultValue, ...values })
+  ), [t]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -258,15 +263,17 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Sparkles className="h-4 w-4" />
-            Control room
+            {cr('title', 'Control room')}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
-            Production, platform, admin, audit, and self-hosted access for {selectedProject?.displayName || 'this server'}
+            {cr('subtitle', 'Production, platform, admin, audit, and self-hosted access for {{target}}', {
+              target: selectedProject?.displayName || cr('thisServer', 'this server'),
+            })}
           </div>
         </div>
         <Button size="sm" variant="outline" onClick={() => { void refresh(); }} disabled={loading}>
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {cr('refresh', 'Refresh')}
         </Button>
       </div>
 
@@ -288,7 +295,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  <span>{section.label}</span>
+                  <span>{cr(section.label, section.defaultLabel)}</span>
                 </button>
               );
             })}
@@ -300,24 +307,27 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
           {notice && <StatusBanner tone="success" text={notice} />}
 
           {activeSection === 'overview' && (
-            <Section title="v1.46 launch surface" description="Every box below is backed by a v1.44-v1.45 API and is now visible from the UI.">
+            <Section
+              title={cr('overview.title', 'v1.46 launch surface')}
+              description={cr('overview.description', 'Every box below is backed by a v1.44-v1.45 API and is now visible from the UI.')}
+            >
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Metric label="Issue-to-PR runs" value={totals.issueRuns} icon={GitBranch} />
-                <Metric label="Review items" value={totals.reviews} icon={FileCode} />
-                <Metric label="Sub-users" value={totals.users} icon={Users} />
-                <Metric label="Project collaborators" value={totals.collaborators} icon={Users} />
-                <Metric label="Scoped secrets" value={totals.secrets} icon={Key} />
-                <Metric label="Marketplace entries" value={totals.plugins} icon={Server} />
-                <Metric label="Evaluation runs" value={totals.evalRuns} icon={Workflow} />
-                <Metric label="Security audits" value={totals.audits} icon={ShieldAlert} />
+                <Metric label={cr('metrics.issueRuns', 'Issue-to-PR runs')} value={totals.issueRuns} icon={GitBranch} />
+                <Metric label={cr('metrics.reviewItems', 'Review items')} value={totals.reviews} icon={FileCode} />
+                <Metric label={cr('metrics.subUsers', 'Sub-users')} value={totals.users} icon={Users} />
+                <Metric label={cr('metrics.collaborators', 'Project collaborators')} value={totals.collaborators} icon={Users} />
+                <Metric label={cr('metrics.secrets', 'Scoped secrets')} value={totals.secrets} icon={Key} />
+                <Metric label={cr('metrics.marketplace', 'Marketplace entries')} value={totals.plugins} icon={Server} />
+                <Metric label={cr('metrics.evalRuns', 'Evaluation runs')} value={totals.evalRuns} icon={Workflow} />
+                <Metric label={cr('metrics.securityAudits', 'Security audits')} value={totals.audits} icon={ShieldAlert} />
               </div>
               <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                <ListPanel title="Latest audit events" empty="No audit events yet.">
+                <ListPanel title={cr('overview.latestAuditEvents', 'Latest audit events')} empty={cr('empty.noAuditEvents', 'No audit events yet.')}>
                   {(snapshot.platform.auditLog || []).slice(0, 6).map((entry) => (
                     <AuditRow key={entry.id} entry={entry} />
                   ))}
                 </ListPanel>
-                <ListPanel title="Remote access options" empty="No remote access configs yet.">
+                <ListPanel title={cr('overview.remoteAccessOptions', 'Remote access options')} empty={cr('empty.noRemoteAccessConfigs', 'No remote access configs yet.')}>
                   {(snapshot.remoteAccess.recommendations || []).map((item) => (
                     <div key={item.mode} className="border-b border-border/50 px-3 py-3 last:border-b-0">
                       <div className="text-sm font-medium text-foreground">{item.label}</div>
@@ -330,22 +340,25 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
           )}
 
           {activeSection === 'production' && (
-            <Section title="Production loop" description="Start issue-to-PR runs, parse CI failures, review changes, schedule background jobs, and create checkpoints.">
+            <Section
+              title={cr('sections.production.title', 'Production loop')}
+              description={cr('sections.production.description', 'Start issue-to-PR runs, parse CI failures, review changes, schedule background jobs, and create checkpoints.')}
+            >
               <div className="grid gap-4 xl:grid-cols-2">
-                <Panel title="Issue-to-PR run">
-                  <Input placeholder="GitHub issue URL" value={issueForm.issueUrl} onChange={(e) => setIssueForm({ ...issueForm, issueUrl: e.target.value })} />
+                <Panel title={cr('panels.issueToPr', 'Issue-to-PR run')}>
+                  <Input placeholder={cr('placeholders.githubIssueUrl', 'GitHub issue URL')} value={issueForm.issueUrl} onChange={(e) => setIssueForm({ ...issueForm, issueUrl: e.target.value })} />
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <Input placeholder="Manual title fallback" value={issueForm.title} onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })} />
-                    <Input placeholder="Model" value={issueForm.model} onChange={(e) => setIssueForm({ ...issueForm, model: e.target.value })} />
+                    <Input placeholder={cr('placeholders.manualTitle', 'Manual title fallback')} value={issueForm.title} onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })} />
+                    <Input placeholder={cr('placeholders.model', 'Model')} value={issueForm.model} onChange={(e) => setIssueForm({ ...issueForm, model: e.target.value })} />
                     <Select value={issueForm.provider} onChange={(value) => setIssueForm({ ...issueForm, provider: value })} options={providerOptions} />
-                    <Input placeholder="Base branch" value={issueForm.baseBranch} onChange={(e) => setIssueForm({ ...issueForm, baseBranch: e.target.value })} />
+                    <Input placeholder={cr('placeholders.baseBranch', 'Base branch')} value={issueForm.baseBranch} onChange={(e) => setIssueForm({ ...issueForm, baseBranch: e.target.value })} />
                   </div>
                   <Textarea className="mt-2" rows={4} value={issueForm.acceptanceCriteria} onChange={(e) => setIssueForm({ ...issueForm, acceptanceCriteria: e.target.value })} />
                   <PreviewBlock lines={[
-                    `project: ${defaultProjectName || 'selected project'}`,
-                    `path: ${defaultProjectPath || 'project path'}`,
-                    `provider/model: ${issueForm.provider}${issueForm.model ? `/${issueForm.model}` : ''}`,
-                    `branch: pixcode/issue-auto-${compact(issueForm.title || issueForm.issueUrl || 'task', 32).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+                    `${cr('labels.project', 'project')}: ${defaultProjectName || cr('fallback.selectedProject', 'selected project')}`,
+                    `${cr('labels.path', 'path')}: ${defaultProjectPath || cr('fallback.projectPath', 'project path')}`,
+                    `${cr('labels.providerModel', 'provider/model')}: ${issueForm.provider}${issueForm.model ? `/${issueForm.model}` : ''}`,
+                    `${cr('labels.branch', 'branch')}: pixcode/issue-auto-${compact(issueForm.title || issueForm.issueUrl || 'task', 32).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
                   ]} />
                   <Button className="mt-3" onClick={() => action('Issue-to-PR run queued.', async () => {
                     await readJson('/api/production-agent-loop/github/issue-to-pr', {
@@ -359,12 +372,12 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                     });
                   })}>
                     <Plus className="h-4 w-4" />
-                    Queue run
+                    {cr('buttons.queueRun', 'Queue run')}
                   </Button>
                 </Panel>
 
-                <Panel title="CI repair parser">
-                  <Textarea rows={8} placeholder="Paste failing CI, lint, typecheck, or build output" value={ciLog} onChange={(e) => setCiLog(e.target.value)} />
+                <Panel title={cr('panels.ciRepair', 'CI repair parser')}>
+                  <Textarea rows={8} placeholder={cr('placeholders.ciLog', 'Paste failing CI, lint, typecheck, or build output')} value={ciLog} onChange={(e) => setCiLog(e.target.value)} />
                   <Button className="mt-3" variant="outline" onClick={() => action('CI repair plan generated.', async () => {
                     const data = await readJson<{ repairPlan: any }>('/api/production-agent-loop/ci/repair-plan', {
                       method: 'POST',
@@ -373,21 +386,21 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                     setRepairPlan(data.repairPlan);
                   })}>
                     <Search className="h-4 w-4" />
-                    Parse failure
+                    {cr('buttons.parseFailure', 'Parse failure')}
                   </Button>
                   {repairPlan && (
                     <div className="mt-3 rounded-md border border-border/60 bg-muted/20 p-3 text-xs">
-                      <div className="font-medium text-foreground">Failed commands: {repairPlan.failedCommands?.join(', ') || 'none detected'}</div>
-                      <div className="mt-1 text-muted-foreground">Files: {repairPlan.files?.join(', ') || 'none detected'}</div>
+                      <div className="font-medium text-foreground">{cr('labels.failedCommands', 'Failed commands')}: {repairPlan.failedCommands?.join(', ') || cr('fallback.noneDetected', 'none detected')}</div>
+                      <div className="mt-1 text-muted-foreground">{cr('labels.files', 'Files')}: {repairPlan.files?.join(', ') || cr('fallback.noneDetected', 'none detected')}</div>
                       <pre className="mt-2 whitespace-pre-wrap rounded bg-background p-2 text-[11px] text-muted-foreground">{repairPlan.repairPrompt}</pre>
                     </div>
                   )}
                 </Panel>
 
-                <Panel title="Review queue">
-                  <Input placeholder="Review title" value={reviewForm.title} onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })} />
-                  <Textarea className="mt-2" rows={3} placeholder="Notes" value={reviewForm.notes} onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })} />
-                  <Textarea className="mt-2" rows={3} placeholder="Changed files, one per line" value={reviewForm.changedFiles} onChange={(e) => setReviewForm({ ...reviewForm, changedFiles: e.target.value })} />
+                <Panel title={cr('panels.reviewQueue', 'Review queue')}>
+                  <Input placeholder={cr('placeholders.reviewTitle', 'Review title')} value={reviewForm.title} onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })} />
+                  <Textarea className="mt-2" rows={3} placeholder={cr('placeholders.notes', 'Notes')} value={reviewForm.notes} onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })} />
+                  <Textarea className="mt-2" rows={3} placeholder={cr('placeholders.changedFiles', 'Changed files, one per line')} value={reviewForm.changedFiles} onChange={(e) => setReviewForm({ ...reviewForm, changedFiles: e.target.value })} />
                   <Button className="mt-3" onClick={() => action('Review item created.', async () => {
                     await readJson('/api/production-agent-loop/review-queue', {
                       method: 'POST',
@@ -400,7 +413,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                       }),
                     });
                   })}>
-                    Create review item
+                    {cr('buttons.createReviewItem', 'Create review item')}
                   </Button>
                   <div className="mt-3 divide-y divide-border/50 rounded-md border border-border/60">
                     {(snapshot.production.reviewQueue || []).slice(0, 5).map((item) => (
@@ -421,26 +434,26 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                         </div>
                       </div>
                     ))}
-                    {(snapshot.production.reviewQueue || []).length === 0 && <Empty text="No review items yet." />}
+                    {(snapshot.production.reviewQueue || []).length === 0 && <Empty text={cr('empty.noReviewItems', 'No review items yet.')} />}
                   </div>
                 </Panel>
 
-                <Panel title="Scheduler and checkpoints">
+                <Panel title={cr('panels.schedulerCheckpoints', 'Scheduler and checkpoints')}>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Input placeholder="Job name" value={schedulerForm.name} onChange={(e) => setSchedulerForm({ ...schedulerForm, name: e.target.value })} />
+                    <Input placeholder={cr('placeholders.jobName', 'Job name')} value={schedulerForm.name} onChange={(e) => setSchedulerForm({ ...schedulerForm, name: e.target.value })} />
                     <Select value={schedulerForm.mode} onChange={(value) => setSchedulerForm({ ...schedulerForm, mode: value })} options={['manual', 'watch', 'cron']} />
-                    <Input placeholder="Cron or watch expression" value={schedulerForm.cron} onChange={(e) => setSchedulerForm({ ...schedulerForm, cron: e.target.value })} />
-                    <Input placeholder="Checkpoint reason" value={checkpointForm.reason} onChange={(e) => setCheckpointForm({ ...checkpointForm, reason: e.target.value })} />
+                    <Input placeholder={cr('placeholders.cronExpression', 'Cron or watch expression')} value={schedulerForm.cron} onChange={(e) => setSchedulerForm({ ...schedulerForm, cron: e.target.value })} />
+                    <Input placeholder={cr('placeholders.checkpointReason', 'Checkpoint reason')} value={checkpointForm.reason} onChange={(e) => setCheckpointForm({ ...checkpointForm, reason: e.target.value })} />
                   </div>
-                  <Textarea className="mt-2" rows={3} placeholder="Background agent prompt" value={schedulerForm.prompt} onChange={(e) => setSchedulerForm({ ...schedulerForm, prompt: e.target.value })} />
-                  <Textarea className="mt-2" rows={3} placeholder="Checkpoint changed files, one per line" value={checkpointForm.changedFiles} onChange={(e) => setCheckpointForm({ ...checkpointForm, changedFiles: e.target.value })} />
+                  <Textarea className="mt-2" rows={3} placeholder={cr('placeholders.backgroundPrompt', 'Background agent prompt')} value={schedulerForm.prompt} onChange={(e) => setSchedulerForm({ ...schedulerForm, prompt: e.target.value })} />
+                  <Textarea className="mt-2" rows={3} placeholder={cr('placeholders.checkpointFiles', 'Checkpoint changed files, one per line')} value={checkpointForm.changedFiles} onChange={(e) => setCheckpointForm({ ...checkpointForm, changedFiles: e.target.value })} />
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button onClick={() => action('Background job scheduled.', async () => {
                       await readJson('/api/production-agent-loop/scheduler/jobs', {
                         method: 'POST',
                         body: JSON.stringify({ ...schedulerForm, projectName: defaultProjectName, provider: issueForm.provider }),
                       });
-                    })}>Schedule job</Button>
+                    })}>{cr('buttons.scheduleJob', 'Schedule job')}</Button>
                     <Button variant="outline" onClick={() => action('Workspace checkpoint created.', async () => {
                       await readJson('/api/production-agent-loop/snapshots', {
                         method: 'POST',
@@ -452,21 +465,24 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                           changedFiles: toLines(checkpointForm.changedFiles),
                         }),
                       });
-                    })}>Create checkpoint</Button>
+                    })}>{cr('buttons.createCheckpoint', 'Create checkpoint')}</Button>
                   </div>
-                  <MiniList title="Recent jobs" items={snapshot.production.schedulerJobs || []} render={(job) => `${job.name} - ${job.mode} - ${job.status}`} />
-                  <MiniList title="Recent checkpoints" items={snapshot.production.checkpoints || []} render={(checkpoint) => `${checkpoint.reason} - ${formatDate(checkpoint.createdAt)}`} />
+                  <MiniList title={cr('lists.recentJobs', 'Recent jobs')} empty={cr('empty.noRecentJobs', 'No recent jobs yet.')} items={snapshot.production.schedulerJobs || []} render={(job) => `${job.name} - ${job.mode} - ${job.status}`} />
+                  <MiniList title={cr('lists.recentCheckpoints', 'Recent checkpoints')} empty={cr('empty.noRecentCheckpoints', 'No recent checkpoints yet.')} items={snapshot.production.checkpoints || []} render={(checkpoint) => `${checkpoint.reason} - ${formatDate(checkpoint.createdAt)}`} />
                 </Panel>
               </div>
             </Section>
           )}
 
           {activeSection === 'admin' && (
-            <Section title="Admin system" description="Create sub-users, disable accounts, and inspect activity for a single self-hosted Pixcode server.">
+            <Section
+              title={cr('sections.admin.title', 'Admin system')}
+              description={cr('sections.admin.description', 'Create sub-users, disable accounts, and inspect activity for a single self-hosted Pixcode server.')}
+            >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                <Panel title="Create sub-user">
-                  <Input placeholder="Username or email" value={adminForm.username} onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })} />
-                  <Input className="mt-2" type="password" placeholder="Temporary password" value={adminForm.password} onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })} />
+                <Panel title={cr('panels.createSubUser', 'Create sub-user')}>
+                  <Input placeholder={cr('placeholders.usernameEmail', 'Username or email')} value={adminForm.username} onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })} />
+                  <Input className="mt-2" type="password" placeholder={cr('placeholders.temporaryPassword', 'Temporary password')} value={adminForm.password} onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })} />
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     <Select value={adminForm.role} onChange={(value) => setAdminForm({ ...adminForm, role: value })} options={roleOptions} />
                     <Select value={adminForm.status} onChange={(value) => setAdminForm({ ...adminForm, status: value })} options={['active', 'disabled']} />
@@ -479,16 +495,16 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                     setAdminForm({ ...adminForm, username: '', password: '' });
                   })}>
                     <Users className="h-4 w-4" />
-                    Create user
+                    {cr('buttons.createUser', 'Create user')}
                   </Button>
                 </Panel>
-                <ListPanel title="Sub-users" empty="No sub-users yet.">
+                <ListPanel title={cr('lists.subUsers', 'Sub-users')} empty={cr('empty.noSubUsers', 'No sub-users yet.')}>
                   {(snapshot.platform.adminUsers || []).map((user) => (
                     <div key={user.id} className="border-b border-border/50 px-3 py-3 last:border-b-0">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-medium text-foreground">{user.username}</div>
-                          <div className="text-xs text-muted-foreground">Last active: {formatDate(user.lastLogin)}</div>
+                          <div className="text-xs text-muted-foreground">{cr('labels.lastActive', 'Last active')}: {formatDate(user.lastLogin)}</div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="secondary">{user.role || 'member'}</Badge>
@@ -501,32 +517,37 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                             method: 'PATCH',
                             body: JSON.stringify({ status: 'disabled' }),
                           });
-                        })}>Disable</Button>
+                        })}>{cr('buttons.disable', 'Disable')}</Button>
                         <Button size="sm" variant="outline" onClick={() => action('User enabled.', async () => {
                           await readJson(`/api/platformization/admin/users/${user.id}`, {
                             method: 'PATCH',
                             body: JSON.stringify({ status: 'active' }),
                           });
-                        })}>Enable</Button>
+                        })}>{cr('buttons.enable', 'Enable')}</Button>
                       </div>
                     </div>
                   ))}
                 </ListPanel>
               </div>
-              <RoleMatrix roles={snapshot.platform.roles || {}} />
+              <RoleMatrix title={cr('panels.rolePermissions', 'Role permissions')} roles={snapshot.platform.roles || {}} />
             </Section>
           )}
 
           {activeSection === 'team' && (
-            <Section title="Project collaborators" description="Assign partners, workers, reviewers, and viewers per project without making everyone a global admin.">
+            <Section
+              title={cr('sections.team.title', 'Project collaborators')}
+              description={cr('sections.team.description', 'Assign partners, workers, reviewers, and viewers per project without making everyone a global admin.')}
+            >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                <Panel title="Add collaborator">
-                  <Input placeholder="User email or username" value={collaboratorForm.userRef} onChange={(e) => setCollaboratorForm({ ...collaboratorForm, userRef: e.target.value })} />
+                <Panel title={cr('panels.addCollaborator', 'Add collaborator')}>
+                  <Input placeholder={cr('placeholders.userEmailUsername', 'User email or username')} value={collaboratorForm.userRef} onChange={(e) => setCollaboratorForm({ ...collaboratorForm, userRef: e.target.value })} />
                   <Select className="mt-2" value={collaboratorForm.role} onChange={(value) => setCollaboratorForm({ ...collaboratorForm, role: value })} options={collaboratorRoles} />
                   <PreviewBlock lines={[
-                    `project: ${defaultProjectName || 'selected project'}`,
-                    `role: ${collaboratorForm.role}`,
-                    collaboratorForm.role === 'partner' ? 'can approve actions, manage secrets, and use shell' : 'project-scoped access only',
+                    `${cr('labels.project', 'project')}: ${defaultProjectName || cr('fallback.selectedProject', 'selected project')}`,
+                    `${cr('labels.role', 'role')}: ${collaboratorForm.role}`,
+                    collaboratorForm.role === 'partner'
+                      ? cr('capabilities.partner', 'can approve actions, manage secrets, and use shell')
+                      : cr('capabilities.projectScoped', 'project-scoped access only'),
                   ]} />
                   <Button className="mt-3" onClick={() => action('Project collaborator added.', async () => {
                     await readJson('/api/platformization/project-collaborators', {
@@ -537,9 +558,9 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                         projectPath: defaultProjectPath,
                       }),
                     });
-                  })}>Add collaborator</Button>
+                  })}>{cr('buttons.addCollaborator', 'Add collaborator')}</Button>
                 </Panel>
-                <ListPanel title="Collaborators" empty="No project collaborators yet.">
+                <ListPanel title={cr('lists.collaborators', 'Collaborators')} empty={cr('empty.noCollaborators', 'No project collaborators yet.')}>
                   {(snapshot.platform.projectCollaborators || []).map((collaborator) => (
                     <div key={collaborator.id} className="border-b border-border/50 px-3 py-3 last:border-b-0">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -558,32 +579,60 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                   ))}
                 </ListPanel>
               </div>
+              <Panel className="mt-4" title={cr('teamAccess.title', 'How collaborators get access')}>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <AccessStep
+                    index="1"
+                    title={cr('teamAccess.stepUsers', 'Create a sub-user')}
+                    description={cr('teamAccess.stepUsersDescription', 'Create the person in Admin system with a global role such as member, viewer, project_worker, or project_partner.')}
+                  />
+                  <AccessStep
+                    index="2"
+                    title={cr('teamAccess.stepRole', 'Assign project role')}
+                    description={cr('teamAccess.stepRoleDescription', 'Add the same user as a project collaborator so they only see and operate on the projects you choose.')}
+                  />
+                  <AccessStep
+                    index="3"
+                    title={cr('teamAccess.stepLink', 'Share an access path')}
+                    description={cr('teamAccess.stepLinkDescription', 'Give them the Tailscale, Cloudflare Tunnel, custom domain, or LAN URL configured in Self-hosted access.')}
+                  />
+                </div>
+                <MiniList
+                  title={cr('teamAccess.paths', 'Available access links')}
+                  empty={cr('empty.noAccessPaths', 'No access paths configured yet.')}
+                  items={snapshot.remoteAccess.configs || snapshot.platform.remoteAccessConfigs || []}
+                  render={(config) => `${config.label} - ${config.url || snapshot.remoteAccess.localUrl || cr('fallback.noUrl', 'No URL')} - ${config.public ? cr('badges.public', 'public') : cr('badges.private', 'private')}`}
+                />
+              </Panel>
             </Section>
           )}
 
           {activeSection === 'secrets' && (
-            <Section title="Secret vault" description="Store scoped env secrets and preview what each provider, project, workflow, Telegram, or API run receives.">
+            <Section
+              title={cr('sections.secrets.title', 'Secret vault')}
+              description={cr('sections.secrets.description', 'Store scoped env secrets and preview what each provider, project, workflow, Telegram, or API run receives.')}
+            >
               <div className="grid gap-4 xl:grid-cols-2">
-                <Panel title="Create secret">
+                <Panel title={cr('panels.createSecret', 'Create secret')}>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Input placeholder="Secret name" value={secretForm.name} onChange={(e) => setSecretForm({ ...secretForm, name: e.target.value })} />
-                    <Input placeholder="ENV_NAME" value={secretForm.envName} onChange={(e) => setSecretForm({ ...secretForm, envName: e.target.value })} />
+                    <Input placeholder={cr('placeholders.secretName', 'Secret name')} value={secretForm.name} onChange={(e) => setSecretForm({ ...secretForm, name: e.target.value })} />
+                    <Input placeholder={cr('placeholders.envName', 'ENV_NAME')} value={secretForm.envName} onChange={(e) => setSecretForm({ ...secretForm, envName: e.target.value })} />
                     <Select value={secretForm.scope} onChange={(value) => setSecretForm({ ...secretForm, scope: value })} options={secretScopes} />
-                    <Input placeholder="Target project/provider/workflow" value={secretForm.target || defaultProjectPath} onChange={(e) => setSecretForm({ ...secretForm, target: e.target.value })} />
+                    <Input placeholder={cr('placeholders.secretTarget', 'Target project/provider/workflow')} value={secretForm.target || defaultProjectPath} onChange={(e) => setSecretForm({ ...secretForm, target: e.target.value })} />
                   </div>
-                  <Input className="mt-2" type="password" placeholder="Secret value" value={secretForm.value} onChange={(e) => setSecretForm({ ...secretForm, value: e.target.value })} />
+                  <Input className="mt-2" type="password" placeholder={cr('placeholders.secretValue', 'Secret value')} value={secretForm.value} onChange={(e) => setSecretForm({ ...secretForm, value: e.target.value })} />
                   <Button className="mt-3" onClick={() => action('Secret stored in the vault.', async () => {
                     await readJson('/api/platformization/secrets', {
                       method: 'POST',
                       body: JSON.stringify({ ...secretForm, target: secretForm.target || defaultProjectPath }),
                     });
                     setSecretForm({ ...secretForm, value: '' });
-                  })}>Store secret</Button>
+                  })}>{cr('buttons.storeSecret', 'Store secret')}</Button>
                 </Panel>
-                <Panel title="Scoped env preview">
+                <Panel title={cr('panels.scopedEnvPreview', 'Scoped env preview')}>
                   <div className="grid gap-2 sm:grid-cols-3">
                     <Select value={scopedEnvForm.provider} onChange={(value) => setScopedEnvForm({ ...scopedEnvForm, provider: value })} options={providerOptions} />
-                    <Input placeholder="Workflow id" value={scopedEnvForm.workflowId} onChange={(e) => setScopedEnvForm({ ...scopedEnvForm, workflowId: e.target.value })} />
+                    <Input placeholder={cr('placeholders.workflowId', 'Workflow id')} value={scopedEnvForm.workflowId} onChange={(e) => setScopedEnvForm({ ...scopedEnvForm, workflowId: e.target.value })} />
                     <Select value={scopedEnvForm.channel} onChange={(value) => setScopedEnvForm({ ...scopedEnvForm, channel: value })} options={['api', 'telegram']} />
                   </div>
                   <Button className="mt-3" variant="outline" onClick={() => action('Scoped env preview generated.', async () => {
@@ -596,16 +645,16 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                       }),
                     });
                     setScopedEnv(data.scopedEnv);
-                  })}>Preview env</Button>
-                  <MiniList title="Included env names" items={scopedEnv?.included || []} render={(item) => `${item.envName} - ${item.scope} - ${item.redacted}`} />
+                  })}>{cr('buttons.previewEnv', 'Preview env')}</Button>
+                  <MiniList title={cr('lists.includedEnvNames', 'Included env names')} empty={cr('empty.noIncludedEnvNames', 'No included env names yet.')} items={scopedEnv?.included || []} render={(item) => `${item.envName} - ${item.scope} - ${item.redacted}`} />
                 </Panel>
               </div>
-              <ListPanel title="Vault entries" empty="No secrets yet.">
+              <ListPanel title={cr('lists.vaultEntries', 'Vault entries')} empty={cr('empty.noSecrets', 'No secrets yet.')}>
                 {(snapshot.platform.secrets || []).map((secret) => (
                   <div key={secret.id} className="grid gap-2 border-b border-border/50 px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-foreground">{secret.envName}</div>
-                      <div className="truncate text-xs text-muted-foreground">{secret.name} - {secret.target || 'global'}</div>
+                      <div className="truncate text-xs text-muted-foreground">{secret.name} - {secret.target || cr('fallback.global', 'global')}</div>
                     </div>
                     <Badge variant="secondary">{secret.scope}</Badge>
                     <span className="font-mono text-xs text-muted-foreground">{secret.redacted}</span>
@@ -616,16 +665,19 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
           )}
 
           {activeSection === 'marketplace' && (
-            <Section title="MCP/plugin marketplace" description="Register MCP servers, workflow templates, provider adapters, and notification channels with permission review and health.">
+            <Section
+              title={cr('sections.marketplace.title', 'MCP/plugin marketplace')}
+              description={cr('sections.marketplace.description', 'Register MCP servers, workflow templates, provider adapters, and notification channels with permission review and health.')}
+            >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                <Panel title="Add marketplace entry">
+                <Panel title={cr('panels.addMarketplaceEntry', 'Add marketplace entry')}>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Input placeholder="Name" value={pluginForm.name} onChange={(e) => setPluginForm({ ...pluginForm, name: e.target.value })} />
+                    <Input placeholder={cr('placeholders.name', 'Name')} value={pluginForm.name} onChange={(e) => setPluginForm({ ...pluginForm, name: e.target.value })} />
                     <Select value={pluginForm.type} onChange={(value) => setPluginForm({ ...pluginForm, type: value })} options={pluginTypes} />
-                    <Input placeholder="Source package or repository" value={pluginForm.source} onChange={(e) => setPluginForm({ ...pluginForm, source: e.target.value })} />
-                    <Input placeholder="Install command" value={pluginForm.installCommand} onChange={(e) => setPluginForm({ ...pluginForm, installCommand: e.target.value })} />
+                    <Input placeholder={cr('placeholders.pluginSource', 'Source package or repository')} value={pluginForm.source} onChange={(e) => setPluginForm({ ...pluginForm, source: e.target.value })} />
+                    <Input placeholder={cr('placeholders.installCommand', 'Install command')} value={pluginForm.installCommand} onChange={(e) => setPluginForm({ ...pluginForm, installCommand: e.target.value })} />
                   </div>
-                  <Textarea className="mt-2" rows={3} placeholder="Permission scopes, one per line" value={pluginForm.permissionScopes} onChange={(e) => setPluginForm({ ...pluginForm, permissionScopes: e.target.value })} />
+                  <Textarea className="mt-2" rows={3} placeholder={cr('placeholders.permissionScopes', 'Permission scopes, one per line')} value={pluginForm.permissionScopes} onChange={(e) => setPluginForm({ ...pluginForm, permissionScopes: e.target.value })} />
                   <Button className="mt-3" onClick={() => action('Marketplace entry saved.', async () => {
                     await readJson('/api/platformization/marketplace/plugins', {
                       method: 'POST',
@@ -634,15 +686,15 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                         permissionScopes: toLines(pluginForm.permissionScopes),
                       }),
                     });
-                  })}>Save entry</Button>
+                  })}>{cr('buttons.saveEntry', 'Save entry')}</Button>
                 </Panel>
-                <ListPanel title="Marketplace entries" empty="No marketplace entries yet.">
+                <ListPanel title={cr('lists.marketplaceEntries', 'Marketplace entries')} empty={cr('empty.noMarketplaceEntries', 'No marketplace entries yet.')}>
                   {(snapshot.platform.marketplacePlugins || []).map((plugin) => (
                     <div key={plugin.id} className="border-b border-border/50 px-3 py-3 last:border-b-0">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="text-sm font-medium text-foreground">{plugin.name}</div>
-                          <div className="text-xs text-muted-foreground">{plugin.source || 'No source'}</div>
+                          <div className="text-xs text-muted-foreground">{plugin.source || cr('fallback.noSource', 'No source')}</div>
                         </div>
                         <div className="flex gap-2">
                           <Badge variant="secondary">{plugin.type}</Badge>
@@ -659,7 +711,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                           method: 'POST',
                           body: JSON.stringify({ status: 'ok', message: 'Manual UI health check recorded.' }),
                         });
-                      })}>Mark healthy</Button>
+                      })}>{cr('buttons.markHealthy', 'Mark healthy')}</Button>
                     </div>
                   ))}
                 </ListPanel>
@@ -668,36 +720,39 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
           )}
 
           {activeSection === 'eval' && (
-            <Section title="Evaluation harness" description="Create regression suites and compare provider/model runs with pass rate and latency.">
+            <Section
+              title={cr('sections.eval.title', 'Evaluation harness')}
+              description={cr('sections.eval.description', 'Create regression suites and compare provider/model runs with pass rate and latency.')}
+            >
               <div className="grid gap-4 xl:grid-cols-2">
-                <Panel title="Create suite">
-                  <Input placeholder="Suite name" value={evalSuiteForm.name} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, name: e.target.value })} />
-                  <Input className="mt-2" placeholder="Description" value={evalSuiteForm.description} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, description: e.target.value })} />
-                  <Input className="mt-2" placeholder="First task title" value={evalSuiteForm.taskTitle} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, taskTitle: e.target.value })} />
-                  <Textarea className="mt-2" rows={3} placeholder="Acceptance criteria, one per line" value={evalSuiteForm.acceptanceCriteria} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, acceptanceCriteria: e.target.value })} />
+                <Panel title={cr('panels.createSuite', 'Create suite')}>
+                  <Input placeholder={cr('placeholders.suiteName', 'Suite name')} value={evalSuiteForm.name} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, name: e.target.value })} />
+                  <Input className="mt-2" placeholder={cr('placeholders.description', 'Description')} value={evalSuiteForm.description} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, description: e.target.value })} />
+                  <Input className="mt-2" placeholder={cr('placeholders.firstTaskTitle', 'First task title')} value={evalSuiteForm.taskTitle} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, taskTitle: e.target.value })} />
+                  <Textarea className="mt-2" rows={3} placeholder={cr('placeholders.acceptanceCriteria', 'Acceptance criteria, one per line')} value={evalSuiteForm.acceptanceCriteria} onChange={(e) => setEvalSuiteForm({ ...evalSuiteForm, acceptanceCriteria: e.target.value })} />
                   <Button className="mt-3" onClick={() => action('Evaluation suite created.', async () => {
                     await readJson('/api/platformization/eval/suites', {
                       method: 'POST',
                       body: JSON.stringify({
-                        name: evalSuiteForm.name || 'Regression suite',
+                        name: evalSuiteForm.name || cr('fallback.regressionSuite', 'Regression suite'),
                         description: evalSuiteForm.description,
                         tasks: [{
-                          title: evalSuiteForm.taskTitle || 'Demo task',
+                          title: evalSuiteForm.taskTitle || cr('fallback.demoTask', 'Demo task'),
                           projectPath: defaultProjectPath,
                           acceptanceCriteria: toLines(evalSuiteForm.acceptanceCriteria),
                         }],
                       }),
                     });
-                  })}>Create suite</Button>
+                  })}>{cr('buttons.createSuite', 'Create suite')}</Button>
                 </Panel>
-                <Panel title="Record run">
+                <Panel title={cr('panels.recordRun', 'Record run')}>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Input placeholder="Suite id" value={evalRunForm.suiteId} onChange={(e) => setEvalRunForm({ ...evalRunForm, suiteId: e.target.value })} />
-                    <Input placeholder="Model" value={evalRunForm.model} onChange={(e) => setEvalRunForm({ ...evalRunForm, model: e.target.value })} />
+                    <Input placeholder={cr('placeholders.suiteId', 'Suite id')} value={evalRunForm.suiteId} onChange={(e) => setEvalRunForm({ ...evalRunForm, suiteId: e.target.value })} />
+                    <Input placeholder={cr('placeholders.model', 'Model')} value={evalRunForm.model} onChange={(e) => setEvalRunForm({ ...evalRunForm, model: e.target.value })} />
                     <Select value={evalRunForm.provider} onChange={(value) => setEvalRunForm({ ...evalRunForm, provider: value })} options={providerOptions} />
-                    <Input placeholder="Latency ms" value={evalRunForm.latencyMs} onChange={(e) => setEvalRunForm({ ...evalRunForm, latencyMs: e.target.value })} />
-                    <Input placeholder="Passed count" value={evalRunForm.passed} onChange={(e) => setEvalRunForm({ ...evalRunForm, passed: e.target.value })} />
-                    <Input placeholder="Failed count" value={evalRunForm.failed} onChange={(e) => setEvalRunForm({ ...evalRunForm, failed: e.target.value })} />
+                    <Input placeholder={cr('placeholders.latencyMs', 'Latency ms')} value={evalRunForm.latencyMs} onChange={(e) => setEvalRunForm({ ...evalRunForm, latencyMs: e.target.value })} />
+                    <Input placeholder={cr('placeholders.passedCount', 'Passed count')} value={evalRunForm.passed} onChange={(e) => setEvalRunForm({ ...evalRunForm, passed: e.target.value })} />
+                    <Input placeholder={cr('placeholders.failedCount', 'Failed count')} value={evalRunForm.failed} onChange={(e) => setEvalRunForm({ ...evalRunForm, failed: e.target.value })} />
                   </div>
                   <Button className="mt-3" onClick={() => action('Evaluation run recorded.', async () => {
                     const passed = Number(evalRunForm.passed || 0);
@@ -710,36 +765,39 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                       method: 'POST',
                       body: JSON.stringify({ ...evalRunForm, results }),
                     });
-                  })}>Record run</Button>
+                  })}>{cr('buttons.recordRun', 'Record run')}</Button>
                 </Panel>
               </div>
               <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                <MiniList title="Suites" items={snapshot.platform.evaluationSuites || []} render={(suite) => `${suite.name} - ${suite.tasks?.length || 0} tasks`} />
-                <MiniList title="Runs" items={snapshot.platform.evaluationRuns || []} render={(run) => `${run.provider || 'provider'} ${run.model || ''} - ${run.summary?.passRate || 0}% pass - ${run.summary?.averageLatencyMs || 0}ms`} />
+                <MiniList title={cr('lists.suites', 'Suites')} empty={cr('empty.noSuites', 'No suites yet.')} items={snapshot.platform.evaluationSuites || []} render={(suite) => `${suite.name} - ${suite.tasks?.length || 0} ${cr('labels.tasks', 'tasks')}`} />
+                <MiniList title={cr('lists.runs', 'Runs')} empty={cr('empty.noRuns', 'No runs yet.')} items={snapshot.platform.evaluationRuns || []} render={(run) => `${run.provider || cr('fallback.provider', 'provider')} ${run.model || ''} - ${run.summary?.passRate || 0}% ${cr('labels.pass', 'pass')} - ${run.summary?.averageLatencyMs || 0}ms`} />
               </div>
             </Section>
           )}
 
           {activeSection === 'usage' && (
-            <Section title="Cost, token, and latency dashboard" description="Monitor provider/model/workflow usage for demos and operations.">
-              <Panel title="Record usage event">
+            <Section
+              title={cr('sections.usage.title', 'Cost, token, and latency dashboard')}
+              description={cr('sections.usage.description', 'Monitor provider/model/workflow usage for demos and operations.')}
+            >
+              <Panel title={cr('panels.recordUsageEvent', 'Record usage event')}>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   <Select value={usageForm.provider} onChange={(value) => setUsageForm({ ...usageForm, provider: value })} options={providerOptions} />
-                  <Input placeholder="Model" value={usageForm.model} onChange={(e) => setUsageForm({ ...usageForm, model: e.target.value })} />
-                  <Input placeholder="Workflow" value={usageForm.workflow} onChange={(e) => setUsageForm({ ...usageForm, workflow: e.target.value })} />
+                  <Input placeholder={cr('placeholders.model', 'Model')} value={usageForm.model} onChange={(e) => setUsageForm({ ...usageForm, model: e.target.value })} />
+                  <Input placeholder={cr('placeholders.workflow', 'Workflow')} value={usageForm.workflow} onChange={(e) => setUsageForm({ ...usageForm, workflow: e.target.value })} />
                   <Select value={usageForm.status} onChange={(value) => setUsageForm({ ...usageForm, status: value })} options={['ok', 'error', 'timeout']} />
-                  <Input placeholder="Input tokens" value={usageForm.inputTokens} onChange={(e) => setUsageForm({ ...usageForm, inputTokens: e.target.value })} />
-                  <Input placeholder="Output tokens" value={usageForm.outputTokens} onChange={(e) => setUsageForm({ ...usageForm, outputTokens: e.target.value })} />
-                  <Input placeholder="Cost USD" value={usageForm.costUsd} onChange={(e) => setUsageForm({ ...usageForm, costUsd: e.target.value })} />
-                  <Input placeholder="Latency ms" value={usageForm.latencyMs} onChange={(e) => setUsageForm({ ...usageForm, latencyMs: e.target.value })} />
+                  <Input placeholder={cr('placeholders.inputTokens', 'Input tokens')} value={usageForm.inputTokens} onChange={(e) => setUsageForm({ ...usageForm, inputTokens: e.target.value })} />
+                  <Input placeholder={cr('placeholders.outputTokens', 'Output tokens')} value={usageForm.outputTokens} onChange={(e) => setUsageForm({ ...usageForm, outputTokens: e.target.value })} />
+                  <Input placeholder={cr('placeholders.costUsd', 'Cost USD')} value={usageForm.costUsd} onChange={(e) => setUsageForm({ ...usageForm, costUsd: e.target.value })} />
+                  <Input placeholder={cr('placeholders.latencyMs', 'Latency ms')} value={usageForm.latencyMs} onChange={(e) => setUsageForm({ ...usageForm, latencyMs: e.target.value })} />
                 </div>
                 <Button className="mt-3" onClick={() => action('Usage event recorded.', async () => {
                   await readJson('/api/platformization/usage/events', { method: 'POST', body: JSON.stringify(usageForm) });
-                })}>Record usage</Button>
+                })}>{cr('buttons.recordUsage', 'Record usage')}</Button>
               </Panel>
               <div className="mt-4 overflow-hidden rounded-md border border-border/60">
                 <div className="grid min-w-[760px] grid-cols-8 border-b border-border/60 bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
-                  <span>Provider</span><span>Model</span><span>Workflow</span><span>Runs</span><span>Tokens</span><span>Cost</span><span>Latency</span><span>Error rate</span>
+                  <span>{cr('columns.provider', 'Provider')}</span><span>{cr('columns.model', 'Model')}</span><span>{cr('columns.workflow', 'Workflow')}</span><span>{cr('columns.runs', 'Runs')}</span><span>{cr('columns.tokens', 'Tokens')}</span><span>{cr('columns.cost', 'Cost')}</span><span>{cr('columns.latency', 'Latency')}</span><span>{cr('columns.errorRate', 'Error rate')}</span>
                 </div>
                 <div className="overflow-x-auto">
                   {(snapshot.platform.usageSummary || []).map((row, index) => (
@@ -747,18 +805,21 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                       <span>{row.provider}</span><span>{row.model}</span><span>{row.workflow}</span><span>{row.runs}</span><span>{formatNumber(row.totalTokens)}</span><span>{formatCurrency(row.costUsd)}</span><span>{row.averageLatencyMs}ms</span><span>{row.errorRate}%</span>
                     </div>
                   ))}
-                  {(snapshot.platform.usageSummary || []).length === 0 && <Empty text="Usage appears here after provider or workflow events are recorded." />}
+                  {(snapshot.platform.usageSummary || []).length === 0 && <Empty text={cr('empty.usageSummary', 'Usage appears here after provider or workflow events are recorded.')} />}
                 </div>
               </div>
             </Section>
           )}
 
           {activeSection === 'security' && (
-            <Section title="Security audit mode" description="Run dependency audit, secret scan, permission audit, and agent output leak detection workflows.">
+            <Section
+              title={cr('sections.security.title', 'Security audit mode')}
+              description={cr('sections.security.description', 'Run dependency audit, secret scan, permission audit, and agent output leak detection workflows.')}
+            >
               <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                <Panel title="Create audit run">
+                <Panel title={cr('panels.createAuditRun', 'Create audit run')}>
                   <Textarea rows={5} value={securityForm.checks} onChange={(e) => setSecurityForm({ ...securityForm, checks: e.target.value })} />
-                  <Input className="mt-2" placeholder="Optional finding title" value={securityForm.findingTitle} onChange={(e) => setSecurityForm({ ...securityForm, findingTitle: e.target.value })} />
+                  <Input className="mt-2" placeholder={cr('placeholders.optionalFindingTitle', 'Optional finding title')} value={securityForm.findingTitle} onChange={(e) => setSecurityForm({ ...securityForm, findingTitle: e.target.value })} />
                   <Button className="mt-3" onClick={() => action('Security audit queued.', async () => {
                     await readJson('/api/platformization/security/audit-runs', {
                       method: 'POST',
@@ -769,9 +830,9 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                         findings: securityForm.findingTitle ? [{ title: securityForm.findingTitle, severity: 'medium' }] : [],
                       }),
                     });
-                  })}>Create audit</Button>
+                  })}>{cr('buttons.createAudit', 'Create audit')}</Button>
                 </Panel>
-                <ListPanel title="Audit runs" empty="No security audits yet.">
+                <ListPanel title={cr('lists.auditRuns', 'Audit runs')} empty={cr('empty.noSecurityAudits', 'No security audits yet.')}>
                   {(snapshot.platform.securityAuditRuns || []).map((run) => (
                     <div key={run.id} className="border-b border-border/50 px-3 py-3 last:border-b-0">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -784,64 +845,67 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                       {(run.findings || []).map((finding: any) => (
                         <div key={finding.id} className="mt-2 rounded border border-destructive/30 bg-destructive/5 px-2 py-2 text-xs">
                           <div className="font-medium text-foreground">{finding.title}</div>
-                          <div className="text-muted-foreground">{finding.recommendation || 'Review required.'}</div>
+                          <div className="text-muted-foreground">{finding.recommendation || cr('fallback.reviewRequired', 'Review required.')}</div>
                         </div>
                       ))}
                     </div>
                   ))}
                 </ListPanel>
               </div>
-              <Panel className="mt-4" title="Audit log">
-                <Input placeholder="Filter audit log by user, project, event, or file" value={auditQuery} onChange={(e) => setAuditQuery(e.target.value)} />
+              <Panel className="mt-4" title={cr('panels.auditLog', 'Audit log')}>
+                <Input placeholder={cr('placeholders.auditFilter', 'Filter audit log by user, project, event, or file')} value={auditQuery} onChange={(e) => setAuditQuery(e.target.value)} />
                 <div className="mt-3 max-h-[420px] overflow-auto rounded-md border border-border/60">
                   {filteredAudit.slice(0, 80).map((entry) => <AuditRow key={entry.id} entry={entry} />)}
-                  {filteredAudit.length === 0 && <Empty text="No audit entries match the current filter." />}
+                  {filteredAudit.length === 0 && <Empty text={cr('empty.noAuditMatches', 'No audit entries match the current filter.')} />}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                  <a className="underline-offset-4 hover:underline" href="/api/platformization/audit-log/export?format=json" target="_blank" rel="noreferrer">Export JSON</a>
-                  <a className="underline-offset-4 hover:underline" href="/api/platformization/audit-log/export?format=csv" target="_blank" rel="noreferrer">Export CSV</a>
+                  <a className="underline-offset-4 hover:underline" href="/api/platformization/audit-log/export?format=json" target="_blank" rel="noreferrer">{cr('buttons.exportJson', 'Export JSON')}</a>
+                  <a className="underline-offset-4 hover:underline" href="/api/platformization/audit-log/export?format=csv" target="_blank" rel="noreferrer">{cr('buttons.exportCsv', 'Export CSV')}</a>
                 </div>
               </Panel>
             </Section>
           )}
 
           {activeSection === 'access' && (
-            <Section title="Self-hosted access" description="Use Tailscale when there is no fixed domain, or configure Cloudflare Tunnel/custom domain for a stable public URL.">
+            <Section
+              title={cr('sections.access.title', 'Self-hosted access')}
+              description={cr('sections.access.description', 'Use Tailscale when there is no fixed domain, or configure Cloudflare Tunnel/custom domain for a stable public URL.')}
+            >
               <div className="grid gap-4 xl:grid-cols-2">
-                <Panel title="Remote access setup">
+                <Panel title={cr('panels.remoteAccessSetup', 'Remote access setup')}>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Select value={accessForm.mode} onChange={(value) => setAccessForm({ ...accessForm, mode: value })} options={accessModes} />
-                    <Input placeholder="Label" value={accessForm.label} onChange={(e) => setAccessForm({ ...accessForm, label: e.target.value })} />
-                    <Input placeholder="URL" value={accessForm.url} onChange={(e) => setAccessForm({ ...accessForm, url: e.target.value })} />
-                    <Input placeholder="Target port" value={accessForm.targetPort} onChange={(e) => setAccessForm({ ...accessForm, targetPort: e.target.value })} />
+                    <Input placeholder={cr('placeholders.label', 'Label')} value={accessForm.label} onChange={(e) => setAccessForm({ ...accessForm, label: e.target.value })} />
+                    <Input placeholder={cr('placeholders.url', 'URL')} value={accessForm.url} onChange={(e) => setAccessForm({ ...accessForm, url: e.target.value })} />
+                    <Input placeholder={cr('placeholders.targetPort', 'Target port')} value={accessForm.targetPort} onChange={(e) => setAccessForm({ ...accessForm, targetPort: e.target.value })} />
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button onClick={() => action('Remote access config saved.', async () => {
                       await readJson('/api/platformization/remote-access/configs', { method: 'POST', body: JSON.stringify(accessForm) });
-                    })}>Save access path</Button>
+                    })}>{cr('buttons.saveAccessPath', 'Save access path')}</Button>
                     <Button variant="outline" onClick={() => action('Remote access health checked.', async () => {
                       const data = await readJson<{ health: any }>('/api/platformization/remote-access/health', { method: 'POST', body: JSON.stringify({ url: accessForm.url }) });
                       setAccessHealth(data.health);
-                    })}>Check URL</Button>
+                    })}>{cr('buttons.checkUrl', 'Check URL')}</Button>
                     <Button variant="outline" onClick={() => action('Tailscale status refreshed.', async () => {
                       const data = await readJson<{ tailscale: any }>('/api/platformization/remote-access/tailscale');
                       setTailscale(data.tailscale);
-                    })}>Check Tailscale</Button>
+                    })}>{cr('buttons.checkTailscale', 'Check Tailscale')}</Button>
                   </div>
-                  {accessHealth && <StatusDetails title="Health" rows={[`reachable: ${accessHealth.reachable}`, `https: ${accessHealth.https}`, accessHealth.message]} />}
-                  {tailscale && <StatusDetails title="Tailscale" rows={[`installed: ${tailscale.installed}`, `logged in: ${tailscale.loggedIn}`, `url: ${tailscale.pixcodeUrl || 'not available'}`, tailscale.message]} />}
+                  {accessHealth && <StatusDetails title={cr('labels.health', 'Health')} rows={[`${cr('labels.reachable', 'reachable')}: ${accessHealth.reachable}`, `https: ${accessHealth.https}`, accessHealth.message]} />}
+                  {tailscale && <StatusDetails title="Tailscale" rows={[`${cr('labels.installed', 'installed')}: ${tailscale.installed}`, `${cr('labels.loggedIn', 'logged in')}: ${tailscale.loggedIn}`, `url: ${tailscale.pixcodeUrl || cr('fallback.notAvailable', 'not available')}`, tailscale.message]} />}
                 </Panel>
-                <ListPanel title="Configured access paths" empty="No access paths configured yet.">
+                <ListPanel title={cr('lists.configuredAccessPaths', 'Configured access paths')} empty={cr('empty.noAccessPaths', 'No access paths configured yet.')}>
                   {(snapshot.remoteAccess.configs || snapshot.platform.remoteAccessConfigs || []).map((config) => (
                     <div key={config.id} className="border-b border-border/50 px-3 py-3 last:border-b-0">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <div className="text-sm font-medium text-foreground">{config.label}</div>
-                          <div className="text-xs text-muted-foreground">{config.url || snapshot.remoteAccess.localUrl || 'No URL'}</div>
+                          <div className="text-xs text-muted-foreground">{config.url || snapshot.remoteAccess.localUrl || cr('fallback.noUrl', 'No URL')}</div>
                         </div>
                         <div className="flex gap-2">
                           <Badge variant="secondary">{config.mode}</Badge>
-                          <Badge variant={config.public ? 'destructive' : 'secondary'}>{config.public ? 'public' : 'private'}</Badge>
+                          <Badge variant={config.public ? 'destructive' : 'secondary'}>{config.public ? cr('badges.public', 'public') : cr('badges.private', 'private')}</Badge>
                         </div>
                       </div>
                     </div>
@@ -953,22 +1017,22 @@ function PreviewBlock({ lines }: { lines: string[] }) {
   );
 }
 
-function MiniList({ title, items, render }: { title: string; items: any[]; render: (item: any) => string }) {
+function MiniList({ title, empty, items, render }: { title: string; empty: string; items: any[]; render: (item: any) => string }) {
   return (
     <div className="mt-3 rounded-md border border-border/60">
       <div className="border-b border-border/60 bg-muted/20 px-3 py-2 text-xs font-medium text-muted-foreground">{title}</div>
       {items.slice(0, 5).map((item) => (
         <div key={item.id || render(item)} className="border-b border-border/50 px-3 py-2 text-xs text-foreground last:border-b-0">{render(item)}</div>
       ))}
-      {items.length === 0 && <Empty text={`No ${title.toLowerCase()} yet.`} />}
+      {items.length === 0 && <Empty text={empty} />}
     </div>
   );
 }
 
-function RoleMatrix({ roles }: { roles: Record<string, string[]> }) {
+function RoleMatrix({ title, roles }: { title: string; roles: Record<string, string[]> }) {
   const entries = Object.entries(roles);
   return (
-    <Panel className="mt-4" title="Role permissions">
+    <Panel className="mt-4" title={title}>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {entries.map(([role, permissions]) => (
           <div key={role} className="rounded-md border border-border/60 px-3 py-3">
@@ -980,6 +1044,20 @@ function RoleMatrix({ roles }: { roles: Record<string, string[]> }) {
         ))}
       </div>
     </Panel>
+  );
+}
+
+function AccessStep({ index, title, description }: { index: string; title: string; description: string }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-3">
+      <div className="flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+          {index}
+        </span>
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{description}</p>
+    </div>
   );
 }
 

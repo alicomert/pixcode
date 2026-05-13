@@ -68,7 +68,9 @@
     "rename": "Umbenennen",
     "joinCommunity": "Community beitreten",
     "reportIssue": "Problem melden",
-    "starOnGithub": "Stern auf GitHub"
+    "starOnGithub": "Stern auf GitHub",
+    "controlRoom": "Kontrollraum",
+    "controlRoomDescription": "Admin, Zugriff, Läufe"
   },
   "branding": {
     "openSource": "Open Source"
