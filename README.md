@@ -14,6 +14,9 @@
     <img src="https://img.shields.io/badge/Desktop-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=for-the-badge" alt="desktop platforms" />
   </p>
   <p>
+    <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
+  </p>
+  <p>
     <a href="https://www.producthunt.com/products/pixcode?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-pixcode" target="_blank" rel="noopener noreferrer"><img alt="Pixcode - A self-hosted control room for AI coding agents. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1144104&amp;theme=light&amp;t=1778502023682"></a>
   </p>
   <p>

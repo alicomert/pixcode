@@ -53,33 +53,35 @@ export default function MainContentHeader({
           />
         </div>
 
-        <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
-          {canScrollLeft && (
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
-          )}
-          <div className="relative min-w-0 overflow-hidden">
-            <div
-              ref={scrollRef}
-              onScroll={updateScrollState}
-              className="scrollbar-hide overflow-x-auto"
-            >
-              <MainContentTabSwitcher
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                shouldShowTasksTab={shouldShowTasksTab}
-                liveViewAvailable={liveViewAvailable}
-                activeSidePanelTab={activeSidePanelTab}
-                sidePanelMode={sidePanelMode}
-                canUseSidePanelSplit={canUseSidePanelSplit}
-                isMobile={isMobile}
-                onCloseSidePanel={onCloseSidePanel}
-              />
-            </div>
-            {canScrollRight && (
-              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
+        {activeTab !== 'controlRoom' && (
+          <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
+            {canScrollLeft && (
+              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
             )}
+            <div className="relative min-w-0 overflow-hidden">
+              <div
+                ref={scrollRef}
+                onScroll={updateScrollState}
+                className="scrollbar-hide overflow-x-auto"
+              >
+                <MainContentTabSwitcher
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  shouldShowTasksTab={shouldShowTasksTab}
+                  liveViewAvailable={liveViewAvailable}
+                  activeSidePanelTab={activeSidePanelTab}
+                  sidePanelMode={sidePanelMode}
+                  canUseSidePanelSplit={canUseSidePanelSplit}
+                  isMobile={isMobile}
+                  onCloseSidePanel={onCloseSidePanel}
+                />
+              </div>
+              {canScrollRight && (
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import { Button } from '../../../shared/view/ui';
 import SettingsSidebar from '../view/SettingsSidebar';
+import AccessSettingsTab from '../view/tabs/access-settings/AccessSettingsTab';
 import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
 import AppearanceSettingsTab from '../view/tabs/AppearanceSettingsTab';
 import CredentialsSettingsTab from '../view/tabs/api-settings/CredentialsSettingsTab';
@@ -132,6 +133,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               )}
 
               {activeTab === 'git' && <GitSettingsTab />}
+
+              {activeTab === 'access' && <AccessSettingsTab />}
 
               {activeTab === 'agents' && (
                 <AgentsSettingsTab

@@ -122,7 +122,8 @@
     "mobile": "Mobilden Kullan",
     "telegram": "Telegram",
     "diagnostics": "Tanılama",
-    "about": "Hakkında"
+    "about": "Hakkında",
+    "access": "Erisim"
   },
   "mobile": {
     "title": "Mobilden Kullan",
@@ -701,5 +702,73 @@
     "installAriaLabel": "Eklenti git deposu URL'si",
     "tab": "sekme",
     "runningStatus": "çalışıyor"
+  },
+  "access": {
+    "title": "Erisim",
+    "description": "Bu self-hosted Pixcode sunucusuna tarayici, telefon, ekip arkadaslari, Tailscale, Cloudflare Tunnel veya custom domain ile nasil erisilecegini ayarla.",
+    "refresh": "Yenile",
+    "copy": "Kopyala",
+    "copied": "Kopyalandi",
+    "save": "Erisim yolunu kaydet",
+    "check": "URL kontrol et",
+    "cards": {
+      "local": {
+        "title": "LAN ve local linkler",
+        "description": "Tarayici ayni makinede veya ayni agdaysa bu linkleri kullan."
+      },
+      "tailscale": {
+        "title": "Tailscale private erisim",
+        "description": "Sabit public domain olmadan private ekip erisimi. Tailscale varsa Pixcode URLyi otomatik algilar."
+      },
+      "public": {
+        "title": "Public domain veya tunnel",
+        "description": "Sabit HTTPS URL istiyorsan Cloudflare Tunnel veya kendi reverse proxy yapini kullan."
+      }
+    },
+    "status": {
+      "ready": "Ready",
+      "detecting": "Detecting",
+      "guided": "Guided",
+      "configured": "Configured",
+      "optional": "Optional"
+    },
+    "links": {
+      "title": "Kullanilabilir linkler",
+      "description": "Baglanacak cihaz veya ekip arkadasi icin dogru URLyi kopyala.",
+      "local": "Local",
+      "tailscale": "Tailscale",
+      "empty": "Henuz erisim linki algilanmadi."
+    },
+    "setup": {
+      "title": "Sabit erisim yolu",
+      "description": "Kullanicilarin kullanacagi URLyi kaydet. LAN adresi, Tailscale URL, Cloudflare Tunnel URL veya custom domain olabilir."
+    },
+    "modes": {
+      "lan": "LAN",
+      "tailscale": "Tailscale",
+      "cloudflare_tunnel": "Cloudflare Tunnel",
+      "custom_domain": "Custom domain"
+    },
+    "fields": {
+      "label": "Label",
+      "url": "URL",
+      "port": "Target port"
+    },
+    "health": {
+      "reachable": "Pixcode is reachable",
+      "unreachable": "Pixcode is not reachable"
+    },
+    "configured": {
+      "title": "Kayitli erisim yollari",
+      "description": "Bu yollar adminlere, proje ortaklarina ve proje calisanlarina rollerine gore acilir.",
+      "empty": "Henuz kayitli erisim yolu yok.",
+      "noUrl": "URL yok",
+      "public": "public",
+      "private": "private"
+    },
+    "team": {
+      "title": "Kullanicilar nasil baglanir",
+      "description": "Kullaniciyi Admin sisteminde olustur, Control Room icinde proje rolunu ata, sonra bu Access URLlerinden birini paylas. Atanmis projeye erismek icin global admin olmasi gerekmez."
+    }
   }
 }

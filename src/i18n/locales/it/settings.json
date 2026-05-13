@@ -119,7 +119,8 @@
     "plugins": "Plugin",
     "mobile": "Usa da mobile",
     "telegram": "Telegram",
-    "about": "Informazioni"
+    "about": "Informazioni",
+    "access": "Accesso"
   },
   "notifications": {
     "title": "Notifiche",
@@ -533,5 +534,73 @@
     "installAriaLabel": "URL repository git del plugin",
     "tab": "scheda",
     "runningStatus": "in esecuzione"
+  },
+  "access": {
+    "title": "Accesso",
+    "description": "Configura come raggiungere questo server Pixcode self-hosted da browser, telefono, team, Tailscale, Cloudflare Tunnel o dominio personalizzato.",
+    "refresh": "Aggiorna",
+    "copy": "Copia",
+    "copied": "Copiato",
+    "save": "Salva percorso",
+    "check": "Controlla URL",
+    "cards": {
+      "local": {
+        "title": "LAN and local links",
+        "description": "Use these links when the browser is on the same machine or the same network."
+      },
+      "tailscale": {
+        "title": "Tailscale private access",
+        "description": "Private team access without a fixed public domain. Pixcode detects the URL when Tailscale is available."
+      },
+      "public": {
+        "title": "Public domain or tunnel",
+        "description": "Use Cloudflare Tunnel or your own reverse proxy when you want a stable HTTPS URL."
+      }
+    },
+    "status": {
+      "ready": "Ready",
+      "detecting": "Detecting",
+      "guided": "Guided",
+      "configured": "Configured",
+      "optional": "Optional"
+    },
+    "links": {
+      "title": "Available links",
+      "description": "Copy the correct URL for the device or teammate that needs to connect.",
+      "local": "Local",
+      "tailscale": "Tailscale",
+      "empty": "No access links detected yet."
+    },
+    "setup": {
+      "title": "Stable access path",
+      "description": "Save the URL your users will use. This can be a LAN address, Tailscale URL, Cloudflare Tunnel URL, or custom domain."
+    },
+    "modes": {
+      "lan": "LAN",
+      "tailscale": "Tailscale",
+      "cloudflare_tunnel": "Cloudflare Tunnel",
+      "custom_domain": "Custom domain"
+    },
+    "fields": {
+      "label": "Label",
+      "url": "URL",
+      "port": "Target port"
+    },
+    "health": {
+      "reachable": "Pixcode is reachable",
+      "unreachable": "Pixcode is not reachable"
+    },
+    "configured": {
+      "title": "Configured access paths",
+      "description": "These paths are available to admins, project partners, and project workers according to their role.",
+      "empty": "No configured access paths yet.",
+      "noUrl": "No URL",
+      "public": "public",
+      "private": "private"
+    },
+    "team": {
+      "title": "How users connect",
+      "description": "Create the user in Admin system, assign their project role in Control Room, then share one of these Access URLs. They do not need to be global admins to reach their assigned project."
+    }
   }
 }

@@ -119,7 +119,8 @@
     "plugins": "플러그인",
     "mobile": "모바일에서 사용",
     "telegram": "Telegram",
-    "about": "정보"
+    "about": "정보",
+    "access": "접근"
   },
   "notifications": {
     "title": "알림",
@@ -527,5 +528,73 @@
     "installAriaLabel": "플러그인 git 저장소 URL",
     "tab": "탭",
     "runningStatus": "실행 중"
+  },
+  "access": {
+    "title": "접근",
+    "description": "이 셀프 호스티드 Pixcode 서버에 브라우저, 휴대폰, 팀, Tailscale, Cloudflare Tunnel 또는 custom domain으로 접속하는 방법을 설정합니다.",
+    "refresh": "새로고침",
+    "copy": "복사",
+    "copied": "복사됨",
+    "save": "접근 경로 저장",
+    "check": "URL 확인",
+    "cards": {
+      "local": {
+        "title": "LAN and local links",
+        "description": "Use these links when the browser is on the same machine or the same network."
+      },
+      "tailscale": {
+        "title": "Tailscale private access",
+        "description": "Private team access without a fixed public domain. Pixcode detects the URL when Tailscale is available."
+      },
+      "public": {
+        "title": "Public domain or tunnel",
+        "description": "Use Cloudflare Tunnel or your own reverse proxy when you want a stable HTTPS URL."
+      }
+    },
+    "status": {
+      "ready": "Ready",
+      "detecting": "Detecting",
+      "guided": "Guided",
+      "configured": "Configured",
+      "optional": "Optional"
+    },
+    "links": {
+      "title": "Available links",
+      "description": "Copy the correct URL for the device or teammate that needs to connect.",
+      "local": "Local",
+      "tailscale": "Tailscale",
+      "empty": "No access links detected yet."
+    },
+    "setup": {
+      "title": "Stable access path",
+      "description": "Save the URL your users will use. This can be a LAN address, Tailscale URL, Cloudflare Tunnel URL, or custom domain."
+    },
+    "modes": {
+      "lan": "LAN",
+      "tailscale": "Tailscale",
+      "cloudflare_tunnel": "Cloudflare Tunnel",
+      "custom_domain": "Custom domain"
+    },
+    "fields": {
+      "label": "Label",
+      "url": "URL",
+      "port": "Target port"
+    },
+    "health": {
+      "reachable": "Pixcode is reachable",
+      "unreachable": "Pixcode is not reachable"
+    },
+    "configured": {
+      "title": "Configured access paths",
+      "description": "These paths are available to admins, project partners, and project workers according to their role.",
+      "empty": "No configured access paths yet.",
+      "noUrl": "No URL",
+      "public": "public",
+      "private": "private"
+    },
+    "team": {
+      "title": "How users connect",
+      "description": "Create the user in Admin system, assign their project role in Control Room, then share one of these Access URLs. They do not need to be global admins to reach their assigned project."
+    }
   }
 }

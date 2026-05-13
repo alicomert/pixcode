@@ -6,6 +6,9 @@
     Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code、OpenCode を 1 つの Web UI で操作します。Chat、Shell、Files、Git、Orchestration、API keys、Plugins、Notifications、Telegram、Desktop/Server deployment をまとめて扱えます。
   </p>
   <p>
+    <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
+  </p>
+  <p>
     <a href="README.md">English</a> ·
     <a href="README.tr.md">Türkçe</a> ·
     <a href="README.de.md">Deutsch</a> ·

@@ -12,6 +12,9 @@
     <img src="https://img.shields.io/badge/Desktop-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=for-the-badge" alt="desktop platforms" />
   </p>
   <p>
+    <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
+  </p>
+  <p>
     <a href="README.md">English</a> ·
     <a href="README.de.md">Deutsch</a> ·
     <a href="README.ru.md">Русский</a> ·

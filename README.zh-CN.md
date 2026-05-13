@@ -6,6 +6,9 @@
     在一个 Web UI 中使用 Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code 和 OpenCode，并集成 chat、shell、files、Git、orchestration、API keys、plugins、notifications、Telegram、desktop/server deployment。
   </p>
   <p>
+    <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
+  </p>
+  <p>
     <a href="README.md">English</a> ·
     <a href="README.tr.md">Türkçe</a> ·
     <a href="README.de.md">Deutsch</a> ·

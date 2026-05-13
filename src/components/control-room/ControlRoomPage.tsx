@@ -7,7 +7,6 @@ import { authenticatedFetch } from '../../utils/api';
 
 import {
   BarChart3,
-  Cloud,
   FileCode,
   GitBranch,
   Key,
@@ -36,8 +35,7 @@ type SectionId =
   | 'marketplace'
   | 'eval'
   | 'usage'
-  | 'security'
-  | 'access';
+  | 'security';
 
 type ProductionState = {
   issueRuns?: any[];
@@ -58,21 +56,11 @@ type PlatformState = {
   usageSummary?: any[];
   securityAuditRuns?: any[];
   auditLog?: any[];
-  remoteAccessConfigs?: any[];
-};
-
-type RemoteAccessState = {
-  host?: string;
-  platform?: string;
-  localUrl?: string;
-  configs?: any[];
-  recommendations?: any[];
 };
 
 type Snapshot = {
   production: ProductionState;
   platform: PlatformState;
-  remoteAccess: RemoteAccessState;
 };
 
 const sections: Array<{ id: SectionId; label: string; defaultLabel: string; icon: LucideIcon }> = [
@@ -85,7 +73,6 @@ const sections: Array<{ id: SectionId; label: string; defaultLabel: string; icon
   { id: 'eval', label: 'nav.eval', defaultLabel: 'Evaluations', icon: Workflow },
   { id: 'usage', label: 'nav.usage', defaultLabel: 'Usage', icon: BarChart3 },
   { id: 'security', label: 'nav.security', defaultLabel: 'Security', icon: ShieldAlert },
-  { id: 'access', label: 'nav.access', defaultLabel: 'Access', icon: Cloud },
 ];
 
 const providerOptions = ['opencode', 'claude', 'codex', 'cursor', 'gemini', 'qwen'];
@@ -94,7 +81,6 @@ const collaboratorRoles = ['partner', 'worker', 'reviewer', 'viewer'];
 const secretScopes = ['global', 'provider', 'project', 'workflow', 'telegram', 'api'];
 const pluginTypes = ['mcp-server', 'workflow-template', 'provider-adapter', 'notification-channel'];
 const securityChecks = ['dependency_audit', 'secret_scan', 'permission_audit', 'agent_output_leak_detection'];
-const accessModes = ['lan', 'tailscale', 'cloudflare_tunnel', 'custom_domain'];
 
 const emptySnapshot: Snapshot = {
   production: {
@@ -115,11 +101,6 @@ const emptySnapshot: Snapshot = {
     usageSummary: [],
     securityAuditRuns: [],
     auditLog: [],
-    remoteAccessConfigs: [],
-  },
-  remoteAccess: {
-    configs: [],
-    recommendations: [],
   },
 };
 
@@ -167,9 +148,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [tailscale, setTailscale] = useState<any | null>(null);
   const [repairPlan, setRepairPlan] = useState<any | null>(null);
-  const [accessHealth, setAccessHealth] = useState<any | null>(null);
   const [auditQuery, setAuditQuery] = useState('');
 
   const [issueForm, setIssueForm] = useState({
@@ -194,7 +173,6 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
   const [evalRunForm, setEvalRunForm] = useState({ suiteId: '', provider: 'opencode', model: '', passed: '1', failed: '0', latencyMs: '1200' });
   const [usageForm, setUsageForm] = useState({ provider: 'opencode', model: '', workflow: 'manual', inputTokens: '1000', outputTokens: '500', costUsd: '0.02', latencyMs: '1200', status: 'ok' });
   const [securityForm, setSecurityForm] = useState({ checks: securityChecks.join('\n'), status: 'queued', findingTitle: '' });
-  const [accessForm, setAccessForm] = useState({ mode: 'tailscale', label: 'Tailscale private access', url: '', targetPort: '3001' });
 
   const defaultProjectName = selectedProject?.name || selectedProject?.displayName || '';
   const defaultProjectPath = selectedProject?.path || selectedProject?.fullPath || '';
@@ -206,15 +184,13 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
     setLoading(true);
     setError(null);
     try {
-      const [production, platform, remoteAccess] = await Promise.all([
+      const [production, platform] = await Promise.all([
         readJson<{ state: ProductionState }>('/api/production-agent-loop'),
         readJson<{ state: PlatformState }>('/api/platformization'),
-        readJson<{ remoteAccess: RemoteAccessState }>('/api/platformization/remote-access'),
       ]);
       setSnapshot({
         production: production.state || emptySnapshot.production,
         platform: platform.state || emptySnapshot.platform,
-        remoteAccess: remoteAccess.remoteAccess || emptySnapshot.remoteAccess,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -327,13 +303,13 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                     <AuditRow key={entry.id} entry={entry} />
                   ))}
                 </ListPanel>
-                <ListPanel title={cr('overview.remoteAccessOptions', 'Remote access options')} empty={cr('empty.noRemoteAccessConfigs', 'No remote access configs yet.')}>
-                  {(snapshot.remoteAccess.recommendations || []).map((item) => (
-                    <div key={item.mode} className="border-b border-border/50 px-3 py-3 last:border-b-0">
-                      <div className="text-sm font-medium text-foreground">{item.label}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{item.recommendedWhen}</div>
+                <ListPanel title={cr('overview.systemSettings', 'System settings handoff')} empty={cr('empty.noSystemSettings', 'System settings are available from Settings.')}>
+                  <div className="border-b border-border/50 px-3 py-3 last:border-b-0">
+                    <div className="text-sm font-medium text-foreground">{cr('overview.accessMovedTitle', 'Access lives in Settings')}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {cr('overview.accessMovedDescription', 'Server URLs, LAN access, private network links, and public domain checks are managed from Settings > Access because they apply to the whole self-hosted server.')}
                     </div>
-                  ))}
+                  </div>
                 </ListPanel>
               </div>
             </Section>
@@ -594,15 +570,9 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                   <AccessStep
                     index="3"
                     title={cr('teamAccess.stepLink', 'Share an access path')}
-                    description={cr('teamAccess.stepLinkDescription', 'Give them the Tailscale, Cloudflare Tunnel, custom domain, or LAN URL configured in Self-hosted access.')}
+                    description={cr('teamAccess.stepLinkDescription', 'Give them the LAN URL, Tailscale URL, Cloudflare Tunnel, or custom domain configured in Settings > Access.')}
                   />
                 </div>
-                <MiniList
-                  title={cr('teamAccess.paths', 'Available access links')}
-                  empty={cr('empty.noAccessPaths', 'No access paths configured yet.')}
-                  items={snapshot.remoteAccess.configs || snapshot.platform.remoteAccessConfigs || []}
-                  render={(config) => `${config.label} - ${config.url || snapshot.remoteAccess.localUrl || cr('fallback.noUrl', 'No URL')} - ${config.public ? cr('badges.public', 'public') : cr('badges.private', 'private')}`}
-                />
               </Panel>
             </Section>
           )}
@@ -866,62 +836,6 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
             </Section>
           )}
 
-          {activeSection === 'access' && (
-            <Section
-              title={cr('sections.access.title', 'Self-hosted access')}
-              description={cr('sections.access.description', 'Use Tailscale when there is no fixed domain, or configure Cloudflare Tunnel/custom domain for a stable public URL.')}
-            >
-              <div className="grid gap-4 xl:grid-cols-2">
-                <Panel title={cr('panels.remoteAccessSetup', 'Remote access setup')}>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Select value={accessForm.mode} onChange={(value) => setAccessForm({ ...accessForm, mode: value })} options={accessModes} />
-                    <Input placeholder={cr('placeholders.label', 'Label')} value={accessForm.label} onChange={(e) => setAccessForm({ ...accessForm, label: e.target.value })} />
-                    <Input placeholder={cr('placeholders.url', 'URL')} value={accessForm.url} onChange={(e) => setAccessForm({ ...accessForm, url: e.target.value })} />
-                    <Input placeholder={cr('placeholders.targetPort', 'Target port')} value={accessForm.targetPort} onChange={(e) => setAccessForm({ ...accessForm, targetPort: e.target.value })} />
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button onClick={() => action('Remote access config saved.', async () => {
-                      await readJson('/api/platformization/remote-access/configs', { method: 'POST', body: JSON.stringify(accessForm) });
-                    })}>{cr('buttons.saveAccessPath', 'Save access path')}</Button>
-                    <Button variant="outline" onClick={() => action('Remote access health checked.', async () => {
-                      const data = await readJson<{ health: any }>('/api/platformization/remote-access/health', { method: 'POST', body: JSON.stringify({ url: accessForm.url }) });
-                      setAccessHealth(data.health);
-                    })}>{cr('buttons.checkUrl', 'Check URL')}</Button>
-                    <Button variant="outline" onClick={() => action('Tailscale status refreshed.', async () => {
-                      const data = await readJson<{ tailscale: any }>('/api/platformization/remote-access/tailscale');
-                      setTailscale(data.tailscale);
-                    })}>{cr('buttons.checkTailscale', 'Check Tailscale')}</Button>
-                  </div>
-                  {accessHealth && <StatusDetails title={cr('labels.health', 'Health')} rows={[`${cr('labels.reachable', 'reachable')}: ${accessHealth.reachable}`, `https: ${accessHealth.https}`, accessHealth.message]} />}
-                  {tailscale && <StatusDetails title="Tailscale" rows={[`${cr('labels.installed', 'installed')}: ${tailscale.installed}`, `${cr('labels.loggedIn', 'logged in')}: ${tailscale.loggedIn}`, `url: ${tailscale.pixcodeUrl || cr('fallback.notAvailable', 'not available')}`, tailscale.message]} />}
-                </Panel>
-                <ListPanel title={cr('lists.configuredAccessPaths', 'Configured access paths')} empty={cr('empty.noAccessPaths', 'No access paths configured yet.')}>
-                  {(snapshot.remoteAccess.configs || snapshot.platform.remoteAccessConfigs || []).map((config) => (
-                    <div key={config.id} className="border-b border-border/50 px-3 py-3 last:border-b-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <div className="text-sm font-medium text-foreground">{config.label}</div>
-                          <div className="text-xs text-muted-foreground">{config.url || snapshot.remoteAccess.localUrl || cr('fallback.noUrl', 'No URL')}</div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Badge variant="secondary">{config.mode}</Badge>
-                          <Badge variant={config.public ? 'destructive' : 'secondary'}>{config.public ? cr('badges.public', 'public') : cr('badges.private', 'private')}</Badge>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </ListPanel>
-              </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {(snapshot.remoteAccess.recommendations || []).map((recommendation) => (
-                  <div key={recommendation.mode} className="rounded-md border border-border/60 bg-background px-3 py-3">
-                    <div className="text-sm font-medium text-foreground">{recommendation.label}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{recommendation.recommendedWhen}</div>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
         </main>
       </div>
     </div>
@@ -1076,15 +990,4 @@ function AuditRow({ entry }: { entry: any }) {
 
 function Empty({ text }: { text: string }) {
   return <div className="px-3 py-6 text-sm text-muted-foreground">{text}</div>;
-}
-
-function StatusDetails({ title, rows }: { title: string; rows: string[] }) {
-  return (
-    <div className="mt-3 rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs">
-      <div className="font-medium text-foreground">{title}</div>
-      <div className="mt-1 space-y-1 text-muted-foreground">
-        {rows.map((row) => <div key={row}>{row}</div>)}
-      </div>
-    </div>
-  );
 }

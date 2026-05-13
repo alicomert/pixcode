@@ -6,6 +6,9 @@
     Один веб-интерфейс для Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code и OpenCode: чат, shell, файлы, Git, оркестрация, API keys, плагины, уведомления, Telegram и desktop/server режимы.
   </p>
   <p>
+    <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
+  </p>
+  <p>
     <a href="README.md">English</a> ·
     <a href="README.tr.md">Türkçe</a> ·
     <a href="README.de.md">Deutsch</a> ·

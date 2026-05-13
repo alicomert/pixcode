@@ -748,10 +748,12 @@ export async function detectTailscaleStatus() {
       magicDnsName: self.DNSName || null,
       tailscaleIp: tailscaleIps[0] || null,
       pixcodeUrl: tailscaleIps[0] ? `http://${tailscaleIps[0]}:${process.env.SERVER_PORT || 3001}` : null,
+      installUrl: 'https://tailscale.com/download',
       checkedAt: nowIso(),
       message: tailscaleIps[0] ? 'Tailscale is ready for private Pixcode access.' : 'Tailscale CLI is installed but no device IP was detected.',
     };
   } catch (error) {
+    const isMissing = error?.code === 'ENOENT';
     return {
       installed: false,
       loggedIn: false,
@@ -760,8 +762,11 @@ export async function detectTailscaleStatus() {
       magicDnsName: null,
       tailscaleIp: null,
       pixcodeUrl: null,
+      installUrl: 'https://tailscale.com/download',
       checkedAt: nowIso(),
-      message: error?.code === 'ENOENT' ? 'Tailscale CLI is not installed.' : (error?.message || 'Tailscale status could not be read.'),
+      message: isMissing
+        ? 'Tailscale is optional. Use the LAN links now, or install Tailscale from Settings > Access for private team access without a public domain.'
+        : (error?.message || 'Tailscale status could not be read.'),
     };
   }
 }

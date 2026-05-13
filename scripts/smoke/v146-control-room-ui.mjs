@@ -20,15 +20,13 @@ for (const phrase of [
   'Evaluation harness',
   'Cost, token, and latency dashboard',
   'Security audit mode',
-  'Self-hosted access',
   '/api/production-agent-loop/github/issue-to-pr',
   '/api/platformization/admin/users',
   '/api/platformization/project-collaborators',
-  '/api/platformization/remote-access/tailscale',
-  '/api/platformization/remote-access/health',
 ]) {
   assert.match(controlRoom, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `Control room UI should include ${phrase}.`);
 }
+assert.doesNotMatch(controlRoom, /sections\.access|Self-hosted access|remote-access\/health/, 'Self-hosted access belongs in Settings, not inside Control Room.');
 
 assert.match(controlRoom, /lg:flex-row/, 'Control room must use responsive layout.');
 assert.match(controlRoom, /sm:grid-cols-2/, 'Control room must include mobile-first responsive grids.');
@@ -55,6 +53,7 @@ assert.match(mainContentTypes, /selectedProject: Project \| null/, 'Control Room
 
 const mainContentHeader = read('src/components/main-content/view/subcomponents/MainContentHeader.tsx');
 assert.doesNotMatch(mainContentHeader, /Open Control Room|openControlRoom/, 'Header should not carry the fixed Control Room launcher.');
+assert.match(mainContentHeader, /activeTab !== 'controlRoom'/, 'Control Room should hide the normal project tab header.');
 
 const sidebarFooter = read('src/components/sidebar/view/subcomponents/SidebarFooter.tsx');
 assert.match(sidebarFooter, /controlRoom/, 'Expanded sidebar footer should show the Control Room launcher above Settings.');
@@ -66,6 +65,29 @@ assert.match(sidebarCollapsed, /onOpenControlRoom/, 'Collapsed sidebar should op
 
 const emptyState = read('src/components/main-content/view/subcomponents/MainContentStateView.tsx');
 assert.match(emptyState, /Open Control Room/, 'Empty project state should include a visible Open Control Room button.');
+
+const settingsTypes = read('src/components/settings/types/types.ts');
+assert.match(settingsTypes, /'access'/, 'Settings should include a global Access tab.');
+
+const settingsController = read('src/components/settings/hooks/useSettingsController.ts');
+assert.match(settingsController, /'access'/, 'Settings controller should accept the Access tab.');
+
+const settingsSidebar = read('src/components/settings/view/SettingsSidebar.tsx');
+assert.match(settingsSidebar, /mainTabs\.access/, 'Settings sidebar should expose Access as a first-class system setting.');
+
+const settings = read('src/components/settings/view/Settings.tsx');
+assert.match(settings, /AccessSettingsTab/, 'Settings should render the Access settings tab.');
+
+const accessSettings = read('src/components/settings/view/tabs/access-settings/AccessSettingsTab.tsx');
+for (const phrase of [
+  '/api/network/endpoints',
+  '/api/platformization/remote-access',
+  '/api/platformization/remote-access/configs',
+  '/api/platformization/remote-access/tailscale',
+  '/api/platformization/remote-access/health',
+]) {
+  assert.match(accessSettings, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `Access settings should use ${phrase}.`);
+}
 
 assert.match(controlRoom, /useTranslation/, 'Control Room should use the app i18n system.');
 assert.match(controlRoom, /controlRoom\./, 'Control Room copy should be loaded from translation keys.');
@@ -88,6 +110,7 @@ for (const symbol of [
 ]) {
   assert.match(platformService, new RegExp(symbol), `Platformization service should include ${symbol}.`);
 }
+assert.doesNotMatch(platformService, /Tailscale CLI is not installed/, 'Tailscale missing state should be guidance, not a raw CLI error.');
 
 const platformRoutes = read('server/routes/platformization.js');
 for (const route of [
