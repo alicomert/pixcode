@@ -11,15 +11,27 @@ export const motion = {
     micro: 0.18,
     base: 0.28,
     enter: 0.32,
+    surface: 0.24,
+    drawer: 0.26,
+    status: 0.42,
   },
   ease: {
     out: 'power2.out',
     inOut: 'power2.inOut',
     soft: 'expo.out',
   },
+  surface: {
+    y: 8,
+  },
+  drawer: {
+    x: 16,
+  },
+  status: {
+    highlight: 'rgba(59, 130, 246, 0.14)',
+  },
 } as const;
 
-const prefersReducedMotion = (): boolean => {
+export const prefersReducedMotion = (): boolean => {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 };
@@ -103,6 +115,79 @@ export const useGsapCrossfade = (
     // Eslint exhaustive-deps would flag `ref`, but RefObjects are stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+};
+
+/**
+ * Surface transition for task surfaces and detail panels. Reduced motion keeps
+ * an opacityOnly transition so state changes remain legible without movement.
+ */
+export const useGsapSurfaceTransition = (
+  ref: React.RefObject<HTMLElement>,
+  key: unknown,
+  options: { opacityOnly?: boolean } = {},
+) => {
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const opacityOnly = options.opacityOnly || prefersReducedMotion();
+    gsap.fromTo(
+      node,
+      opacityOnly ? { opacity: 0 } : { opacity: 0, y: motion.surface.y },
+      {
+        opacity: 1,
+        y: opacityOnly ? undefined : 0,
+        duration: motion.duration.surface,
+        ease: motion.ease.out,
+        clearProps: 'transform',
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+};
+
+/**
+ * Reveal direct child rows/cards after a surface changes. Reduced motion keeps
+ * the list static to avoid unnecessary movement.
+ */
+export const useGsapListReveal = (
+  ref: React.RefObject<HTMLElement>,
+  key: unknown,
+  selector = '[data-gsap-list-item]',
+) => {
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || prefersReducedMotion()) return;
+    animateStaggerIn(node, selector, { y: 4, stagger: 0.02 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, selector]);
+};
+
+/**
+ * One-shot status highlight for async notices. It avoids looping animation and
+ * falls back to opacity-only behavior when reduced motion is requested.
+ */
+export const useGsapStatusHighlight = (
+  ref: React.RefObject<HTMLElement>,
+  key: unknown,
+) => {
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || !key) return;
+    if (prefersReducedMotion()) {
+      gsap.fromTo(node, { opacity: 0.72 }, { opacity: 1, duration: motion.duration.micro });
+      return;
+    }
+    gsap.fromTo(
+      node,
+      { backgroundColor: motion.status.highlight },
+      {
+        backgroundColor: 'transparent',
+        duration: motion.duration.status,
+        ease: motion.ease.out,
+        clearProps: 'backgroundColor',
+      },
+    );
+  }, [key, ref]);
 };
 
 /**

@@ -12,14 +12,24 @@ function read(relativePath) {
 
 const controlRoom = read('src/components/control-room/ControlRoomPage.tsx');
 for (const phrase of [
-  'Production loop',
-  'Admin system',
-  'Project collaborators',
-  'Secret vault',
-  'MCP/plugin marketplace',
-  'Evaluation harness',
-  'Cost, token, and latency dashboard',
-  'Security audit mode',
+  'CONTROL_ROOM_GROUPS',
+  'OVERVIEW_CARDS',
+  'overview-card-attention',
+  'overview-card-running',
+  'overview-card-reviews',
+  'overview-card-team-access',
+  'overview-card-security-secrets',
+  'overview-card-usage-evals',
+  'What needs attention',
+  'Running now',
+  'Team and access',
+  'Security and secrets',
+  'Usage and evaluations',
+  'Run timeline',
+  'AdvancedDisclosure',
+  'ContextDrawer',
+  'TimelineItem',
+  'ResponsiveDataList',
   '/api/production-agent-loop/github/issue-to-pr',
   '/api/platformization/admin/users',
   '/api/platformization/project-collaborators',
@@ -27,8 +37,10 @@ for (const phrase of [
   assert.match(controlRoom, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `Control room UI should include ${phrase}.`);
 }
 assert.doesNotMatch(controlRoom, /sections\.access|Self-hosted access|remote-access\/health/, 'Self-hosted access belongs in Settings, not inside Control Room.');
+assert.doesNotMatch(controlRoom, /const sections\s*=/, 'Control Room should not return to the old flat feature-wall section list.');
 
-assert.match(controlRoom, /lg:flex-row/, 'Control room must use responsive layout.');
+assert.match(controlRoom, /lg:grid-cols-\[220px_minmax\(0,1fr\)_320px\]/, 'Control room must use a desktop master-detail layout.');
+assert.match(controlRoom, /overflow-x-auto lg:hidden/, 'Control room must expose mobile-first grouped navigation.');
 assert.match(controlRoom, /sm:grid-cols-2/, 'Control room must include mobile-first responsive grids.');
 assert.match(controlRoom, /xl:grid-cols/, 'Control room must scale to wide screens.');
 
