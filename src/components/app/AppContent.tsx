@@ -4,17 +4,20 @@ import { useTranslation } from 'react-i18next';
 
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
+import VSCodeWorkbench from '../vscode-workbench/view/VSCodeWorkbench';
 import InAppNotificationCenter from '../notifications/InAppNotificationCenter';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
+import { useWorkbenchLayoutPreference } from '../../hooks/useWorkbenchLayoutPreference';
 
 export default function AppContent() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
+  const { useVscodeWorkbench } = useWorkbenchLayoutPreference();
   const { ws, sendMessage, latestMessage, isConnected } = useWebSocket();
   const wasConnectedRef = useRef(false);
 
@@ -148,11 +151,11 @@ export default function AppContent() {
 
   return (
     <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
-      {!isMobile ? (
+      {!useVscodeWorkbench && !isMobile ? (
         <div className="h-full flex-shrink-0 border-r border-border/50">
           <Sidebar {...sidebarSharedProps} />
         </div>
-      ) : (
+      ) : isMobile ? (
         <div
           className={`fixed inset-0 z-50 flex transition-all duration-150 ease-out ${sidebarOpen ? 'visible opacity-100' : 'invisible opacity-0'
             }`}
@@ -179,34 +182,63 @@ export default function AppContent() {
             <Sidebar {...sidebarSharedProps} />
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <MainContent
-          selectedProject={selectedProject}
-          selectedSession={selectedSession}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          ws={ws}
-          sendMessage={sendMessage}
-          latestMessage={latestMessage}
-          isMobile={isMobile}
-          onMenuClick={() => setSidebarOpen(true)}
-          isLoading={isLoadingProjects}
-          onInputFocusChange={setIsInputFocused}
-          onSessionActive={markSessionAsActive}
-          onSessionInactive={markSessionAsInactive}
-          onSessionProcessing={markSessionAsProcessing}
-          onSessionNotProcessing={markSessionAsNotProcessing}
-          processingSessions={processingSessions}
-          onReplaceTemporarySession={replaceTemporarySession}
-          onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
-          onShowSettings={() => setShowSettings(true)}
-          externalMessageUpdate={externalMessageUpdate}
-          onQuickStartSession={sidebarSharedProps.onQuickStartSession}
-          onQuickStartOrchestration={handleQuickStartOrchestration}
-          onQuickStartTasks={handleQuickStartTasks}
-        />
+        {useVscodeWorkbench && !isMobile ? (
+          <VSCodeWorkbench
+            sidebarProps={sidebarSharedProps}
+            selectedProject={selectedProject}
+            selectedSession={selectedSession}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            ws={ws}
+            sendMessage={sendMessage}
+            latestMessage={latestMessage}
+            isMobile={isMobile}
+            onMenuClick={() => setSidebarOpen(true)}
+            isLoading={isLoadingProjects}
+            onInputFocusChange={setIsInputFocused}
+            onSessionActive={markSessionAsActive}
+            onSessionInactive={markSessionAsInactive}
+            onSessionProcessing={markSessionAsProcessing}
+            onSessionNotProcessing={markSessionAsNotProcessing}
+            processingSessions={processingSessions}
+            onReplaceTemporarySession={replaceTemporarySession}
+            onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
+            onShowSettings={() => setShowSettings(true)}
+            externalMessageUpdate={externalMessageUpdate}
+            onQuickStartSession={sidebarSharedProps.onQuickStartSession}
+            onQuickStartOrchestration={handleQuickStartOrchestration}
+            onQuickStartTasks={handleQuickStartTasks}
+          />
+        ) : (
+          <MainContent
+            selectedProject={selectedProject}
+            selectedSession={selectedSession}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            ws={ws}
+            sendMessage={sendMessage}
+            latestMessage={latestMessage}
+            isMobile={isMobile}
+            onMenuClick={() => setSidebarOpen(true)}
+            isLoading={isLoadingProjects}
+            onInputFocusChange={setIsInputFocused}
+            onSessionActive={markSessionAsActive}
+            onSessionInactive={markSessionAsInactive}
+            onSessionProcessing={markSessionAsProcessing}
+            onSessionNotProcessing={markSessionAsNotProcessing}
+            processingSessions={processingSessions}
+            onReplaceTemporarySession={replaceTemporarySession}
+            onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
+            onShowSettings={() => setShowSettings(true)}
+            externalMessageUpdate={externalMessageUpdate}
+            onQuickStartSession={sidebarSharedProps.onQuickStartSession}
+            onQuickStartOrchestration={handleQuickStartOrchestration}
+            onQuickStartTasks={handleQuickStartTasks}
+          />
+        )}
       </div>
 
       <InAppNotificationCenter latestMessage={latestMessage} />

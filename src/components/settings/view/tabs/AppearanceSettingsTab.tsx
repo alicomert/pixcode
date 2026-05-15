@@ -1,7 +1,9 @@
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { DarkModeToggle } from '../../../../shared/view/ui';
 import { useTheme } from '../../../../contexts/ThemeContext';
+import { useWorkbenchLayoutPreference, type WorkbenchLayoutPreference } from '../../../../hooks/useWorkbenchLayoutPreference';
 import { THEME_ACCENT_OPTIONS, type ThemeAccentId } from '../../../../theme/appTheme';
 import type { CodeEditorSettingsState, ProjectSortOrder } from '../../types/types';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
@@ -47,6 +49,27 @@ export default function AppearanceSettingsTab({
     customDarkAccent: string;
     setCustomDarkAccent: (value: string) => void;
   };
+  const { workbenchLayout, setWorkbenchLayout } = useWorkbenchLayoutPreference();
+  const onWorkbenchLayoutChange = useCallback(
+    (value: WorkbenchLayoutPreference) => setWorkbenchLayout(value),
+    [setWorkbenchLayout],
+  );
+  const layoutOptions: Array<{
+    id: WorkbenchLayoutPreference;
+    label: string;
+    description: string;
+  }> = [
+    {
+      id: 'classic',
+      label: t('appearanceSettings.workbenchLayout.options.classic.label'),
+      description: t('appearanceSettings.workbenchLayout.options.classic.description'),
+    },
+    {
+      id: 'vscode',
+      label: t('appearanceSettings.workbenchLayout.options.vscode.label'),
+      description: t('appearanceSettings.workbenchLayout.options.vscode.description'),
+    },
+  ];
 
   return (
     <div className="space-y-8">
@@ -124,6 +147,41 @@ export default function AppearanceSettingsTab({
                   aria-label={t('appearanceSettings.colorTheme.custom.dark', 'Dark')}
                 />
               </label>
+            </div>
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsSection title={t('appearanceSettings.workbenchLayout.title')}>
+        <SettingsCard>
+          <SettingsRow
+            label={t('appearanceSettings.workbenchLayout.label')}
+            description={t('appearanceSettings.workbenchLayout.description')}
+            className="items-start"
+          >
+            <div className="grid w-full gap-2 sm:w-[26rem] sm:grid-cols-2">
+              {layoutOptions.map((option) => {
+                const active = workbenchLayout === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    className={`rounded-md border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                      active
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-background hover:bg-muted/40'
+                    }`}
+                    onClick={() => onWorkbenchLayoutChange(option.id)}
+                  >
+                    <span className="block text-sm font-semibold">{option.label}</span>
+                    <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                      {option.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </SettingsRow>
         </SettingsCard>

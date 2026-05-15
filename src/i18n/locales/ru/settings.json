@@ -154,6 +154,21 @@
         "label": "Размер шрифта",
         "description": "Размер шрифта редактора в пикселях"
       }
+    },
+    "workbenchLayout": {
+      "title": "Макет рабочей области",
+      "label": "Режим workbench",
+      "description": "Выберите оболочку приложения для рабочего стола.",
+      "options": {
+        "classic": {
+          "label": "Классический Pixcode",
+          "description": "Текущий Pixcode с фокусом на чат."
+        },
+        "vscode": {
+          "label": "В стиле VS Code",
+          "description": "Три панели: файлы, редактор и CLI."
+        }
+      }
     }
   },
   "mcpForm": {

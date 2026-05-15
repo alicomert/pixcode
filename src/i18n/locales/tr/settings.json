@@ -286,6 +286,21 @@
         "label": "Yazı Tipi Boyutu",
         "description": "Editör yazı tipi boyutu (piksel)"
       }
+    },
+    "workbenchLayout": {
+      "title": "Çalışma alanı görünümü",
+      "label": "Workbench modu",
+      "description": "Masaüstünde kullanılacak uygulama kabuğunu seç.",
+      "options": {
+        "classic": {
+          "label": "Klasik Pixcode",
+          "description": "Mevcut chat odaklı Pixcode görünümü."
+        },
+        "vscode": {
+          "label": "VS Code tarzı",
+          "description": "Dosyalar, editör ve CLI olan üç panelli çalışma alanı."
+        }
+      }
     }
   },
   "mcpForm": {

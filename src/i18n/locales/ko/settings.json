@@ -174,6 +174,21 @@
         "label": "글꼴 크기",
         "description": "에디터 글꼴 크기 (픽셀)"
       }
+    },
+    "workbenchLayout": {
+      "title": "작업공간 레이아웃",
+      "label": "워크벤치 모드",
+      "description": "데스크톱에서 사용할 앱 셸을 선택합니다.",
+      "options": {
+        "classic": {
+          "label": "클래식 Pixcode",
+          "description": "현재 채팅 중심 Pixcode 레이아웃."
+        },
+        "vscode": {
+          "label": "VS Code 스타일",
+          "description": "파일, 편집기, CLI가 있는 3분할 워크벤치."
+        }
+      }
     }
   },
   "mcpForm": {

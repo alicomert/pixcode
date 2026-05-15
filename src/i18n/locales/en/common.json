@@ -866,5 +866,33 @@
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
     }
+  },
+  "vscodeWorkbench": {
+    "title": "VS Code Workbench",
+    "noProject": "No project selected",
+    "activity": {
+      "explorer": "Explorer",
+      "projects": "Projects",
+      "sourceControl": "Source Control",
+      "terminal": "Terminal",
+      "showPanel": "Show left panel",
+      "hidePanel": "Hide left panel"
+    },
+    "panels": {
+      "explorer": "Explorer",
+      "projects": "Projects",
+      "sourceControl": "Source Control",
+      "terminal": "Terminal",
+      "editor": "Editor",
+      "cli": "CLI",
+      "rightTerminal": "Terminal"
+    },
+    "editor": {
+      "emptyTitle": "Open a file from Explorer"
+    },
+    "resize": {
+      "left": "Resize left panel",
+      "right": "Resize CLI panel"
+    }
   }
 }

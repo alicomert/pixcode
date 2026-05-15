@@ -773,5 +773,33 @@
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
     }
+  },
+  "vscodeWorkbench": {
+    "title": "VS Code ワークベンチ",
+    "noProject": "プロジェクト未選択",
+    "activity": {
+      "explorer": "エクスプローラー",
+      "projects": "プロジェクト",
+      "sourceControl": "ソース管理",
+      "terminal": "ターミナル",
+      "showPanel": "左パネルを表示",
+      "hidePanel": "左パネルを非表示"
+    },
+    "panels": {
+      "explorer": "エクスプローラー",
+      "projects": "プロジェクト",
+      "sourceControl": "ソース管理",
+      "terminal": "ターミナル",
+      "editor": "エディター",
+      "cli": "CLI",
+      "rightTerminal": "ターミナル"
+    },
+    "editor": {
+      "emptyTitle": "エクスプローラーからファイルを開く"
+    },
+    "resize": {
+      "left": "左パネルのサイズ変更",
+      "right": "CLI パネルのサイズ変更"
+    }
   }
 }

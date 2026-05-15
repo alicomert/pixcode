@@ -773,5 +773,33 @@
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
     }
+  },
+  "vscodeWorkbench": {
+    "title": "VS Code 워크벤치",
+    "noProject": "선택된 프로젝트 없음",
+    "activity": {
+      "explorer": "탐색기",
+      "projects": "프로젝트",
+      "sourceControl": "소스 제어",
+      "terminal": "터미널",
+      "showPanel": "왼쪽 패널 표시",
+      "hidePanel": "왼쪽 패널 숨기기"
+    },
+    "panels": {
+      "explorer": "탐색기",
+      "projects": "프로젝트",
+      "sourceControl": "소스 제어",
+      "terminal": "터미널",
+      "editor": "편집기",
+      "cli": "CLI",
+      "rightTerminal": "터미널"
+    },
+    "editor": {
+      "emptyTitle": "탐색기에서 파일 열기"
+    },
+    "resize": {
+      "left": "왼쪽 패널 크기 조정",
+      "right": "CLI 패널 크기 조정"
+    }
   }
 }

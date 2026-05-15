@@ -773,5 +773,33 @@
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
     }
+  },
+  "vscodeWorkbench": {
+    "title": "Area di lavoro VS Code",
+    "noProject": "Nessun progetto selezionato",
+    "activity": {
+      "explorer": "Esplora",
+      "projects": "Progetti",
+      "sourceControl": "Controllo sorgente",
+      "terminal": "Terminale",
+      "showPanel": "Mostra pannello sinistro",
+      "hidePanel": "Nascondi pannello sinistro"
+    },
+    "panels": {
+      "explorer": "Esplora",
+      "projects": "Progetti",
+      "sourceControl": "Controllo sorgente",
+      "terminal": "Terminale",
+      "editor": "Editor",
+      "cli": "CLI",
+      "rightTerminal": "Terminale"
+    },
+    "editor": {
+      "emptyTitle": "Apri un file da Esplora"
+    },
+    "resize": {
+      "left": "Ridimensiona pannello sinistro",
+      "right": "Ridimensiona pannello CLI"
+    }
   }
 }

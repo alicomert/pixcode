@@ -773,5 +773,33 @@
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
     }
+  },
+  "vscodeWorkbench": {
+    "title": "VS Code 工作区",
+    "noProject": "未选择项目",
+    "activity": {
+      "explorer": "资源管理器",
+      "projects": "项目",
+      "sourceControl": "源代码管理",
+      "terminal": "终端",
+      "showPanel": "显示左侧面板",
+      "hidePanel": "隐藏左侧面板"
+    },
+    "panels": {
+      "explorer": "资源管理器",
+      "projects": "项目",
+      "sourceControl": "源代码管理",
+      "terminal": "终端",
+      "editor": "编辑器",
+      "cli": "CLI",
+      "rightTerminal": "终端"
+    },
+    "editor": {
+      "emptyTitle": "从资源管理器打开文件"
+    },
+    "resize": {
+      "left": "调整左侧面板",
+      "right": "调整 CLI 面板"
+    }
   }
 }

@@ -286,6 +286,21 @@
         "label": "Font Size",
         "description": "Editor font size in pixels"
       }
+    },
+    "workbenchLayout": {
+      "title": "Workspace layout",
+      "label": "Workbench mode",
+      "description": "Choose the app shell used on desktop.",
+      "options": {
+        "classic": {
+          "label": "Classic Pixcode",
+          "description": "Current chat-first Pixcode layout."
+        },
+        "vscode": {
+          "label": "VS Code-style",
+          "description": "Three-pane workbench with files, editor, and CLI."
+        }
+      }
     }
   },
   "mcpForm": {

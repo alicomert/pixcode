@@ -743,5 +743,33 @@
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
     }
+  },
+  "vscodeWorkbench": {
+    "title": "Рабочая область VS Code",
+    "noProject": "Проект не выбран",
+    "activity": {
+      "explorer": "Проводник",
+      "projects": "Проекты",
+      "sourceControl": "Контроль версий",
+      "terminal": "Терминал",
+      "showPanel": "Показать левую панель",
+      "hidePanel": "Скрыть левую панель"
+    },
+    "panels": {
+      "explorer": "Проводник",
+      "projects": "Проекты",
+      "sourceControl": "Контроль версий",
+      "terminal": "Терминал",
+      "editor": "Редактор",
+      "cli": "CLI",
+      "rightTerminal": "Терминал"
+    },
+    "editor": {
+      "emptyTitle": "Откройте файл из Проводника"
+    },
+    "resize": {
+      "left": "Изменить левую панель",
+      "right": "Изменить CLI-панель"
+    }
   }
 }

@@ -866,5 +866,33 @@
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
     }
+  },
+  "vscodeWorkbench": {
+    "title": "VS Code Çalışma Alanı",
+    "noProject": "Proje seçilmedi",
+    "activity": {
+      "explorer": "Gezgin",
+      "projects": "Projeler",
+      "sourceControl": "Kaynak Kontrolü",
+      "terminal": "Terminal",
+      "showPanel": "Sol paneli göster",
+      "hidePanel": "Sol paneli gizle"
+    },
+    "panels": {
+      "explorer": "Gezgin",
+      "projects": "Projeler",
+      "sourceControl": "Kaynak Kontrolü",
+      "terminal": "Terminal",
+      "editor": "Editör",
+      "cli": "CLI",
+      "rightTerminal": "Terminal"
+    },
+    "editor": {
+      "emptyTitle": "Gezginden bir dosya aç"
+    },
+    "resize": {
+      "left": "Sol paneli boyutlandır",
+      "right": "CLI panelini boyutlandır"
+    }
   }
 }
