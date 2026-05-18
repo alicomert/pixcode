@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.47.0](https://github.com/alicomert/pixcode/compare/v1.46.7...v1.47.0) (2026-05-18)
+
+Pixcode 1.47.0 adds a selectable VS Code-style workbench layout for desktop users.
+
+### New Features
+
+* **workbench:** add a three-pane VS Code-style layout with a left activity/explorer area, central editor/system surface, and right CLI work area.
+* **workbench:** let users switch between classic and VS Code layouts from login and Appearance settings.
+* **workbench:** reuse existing file tree, editor, chat/provider, terminal, project, git, Control Room, remote, TaskMaster, and plugin surfaces in the new layout.
+
+### Documentation
+
+* **superpowers:** record the GitHub issue rollout and verification notes for the VS Code workbench layout.
+
 ## [1.42.1](https://github.com/alicomert/pixcode/compare/v1.42.0...v1.42.1) (2026-05-12)
 
 Pixcode 1.42.1 standardizes the orchestration init context packet every workflow agent receives.
