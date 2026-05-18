@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.47.2](https://github.com/alicomert/pixcode/compare/v1.47.1...v1.47.2) (2026-05-18)
+
+Pixcode 1.47.2 hardens Linux source updates and fixes two VS Code workbench regressions.
+
+### Fixes
+
+* **update:** replace the raw `git checkout main && git pull && npm install` path with a safe updater that stashes dirty checkout state, fast-forwards from `origin/main`, creates a backup branch before reset-based recovery, and installs dependencies without audit noise.
+* **workbench:** keep the Projects activity selected on the first click instead of bouncing back to Explorer while the center chat tab is active.
+* **editor:** force a real light CodeMirror theme/background and align the default editor theme with the app light/dark mode unless the editor theme was customized separately.
+
+### Tests
+
+* add smoke coverage for dirty git source updates, Projects activity selection, and light editor theme handling.
+
 ## [1.47.1](https://github.com/alicomert/pixcode/compare/v1.47.0...v1.47.1) (2026-05-18)
 
 Pixcode 1.47.1 polishes the new VS Code-style workbench so narrow three-pane layouts stay usable.
