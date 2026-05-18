@@ -12,6 +12,22 @@ export const getEditorLoadingStyles = (isDarkMode: boolean) => {
 
 export const getEditorStyles = (isDarkMode: boolean) => {
   return `
+    .cm-editor {
+      background-color: ${isDarkMode ? '#111827' : '#ffffff'} !important;
+      color: ${isDarkMode ? '#e5e7eb' : '#111827'} !important;
+    }
+
+    .cm-editor .cm-scroller,
+    .cm-editor .cm-content {
+      background-color: ${isDarkMode ? '#111827' : '#ffffff'} !important;
+    }
+
+    .cm-editor .cm-gutters {
+      background-color: ${isDarkMode ? '#1f2937' : '#f8fafc'} !important;
+      border-right-color: ${isDarkMode ? '#374151' : '#e5e7eb'} !important;
+      color: ${isDarkMode ? '#9ca3af' : '#64748b'} !important;
+    }
+
     .cm-deletedChunk {
       background-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 235, 235, 1)'} !important;
       border-left: 3px solid ${isDarkMode ? 'rgba(239, 68, 68, 0.6)' : 'rgb(239, 68, 68)'} !important;

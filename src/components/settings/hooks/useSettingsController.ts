@@ -93,8 +93,17 @@ const toCodexPermissionMode = (value: unknown): CodexPermissionMode => {
   return 'default';
 };
 
+const readCodeEditorTheme = (): CodeEditorSettingsState['theme'] => {
+  const savedTheme = localStorage.getItem('codeEditorTheme');
+  if (savedTheme === 'dark' || savedTheme === 'light') {
+    return savedTheme;
+  }
+
+  return localStorage.getItem('theme') === 'dark' ? 'dark' : DEFAULT_CODE_EDITOR_SETTINGS.theme;
+};
+
 const readCodeEditorSettings = (): CodeEditorSettingsState => ({
-  theme: localStorage.getItem('codeEditorTheme') === 'light' ? 'light' : 'dark',
+  theme: readCodeEditorTheme(),
   wordWrap: localStorage.getItem('codeEditorWordWrap') === 'true',
   showMinimap: localStorage.getItem('codeEditorShowMinimap') !== 'false',
   lineNumbers: localStorage.getItem('codeEditorLineNumbers') !== 'false',

@@ -482,18 +482,21 @@ app.use(express.static(path.join(APP_ROOT, 'public'), {
 //      npm tarball, extracts it to the writable runtime dir, and triggers
 //      a server restart so the Electron wrapper respawns with new code.
 //      ~4 MB download, ~10 s; no npm/git/shell required on the host.
-//   2. installMode === 'git' → `git pull && npm install` in-place.
+//   2. installMode === 'git' → safe git updater script. It stashes dirty
+//      checkout state before pulling so source installs do not fail on local
+//      modified files left by older releases or manual edits.
 //   3. fallback → `npm install -g …` (classic npm-distributed install).
 app.post('/api/system/update', authenticateToken, async (req, res) => {
     const projectRoot = APP_ROOT;
     console.log('Starting system update from directory:', projectRoot);
 
     const runtimeDir = process.env.PIXCODE_RUNTIME_DIR || null;
+    const gitUpdateScript = path.join(projectRoot, 'scripts', 'update-git-install.mjs');
 
     const updateCommand = IS_PLATFORM
         ? 'npm run update:platform'
         : installMode === 'git'
-            ? 'git checkout main && git pull && npm install'
+            ? `${JSON.stringify(process.execPath)} ${JSON.stringify(gitUpdateScript)}`
             : 'npm install -g @pixelbyte-software/pixcode@latest';
 
     const updateCwd = IS_PLATFORM || installMode === 'git'
@@ -738,8 +741,9 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
     // Short-circuit for "already on latest" in the npm-global path so
     // users don't accidentally crash their own daemon by clicking Update
     // while already up to date. The runtime-dir branch above already has
-    // this guard (line ~504); replicate it for npm mode. Git mode skips
-    // this since `git pull` is harmless when already up to date.
+    // this guard (line ~504); replicate it for npm mode. Git mode still
+    // runs because users may be on the latest package version but behind
+    // the source branch or have a dirty checkout that needs normalization.
     if (!IS_PLATFORM && installMode === 'npm') {
         try {
             send('log', { stream: 'meta', chunk: 'Querying registry for latest version…\n' });

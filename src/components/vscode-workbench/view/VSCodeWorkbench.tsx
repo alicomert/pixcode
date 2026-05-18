@@ -180,8 +180,12 @@ function VSCodeWorkbench({
       return;
     }
 
+    if (activeTab === 'chat' && activityPanel === 'projects') {
+      return;
+    }
+
     setActivityPanel(activityForTab(activeTab));
-  }, [activeTab]);
+  }, [activeTab, activityPanel]);
 
   useEffect(() => {
     if (!tasksEnabled && activeTab === 'tasks') {

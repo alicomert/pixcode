@@ -12,6 +12,21 @@ import {
 } from '../theme/appTheme';
 
 const ThemeContext = createContext();
+const CODE_EDITOR_THEME_KEY = 'codeEditorTheme';
+const CODE_EDITOR_SETTINGS_CHANGED_EVENT = 'codeEditorSettingsChanged';
+
+const toThemeName = (isDarkMode) => (isDarkMode ? 'dark' : 'light');
+
+const syncCodeEditorThemeWithApp = (currentIsDarkMode, nextIsDarkMode) => {
+  const currentAppTheme = toThemeName(currentIsDarkMode);
+  const nextAppTheme = toThemeName(nextIsDarkMode);
+  const editorTheme = localStorage.getItem(CODE_EDITOR_THEME_KEY);
+
+  if (!editorTheme || editorTheme === currentAppTheme) {
+    localStorage.setItem(CODE_EDITOR_THEME_KEY, nextAppTheme);
+    window.dispatchEvent(new Event(CODE_EDITOR_SETTINGS_CHANGED_EVENT));
+  }
+};
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
@@ -104,7 +119,11 @@ export const ThemeProvider = ({ children }) => {
   }, []);
 
   const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      syncCodeEditorThemeWithApp(prev, next);
+      return next;
+    });
   };
 
   const setAccentTheme = (theme) => {

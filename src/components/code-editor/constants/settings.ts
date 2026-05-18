@@ -7,7 +7,7 @@ export const CODE_EDITOR_STORAGE_KEYS = {
 } as const;
 
 export const CODE_EDITOR_DEFAULTS = {
-  isDarkMode: true,
+  isDarkMode: false,
   wordWrap: false,
   minimapEnabled: true,
   showLineNumbers: true,

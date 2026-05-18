@@ -6,13 +6,26 @@ import {
   CODE_EDITOR_STORAGE_KEYS,
 } from '../constants/settings';
 
-const readTheme = () => {
-  const savedTheme = localStorage.getItem(CODE_EDITOR_STORAGE_KEYS.theme);
-  if (!savedTheme) {
-    return CODE_EDITOR_DEFAULTS.isDarkMode;
+const readAppTheme = () => {
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'dark' || savedTheme === 'light') {
+    return savedTheme === 'dark';
   }
 
-  return savedTheme === 'dark';
+  if (document.documentElement.classList.contains('dark')) {
+    return true;
+  }
+
+  return CODE_EDITOR_DEFAULTS.isDarkMode;
+};
+
+const readTheme = () => {
+  const savedTheme = localStorage.getItem(CODE_EDITOR_STORAGE_KEYS.theme);
+  if (savedTheme === 'dark' || savedTheme === 'light') {
+    return savedTheme === 'dark';
+  }
+
+  return readAppTheme();
 };
 
 const readBoolean = (storageKey: string, defaultValue: boolean, falseValue = 'false') => {

@@ -80,6 +80,12 @@ assert.match(
   'Workbench should request compact composer behavior in the right CLI pane.',
 );
 
+assert.match(
+  workbench,
+  /activeTab === 'chat' && activityPanel === 'projects'/,
+  'Projects activity should stay selected while the center chat tab is active.',
+);
+
 assert.match(chatInterface, /compactComposer\?: boolean/, 'ChatInterface should expose compactComposer for narrow workbench panes.');
 assert.match(chatComposer, /compact\?: boolean/, 'ChatComposer should expose a compact prop.');
 assert.match(chatComposer, /flex-wrap/, 'ChatComposer footer should wrap controls in narrow panes.');

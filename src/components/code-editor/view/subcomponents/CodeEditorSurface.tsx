@@ -1,5 +1,6 @@
 import CodeMirror from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { EditorView } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 
 import MarkdownPreview from './markdown/MarkdownPreview';
@@ -14,6 +15,43 @@ type CodeEditorSurfaceProps = {
   showLineNumbers: boolean;
   extensions: Extension[];
 };
+
+const lightEditorTheme = EditorView.theme({
+  '&': {
+    backgroundColor: '#ffffff',
+    color: '#111827',
+  },
+  '.cm-scroller': {
+    backgroundColor: '#ffffff',
+  },
+  '.cm-content': {
+    caretColor: '#111827',
+  },
+  '.cm-cursor, .cm-dropCursor': {
+    borderLeftColor: '#111827',
+  },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+    backgroundColor: '#bfdbfe',
+  },
+  '.cm-gutters': {
+    backgroundColor: '#f8fafc',
+    borderRightColor: '#e5e7eb',
+    color: '#64748b',
+  },
+  '.cm-activeLine': {
+    backgroundColor: '#f8fafc',
+  },
+  '.cm-activeLineGutter': {
+    backgroundColor: '#eef2ff',
+  },
+  '.cm-panels': {
+    backgroundColor: '#ffffff',
+    color: '#111827',
+  },
+  '.cm-panels.cm-panels-top': {
+    borderBottomColor: '#e5e7eb',
+  },
+}, { dark: false });
 
 export default function CodeEditorSurface({
   content,
@@ -40,7 +78,7 @@ export default function CodeEditorSurface({
       value={content}
       onChange={onChange}
       extensions={extensions}
-      theme={isDarkMode ? oneDark : undefined}
+      theme={isDarkMode ? oneDark : lightEditorTheme}
       height="100%"
       style={{
         fontSize: `${fontSize}px`,
