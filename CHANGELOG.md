@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.47.1](https://github.com/alicomert/pixcode/compare/v1.47.0...v1.47.1) (2026-05-18)
+
+Pixcode 1.47.1 polishes the new VS Code-style workbench so narrow three-pane layouts stay usable.
+
+### Fixes
+
+* **workbench:** replace the Projects activity chat-history sidebar with a project-directory list that shows shortened paths and file counts.
+* **workbench:** add File/Edit/Selection/View/Go/Run/Terminal/Help menus and route Open Project / Clone Repository through the existing workspace wizard.
+* **workbench:** stop Settings from carrying over after switching between classic and VS Code layouts.
+* **chat:** keep provider cards, composer controls, send, and multi-project worker slots visible in the compact right CLI pane.
+* **landing:** make the Start Pixcode workspace cards auto-fit instead of forcing cramped fixed columns.
+
+### Tests
+
+* add smoke coverage for the polished workbench project, menu, compact composer, and file-count flows.
+
 ## [1.47.0](https://github.com/alicomert/pixcode/compare/v1.46.7...v1.47.0) (2026-05-18)
 
 Pixcode 1.47.0 adds a selectable VS Code-style workbench layout for desktop users.
