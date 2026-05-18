@@ -800,6 +800,24 @@
     "resize": {
       "left": "Ridimensiona pannello sinistro",
       "right": "Ridimensiona pannello CLI"
+    },
+    "menu": {
+      "openProject": "Apri progetto...",
+      "cloneFromGithub": "Clona repository...",
+      "newChat": "Nuova chat",
+      "openProjects": "Apri progetti"
+    },
+    "projects": {
+      "openProject": "Apri progetto",
+      "cloneFromGithub": "Clona",
+      "directoryList": "Directory",
+      "refresh": "Aggiorna progetti",
+      "emptyTitle": "Nessuna directory progetto",
+      "emptyDescription": "Apri una cartella locale o clona un repository per iniziare.",
+      "selected": "Selezionato",
+      "startChat": "Chat",
+      "fileCount": "{{formattedCount}} file",
+      "fileCountPending": "File in preparazione"
     }
   }
 }

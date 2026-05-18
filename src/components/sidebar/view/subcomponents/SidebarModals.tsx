@@ -11,6 +11,7 @@ import type { InstallMode } from '../../../../hooks/useVersionCheck';
 import { normalizeProjectForSettings } from '../../utils/utils';
 import type { DeleteProjectConfirmation, SessionDeleteConfirmation, SettingsProject } from '../../types/types';
 import ProjectCreationWizard from '../../../project-creation-wizard';
+import type { WorkspaceType } from '../../../project-creation-wizard/types';
 
 import { AlertTriangle, EyeOff, Trash2 } from '@/lib/icons';
 
@@ -20,6 +21,7 @@ type SidebarModalsProps = {
   settingsInitialTab: string;
   onCloseSettings: () => void;
   showNewProject: boolean;
+  newProjectInitialType: WorkspaceType;
   onCloseNewProject: () => void;
   onProjectCreated: (project?: Project) => void;
   deleteConfirmation: DeleteProjectConfirmation | null;
@@ -57,6 +59,7 @@ export default function SidebarModals({
   settingsInitialTab,
   onCloseSettings,
   showNewProject,
+  newProjectInitialType,
   onCloseNewProject,
   onProjectCreated,
   deleteConfirmation,
@@ -87,6 +90,7 @@ export default function SidebarModals({
           <ProjectCreationWizard
             onClose={onCloseNewProject}
             onProjectCreated={onProjectCreated}
+            initialWorkspaceType={newProjectInitialType}
           />,
           document.body,
         )}

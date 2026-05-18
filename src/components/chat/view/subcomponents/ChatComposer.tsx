@@ -35,6 +35,7 @@ import TokenUsagePie from './TokenUsagePie';
 import WorkerSlotsControl from './WorkerSlotsControl';
 
 import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, ListChecks } from '@/lib/icons';
+import { cn } from '@/lib/utils';
 
 interface MentionableFile {
   name: string;
@@ -112,6 +113,7 @@ interface ChatComposerProps {
   isTextareaExpanded: boolean;
   sendByCtrlEnter?: boolean;
   composerContainerRef?: RefObject<HTMLDivElement>;
+  compact?: boolean;
 }
 
 export default function ChatComposer({
@@ -171,6 +173,7 @@ export default function ChatComposer({
   placeholder,
   isTextareaExpanded,
   composerContainerRef,
+  compact = false,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const textareaRect = textareaRef.current?.getBoundingClientRect();
@@ -191,7 +194,12 @@ export default function ChatComposer({
   return (
     <div
       ref={composerContainerRef}
-      className="absolute inset-x-0 bottom-0 z-20 flex-shrink-0 bg-gradient-to-t from-background via-background/95 to-background/70 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur sm:p-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-4 md:pb-6"
+      className={cn(
+        'absolute inset-x-0 bottom-0 z-20 flex-shrink-0 bg-gradient-to-t from-background via-background/95 to-background/70 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur',
+        compact
+          ? 'sm:p-2 sm:pb-[calc(0.5rem+env(safe-area-inset-bottom))] md:p-2 md:pb-3'
+          : 'sm:p-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-4 md:pb-6',
+      )}
     >
       {!hasPendingPermissions && (
         <ClaudeStatus
@@ -212,7 +220,7 @@ export default function ChatComposer({
         </div>
       )}
 
-      {!hasQuestionPanel && <div className="relative mx-auto max-w-4xl">
+      {!hasQuestionPanel && <div className={cn('relative mx-auto', compact ? 'max-w-none' : 'max-w-4xl')}>
         {isUserScrolledUp && hasMessages && (
           <div className="absolute -top-10 left-0 right-0 z-10 flex justify-center">
             <button
@@ -326,8 +334,8 @@ export default function ChatComposer({
             />
         </PromptInputBody>
 
-        <PromptInputFooter>
-          <PromptInputTools>
+        <PromptInputFooter className={cn('gap-2', compact ? 'flex-wrap items-end px-2 py-2' : 'flex-wrap sm:flex-nowrap')}>
+          <PromptInputTools className={cn('min-w-0 flex-1 flex-wrap', compact && 'gap-1')}>
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}
               onClick={openImagePicker}
@@ -361,7 +369,7 @@ export default function ChatComposer({
                           : 'bg-primary'
                   }`}
                 />
-                <span className="hidden whitespace-nowrap sm:inline">
+                <span className={cn('whitespace-nowrap', compact ? 'hidden' : 'hidden sm:inline')}>
                   {permissionMode === 'default' && t('codex.modes.default')}
                   {permissionMode === 'acceptEdits' && t('codex.modes.acceptEdits')}
                   {permissionMode === 'bypassPermissions' && t('codex.modes.bypassPermissions')}
@@ -383,7 +391,9 @@ export default function ChatComposer({
                 aria-pressed={permissionMode === 'plan'}
               >
                 <ListChecks className="h-3.5 w-3.5" />
-                <span className="hidden whitespace-nowrap sm:inline">{t('codex.modes.plan')}</span>
+                <span className={cn('whitespace-nowrap', compact ? 'hidden' : 'hidden sm:inline')}>
+                  {t('codex.modes.plan')}
+                </span>
               </button>
             )}
 
@@ -420,18 +430,28 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="worker-slot-composer-rail flex min-w-[5.75rem] shrink-0 items-center justify-end gap-2">
+          <div className={cn(
+            'worker-slot-composer-rail flex shrink-0 items-center justify-end gap-2',
+            compact ? 'min-w-[5rem]' : 'min-w-[5.75rem]',
+          )}>
             <WorkerSlotsControl
               workerSlots={workerSlots}
               onWorkerSlotsChange={onWorkerSlotsChange}
               selectedProject={selectedProject}
               disabled={isLoading}
               align="right"
-              buttonClassName="h-10 w-10 rounded-full border-dashed bg-muted/25 opacity-75 hover:opacity-100"
+              buttonClassName={cn(
+                'rounded-full border-dashed bg-muted/25 opacity-75 hover:opacity-100',
+                compact ? 'h-9 w-9' : 'h-10 w-10',
+              )}
+              panelClassName={compact ? 'w-[min(24rem,calc(100vw-2rem))]' : undefined}
             />
             <PromptInputSubmit
               disabled={!input.trim() || isLoading}
-              className="h-10 w-10 min-w-10 flex-none shrink-0 sm:h-10 sm:w-10 sm:min-w-10"
+              className={cn(
+                'flex-none shrink-0',
+                compact ? 'h-9 w-9 min-w-9 sm:h-9 sm:w-9 sm:min-w-9' : 'h-10 w-10 min-w-10 sm:h-10 sm:w-10 sm:min-w-10',
+              )}
               onMouseDown={(event) => {
                 event.preventDefault();
                 onSubmit(event as unknown as MouseEvent<HTMLButtonElement>);

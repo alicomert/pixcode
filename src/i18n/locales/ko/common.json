@@ -800,6 +800,24 @@
     "resize": {
       "left": "왼쪽 패널 크기 조정",
       "right": "CLI 패널 크기 조정"
+    },
+    "menu": {
+      "openProject": "프로젝트 열기...",
+      "cloneFromGithub": "저장소 클론...",
+      "newChat": "새 채팅",
+      "openProjects": "프로젝트 열기"
+    },
+    "projects": {
+      "openProject": "프로젝트 열기",
+      "cloneFromGithub": "클론",
+      "directoryList": "디렉터리",
+      "refresh": "프로젝트 새로고침",
+      "emptyTitle": "아직 프로젝트 디렉터리가 없습니다",
+      "emptyDescription": "로컬 폴더를 열거나 저장소를 클론해서 시작하세요.",
+      "selected": "선택됨",
+      "startChat": "채팅",
+      "fileCount": "{{formattedCount}}개 파일",
+      "fileCountPending": "파일 준비 중"
     }
   }
 }

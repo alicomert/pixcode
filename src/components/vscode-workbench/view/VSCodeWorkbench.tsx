@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import ChatInterface from '../../chat/view/ChatInterface';
@@ -15,6 +16,7 @@ import Sidebar from '../../sidebar/view/Sidebar';
 import type { SidebarProps } from '../../sidebar/types/types';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import { TaskMasterPanel } from '../../task-master';
+import type { WorkspaceType } from '../../project-creation-wizard/types';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { cn } from '../../../lib/utils';
@@ -23,15 +25,21 @@ import type { MainContentProps } from '../../main-content/types/types';
 
 import {
   Bot,
+  ChevronDown,
   Code2,
   Columns,
   FileText,
   Folder,
+  FolderOpen,
   GitBranch,
+  Github,
+  MessageSquare,
   Monitor,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
+  Plus,
+  RefreshCw,
   Server,
   Settings,
   Sparkles,
@@ -82,6 +90,34 @@ function activityForTab(activeTab: AppTab): ActivityPanel {
   if (activeTab === 'git' || activeTab === 'changes') return 'sourceControl';
   if (activeTab === 'shell') return 'terminal';
   return 'explorer';
+}
+
+function getProjectPath(project: Project) {
+  return project.fullPath || project.path || project.displayName || project.name;
+}
+
+function formatProjectPath(project: Project) {
+  const rawPath = getProjectPath(project);
+  const normalized = rawPath.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+
+  if (parts.length === 0) {
+    return rawPath || project.name;
+  }
+
+  return `/${parts[parts.length - 1]}`;
+}
+
+function formatFileCount(fileCount: Project['fileCount'], t: TFunction<'common'>) {
+  if (typeof fileCount !== 'number' || !Number.isFinite(fileCount)) {
+    return t('vscodeWorkbench.projects.fileCountPending', { defaultValue: 'Files pending' });
+  }
+
+  return t('vscodeWorkbench.projects.fileCount', {
+    count: fileCount,
+    formattedCount: fileCount.toLocaleString(),
+    defaultValue: '{{formattedCount}} files',
+  });
 }
 
 function VSCodeWorkbench({
@@ -258,6 +294,11 @@ function VSCodeWorkbench({
   const selectActivityPanel = useCallback((panel: ActivityPanel, tab: AppTab) => {
     setActivityPanel(panel);
     setIsLeftCollapsed(false);
+    if (panel === 'projects') {
+      setActiveTab('chat');
+      return;
+    }
+
     if (tab !== 'chat' || !isCenterSystemTab(activeTab)) {
       setActiveTab(tab);
     }
@@ -267,9 +308,32 @@ function VSCodeWorkbench({
     setActiveTab(tab);
   }, [setActiveTab]);
 
+  const openProjectWizard = useCallback((type: WorkspaceType) => {
+    window.dispatchEvent(new CustomEvent('pixcode:create-project', {
+      detail: { workspaceType: type },
+    }));
+  }, []);
+
+  const handleWorkbenchProjectSelect = useCallback((project: Project) => {
+    sidebarProps.onProjectSelect(project);
+    setActiveTab('chat');
+  }, [setActiveTab, sidebarProps]);
+
   const renderLeftPanel = () => {
     if (activityPanel === 'projects') {
-      return <Sidebar {...sidebarProps} isMobile={false} />;
+      return (
+        <WorkbenchProjectsPanel
+          projects={sidebarProps.projects}
+          selectedProject={selectedProject}
+          onProjectSelect={handleWorkbenchProjectSelect}
+          onNewSession={sidebarProps.onNewSession}
+          onOpenProject={() => openProjectWizard('existing')}
+          onCloneProject={() => openProjectWizard('new')}
+          onRefresh={sidebarProps.onRefresh}
+          isRefreshing={sidebarProps.isLoading}
+          t={t}
+        />
+      );
     }
 
     if (activityPanel === 'sourceControl') {
@@ -402,133 +466,504 @@ function VSCodeWorkbench({
         sendByCtrlEnter={false}
         externalMessageUpdate={externalMessageUpdate}
         onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
+        compactComposer
       />
     );
   };
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        'flex h-full min-w-0 flex-1 overflow-hidden bg-background text-foreground',
-        resizeTarget && 'select-none',
-      )}
-    >
-      <aside className="flex h-full w-12 shrink-0 flex-col border-r border-border bg-muted/30">
-        <div className="flex h-11 items-center justify-center border-b border-border">
-          <Columns className="h-5 w-5 text-primary" />
-        </div>
-
-        <div className="flex flex-1 flex-col items-center gap-1 py-2">
-          {activityButtons.map((item) => (
-            <ActivityButton
-              key={item.id}
-              label={item.label}
-              icon={item.icon}
-              active={!isLeftCollapsed && activityPanel === item.id && !isCenterSystemTab(activeTab)}
-              onClick={() => selectActivityPanel(item.id, item.tab)}
-            />
-          ))}
-        </div>
-
-        <div className="flex flex-col items-center gap-1 border-t border-border py-2">
-          {systemButtons.map((item) => (
-            <ActivityButton
-              key={item.id}
-              label={item.label}
-              icon={item.icon}
-              active={activeTab === item.tab}
-              onClick={() => openSystemTab(item.tab)}
-            />
-          ))}
-          <ActivityButton
-            label={isLeftCollapsed ? t('vscodeWorkbench.activity.showPanel') : t('vscodeWorkbench.activity.hidePanel')}
-            icon={isLeftCollapsed ? PanelLeftOpen : PanelLeftClose}
-            active={false}
-            onClick={() => setIsLeftCollapsed((previous) => !previous)}
-          />
-          <ActivityButton
-            label={t('navigation.settings')}
-            icon={Settings}
-            active={false}
-            onClick={onShowSettings}
-          />
-        </div>
-      </aside>
-
-      {!isLeftCollapsed && (
-        <>
-          <section
-            className="h-full shrink-0 overflow-hidden border-r border-border bg-background"
-            style={{ width: leftPaneWidth }}
-          >
-            <div className="flex h-10 items-center justify-between border-b border-border px-3">
-              <div className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t(`vscodeWorkbench.panels.${activityPanel}`)}
-              </div>
-            </div>
-            <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
-              {renderLeftPanel()}
-            </div>
-          </section>
-
-          <ResizeHandle
-            label={t('vscodeWorkbench.resize.left')}
-            active={resizeTarget === 'left'}
-            onPointerDown={(event) => startResize('left', event)}
-          />
-        </>
-      )}
-
-      <main className="min-w-[360px] flex-1 overflow-hidden border-r border-border bg-background">
-        <div className="flex h-10 items-center justify-between border-b border-border px-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Monitor className="h-4 w-4 text-muted-foreground" />
-            <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {isCenterSystemTab(activeTab)
-                ? t(`tabs.${activeTab === 'controlRoom' ? 'controlRoom' : activeTab}`)
-                : t('vscodeWorkbench.panels.editor')}
-            </span>
-          </div>
-          <span className="truncate text-xs text-muted-foreground">
-            {selectedProject?.displayName || selectedProject?.name || t('vscodeWorkbench.noProject')}
-          </span>
-        </div>
-        <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
-          {renderCenterPanel()}
-        </div>
-      </main>
-
-      <ResizeHandle
-        label={t('vscodeWorkbench.resize.right')}
-        active={resizeTarget === 'right'}
-        onPointerDown={(event) => startResize('right', event)}
+    <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
+      <Sidebar {...sidebarProps} isMobile={false} modalsOnly />
+      <WorkbenchMenuBar
+        t={t}
+        onOpenProject={openProjectWizard}
+        onActivityPanel={selectActivityPanel}
+        onSystemTab={openSystemTab}
+        onSetRightPanel={setRightPanel}
+        onShowSettings={onShowSettings}
+        onQuickStartSession={onQuickStartSession}
+        onQuickStartOrchestration={onQuickStartOrchestration}
+        onQuickStartTasks={onQuickStartTasks}
       />
 
-      <aside
-        className="h-full shrink-0 overflow-hidden bg-background"
-        style={{ width: rightPaneWidth }}
+      <div
+        ref={containerRef}
+        className={cn(
+          'flex min-h-0 min-w-0 flex-1 overflow-hidden',
+          resizeTarget && 'select-none',
+        )}
       >
-        <div className="flex h-10 items-center justify-between border-b border-border px-2">
-          <div className="flex min-w-0 items-center gap-1">
-            <RightPanelButton
-              active={rightPanel === 'cli'}
-              icon={Bot}
-              label={t('vscodeWorkbench.panels.cli')}
-              onClick={() => setRightPanel('cli')}
+        <aside className="flex h-full w-12 shrink-0 flex-col border-r border-border bg-muted/30">
+          <div className="flex h-11 items-center justify-center border-b border-border">
+            <Columns className="h-5 w-5 text-primary" />
+          </div>
+
+          <div className="flex flex-1 flex-col items-center gap-1 py-2">
+            {activityButtons.map((item) => (
+              <ActivityButton
+                key={item.id}
+                label={item.label}
+                icon={item.icon}
+                active={!isLeftCollapsed && activityPanel === item.id && !isCenterSystemTab(activeTab)}
+                onClick={() => selectActivityPanel(item.id, item.tab)}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-col items-center gap-1 border-t border-border py-2">
+            {systemButtons.map((item) => (
+              <ActivityButton
+                key={item.id}
+                label={item.label}
+                icon={item.icon}
+                active={activeTab === item.tab}
+                onClick={() => openSystemTab(item.tab)}
+              />
+            ))}
+            <ActivityButton
+              label={isLeftCollapsed ? t('vscodeWorkbench.activity.showPanel') : t('vscodeWorkbench.activity.hidePanel')}
+              icon={isLeftCollapsed ? PanelLeftOpen : PanelLeftClose}
+              active={false}
+              onClick={() => setIsLeftCollapsed((previous) => !previous)}
             />
-            <RightPanelButton
-              active={rightPanel === 'terminal'}
-              icon={Terminal}
-              label={t('vscodeWorkbench.panels.terminal')}
-              onClick={() => setRightPanel('terminal')}
+            <ActivityButton
+              label={t('navigation.settings')}
+              icon={Settings}
+              active={false}
+              onClick={onShowSettings}
             />
           </div>
+        </aside>
+
+        {!isLeftCollapsed && (
+          <>
+            <section
+              className="h-full shrink-0 overflow-hidden border-r border-border bg-background"
+              style={{ width: leftPaneWidth }}
+            >
+              <div className="flex h-10 items-center justify-between border-b border-border px-3">
+                <div className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t(`vscodeWorkbench.panels.${activityPanel}`)}
+                </div>
+              </div>
+              <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
+                {renderLeftPanel()}
+              </div>
+            </section>
+
+            <ResizeHandle
+              label={t('vscodeWorkbench.resize.left')}
+              active={resizeTarget === 'left'}
+              onPointerDown={(event) => startResize('left', event)}
+            />
+          </>
+        )}
+
+        <main className="min-w-0 flex-1 overflow-hidden border-r border-border bg-background">
+          <div className="flex h-10 items-center justify-between border-b border-border px-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Monitor className="h-4 w-4 text-muted-foreground" />
+              <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {isCenterSystemTab(activeTab)
+                  ? t(`tabs.${activeTab === 'controlRoom' ? 'controlRoom' : activeTab}`)
+                  : t('vscodeWorkbench.panels.editor')}
+              </span>
+            </div>
+            <span className="truncate text-xs text-muted-foreground">
+              {selectedProject?.displayName || selectedProject?.name || t('vscodeWorkbench.noProject')}
+            </span>
+          </div>
+          <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
+            {renderCenterPanel()}
+          </div>
+        </main>
+
+        <ResizeHandle
+          label={t('vscodeWorkbench.resize.right')}
+          active={resizeTarget === 'right'}
+          onPointerDown={(event) => startResize('right', event)}
+        />
+
+        <aside
+          className="h-full shrink-0 overflow-hidden bg-background"
+          style={{ width: rightPaneWidth }}
+        >
+          <div className="flex h-10 items-center justify-between border-b border-border px-2">
+            <div className="flex min-w-0 items-center gap-1">
+              <RightPanelButton
+                active={rightPanel === 'cli'}
+                icon={Bot}
+                label={t('vscodeWorkbench.panels.cli')}
+                onClick={() => setRightPanel('cli')}
+              />
+              <RightPanelButton
+                active={rightPanel === 'terminal'}
+                icon={Terminal}
+                label={t('vscodeWorkbench.panels.terminal')}
+                onClick={() => setRightPanel('terminal')}
+              />
+            </div>
+          </div>
+          <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
+            {renderRightPanel()}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+type WorkbenchMenuBarProps = {
+  t: TFunction<'common'>;
+  onOpenProject: (type: WorkspaceType) => void;
+  onActivityPanel: (panel: ActivityPanel, tab: AppTab) => void;
+  onSystemTab: (tab: AppTab) => void;
+  onSetRightPanel: (panel: RightPanel) => void;
+  onShowSettings: () => void;
+  onQuickStartSession?: () => void | Promise<void>;
+  onQuickStartOrchestration?: () => void | Promise<void>;
+  onQuickStartTasks?: () => void | Promise<void>;
+};
+
+type WorkbenchMenuCommand = {
+  label: string;
+  icon?: IconComponent;
+  action?: () => void | Promise<void>;
+  type?: WorkspaceType;
+};
+
+function WorkbenchMenuBar({
+  t,
+  onOpenProject,
+  onActivityPanel,
+  onSystemTab,
+  onSetRightPanel,
+  onShowSettings,
+  onQuickStartSession,
+  onQuickStartOrchestration,
+  onQuickStartTasks,
+}: WorkbenchMenuBarProps) {
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  const menuItems = useMemo(() => [
+    {
+      label: 'File',
+      commands: [
+        {
+          label: t('vscodeWorkbench.menu.openProject', { defaultValue: 'Open Project...' }),
+          icon: FolderOpen,
+          type: 'existing' as WorkspaceType,
+        },
+        {
+          label: t('vscodeWorkbench.menu.cloneFromGithub', { defaultValue: 'Clone Repository...' }),
+          icon: Github,
+          type: 'new' as WorkspaceType,
+        },
+        {
+          label: t('vscodeWorkbench.menu.newChat', { defaultValue: 'New Chat' }),
+          icon: MessageSquare,
+          action: onQuickStartSession,
+        },
+        {
+          label: t('navigation.settings'),
+          icon: Settings,
+          action: onShowSettings,
+        },
+      ],
+    },
+    {
+      label: 'Edit',
+      commands: [
+        {
+          label: t('vscodeWorkbench.menu.newChat', { defaultValue: 'New Chat' }),
+          icon: Plus,
+          action: onQuickStartSession,
+        },
+      ],
+    },
+    {
+      label: 'Selection',
+      commands: [
+        {
+          label: t('vscodeWorkbench.menu.openProjects', { defaultValue: 'Open Projects' }),
+          icon: Folder,
+          action: () => onActivityPanel('projects', 'chat'),
+        },
+      ],
+    },
+    {
+      label: 'View',
+      commands: [
+        {
+          label: t('vscodeWorkbench.activity.explorer'),
+          icon: Folder,
+          action: () => onActivityPanel('explorer', 'files'),
+        },
+        {
+          label: t('vscodeWorkbench.activity.projects'),
+          icon: FileText,
+          action: () => onActivityPanel('projects', 'chat'),
+        },
+        {
+          label: t('vscodeWorkbench.activity.sourceControl'),
+          icon: GitBranch,
+          action: () => onActivityPanel('sourceControl', 'git'),
+        },
+      ],
+    },
+    {
+      label: 'Go',
+      commands: [
+        {
+          label: t('tabs.controlRoom'),
+          icon: Sparkles,
+          action: () => onSystemTab('controlRoom'),
+        },
+        {
+          label: t('tabs.remote'),
+          icon: Server,
+          action: () => onSystemTab('remote'),
+        },
+      ],
+    },
+    {
+      label: 'Run',
+      commands: [
+        {
+          label: t('tabs.orchestration'),
+          icon: Workflow,
+          action: onQuickStartOrchestration ?? (() => onSystemTab('orchestration')),
+        },
+        {
+          label: t('tabs.tasks'),
+          icon: Play,
+          action: onQuickStartTasks ?? (() => onSystemTab('tasks')),
+        },
+      ],
+    },
+    {
+      label: 'Terminal',
+      commands: [
+        {
+          label: t('vscodeWorkbench.panels.cli'),
+          icon: Bot,
+          action: () => onSetRightPanel('cli'),
+        },
+        {
+          label: t('vscodeWorkbench.panels.terminal'),
+          icon: Terminal,
+          action: () => onSetRightPanel('terminal'),
+        },
+      ],
+    },
+    {
+      label: 'Help',
+      commands: [
+        {
+          label: t('navigation.settings'),
+          icon: Settings,
+          action: onShowSettings,
+        },
+      ],
+    },
+  ], [
+    onActivityPanel,
+    onQuickStartOrchestration,
+    onQuickStartSession,
+    onQuickStartTasks,
+    onSetRightPanel,
+    onShowSettings,
+    onSystemTab,
+    t,
+  ]);
+
+  const runCommand = (command: WorkbenchMenuCommand) => {
+    setOpenMenu(null);
+    if (command.type) {
+      onOpenProject(command.type);
+      return;
+    }
+
+    void command.action?.();
+  };
+
+  return (
+    <div className="flex h-8 shrink-0 items-center border-b border-border bg-muted/20 px-2 text-xs text-muted-foreground">
+      <div className="flex h-full items-center gap-0.5">
+        {menuItems.map((menu) => (
+          <div key={menu.label} className="relative h-full">
+            <button
+              type="button"
+              className={cn(
+                'flex h-full items-center gap-1 rounded px-2 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                openMenu === menu.label && 'bg-muted text-foreground',
+              )}
+              onClick={() => setOpenMenu((current) => (current === menu.label ? null : menu.label))}
+            >
+              {menu.label}
+              <ChevronDown className="h-3 w-3" />
+            </button>
+
+            {openMenu === menu.label && (
+              <div className="absolute left-0 top-full z-50 mt-1 min-w-52 overflow-hidden rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-xl shadow-black/10">
+                {menu.commands.map((command) => {
+                  const Icon = command.icon;
+                  return (
+                    <button
+                      key={command.label}
+                      type="button"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                      onClick={() => runCommand(command)}
+                    >
+                      {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+                      <span className="truncate">{command.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+type WorkbenchProjectsPanelProps = {
+  projects: Project[];
+  selectedProject: Project | null;
+  onProjectSelect: (project: Project) => void;
+  onNewSession: (project: Project) => void;
+  onOpenProject: () => void;
+  onCloneProject: () => void;
+  onRefresh: () => Promise<void> | void;
+  isRefreshing: boolean;
+  t: TFunction<'common'>;
+};
+
+function WorkbenchProjectsPanel({
+  projects,
+  selectedProject,
+  onProjectSelect,
+  onNewSession,
+  onOpenProject,
+  onCloneProject,
+  onRefresh,
+  isRefreshing,
+  t,
+}: WorkbenchProjectsPanelProps) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-border p-2">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onOpenProject}
+            className="flex min-w-0 items-center justify-center gap-1.5 rounded border border-border px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{t('vscodeWorkbench.projects.openProject', { defaultValue: 'Open Project' })}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onCloneProject}
+            className="flex min-w-0 items-center justify-center gap-1.5 rounded border border-border px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            <Github className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{t('vscodeWorkbench.projects.cloneFromGithub', { defaultValue: 'Clone' })}</span>
+          </button>
         </div>
-        <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
-          {renderRightPanel()}
-        </div>
-      </aside>
+      </div>
+
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {t('vscodeWorkbench.projects.directoryList', { defaultValue: 'Directories' })}
+        </span>
+        <button
+          type="button"
+          onClick={() => { void onRefresh(); }}
+          disabled={isRefreshing}
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+          title={t('vscodeWorkbench.projects.refresh', { defaultValue: 'Refresh projects' })}
+          aria-label={t('vscodeWorkbench.projects.refresh', { defaultValue: 'Refresh projects' })}
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')} />
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {projects.length === 0 ? (
+          <div className="flex h-full items-center justify-center px-4 text-center">
+            <div>
+              <Folder className="mx-auto mb-3 h-7 w-7 text-muted-foreground/70" />
+              <div className="text-sm font-medium text-foreground">
+                {t('vscodeWorkbench.projects.emptyTitle', { defaultValue: 'No project directories yet' })}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {t('vscodeWorkbench.projects.emptyDescription', {
+                  defaultValue: 'Open a local folder or clone a repository to start.',
+                })}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {projects.map((project) => {
+              const isSelected = selectedProject?.name === project.name;
+              return (
+                <div
+                  key={project.name}
+                  role="button"
+                  tabIndex={0}
+                  className={cn(
+                    'group w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                    isSelected
+                      ? 'border-primary/40 bg-primary/10'
+                      : 'border-transparent hover:border-border hover:bg-muted/40',
+                  )}
+                  title={getProjectPath(project)}
+                  onClick={() => onProjectSelect(project)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onProjectSelect(project);
+                    }
+                  }}
+                >
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {project.displayName || project.name}
+                    </span>
+                    {isSelected && (
+                      <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        {t('vscodeWorkbench.projects.selected', { defaultValue: 'Selected' })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <span className="truncate font-mono">{formatProjectPath(project)}</span>
+                    <span className="shrink-0">{formatFileCount(project.fileCount, t)}</span>
+                  </div>
+                  <div className="mt-2 flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-medium text-foreground"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onProjectSelect(project);
+                        onNewSession(project);
+                      }}
+                    >
+                      <MessageSquare className="h-3 w-3" />
+                      {t('vscodeWorkbench.projects.startChat', { defaultValue: 'Chat' })}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -53,6 +53,7 @@ type ProviderSelectionEmptyStateProps = {
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
   setInput: React.Dispatch<React.SetStateAction<string>>;
+  compact?: boolean;
 };
 
 type ProviderCard = {
@@ -104,6 +105,7 @@ export default function ProviderSelectionEmptyState({
   isTaskMasterInstalled,
   onShowAllTasks,
   setInput,
+  compact = false,
 }: ProviderSelectionEmptyStateProps) {
   const { t } = useTranslation("chat");
   const { providerAuthStatus, refreshProviderAuthStatuses } = useProviderAuthStatus();
@@ -198,9 +200,12 @@ export default function ProviderSelectionEmptyState({
 
   if (!selectedSession && !currentSessionId) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4 py-6">
-        <div className="w-full max-w-3xl">
-          <div className="mb-6 text-center">
+      <div className={cn(
+        "flex h-full flex-col items-center px-4 py-6",
+        compact ? "justify-start" : "justify-center",
+      )}>
+        <div className={cn("w-full", compact ? "max-w-none" : "max-w-3xl")}>
+          <div className={cn("text-center", compact ? "mb-4" : "mb-6")}>
             <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
               {t("providerSelection.title")}
             </h2>
@@ -213,7 +218,12 @@ export default function ProviderSelectionEmptyState({
               to swap which model that provider runs. Locked cards
               represent CLIs that aren't on the host; tapping them opens
               the inline installer instead of selecting the provider. */}
-          <div className="mx-auto grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className={cn(
+            "mx-auto grid gap-3",
+            compact
+              ? "grid-cols-[repeat(auto-fit,minmax(min(100%,8.5rem),1fr))]"
+              : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5",
+          )}>
             {visibleCards.map((card) => {
               const isActive = provider === card.id;
               const currentModel = currentModelByProvider[card.id];

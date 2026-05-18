@@ -59,6 +59,7 @@ interface ChatMessagesPaneProps {
   showThinking?: boolean;
   selectedProject: Project;
   bottomPaddingPx?: number;
+  compact?: boolean;
 }
 
 export default function ChatMessagesPane({
@@ -110,6 +111,7 @@ export default function ChatMessagesPane({
   showThinking,
   selectedProject,
   bottomPaddingPx = 0,
+  compact = false,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
   const messageKeyMapRef = useRef<WeakMap<ChatMessage, string>>(new WeakMap());
@@ -203,6 +205,7 @@ export default function ChatMessagesPane({
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}
           setInput={setInput}
+          compact={compact}
         />
       ) : (
         <>

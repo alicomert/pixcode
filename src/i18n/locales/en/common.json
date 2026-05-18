@@ -893,6 +893,24 @@
     "resize": {
       "left": "Resize left panel",
       "right": "Resize CLI panel"
+    },
+    "menu": {
+      "openProject": "Open Project...",
+      "cloneFromGithub": "Clone Repository...",
+      "newChat": "New Chat",
+      "openProjects": "Open Projects"
+    },
+    "projects": {
+      "openProject": "Open Project",
+      "cloneFromGithub": "Clone",
+      "directoryList": "Directories",
+      "refresh": "Refresh projects",
+      "emptyTitle": "No project directories yet",
+      "emptyDescription": "Open a local folder or clone a repository to start.",
+      "selected": "Selected",
+      "startChat": "Chat",
+      "fileCount": "{{formattedCount}} files",
+      "fileCountPending": "Files pending"
     }
   }
 }

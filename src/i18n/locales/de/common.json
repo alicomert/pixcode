@@ -770,6 +770,24 @@
     "resize": {
       "left": "Linkes Panel ändern",
       "right": "CLI-Panel ändern"
+    },
+    "menu": {
+      "openProject": "Projekt öffnen...",
+      "cloneFromGithub": "Repository klonen...",
+      "newChat": "Neuer Chat",
+      "openProjects": "Projekte öffnen"
+    },
+    "projects": {
+      "openProject": "Projekt öffnen",
+      "cloneFromGithub": "Klonen",
+      "directoryList": "Verzeichnisse",
+      "refresh": "Projekte aktualisieren",
+      "emptyTitle": "Noch keine Projektverzeichnisse",
+      "emptyDescription": "Öffne einen lokalen Ordner oder klone ein Repository, um zu starten.",
+      "selected": "Ausgewählt",
+      "startChat": "Chat",
+      "fileCount": "{{formattedCount}} Dateien",
+      "fileCountPending": "Dateien werden geladen"
     }
   }
 }

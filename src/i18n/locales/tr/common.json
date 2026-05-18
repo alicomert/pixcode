@@ -893,6 +893,24 @@
     "resize": {
       "left": "Sol paneli boyutlandır",
       "right": "CLI panelini boyutlandır"
+    },
+    "menu": {
+      "openProject": "Proje Aç...",
+      "cloneFromGithub": "Depoyu Klonla...",
+      "newChat": "Yeni Sohbet",
+      "openProjects": "Projeleri Aç"
+    },
+    "projects": {
+      "openProject": "Proje Aç",
+      "cloneFromGithub": "Klonla",
+      "directoryList": "Dizinler",
+      "refresh": "Projeleri yenile",
+      "emptyTitle": "Henüz proje dizini yok",
+      "emptyDescription": "Başlamak için yerel klasör aç veya bir depoyu klonla.",
+      "selected": "Seçili",
+      "startChat": "Sohbet",
+      "fileCount": "{{formattedCount}} dosya",
+      "fileCountPending": "Dosyalar hazırlanıyor"
     }
   }
 }

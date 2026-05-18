@@ -770,6 +770,24 @@
     "resize": {
       "left": "Изменить левую панель",
       "right": "Изменить CLI-панель"
+    },
+    "menu": {
+      "openProject": "Открыть проект...",
+      "cloneFromGithub": "Клонировать репозиторий...",
+      "newChat": "Новый чат",
+      "openProjects": "Открыть проекты"
+    },
+    "projects": {
+      "openProject": "Открыть проект",
+      "cloneFromGithub": "Клонировать",
+      "directoryList": "Каталоги",
+      "refresh": "Обновить проекты",
+      "emptyTitle": "Каталогов проектов пока нет",
+      "emptyDescription": "Откройте локальную папку или клонируйте репозиторий, чтобы начать.",
+      "selected": "Выбрано",
+      "startChat": "Чат",
+      "fileCount": "{{formattedCount}} файлов",
+      "fileCountPending": "Файлы подготавливаются"
     }
   }
 }

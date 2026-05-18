@@ -20,6 +20,7 @@ export default function AppContent() {
   const { useVscodeWorkbench } = useWorkbenchLayoutPreference();
   const { ws, sendMessage, latestMessage, isConnected } = useWebSocket();
   const wasConnectedRef = useRef(false);
+  const previousWorkbenchPreferenceRef = useRef(useVscodeWorkbench);
 
   const {
     activeSessions,
@@ -76,6 +77,14 @@ export default function AppContent() {
       }
     };
   }, [openSettings]);
+
+  useEffect(() => {
+    if (previousWorkbenchPreferenceRef.current !== useVscodeWorkbench) {
+      setShowSettings(false);
+    }
+
+    previousWorkbenchPreferenceRef.current = useVscodeWorkbench;
+  }, [setShowSettings, useVscodeWorkbench]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {

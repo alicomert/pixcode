@@ -35,6 +35,7 @@ export interface Project {
   displayName: string;
   fullPath: string;
   path?: string;
+  fileCount?: number;
   source?: 'claude' | 'manual' | 'history';
   isManuallyAdded?: boolean;
   autoDiscovered?: boolean;

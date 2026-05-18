@@ -19,25 +19,27 @@ import { FolderPlus, X } from '@/lib/icons';
 type ProjectCreationWizardProps = {
   onClose: () => void;
   onProjectCreated?: (project?: Project) => void;
+  initialWorkspaceType?: WorkspaceType;
 };
 
-const initialFormState: WizardFormState = {
-  workspaceType: 'existing',
+const createInitialFormState = (workspaceType: WorkspaceType = 'existing'): WizardFormState => ({
+  workspaceType,
   workspacePath: '',
   githubUrl: '',
   subfolderName: '',
   tokenMode: 'stored',
   selectedGithubToken: '',
   newGithubToken: '',
-};
+});
 
 export default function ProjectCreationWizard({
   onClose,
   onProjectCreated,
+  initialWorkspaceType = 'existing',
 }: ProjectCreationWizardProps) {
   const { t } = useTranslation();
   const [step, setStep] = useState<WizardStep>(1);
-  const [formState, setFormState] = useState<WizardFormState>(initialFormState);
+  const [formState, setFormState] = useState<WizardFormState>(() => createInitialFormState(initialWorkspaceType));
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cloneProgress, setCloneProgress] = useState('');

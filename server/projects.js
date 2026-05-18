@@ -68,6 +68,74 @@ import Database from 'better-sqlite3';
 import sessionManager from './sessionManager.js';
 import { applyCustomSessionNames } from './database/db.js';
 
+const FILE_COUNT_LIMIT = 20000;
+const FILE_COUNT_IGNORED_DIRECTORIES = new Set([
+  '.cache',
+  '.git',
+  '.hg',
+  '.next',
+  '.npm',
+  '.pnpm-store',
+  '.svn',
+  '.turbo',
+  '.vite',
+  'build',
+  'coverage',
+  'dist',
+  'dist-server',
+  'node_modules',
+  'out',
+  'target',
+  'vendor'
+]);
+
+async function countProjectFiles(projectPath, maxFiles = FILE_COUNT_LIMIT) {
+  if (!projectPath || typeof projectPath !== 'string') {
+    return undefined;
+  }
+
+  try {
+    const stats = await fs.stat(projectPath);
+    if (!stats.isDirectory()) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  let count = 0;
+  const pendingDirectories = [projectPath];
+
+  while (pendingDirectories.length > 0) {
+    const currentDirectory = pendingDirectories.pop();
+    let entries = [];
+
+    try {
+      entries = await fs.readdir(currentDirectory, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (!FILE_COUNT_IGNORED_DIRECTORIES.has(entry.name)) {
+          pendingDirectories.push(path.join(currentDirectory, entry.name));
+        }
+        continue;
+      }
+
+      if (entry.isFile() || entry.isSymbolicLink()) {
+        count += 1;
+        if (count >= maxFiles) {
+          return count;
+        }
+      }
+    }
+  }
+
+  return count;
+}
+
 // Import TaskMaster detection functions
 async function detectTaskMasterFolder(projectPath) {
   try {
@@ -691,6 +759,7 @@ async function getProjects(progressCallback = null) {
       path: actualProjectDir,
       displayName: customName || autoDisplayName,
       fullPath: actualProjectDir,
+      fileCount: await countProjectFiles(actualProjectDir),
       isCustomName: !!customName,
       isManuallyAdded,
       autoDiscovered: isAutoDiscovered,
@@ -832,6 +901,7 @@ async function getProjects(progressCallback = null) {
         path: actualProjectDir,
         displayName: projectConfig.displayName || await generateDisplayName(projectName, actualProjectDir),
         fullPath: actualProjectDir,
+        fileCount: await countProjectFiles(actualProjectDir),
         isCustomName: !!projectConfig.displayName,
         isManuallyAdded,
         autoDiscovered: isAutoDiscovered,
@@ -1557,6 +1627,7 @@ async function addProjectManually(projectPath, displayName = null) {
       path: absolutePath,
       fullPath: absolutePath,
       displayName: displayName || await generateDisplayName(projectName, absolutePath),
+      fileCount: await countProjectFiles(absolutePath),
       isManuallyAdded: true,
       sessions: [],
       cursorSessions: []
@@ -1584,6 +1655,7 @@ async function addProjectManually(projectPath, displayName = null) {
     path: absolutePath,
     fullPath: absolutePath,
     displayName: displayName || await generateDisplayName(projectName, absolutePath),
+    fileCount: await countProjectFiles(absolutePath),
     isManuallyAdded: true,
     sessions: [],
     cursorSessions: []

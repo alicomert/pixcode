@@ -57,7 +57,7 @@ export default function MainContentStateView({
               </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-3">
               <button
                 type="button"
                 onClick={onOpenControlRoom}

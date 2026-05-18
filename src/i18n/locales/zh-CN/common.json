@@ -800,6 +800,24 @@
     "resize": {
       "left": "调整左侧面板",
       "right": "调整 CLI 面板"
+    },
+    "menu": {
+      "openProject": "打开项目...",
+      "cloneFromGithub": "克隆仓库...",
+      "newChat": "新建聊天",
+      "openProjects": "打开项目"
+    },
+    "projects": {
+      "openProject": "打开项目",
+      "cloneFromGithub": "克隆",
+      "directoryList": "目录",
+      "refresh": "刷新项目",
+      "emptyTitle": "还没有项目目录",
+      "emptyDescription": "打开本地文件夹或克隆仓库即可开始。",
+      "selected": "已选择",
+      "startChat": "聊天",
+      "fileCount": "{{formattedCount}} 个文件",
+      "fileCountPending": "正在准备文件"
     }
   }
 }

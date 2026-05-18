@@ -9,6 +9,7 @@ import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
 import type { MCPServerStatus, SidebarProps } from '../types/types';
+import type { WorkspaceType } from '../../project-creation-wizard/types';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
@@ -44,6 +45,7 @@ function Sidebar({
   settingsInitialTab,
   onCloseSettings,
   isMobile,
+  modalsOnly = false,
 }: SidebarProps) {
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
@@ -57,6 +59,7 @@ function Sidebar({
   const { sidebarVisible, historyView } = preferences;
   const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
   const { tasksEnabled } = useTasksSettings();
+  const [newProjectInitialType, setNewProjectInitialType] = useState<WorkspaceType>('existing');
 
   const {
     isSidebarCollapsed,
@@ -128,7 +131,16 @@ function Sidebar({
   });
 
   useEffect(() => {
-    const handleCreateProjectRequest = () => setShowNewProject(true);
+    const handleCreateProjectRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ workspaceType?: WorkspaceType }>).detail;
+      const workspaceType = detail?.workspaceType;
+      setNewProjectInitialType(
+        workspaceType === 'new' || workspaceType === 'subfolder' || workspaceType === 'existing'
+          ? workspaceType
+          : 'existing',
+      );
+      setShowNewProject(true);
+    };
 
     window.addEventListener('pixcode:create-project', handleCreateProjectRequest);
 
@@ -282,34 +294,48 @@ function Sidebar({
     t,
   };
 
+  const openNewProjectWizard = (workspaceType: WorkspaceType = 'existing') => {
+    setNewProjectInitialType(workspaceType);
+    setShowNewProject(true);
+  };
+
+  const sidebarModals = (
+    <SidebarModals
+      projects={projects}
+      showSettings={showSettings}
+      settingsInitialTab={settingsInitialTab}
+      onCloseSettings={onCloseSettings}
+      showNewProject={showNewProject}
+      newProjectInitialType={newProjectInitialType}
+      onCloseNewProject={() => setShowNewProject(false)}
+      onProjectCreated={handleProjectCreated}
+      deleteConfirmation={deleteConfirmation}
+      onCancelDeleteProject={() => setDeleteConfirmation(null)}
+      onConfirmDeleteProject={confirmDeleteProject}
+      sessionDeleteConfirmation={sessionDeleteConfirmation}
+      onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
+      onConfirmDeleteSession={confirmDeleteSession}
+      showVersionModal={showVersionModal}
+      onCloseVersionModal={() => {
+        setShowVersionModal(false);
+        setVersionModalSnapshot(null);
+      }}
+      releaseInfo={versionModalSnapshot?.releaseInfo ?? releaseInfo}
+      currentVersion={versionModalSnapshot?.currentVersion ?? currentVersion}
+      latestVersion={versionModalSnapshot?.latestVersion ?? latestVersion}
+      installMode={installMode}
+      isUpdateAvailable={versionModalSnapshot?.updateAvailable ?? updateAvailable}
+      t={t}
+    />
+  );
+
+  if (modalsOnly) {
+    return sidebarModals;
+  }
+
   return (
     <>
-      <SidebarModals
-        projects={projects}
-        showSettings={showSettings}
-        settingsInitialTab={settingsInitialTab}
-        onCloseSettings={onCloseSettings}
-        showNewProject={showNewProject}
-        onCloseNewProject={() => setShowNewProject(false)}
-        onProjectCreated={handleProjectCreated}
-        deleteConfirmation={deleteConfirmation}
-        onCancelDeleteProject={() => setDeleteConfirmation(null)}
-        onConfirmDeleteProject={confirmDeleteProject}
-        sessionDeleteConfirmation={sessionDeleteConfirmation}
-        onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
-        onConfirmDeleteSession={confirmDeleteSession}
-        showVersionModal={showVersionModal}
-        onCloseVersionModal={() => {
-          setShowVersionModal(false);
-          setVersionModalSnapshot(null);
-        }}
-        releaseInfo={versionModalSnapshot?.releaseInfo ?? releaseInfo}
-        currentVersion={versionModalSnapshot?.currentVersion ?? currentVersion}
-        latestVersion={versionModalSnapshot?.latestVersion ?? latestVersion}
-        installMode={installMode}
-        isUpdateAvailable={versionModalSnapshot?.updateAvailable ?? updateAvailable}
-        t={t}
-      />
+      {sidebarModals}
 
       {isSidebarCollapsed ? (
         <SidebarCollapsed
@@ -365,7 +391,7 @@ function Sidebar({
               void refreshProjects();
             }}
             isRefreshing={isRefreshing}
-            onCreateProject={() => setShowNewProject(true)}
+            onCreateProject={() => openNewProjectWizard('existing')}
             onQuickStartSession={onQuickStartSession}
             onOpenControlRoom={onOpenControlRoom}
             onCollapseSidebar={handleCollapseSidebar}

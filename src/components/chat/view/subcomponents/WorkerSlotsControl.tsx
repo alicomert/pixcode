@@ -22,6 +22,7 @@ type WorkerSlotsControlProps = {
   align?: 'left' | 'right';
   className?: string;
   buttonClassName?: string;
+  panelClassName?: string;
 };
 
 const providerLabels: Record<string, string> = {
@@ -41,6 +42,7 @@ export default function WorkerSlotsControl({
   align = 'left',
   className,
   buttonClassName,
+  panelClassName,
 }: WorkerSlotsControlProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
@@ -138,6 +140,7 @@ export default function WorkerSlotsControl({
             isOpen
               ? 'translate-y-0 scale-100 opacity-100'
               : 'pointer-events-none translate-y-2 scale-[0.98] opacity-0',
+            panelClassName,
           )}
         >
           <div className="flex items-center justify-between gap-3 border-b border-border pb-2">

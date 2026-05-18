@@ -20,6 +20,10 @@ type PendingViewSession = {
   startedAt: number;
 };
 
+type ChatInterfaceComponentProps = ChatInterfaceProps & {
+  compactComposer?: boolean;
+};
+
 const CHAT_COMPOSER_FALLBACK_HEIGHT = 176;
 
 /**
@@ -78,9 +82,10 @@ function ChatInterface({
   showThinking,
   autoScrollToBottom,
   sendByCtrlEnter,
+  compactComposer,
   externalMessageUpdate,
   onShowAllTasks,
-}: ChatInterfaceProps) {
+}: ChatInterfaceComponentProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { t } = useTranslation('chat');
 
@@ -449,6 +454,7 @@ function ChatInterface({
           showThinking={showThinking}
           selectedProject={selectedProject}
           bottomPaddingPx={composerFrameHeight + 16}
+          compact={compactComposer}
         />
 
         <ChatComposer
@@ -529,6 +535,7 @@ function ChatInterface({
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
           composerContainerRef={composerFrameRef}
+          compact={compactComposer}
         />
       </div>
     </PermissionContext.Provider>
