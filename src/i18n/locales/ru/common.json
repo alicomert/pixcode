@@ -250,6 +250,7 @@
     "updateProgress": "Прогресс обновления:",
     "manualUpgrade": "Ручное обновление:",
     "npmUpgradeCommand": "npm install -g @pixelbyte-software/pixcode@latest",
+    "pixcodeUpgradeCommand": "pixcode update --restart-daemon",
     "manualUpgradeHint": "Или нажмите \"Обновить сейчас\" для автоматического обновления.",
     "updateCompleted": "Обновление успешно завершено!",
     "restartServer": "Пожалуйста, перезапустите сервер для применения изменений.",

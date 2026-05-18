@@ -498,6 +498,11 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         : installMode === 'git'
             ? `${JSON.stringify(process.execPath)} ${JSON.stringify(gitUpdateScript)}`
             : 'npm install -g @pixelbyte-software/pixcode@latest';
+    const updateCommandLabel = IS_PLATFORM
+        ? 'Pixcode platform update'
+        : installMode === 'git'
+            ? 'Pixcode source update'
+            : 'pixcode update';
 
     const updateCwd = IS_PLATFORM || installMode === 'git'
         ? projectRoot
@@ -770,7 +775,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         }
     }
 
-    send('log', { stream: 'meta', chunk: `Running: ${updateCommand}\n` });
+    send('log', { stream: 'meta', chunk: `Running: ${updateCommandLabel}\n` });
 
     // Cross-platform shell invocation. `detached: true` + `unref()` below
     // means the install child survives if this server process gets killed

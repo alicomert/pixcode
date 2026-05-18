@@ -119,6 +119,13 @@ async function main() {
   log(`Repository updated to Pixcode ${packageVersion}.`);
 
   await run('npm', ['install', '--no-audit', '--no-fund']);
+  const updatedPackageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+  if (updatedPackageJson.scripts?.build) {
+    log('Building Pixcode source install.');
+    await run('npm', ['run', 'build']);
+  } else {
+    log('No build script found; skipping build.');
+  }
   log('Pixcode git install update completed.');
 }
 

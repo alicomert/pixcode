@@ -45,15 +45,12 @@ export function VersionUpgradeModal({
     releaseInfo,
     currentVersion,
     latestVersion,
-    installMode,
     isUpdateAvailable = true,
 }: VersionUpgradeModalProps) {
     const { t } = useTranslation('common');
-    const upgradeCommand = installMode === 'npm'
-        ? t('versionUpdate.npmUpgradeCommand')
-        : IS_PLATFORM
-            ? 'npm run update:platform'
-            : 'node scripts/update-git-install.mjs';
+    const upgradeCommand = IS_PLATFORM
+        ? 'npm run update:platform'
+        : t('versionUpdate.pixcodeUpgradeCommand');
     const [isUpdating, setIsUpdating] = useState(false);
     const [updateOutput, setUpdateOutput] = useState('');
     const [updateError, setUpdateError] = useState('');

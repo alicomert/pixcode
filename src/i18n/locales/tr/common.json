@@ -555,6 +555,7 @@
     "updateProgress": "Güncelleme İlerlemesi:",
     "manualUpgrade": "Manuel yükseltme:",
     "npmUpgradeCommand": "npm install -g @pixelbyte-software/pixcode@latest",
+    "pixcodeUpgradeCommand": "pixcode update --restart-daemon",
     "manualUpgradeHint": "Veya güncellemeyi otomatik çalıştırmak için \"Şimdi Güncelle\"ye tıkla.",
     "updateCompleted": "Güncelleme başarıyla tamamlandı!",
     "restartServer": "Değişikliklerin uygulanması için sunucuyu yeniden başlat.",

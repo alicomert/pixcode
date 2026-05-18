@@ -280,6 +280,7 @@
     "updateProgress": "更新进度：",
     "manualUpgrade": "手动升级：",
     "npmUpgradeCommand": "npm install -g @pixelbyte-software/pixcode@latest",
+    "pixcodeUpgradeCommand": "pixcode update --restart-daemon",
     "manualUpgradeHint": "或点击'立即更新'以自动运行更新。",
     "updateCompleted": "更新成功完成！",
     "restartServer": "请重启服务器以应用更改。",

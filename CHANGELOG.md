@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.47.3](https://github.com/alicomert/pixcode/compare/v1.47.2...v1.47.3) (2026-05-18)
+
+Pixcode 1.47.3 makes source-install updates use normal Pixcode-facing commands.
+
+### Fixes
+
+* **update:** show `pixcode update --restart-daemon` in the version modal instead of exposing the internal git updater script.
+* **update:** make `pixcode update` route git/source installs through the safe updater and rebuild the app after dependencies are reconciled.
+* **update:** keep automatic update progress logs product-facing with `Pixcode source update`.
+
+### Tests
+
+* add smoke coverage for the source-update command UX, CLI route, build step, and update stream wording.
+
 ## [1.47.2](https://github.com/alicomert/pixcode/compare/v1.47.1...v1.47.2) (2026-05-18)
 
 Pixcode 1.47.2 hardens Linux source updates and fixes two VS Code workbench regressions.

@@ -249,10 +249,77 @@ async function checkForUpdates(silent = false) {
     }
 }
 
+function runInherited(command, args, options = {}) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+            cwd: options.cwd || APP_ROOT,
+            env: options.env || process.env,
+            stdio: 'inherit',
+            shell: false,
+            windowsHide: false,
+        });
+
+        child.on('error', reject);
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve();
+                return;
+            }
+
+            reject(new Error(`${command} ${args.join(' ')} exited with code ${code}`));
+        });
+    });
+}
+
+async function maybeRestartDaemonAfterUpdate(options = {}) {
+    if (options.restartDaemon) {
+        if (!hasInstalledDaemonUnit()) {
+            console.log(`${c.warn('[WARN]')} No daemon unit detected; skipping restart.`);
+            return;
+        }
+        console.log(`${c.info('[INFO]')} Restarting daemon service...`);
+        await handleDaemonCommand(['restart', '--mode=system'], {
+            appRoot: APP_ROOT,
+            defaultPort: process.env.SERVER_PORT || process.env.PORT || '3001',
+            color: c,
+        });
+        console.log(`${c.ok('[OK]')} Daemon restart completed.`);
+        return;
+    }
+
+    if (hasInstalledDaemonUnit()) {
+        const restartCommand = buildDaemonCliCommand(
+            { subcommand: 'restart', mode: 'system' },
+            DAEMON_COMMAND_CONTEXT
+        );
+        console.log(`${c.tip('[TIP]')} Daemon unit detected. Restart to apply update: ${c.bright(restartCommand)}`);
+        console.log(`${c.tip('[TIP]')} Or update + restart in one step: ${c.bright('pixcode update --restart-daemon')}`);
+    } else {
+        console.log(`${c.tip('[TIP]')} Restart pixcode to use the new version.`);
+    }
+}
+
+async function updateGitPackage(options = {}) {
+    const gitUpdateScript = path.join(APP_ROOT, 'scripts', 'update-git-install.mjs');
+    if (!fs.existsSync(gitUpdateScript)) {
+        throw new Error(`Git update script was not found: ${gitUpdateScript}`);
+    }
+
+    console.log(`${c.info('[INFO]')} Updating Pixcode source checkout...`);
+    await runInherited(process.execPath, [gitUpdateScript], { cwd: APP_ROOT });
+    console.log(`${c.ok('[OK]')} Source update complete!`);
+    await maybeRestartDaemonAfterUpdate(options);
+}
+
 // Update the package
 async function updatePackage(options = {}) {
     try {
         const { execSync } = await import('child_process');
+        if (installMode === 'git') {
+            await updateGitPackage(options);
+            return;
+        }
+
         console.log(`${c.info('[INFO]')} Checking for updates...`);
 
         const { hasUpdate, latestVersion, currentVersion } = await checkForUpdates(true);
@@ -265,32 +332,13 @@ async function updatePackage(options = {}) {
         console.log(`${c.info('[INFO]')} Updating from ${currentVersion} to ${latestVersion}...`);
         execSync('npm update -g @pixelbyte-software/pixcode', { stdio: 'inherit' });
         console.log(`${c.ok('[OK]')} Update complete!`);
-
-        if (options.restartDaemon) {
-            if (!hasInstalledDaemonUnit()) {
-                console.log(`${c.warn('[WARN]')} No daemon unit detected; skipping restart.`);
-                return;
-            }
-            console.log(`${c.info('[INFO]')} Restarting daemon service...`);
-            await handleDaemonCommand(['restart', '--mode=system'], {
-                appRoot: APP_ROOT,
-                defaultPort: process.env.SERVER_PORT || process.env.PORT || '3001',
-                color: c,
-            });
-            console.log(`${c.ok('[OK]')} Daemon restart completed.`);
-        } else if (hasInstalledDaemonUnit()) {
-            const restartCommand = buildDaemonCliCommand(
-                { subcommand: 'restart', mode: 'system' },
-                DAEMON_COMMAND_CONTEXT
-            );
-            console.log(`${c.tip('[TIP]')} Daemon unit detected. Restart to apply update: ${c.bright(restartCommand)}`);
-            console.log(`${c.tip('[TIP]')} Or update + restart in one step: ${c.bright('pixcode update --restart-daemon')}`);
-        } else {
-            console.log(`${c.tip('[TIP]')} Restart pixcode to use the new version.`);
-        }
+        await maybeRestartDaemonAfterUpdate(options);
     } catch (e) {
         console.error(`${c.error('[ERROR]')} Update failed: ${e.message}`);
-        console.log(`${c.tip('[TIP]')} Try running manually: npm update -g @pixelbyte-software/pixcode`);
+        const fallbackCommand = installMode === 'git'
+            ? 'pixcode update --restart-daemon'
+            : 'npm update -g @pixelbyte-software/pixcode';
+        console.log(`${c.tip('[TIP]')} Try running manually: ${fallbackCommand}`);
     }
 }
 

@@ -22,9 +22,27 @@ assert.doesNotMatch(
 );
 
 assert.match(
+  serverIndex,
+  /updateCommandLabel[\s\S]*Pixcode source update/,
+  'Server update stream should describe git installs with product language instead of an internal script command.',
+);
+
+assert.match(
+  modal,
+  /versionUpdate\.pixcodeUpgradeCommand/,
+  'Version modal should show the user-facing Pixcode update command.',
+);
+
+assert.doesNotMatch(
   modal,
   /node scripts\/update-git-install\.mjs/,
-  'Version modal should show the safe git updater command.',
+  'Version modal should not expose the internal git updater script as manual product guidance.',
+);
+
+assert.match(
+  fs.readFileSync('server/cli.js', 'utf8'),
+  /update-git-install\.mjs[\s\S]*installMode === 'git'[\s\S]*updateGitPackage/,
+  'pixcode update should drive the safe git updater for source installs.',
 );
 
 assert.match(
@@ -49,6 +67,12 @@ assert.match(
   updater,
   /npm[\s\S]*install[\s\S]*--no-audit[\s\S]*--no-fund/,
   'Safe updater should reinstall dependencies after updating source files.',
+);
+
+assert.match(
+  updater,
+  /npm[\s\S]*run[\s\S]*build/,
+  'Safe updater should rebuild source installs after updating source files.',
 );
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pixcode-git-update-'));
@@ -81,7 +105,13 @@ function run(command, args, cwd) {
 function writePackage(version) {
   fs.writeFileSync(
     path.join(source, 'package.json'),
-    JSON.stringify({ name: 'pixcode-update-smoke', version }, null, 2),
+    JSON.stringify({
+      name: 'pixcode-update-smoke',
+      version,
+      scripts: {
+        build: 'node -e "require(\\"node:fs\\").writeFileSync(\\"built.txt\\", \\"built\\")"',
+      },
+    }, null, 2),
   );
   fs.writeFileSync(
     path.join(source, 'package-lock.json'),
@@ -136,6 +166,11 @@ assert.match(
   run('git', ['stash', 'list'], install),
   /pixcode-auto-update-/,
   'Safe updater should leave local dirty files recoverable in git stash.',
+);
+assert.equal(
+  fs.readFileSync(path.join(install, 'built.txt'), 'utf8'),
+  'built',
+  'Safe updater should run the repository build after installing dependencies.',
 );
 
 console.log('git install update smoke passed');
