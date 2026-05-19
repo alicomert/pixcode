@@ -173,6 +173,9 @@
     "title": "KI-Assistent wählen",
     "description": "Anbieter auswählen, um eine neue Unterhaltung zu starten",
     "selectModel": "Modell auswählen",
+    "statusUnavailable": "Status nicht verfügbar",
+    "statusRetryHint": "Diese CLI konnte nicht geprüft werden. Zum Wiederholen tippen.",
+    "retryStatus": "Status erneut prüfen",
     "providerInfo": {
       "anthropic": "von Anthropic",
       "openai": "von OpenAI",

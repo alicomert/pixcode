@@ -155,6 +155,9 @@
     "title": "AI 어시스턴트 선택",
     "description": "새 대화를 시작할 프로바이더를 선택하세요",
     "selectModel": "모델 선택",
+    "statusUnavailable": "상태를 확인할 수 없음",
+    "statusRetryHint": "이 CLI를 확인하지 못했습니다. 다시 시도하려면 누르세요.",
+    "retryStatus": "상태 다시 확인",
     "providerInfo": {
       "anthropic": "Anthropic 제공",
       "openai": "OpenAI 제공",

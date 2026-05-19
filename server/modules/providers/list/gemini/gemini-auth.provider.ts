@@ -19,6 +19,8 @@ type GeminiCredentialsStatus = {
   error?: string;
 };
 
+const GEMINI_TOKEN_INFO_TIMEOUT_MS = 5_000;
+
 export class GeminiProviderAuth implements IProviderAuth {
   /**
    * Checks whether the Gemini CLI is available on this host.
@@ -132,8 +134,13 @@ export class GeminiProviderAuth implements IProviderAuth {
    * Validates a Gemini OAuth access token and returns an email when Google reports one.
    */
   private async getTokenInfoEmail(accessToken: string): Promise<{ valid: boolean; email: string | null }> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), GEMINI_TOKEN_INFO_TIMEOUT_MS);
+
     try {
-      const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`);
+      const tokenRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${accessToken}`, {
+        signal: controller.signal,
+      });
       if (!tokenRes.ok) {
         return { valid: false, email: null };
       }
@@ -145,6 +152,8 @@ export class GeminiProviderAuth implements IProviderAuth {
       };
     } catch {
       return { valid: false, email: null };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

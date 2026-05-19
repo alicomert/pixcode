@@ -191,6 +191,9 @@
     "title": "AI Asistanını Seç",
     "description": "Yeni bir konuşma başlatmak için bir sağlayıcı seç",
     "selectModel": "Model Seç",
+    "statusUnavailable": "Durum alınamadı",
+    "statusRetryHint": "Bu CLI kontrol edilemedi. Yeniden denemek için dokun.",
+    "retryStatus": "Durumu yenile",
     "providerInfo": {
       "anthropic": "Anthropic tarafından",
       "openai": "OpenAI tarafından",

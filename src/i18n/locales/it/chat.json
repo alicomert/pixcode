@@ -173,6 +173,9 @@
     "title": "Scegli il tuo assistente AI",
     "description": "Seleziona un provider per iniziare una nuova conversazione",
     "selectModel": "Seleziona modello",
+    "statusUnavailable": "Stato non disponibile",
+    "statusRetryHint": "Impossibile verificare questa CLI. Tocca per riprovare.",
+    "retryStatus": "Riprova stato",
     "providerInfo": {
       "anthropic": "di Anthropic",
       "openai": "di OpenAI",

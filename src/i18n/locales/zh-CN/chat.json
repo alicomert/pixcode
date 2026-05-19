@@ -155,6 +155,9 @@
     "title": "选择您的 AI 助手",
     "description": "选择一个供应商以开始新对话",
     "selectModel": "选择模型",
+    "statusUnavailable": "状态不可用",
+    "statusRetryHint": "无法检查此 CLI。点击重试。",
+    "retryStatus": "重试状态",
     "providerInfo": {
       "anthropic": "由 Anthropic 提供",
       "openai": "由 OpenAI 提供",

@@ -232,9 +232,17 @@ export default function ProviderSelectionEmptyState({
                 config.OPTIONS.find((o: { value: string; label: string }) => o.value === currentModel)?.label
                 ?? currentModel;
               const status = providerAuthStatus[card.id];
-              const isUnknown = !status || status.loading || status.installed === null;
+              const isChecking = !status || status.loading;
+              const isStatusUnavailable = Boolean(status && !status.loading && status.installed === null);
               const isLocked = status?.installed === false;
               const hasCliUpdate = Boolean(status?.updateAvailable && status.latestVersion && !isLocked);
+              const statusLabel = isChecking
+                ? t("providerSelection.checking", { defaultValue: "Checking…" })
+                : isStatusUnavailable
+                  ? t("providerSelection.statusUnavailable", { defaultValue: "Status unavailable" })
+                  : isLocked
+                    ? t("providerSelection.needsInstall", { defaultValue: "Not installed" })
+                    : currentLabel;
 
               return (
                 <div
@@ -260,6 +268,8 @@ export default function ProviderSelectionEmptyState({
                     onClick={() => {
                       if (isLocked) {
                         setInstallerFor(card.id);
+                      } else if (isStatusUnavailable) {
+                        void refreshProviderAuthStatuses([card.id], { force: true });
                       } else {
                         selectProvider(card.id);
                       }
@@ -270,6 +280,10 @@ export default function ProviderSelectionEmptyState({
                         ? t("providerSelection.installHint", {
                             defaultValue: "This CLI isn't installed. Tap to install.",
                           })
+                        : isStatusUnavailable
+                          ? status?.error ?? t("providerSelection.statusRetryHint", {
+                              defaultValue: "Could not check this CLI. Tap to retry.",
+                            })
                         : undefined
                     }
                   >
@@ -288,12 +302,11 @@ export default function ProviderSelectionEmptyState({
                           </span>
                         )}
                       </div>
-                      <div className="truncate text-[11px] text-muted-foreground">
-                        {isUnknown
-                          ? t("providerSelection.checking", { defaultValue: "Checking…" })
-                          : isLocked
-                            ? t("providerSelection.needsInstall", { defaultValue: "Not installed" })
-                            : currentLabel}
+                      <div className={cn(
+                        "truncate text-[11px] text-muted-foreground",
+                        isStatusUnavailable && "text-amber-700 dark:text-amber-300",
+                      )}>
+                        {statusLabel}
                       </div>
                     </div>
                     {!isLocked && isActive && (
@@ -308,6 +321,15 @@ export default function ProviderSelectionEmptyState({
                     >
                       <Download className="h-3 w-3" />
                       {t("providerSelection.install", { defaultValue: "Install now" })}
+                    </button>
+                  ) : isStatusUnavailable ? (
+                    <button
+                      type="button"
+                      onClick={() => void refreshProviderAuthStatuses([card.id], { force: true })}
+                      className="flex items-center justify-center gap-1.5 rounded-md border border-amber-300/70 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      {t("providerSelection.retryStatus", { defaultValue: "Retry status" })}
                     </button>
                   ) : (
                     // Primary affordance is showing the active model name —

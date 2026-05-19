@@ -173,6 +173,9 @@
     "title": "Выберите вашего AI-ассистента",
     "description": "Выберите провайдера для начала нового разговора",
     "selectModel": "Выбрать модель",
+    "statusUnavailable": "Статус недоступен",
+    "statusRetryHint": "Не удалось проверить эту CLI. Нажмите, чтобы повторить.",
+    "retryStatus": "Повторить проверку",
     "providerInfo": {
       "anthropic": "от Anthropic",
       "openai": "от OpenAI",

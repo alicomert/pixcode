@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.47.5](https://github.com/alicomert/pixcode/compare/v1.47.4...v1.47.5) (2026-05-19)
+
+Pixcode 1.47.5 fixes provider status cards in the VS Code workbench picker.
+
+### Fixes
+
+* **provider-picker:** show `Checking…` only while provider status requests are actively loading.
+* **provider-picker:** show a localized unavailable state with retry when a completed status check returns an unknown/error result.
+* **providers:** add bounded frontend status request timeouts and a Gemini OAuth tokeninfo timeout so slow provider checks cannot leave the picker stuck.
+
+### Tests
+
+* add smoke coverage for provider picker status states, frontend aborts, and Gemini tokeninfo abort signals.
+
 ## [1.47.4](https://github.com/alicomert/pixcode/compare/v1.47.3...v1.47.4) (2026-05-19)
 
 Pixcode 1.47.4 makes the VS Code workbench file editor use the real Monaco editor for regular text files.

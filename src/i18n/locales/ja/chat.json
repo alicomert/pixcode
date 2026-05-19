@@ -151,6 +151,9 @@
     "title": "AIアシスタントを選択",
     "description": "新しい会話を始めるプロバイダーを選択してください",
     "selectModel": "モデルを選択",
+    "statusUnavailable": "ステータスを取得できません",
+    "statusRetryHint": "このCLIを確認できませんでした。タップして再試行してください。",
+    "retryStatus": "ステータスを再試行",
     "providerInfo": {
       "anthropic": "by Anthropic",
       "openai": "by OpenAI",

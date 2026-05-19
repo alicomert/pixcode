@@ -38,10 +38,17 @@ const FALLBACK_UNKNOWN_ERROR = 'Unknown error';
 const STATUS_CACHE_KEY = 'pixcode.providerAuthStatus.cache.v2';
 const STATUS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const BACKGROUND_STATUS_CHECK_MS = 60 * 60 * 1000;
+const PROVIDER_AUTH_STATUS_TIMEOUT_MS = 15_000;
 let lastBackgroundRefreshAt = 0;
 
 const toErrorMessage = (error: unknown): string => (
   error instanceof Error ? error.message : FALLBACK_UNKNOWN_ERROR
+);
+
+const isAbortError = (error: unknown): boolean => (
+  error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError'
 );
 
 const toProviderAuthStatus = (
@@ -168,6 +175,9 @@ export function useProviderAuthStatus(
 
     setProviderLoading(provider);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), PROVIDER_AUTH_STATUS_TIMEOUT_MS);
+
     try {
       // cache: 'no-store' so a recent install flips `installed: true`
       // immediately — without this the browser can serve the previous
@@ -179,6 +189,7 @@ export function useProviderAuthStatus(
         : PROVIDER_AUTH_STATUS_ENDPOINTS[provider];
       const response = await authenticatedFetch(endpoint, {
         cache: 'no-store',
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -209,8 +220,10 @@ export function useProviderAuthStatus(
         email: null,
         method: null,
         loading: false,
-        error: toErrorMessage(caughtError),
+        error: isAbortError(caughtError) ? 'Status check timed out' : toErrorMessage(caughtError),
       });
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }, [setProviderLoading, setProviderStatus]);
 
