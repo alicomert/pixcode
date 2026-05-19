@@ -889,7 +889,18 @@
     },
     "editor": {
       "emptyTitle": "Open a file from Explorer",
-      "closeTab": "Close {{file}}"
+      "closeTab": "Close {{file}}",
+      "scrollLeft": "Scroll tabs left",
+      "scrollRight": "Scroll tabs right",
+      "moreActions": "More tab actions",
+      "closeSplit": "Close split editor",
+      "context": {
+        "close": "Close",
+        "closeAll": "Close All",
+        "copyPath": "Copy Path",
+        "splitRight": "Split Right",
+        "splitMoveRight": "Split and Move Right"
+      }
     },
     "resize": {
       "left": "Resize left panel",
@@ -917,13 +928,38 @@
       "workHere": "Work in this folder"
     },
     "workspace": {
-      "empty": "Open a project to create Workspace 1."
+      "empty": "Open a project to create Workspace 1.",
+      "openFirst": "Open a workspace",
+      "add": "Add workspace",
+      "close": "Close {{name}}",
+      "closeAction": "Close workspace",
+      "rename": "Rename",
+      "star": "Star",
+      "unstar": "Unstar",
+      "toggleStar": "Star {{name}}",
+      "moreActions": "Workspace actions"
     },
     "cli": {
       "projectScoped": "Project-scoped CLI terminal",
       "newSession": "New CLI session",
       "history": "History",
-      "noHistory": "No sessions for this project yet."
+      "noHistory": "No sessions for this project yet.",
+      "projectHistory": "Project history",
+      "checking": "Checking...",
+      "ready": "Ready",
+      "notInstalled": "Not installed",
+      "installing": "Installing...",
+      "updateAvailable": "Update {{version}}",
+      "installProvider": "Install {{provider}}",
+      "updateProvider": "Update {{provider}}",
+      "manualInstall": "This CLI needs manual installation.",
+      "installNoJob": "Install did not return a job id.",
+      "installFailed": "Install failed.",
+      "installStreamLost": "Install stream closed early. The install may still be running.",
+      "provider": "Provider",
+      "installRunning": "is installing",
+      "installDone": "is ready",
+      "installError": "needs attention"
     }
   }
 }

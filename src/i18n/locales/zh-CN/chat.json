@@ -213,9 +213,11 @@
     "loading": "正在加载终端...",
     "connecting": "正在连接到 Shell...",
     "startSession": "启动新的 Claude 会话",
+    "startProviderSession": "启动新的 {{provider}} 会话",
     "resumeSession": "恢复会话：{{displayName}}...",
     "runCommand": "在 {{projectName}} 中运行 {{command}}",
     "startCli": "在 {{projectName}} 中启动 Claude CLI",
+    "startProviderCli": "在 {{projectName}} 中启动 {{provider}}",
     "defaultCommand": "命令"
   },
   "claudeStatus": {

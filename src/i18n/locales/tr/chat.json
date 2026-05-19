@@ -249,9 +249,11 @@
     "loading": "Terminal yükleniyor...",
     "connecting": "Shell'e bağlanılıyor...",
     "startSession": "Yeni bir Claude oturumu başlat",
+    "startProviderSession": "Yeni bir {{provider}} oturumu baslat",
     "resumeSession": "Oturuma devam et: {{displayName}}...",
     "runCommand": "{{projectName}} içinde {{command}} çalıştır",
     "startCli": "{{projectName}} içinde Claude CLI başlatılıyor",
+    "startProviderCli": "{{projectName}} icinde {{provider}} baslatiliyor",
     "defaultCommand": "komut"
   },
   "claudeStatus": {

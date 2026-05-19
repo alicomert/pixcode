@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import '@xterm/xterm/css/xterm.css';
-import type { Project, ProjectSession } from '../../../types/app';
+import { PROVIDER_DISPLAY_NAMES } from '../../provider-auth/types';
+import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import {
   PROMPT_BUFFER_SCAN_LINES,
   PROMPT_DEBOUNCE_MS,
@@ -182,6 +183,12 @@ export default function Shell({
   );
 
   const sessionDisplayName = useMemo(() => getSessionDisplayName(selectedSession), [selectedSession]);
+  const shellProvider = useMemo<LLMProvider>(() => {
+    if (selectedSession?.__provider) return selectedSession.__provider;
+    const savedProvider = window.localStorage.getItem('selected-provider') as LLMProvider | null;
+    return savedProvider || 'claude';
+  }, [selectedSession?.__provider]);
+  const shellProviderName = PROVIDER_DISPLAY_NAMES[shellProvider] ?? 'Claude Code';
   const sessionDisplayNameShort = useMemo(
     () => (sessionDisplayName ? sessionDisplayName.slice(0, 30) : null),
     [sessionDisplayName],
@@ -236,14 +243,21 @@ export default function Shell({
       })
     : selectedSession
       ? t('shell.resumeSession', { displayName: sessionDisplayNameLong })
-      : t('shell.startSession');
+      : t('shell.startProviderSession', {
+          provider: shellProviderName,
+          defaultValue: 'Start a new {{provider}} session',
+        });
 
   const connectingDescription = isPlainShell
     ? t('shell.runCommand', {
         command: initialCommand || t('shell.defaultCommand'),
         projectName: selectedProject.displayName,
       })
-    : t('shell.startCli', { projectName: selectedProject.displayName });
+    : t('shell.startProviderCli', {
+        provider: shellProviderName,
+        projectName: selectedProject.displayName,
+        defaultValue: 'Starting {{provider}} in {{projectName}}',
+      });
 
   const overlayMode = !isInitialized ? 'loading' : isConnecting ? 'connecting' : !isConnected ? 'connect' : null;
   const overlayDescription = overlayMode === 'connecting' ? connectingDescription : readyDescription;

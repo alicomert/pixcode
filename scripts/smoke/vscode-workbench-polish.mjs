@@ -53,6 +53,64 @@ assert.match(
   'Right workbench pane should use a terminal-only CLI panel.',
 );
 
+assert.match(
+  workbench,
+  /function WorkbenchWorkspaceTabs/,
+  'Workbench should render Chrome-style workspace tabs directly under the menu bar.',
+);
+
+assert.match(
+  workbench,
+  /WORKBENCH_WORKSPACE_TABS_STORAGE_KEY/,
+  'Workspace tabs should persist names, stars, and open tabs across reloads.',
+);
+
+assert.doesNotMatch(
+  workbench,
+  /workspaceSlots/,
+  'Workspace controls should no longer occupy space inside the Explorer panel.',
+);
+
+assert.match(
+  workbench,
+  /editorTabStripRef/,
+  'Editor tabs should have a scrollable strip instead of shrinking every tab.',
+);
+
+assert.match(
+  workbench,
+  /handleEditorTabContextMenu/,
+  'Editor tabs should expose a right-click context menu.',
+);
+
+for (const token of ['closeAllTabs', 'copyPath', 'splitRight', 'splitMoveRight']) {
+  assert.match(workbench, new RegExp(token), `Editor tab context menu should support ${token}.`);
+}
+
+assert.match(
+  workbench,
+  /SessionProviderLogo/,
+  'CLI provider picker should keep provider icons visible.',
+);
+
+assert.match(
+  workbench,
+  /useProviderAuthStatus/,
+  'CLI provider picker should show install/update status without opening Settings.',
+);
+
+assert.match(
+  workbench,
+  /autoConnect=\{canAutoConnect\}/,
+  'Right CLI terminal should auto-connect when the selected provider can run.',
+);
+
+assert.match(
+  workbench,
+  /function WorkbenchSessionHistory/,
+  'CLI history should be integrated as a polished project-scoped panel.',
+);
+
 assert.doesNotMatch(
   workbench,
   /return <Sidebar \{\.\.\.sidebarProps\} isMobile=\{false\} \/>/,

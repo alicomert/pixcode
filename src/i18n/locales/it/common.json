@@ -796,7 +796,18 @@
     },
     "editor": {
       "emptyTitle": "Apri un file da Esplora",
-      "closeTab": "Close {{file}}"
+      "closeTab": "Chiudi {{file}}",
+      "scrollLeft": "Scorri schede a sinistra",
+      "scrollRight": "Scorri schede a destra",
+      "moreActions": "Altre azioni scheda",
+      "closeSplit": "Chiudi editor diviso",
+      "context": {
+        "close": "Chiudi",
+        "closeAll": "Chiudi tutto",
+        "copyPath": "Copia percorso",
+        "splitRight": "Dividi a destra",
+        "splitMoveRight": "Dividi e sposta a destra"
+      }
     },
     "resize": {
       "left": "Ridimensiona pannello sinistro",
@@ -824,13 +835,38 @@
       "workHere": "Work in this folder"
     },
     "workspace": {
-      "empty": "Open a project to create Workspace 1."
+      "empty": "Apri un progetto per creare Workspace 1.",
+      "openFirst": "Apri workspace",
+      "add": "Aggiungi workspace",
+      "close": "Chiudi {{name}}",
+      "closeAction": "Chiudi workspace",
+      "rename": "Rinomina",
+      "star": "Aggiungi stella",
+      "unstar": "Rimuovi stella",
+      "toggleStar": "Aggiungi stella a {{name}}",
+      "moreActions": "Azioni workspace"
     },
     "cli": {
-      "projectScoped": "Project-scoped CLI terminal",
-      "newSession": "New CLI session",
-      "history": "History",
-      "noHistory": "No sessions for this project yet."
+      "projectScoped": "Terminale CLI legato al progetto",
+      "newSession": "Nuova sessione CLI",
+      "history": "Cronologia",
+      "noHistory": "Nessuna sessione per questo progetto.",
+      "projectHistory": "Cronologia progetto",
+      "checking": "Controllo...",
+      "ready": "Pronto",
+      "notInstalled": "Non installato",
+      "installing": "Installazione...",
+      "updateAvailable": "Aggiorna {{version}}",
+      "installProvider": "Installa {{provider}}",
+      "updateProvider": "Aggiorna {{provider}}",
+      "manualInstall": "Questa CLI richiede installazione manuale.",
+      "installNoJob": "L'installazione non ha restituito un job id.",
+      "installFailed": "Installazione non riuscita.",
+      "installStreamLost": "Il flusso di installazione si è chiuso presto. L'installazione potrebbe essere ancora in corso.",
+      "provider": "Provider",
+      "installRunning": "si sta installando",
+      "installDone": "è pronto",
+      "installError": "richiede attenzione"
     }
   }
 }

@@ -249,9 +249,11 @@
     "loading": "Loading terminal...",
     "connecting": "Connecting to shell...",
     "startSession": "Start a new Claude session",
+    "startProviderSession": "Start a new {{provider}} session",
     "resumeSession": "Resume session: {{displayName}}...",
     "runCommand": "Run {{command}} in {{projectName}}",
     "startCli": "Starting Claude CLI in {{projectName}}",
+    "startProviderCli": "Starting {{provider}} in {{projectName}}",
     "defaultCommand": "command"
   },
   "claudeStatus": {

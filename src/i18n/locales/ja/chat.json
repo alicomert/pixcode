@@ -203,9 +203,11 @@
     "loading": "ターミナルを読み込んでいます...",
     "connecting": "シェルに接続しています...",
     "startSession": "新しいClaudeセッションを開始",
+    "startProviderSession": "新しい{{provider}}セッションを開始",
     "resumeSession": "セッションを再開: {{displayName}}...",
     "runCommand": "{{projectName}}で{{command}}を実行",
     "startCli": "{{projectName}}でClaude CLIを起動しています",
+    "startProviderCli": "{{projectName}}で{{provider}}を起動しています",
     "defaultCommand": "コマンド"
   },
   "claudeStatus": {

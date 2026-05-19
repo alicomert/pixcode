@@ -796,7 +796,18 @@
     },
     "editor": {
       "emptyTitle": "탐색기에서 파일 열기",
-      "closeTab": "Close {{file}}"
+      "closeTab": "{{file}} 닫기",
+      "scrollLeft": "탭을 왼쪽으로 스크롤",
+      "scrollRight": "탭을 오른쪽으로 스크롤",
+      "moreActions": "추가 탭 작업",
+      "closeSplit": "분할 편집기 닫기",
+      "context": {
+        "close": "닫기",
+        "closeAll": "모두 닫기",
+        "copyPath": "경로 복사",
+        "splitRight": "오른쪽으로 분할",
+        "splitMoveRight": "오른쪽으로 분할 및 이동"
+      }
     },
     "resize": {
       "left": "왼쪽 패널 크기 조정",
@@ -824,13 +835,38 @@
       "workHere": "Work in this folder"
     },
     "workspace": {
-      "empty": "Open a project to create Workspace 1."
+      "empty": "Workspace 1을 만들려면 프로젝트를 여세요.",
+      "openFirst": "워크스페이스 열기",
+      "add": "워크스페이스 추가",
+      "close": "{{name}} 닫기",
+      "closeAction": "워크스페이스 닫기",
+      "rename": "이름 바꾸기",
+      "star": "별표",
+      "unstar": "별표 해제",
+      "toggleStar": "{{name}} 별표",
+      "moreActions": "워크스페이스 작업"
     },
     "cli": {
-      "projectScoped": "Project-scoped CLI terminal",
-      "newSession": "New CLI session",
-      "history": "History",
-      "noHistory": "No sessions for this project yet."
+      "projectScoped": "프로젝트 범위 CLI 터미널",
+      "newSession": "새 CLI 세션",
+      "history": "기록",
+      "noHistory": "이 프로젝트에는 아직 세션이 없습니다.",
+      "projectHistory": "프로젝트 기록",
+      "checking": "확인 중...",
+      "ready": "준비됨",
+      "notInstalled": "설치되지 않음",
+      "installing": "설치 중...",
+      "updateAvailable": "{{version}} 업데이트",
+      "installProvider": "{{provider}} 설치",
+      "updateProvider": "{{provider}} 업데이트",
+      "manualInstall": "이 CLI는 수동 설치가 필요합니다.",
+      "installNoJob": "설치 작업 ID가 반환되지 않았습니다.",
+      "installFailed": "설치 실패.",
+      "installStreamLost": "설치 스트림이 일찍 닫혔습니다. 설치가 아직 실행 중일 수 있습니다.",
+      "provider": "Provider",
+      "installRunning": "설치 중",
+      "installDone": "준비됨",
+      "installError": "확인이 필요함"
     }
   }
 }

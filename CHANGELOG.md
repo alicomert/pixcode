@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.48.1](https://github.com/alicomert/pixcode/compare/v1.48.0...v1.48.1) (2026-05-19)
+
+Pixcode 1.48.1 polishes the VS Code workbench after the 1.48 launch.
+
+### Fixes
+
+* **workbench:** move workspaces into a persistent Chrome-style tab bar under the menu with add, close, rename, and star actions.
+* **editor:** keep file tabs from shrinking by adding a scrollable tab strip, overflow controls, and a right-click menu for close, close all, copy path, split right, and split/move right.
+* **cli:** restore provider icons, auto-start the selected CLI terminal when available, and surface install/update actions for missing or outdated CLIs in the right panel.
+* **history:** replace the cramped CLI history list with a project-scoped, provider-icon history panel.
+* **i18n:** add workbench/CLI/editor copy across all supported locales.
+
+### Tests
+
+* extend VS Code workbench smoke coverage for workspace tabs, editor tab menus, provider install/update state, and project-scoped CLI history.
+
 ## [1.48.0](https://github.com/alicomert/pixcode/compare/v1.47.5...v1.48.0) (2026-05-19)
 
 Pixcode 1.48.0 makes the VS Code workbench the only desktop experience, removes the TaskMaster product surface, and moves orchestration behind Hermes Agent.

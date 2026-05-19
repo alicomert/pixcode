@@ -796,7 +796,18 @@
     },
     "editor": {
       "emptyTitle": "从资源管理器打开文件",
-      "closeTab": "Close {{file}}"
+      "closeTab": "关闭 {{file}}",
+      "scrollLeft": "向左滚动标签",
+      "scrollRight": "向右滚动标签",
+      "moreActions": "更多标签操作",
+      "closeSplit": "关闭拆分编辑器",
+      "context": {
+        "close": "关闭",
+        "closeAll": "全部关闭",
+        "copyPath": "复制路径",
+        "splitRight": "向右拆分",
+        "splitMoveRight": "向右拆分并移动"
+      }
     },
     "resize": {
       "left": "调整左侧面板",
@@ -824,13 +835,38 @@
       "workHere": "Work in this folder"
     },
     "workspace": {
-      "empty": "Open a project to create Workspace 1."
+      "empty": "打开项目以创建 Workspace 1。",
+      "openFirst": "打开工作区",
+      "add": "添加工作区",
+      "close": "关闭 {{name}}",
+      "closeAction": "关闭工作区",
+      "rename": "重命名",
+      "star": "标星",
+      "unstar": "取消标星",
+      "toggleStar": "标星 {{name}}",
+      "moreActions": "工作区操作"
     },
     "cli": {
-      "projectScoped": "Project-scoped CLI terminal",
-      "newSession": "New CLI session",
-      "history": "History",
-      "noHistory": "No sessions for this project yet."
+      "projectScoped": "项目范围 CLI 终端",
+      "newSession": "新建 CLI 会话",
+      "history": "历史",
+      "noHistory": "此项目还没有会话。",
+      "projectHistory": "项目历史",
+      "checking": "检查中...",
+      "ready": "就绪",
+      "notInstalled": "未安装",
+      "installing": "安装中...",
+      "updateAvailable": "更新到 {{version}}",
+      "installProvider": "安装 {{provider}}",
+      "updateProvider": "更新 {{provider}}",
+      "manualInstall": "此 CLI 需要手动安装。",
+      "installNoJob": "安装未返回 job id。",
+      "installFailed": "安装失败。",
+      "installStreamLost": "安装流过早关闭。安装可能仍在运行。",
+      "provider": "提供方",
+      "installRunning": "正在安装",
+      "installDone": "已就绪",
+      "installError": "需要处理"
     }
   }
 }

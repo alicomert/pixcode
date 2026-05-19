@@ -231,9 +231,11 @@
     "loading": "Caricamento terminale...",
     "connecting": "Connessione alla shell...",
     "startSession": "Avvia una nuova sessione Claude",
+    "startProviderSession": "Avvia una nuova sessione {{provider}}",
     "resumeSession": "Riprendi sessione: {{displayName}}...",
     "runCommand": "Esegui {{command}} in {{projectName}}",
     "startCli": "Avvio Claude CLI in {{projectName}}",
+    "startProviderCli": "Avvio {{provider}} in {{projectName}}",
     "defaultCommand": "comando"
   },
   "claudeStatus": {

@@ -231,9 +231,11 @@
     "loading": "Terminal wird geladen...",
     "connecting": "Verbindung zum Terminal wird hergestellt...",
     "startSession": "Neue Claude-Sitzung starten",
+    "startProviderSession": "Neue {{provider}}-Sitzung starten",
     "resumeSession": "Sitzung fortsetzen: {{displayName}}...",
     "runCommand": "{{command}} in {{projectName}} ausführen",
     "startCli": "Claude CLI wird in {{projectName}} gestartet",
+    "startProviderCli": "{{provider}} wird in {{projectName}} gestartet",
     "defaultCommand": "Befehl"
   },
   "claudeStatus": {

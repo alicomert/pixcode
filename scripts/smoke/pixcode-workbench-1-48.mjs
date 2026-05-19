@@ -31,7 +31,7 @@ assert.doesNotMatch(loginForm, /login\.layout|setWorkbenchLayout|WorkbenchLayout
 assert.doesNotMatch(appearanceTab, /workbenchLayout|WorkbenchLayoutPreference|onWorkbenchLayoutChange|classic/i, 'Appearance settings should not expose layout switching.');
 
 assert.match(workbench, /useState<ActivityPanel>\('projects'\)/, 'Workbench should open on the Projects panel.');
-assert.match(workbench, /Workspace 1|workspaceSlots|WorkbenchWorkspacePanel/, 'Workbench explorer should expose workspace slots.');
+assert.match(workbench, /WorkbenchWorkspaceTabs|WORKBENCH_WORKSPACE_TABS_STORAGE_KEY/, 'Workbench should expose persistent top workspace tabs.');
 assert.match(workbench, /openEditorTabs|activeEditorPath/, 'Workbench editor should keep a Monaco-style tab set.');
 assert.doesNotMatch(workbench, /<ChatInterface/, 'Right workbench panel should not render the chat composer.');
 assert.match(workbench, /WorkbenchCliPanel/, 'Right workbench panel should render the CLI terminal panel.');

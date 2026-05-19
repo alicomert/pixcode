@@ -766,7 +766,18 @@
     },
     "editor": {
       "emptyTitle": "Откройте файл из Проводника",
-      "closeTab": "Close {{file}}"
+      "closeTab": "Закрыть {{file}}",
+      "scrollLeft": "Прокрутить вкладки влево",
+      "scrollRight": "Прокрутить вкладки вправо",
+      "moreActions": "Другие действия вкладки",
+      "closeSplit": "Закрыть разделенный редактор",
+      "context": {
+        "close": "Закрыть",
+        "closeAll": "Закрыть все",
+        "copyPath": "Копировать путь",
+        "splitRight": "Разделить вправо",
+        "splitMoveRight": "Разделить и переместить вправо"
+      }
     },
     "resize": {
       "left": "Изменить левую панель",
@@ -794,13 +805,38 @@
       "workHere": "Work in this folder"
     },
     "workspace": {
-      "empty": "Open a project to create Workspace 1."
+      "empty": "Откройте проект, чтобы создать Workspace 1.",
+      "openFirst": "Открыть workspace",
+      "add": "Добавить workspace",
+      "close": "Закрыть {{name}}",
+      "closeAction": "Закрыть workspace",
+      "rename": "Переименовать",
+      "star": "Добавить звезду",
+      "unstar": "Убрать звезду",
+      "toggleStar": "Добавить звезду {{name}}",
+      "moreActions": "Действия workspace"
     },
     "cli": {
-      "projectScoped": "Project-scoped CLI terminal",
-      "newSession": "New CLI session",
-      "history": "History",
-      "noHistory": "No sessions for this project yet."
+      "projectScoped": "CLI-терминал в рамках проекта",
+      "newSession": "Новая CLI-сессия",
+      "history": "История",
+      "noHistory": "Для этого проекта еще нет сессий.",
+      "projectHistory": "История проекта",
+      "checking": "Проверка...",
+      "ready": "Готово",
+      "notInstalled": "Не установлено",
+      "installing": "Установка...",
+      "updateAvailable": "Обновить до {{version}}",
+      "installProvider": "Установить {{provider}}",
+      "updateProvider": "Обновить {{provider}}",
+      "manualInstall": "Эту CLI нужно установить вручную.",
+      "installNoJob": "Установка не вернула job id.",
+      "installFailed": "Установка не удалась.",
+      "installStreamLost": "Поток установки закрылся рано. Установка может еще выполняться.",
+      "provider": "Провайдер",
+      "installRunning": "устанавливается",
+      "installDone": "готов",
+      "installError": "требует внимания"
     }
   }
 }

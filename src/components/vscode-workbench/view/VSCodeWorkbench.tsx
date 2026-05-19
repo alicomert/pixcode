@@ -7,31 +7,46 @@ import type { CodeEditorDiffInfo, CodeEditorFile } from '../../code-editor/types
 import ControlRoomPage from '../../control-room/ControlRoomPage';
 import FileTree from '../../file-tree/view/FileTree';
 import GitPanel from '../../git-panel/view/GitPanel';
+import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
 import MainContentStateView from '../../main-content/view/subcomponents/MainContentStateView';
 import OrchestrationPage from '../../orchestration/OrchestrationPage';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
+import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
+import {
+  PROVIDER_DISPLAY_NAMES,
+} from '../../provider-auth/types';
 import RemoteConsole from '../../remote-console/RemoteConsole';
 import Sidebar from '../../sidebar/view/Sidebar';
 import type { SidebarProps } from '../../sidebar/types/types';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import type { WorkspaceType } from '../../project-creation-wizard/types';
 import { cn } from '../../../lib/utils';
+import { authenticatedFetch } from '../../../utils/api';
 import type { AppTab, LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { MainContentProps } from '../../main-content/types/types';
 
 import {
+  AlertCircle,
   Bot,
+  Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Code2,
   Columns,
+  Copy,
+  Download,
+  Edit2,
   FileText,
   Folder,
   FolderOpen,
   GitBranch,
   Github,
   History,
+  Loader2,
   MessageSquare,
   Monitor,
+  MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -39,8 +54,10 @@ import {
   Server,
   Settings,
   Sparkles,
+  Star,
   Terminal,
   Workflow,
+  X,
 } from '@/lib/icons';
 
 type VSCodeWorkbenchProps = MainContentProps & {
@@ -51,12 +68,35 @@ type ActivityPanel = 'explorer' | 'projects' | 'sourceControl' | 'terminal';
 
 type ResizeTarget = 'left' | 'right';
 
+type WorkbenchWorkspaceTab = {
+  id: string;
+  projectName: string;
+  path: string;
+  label: string;
+  starred: boolean;
+};
+
+type EditorTabContextMenu = {
+  filePath: string;
+  x: number;
+  y: number;
+} | null;
+
+type ProviderInstallState = {
+  provider: LLMProvider | null;
+  state: 'idle' | 'running' | 'done' | 'error';
+  log: string;
+  error: string | null;
+};
+
 const LEFT_MIN_WIDTH = 260;
 const LEFT_MAX_WIDTH = 520;
 const LEFT_DEFAULT_WIDTH = 340;
 const RIGHT_MIN_WIDTH = 320;
 const RIGHT_MAX_WIDTH = 680;
 const RIGHT_DEFAULT_WIDTH = 420;
+const WORKBENCH_WORKSPACE_TABS_STORAGE_KEY = 'pixcode.workbench.workspaceTabs.v1';
+const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -105,6 +145,83 @@ function formatFileCount(fileCount: Project['fileCount'], t: TFunction<'common'>
   });
 }
 
+function getWorkspaceTabId(project: Project) {
+  return (project.fullPath || project.path || project.name).replace(/\\/g, '/');
+}
+
+function readWorkspaceTabs(): WorkbenchWorkspaceTab[] {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(WORKBENCH_WORKSPACE_TABS_STORAGE_KEY) ?? '[]') as WorkbenchWorkspaceTab[];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter((tab) => typeof tab.id === 'string' && typeof tab.projectName === 'string')
+      .slice(0, DEFAULT_WORKSPACE_TAB_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+function writeWorkspaceTabs(tabs: WorkbenchWorkspaceTab[]) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(
+      WORKBENCH_WORKSPACE_TABS_STORAGE_KEY,
+      JSON.stringify(tabs.slice(0, DEFAULT_WORKSPACE_TAB_LIMIT)),
+    );
+  } catch {
+    // Workspace tabs are a convenience layer. If storage is unavailable, the
+    // selected project still works normally.
+  }
+}
+
+function createWorkspaceTab(project: Project, label: string): WorkbenchWorkspaceTab {
+  return {
+    id: getWorkspaceTabId(project),
+    projectName: project.name,
+    path: getProjectPath(project),
+    label,
+    starred: false,
+  };
+}
+
+function getSessionTitle(session: ProjectSession) {
+  return (
+    (typeof session.summary === 'string' && session.summary)
+    || (typeof session.title === 'string' && session.title)
+    || (typeof session.name === 'string' && session.name)
+    || session.id
+  );
+}
+
+function getSessionTimestamp(session: ProjectSession) {
+  return (
+    (typeof session.updated_at === 'string' && session.updated_at)
+    || (typeof session.lastActivity === 'string' && session.lastActivity)
+    || (typeof session.created_at === 'string' && session.created_at)
+    || (typeof session.createdAt === 'string' && session.createdAt)
+    || null
+  );
+}
+
+function formatSessionTime(session: ProjectSession) {
+  const timestamp = getSessionTimestamp(session);
+  if (!timestamp) return '';
+
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed);
+}
+
 function VSCodeWorkbench({
   sidebarProps,
   selectedProject,
@@ -126,6 +243,10 @@ function VSCodeWorkbench({
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
   const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
   const [activeEditorPath, setActiveEditorPath] = useState<string | null>(null);
+  const [splitEditorFile, setSplitEditorFile] = useState<CodeEditorFile | null>(null);
+  const [editorTabContextMenu, setEditorTabContextMenu] = useState<EditorTabContextMenu>(null);
+  const [workspaceTabs, setWorkspaceTabs] = useState<WorkbenchWorkspaceTab[]>(readWorkspaceTabs);
+  const editorTabStripRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isCenterSystemTab(activeTab)) {
@@ -142,7 +263,40 @@ function VSCodeWorkbench({
   useEffect(() => {
     setOpenEditorTabs([]);
     setActiveEditorPath(null);
+    setSplitEditorFile(null);
+    setEditorTabContextMenu(null);
   }, [selectedProject?.name]);
+
+  useEffect(() => {
+    if (!selectedProject) {
+      return;
+    }
+
+    setWorkspaceTabs((currentTabs) => {
+      const tabId = getWorkspaceTabId(selectedProject);
+      const existing = currentTabs.find((tab) => tab.id === tabId);
+      if (existing) {
+        return [
+          ...currentTabs.filter((tab) => tab.id !== tabId),
+          {
+            ...existing,
+            projectName: selectedProject.name,
+            path: getProjectPath(selectedProject),
+          },
+        ].slice(-DEFAULT_WORKSPACE_TAB_LIMIT);
+      }
+
+      const nextLabel = `Workspace ${currentTabs.length + 1}`;
+      return [
+        ...currentTabs,
+        createWorkspaceTab(selectedProject, nextLabel),
+      ].slice(-DEFAULT_WORKSPACE_TAB_LIMIT);
+    });
+  }, [selectedProject]);
+
+  useEffect(() => {
+    writeWorkspaceTabs(workspaceTabs);
+  }, [workspaceTabs]);
 
   const handleFileOpen = useCallback(
     (filePath: string, diffInfo: CodeEditorDiffInfo | null = null) => {
@@ -182,6 +336,59 @@ function VSCodeWorkbench({
         return nextTabs[nextTabs.length - 1]?.path ?? null;
       });
       return nextTabs;
+    });
+  }, []);
+
+  const closeAllTabs = useCallback(() => {
+    setOpenEditorTabs([]);
+    setActiveEditorPath(null);
+    setSplitEditorFile(null);
+    setEditorTabContextMenu(null);
+  }, []);
+
+  const copyPath = useCallback((filePath: string) => {
+    void navigator.clipboard?.writeText(filePath);
+    setEditorTabContextMenu(null);
+  }, []);
+
+  const splitRight = useCallback((filePath: string, move = false) => {
+    const file = openEditorTabs.find((tab) => tab.path === filePath);
+    if (!file) return;
+
+    setSplitEditorFile(file);
+    if (move) {
+      setOpenEditorTabs((currentTabs) => {
+        const nextTabs = currentTabs.filter((tab) => tab.path !== filePath);
+        setActiveEditorPath((currentActivePath) => {
+          if (currentActivePath !== filePath) {
+            return currentActivePath;
+          }
+
+          return nextTabs[nextTabs.length - 1]?.path ?? null;
+        });
+        return nextTabs;
+      });
+    }
+
+    setEditorTabContextMenu(null);
+  }, [openEditorTabs]);
+
+  const handleEditorTabContextMenu = useCallback((
+    event: React.MouseEvent<HTMLButtonElement>,
+    filePath: string,
+  ) => {
+    event.preventDefault();
+    setEditorTabContextMenu({
+      filePath,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  }, []);
+
+  const scrollEditorTabs = useCallback((direction: 'left' | 'right') => {
+    editorTabStripRef.current?.scrollBy({
+      left: direction === 'left' ? -180 : 180,
+      behavior: 'smooth',
     });
   }, []);
 
@@ -312,6 +519,49 @@ function VSCodeWorkbench({
     setActiveTab('chat');
   }, [setActiveTab, sidebarProps]);
 
+  const handleWorkspaceTabSelect = useCallback((tab: WorkbenchWorkspaceTab) => {
+    const project = sidebarProps.projects.find((candidate) => (
+      candidate.name === tab.projectName || getWorkspaceTabId(candidate) === tab.id
+    ));
+    if (project) {
+      handleWorkbenchProjectSelect(project);
+    }
+  }, [handleWorkbenchProjectSelect, sidebarProps.projects]);
+
+  const handleWorkspaceTabClose = useCallback((tabId: string) => {
+    setWorkspaceTabs((currentTabs) => {
+      const nextTabs = currentTabs.filter((tab) => tab.id !== tabId);
+      const closingSelected = selectedProject && getWorkspaceTabId(selectedProject) === tabId;
+      if (closingSelected) {
+        const fallbackTab = nextTabs[nextTabs.length - 1];
+        const fallbackProject = fallbackTab
+          ? sidebarProps.projects.find((candidate) => (
+            candidate.name === fallbackTab.projectName || getWorkspaceTabId(candidate) === fallbackTab.id
+          ))
+          : null;
+        if (fallbackProject) {
+          window.setTimeout(() => handleWorkbenchProjectSelect(fallbackProject), 0);
+        }
+      }
+      return nextTabs;
+    });
+  }, [handleWorkbenchProjectSelect, selectedProject, sidebarProps.projects]);
+
+  const handleWorkspaceTabRename = useCallback((tabId: string, label: string) => {
+    const nextLabel = label.trim();
+    if (!nextLabel) return;
+
+    setWorkspaceTabs((currentTabs) => currentTabs.map((tab) => (
+      tab.id === tabId ? { ...tab, label: nextLabel } : tab
+    )));
+  }, []);
+
+  const handleWorkspaceTabStar = useCallback((tabId: string) => {
+    setWorkspaceTabs((currentTabs) => currentTabs.map((tab) => (
+      tab.id === tabId ? { ...tab, starred: !tab.starred } : tab
+    )));
+  }, []);
+
   const renderLeftPanel = () => {
     if (activityPanel === 'projects') {
       return (
@@ -340,7 +590,7 @@ function VSCodeWorkbench({
           session={selectedSession}
           showHeader
           isActive={activeTab === 'shell'}
-          autoConnect={false}
+          autoConnect={activeTab === 'shell'}
         />
       );
     }
@@ -400,54 +650,144 @@ function VSCodeWorkbench({
     if (activeEditorFile) {
       return (
         <div className="flex h-full min-h-0 flex-col bg-background">
-          <div className="flex h-9 shrink-0 items-center overflow-x-auto border-b border-border bg-muted/20">
-            {openEditorTabs.map((tab) => {
-              const active = tab.path === activeEditorFile.path;
-              return (
-                <button
-                  key={tab.path}
-                  type="button"
-                  className={cn(
-                    'group flex h-full min-w-0 max-w-52 items-center gap-2 border-r border-border px-3 text-xs transition-colors',
-                    active ? 'bg-background text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-                  )}
-                  onClick={() => setActiveEditorPath(tab.path)}
-                  title={tab.path}
-                >
-                  <FileText className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{tab.name}</span>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="rounded p-0.5 text-muted-foreground opacity-70 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleCloseEditorTab(tab.path);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
+          <div className="flex h-9 shrink-0 items-center border-b border-border bg-muted/20">
+            <button
+              type="button"
+              className="flex h-full w-8 shrink-0 items-center justify-center border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={() => scrollEditorTabs('left')}
+              aria-label={t('vscodeWorkbench.editor.scrollLeft', { defaultValue: 'Scroll tabs left' })}
+              title={t('vscodeWorkbench.editor.scrollLeft', { defaultValue: 'Scroll tabs left' })}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <div
+              ref={editorTabStripRef}
+              className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {openEditorTabs.map((tab) => {
+                const active = tab.path === activeEditorFile.path;
+                return (
+                  <button
+                    key={tab.path}
+                    type="button"
+                    className={cn(
+                      'group flex h-9 w-44 shrink-0 items-center gap-2 border-r border-border px-2.5 text-xs transition-colors',
+                      active ? 'bg-background text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                    )}
+                    onClick={() => setActiveEditorPath(tab.path)}
+                    onContextMenu={(event) => handleEditorTabContextMenu(event, tab.path)}
+                    title={tab.path}
+                  >
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate text-left">{tab.name}</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="rounded p-0.5 text-muted-foreground opacity-70 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                      onClick={(event) => {
                         event.stopPropagation();
                         handleCloseEditorTab(tab.path);
-                      }
-                    }}
-                    aria-label={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
-                    title={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
-                  >
-                    ×
-                  </span>
-                </button>
-              );
-            })}
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleCloseEditorTab(tab.path);
+                        }
+                      }}
+                      aria-label={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
+                      title={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
+                    >
+                      <X className="h-3 w-3" />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className="flex h-full w-8 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={() => scrollEditorTabs('right')}
+              aria-label={t('vscodeWorkbench.editor.scrollRight', { defaultValue: 'Scroll tabs right' })}
+              title={t('vscodeWorkbench.editor.scrollRight', { defaultValue: 'Scroll tabs right' })}
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className="flex h-full w-8 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={() => setEditorTabContextMenu({
+                filePath: activeEditorFile.path,
+                x: window.innerWidth - 220,
+                y: 84,
+              })}
+              aria-label={t('vscodeWorkbench.editor.moreActions', { defaultValue: 'More tab actions' })}
+              title={t('vscodeWorkbench.editor.moreActions', { defaultValue: 'More tab actions' })}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            <CodeEditor
-              file={activeEditorFile}
-              onClose={() => handleCloseEditorTab(activeEditorFile.path)}
-              projectPath={selectedProject.path || selectedProject.fullPath}
-              isSidebar
-            />
+            {splitEditorFile ? (
+              <div className="flex h-full min-w-0">
+                {activeEditorFile && (
+                  <div className="min-w-0 flex-1 border-r border-border">
+                    <CodeEditor
+                      file={activeEditorFile}
+                      onClose={() => handleCloseEditorTab(activeEditorFile.path)}
+                      projectPath={selectedProject.path || selectedProject.fullPath}
+                      isSidebar
+                    />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex h-8 items-center justify-between border-b border-border bg-muted/20 px-2">
+                    <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{splitEditorFile.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={() => setSplitEditorFile(null)}
+                      aria-label={t('vscodeWorkbench.editor.closeSplit', { defaultValue: 'Close split editor' })}
+                      title={t('vscodeWorkbench.editor.closeSplit', { defaultValue: 'Close split editor' })}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="h-[calc(100%-2rem)] min-h-0 overflow-hidden">
+                    <CodeEditor
+                      file={splitEditorFile}
+                      onClose={() => setSplitEditorFile(null)}
+                      projectPath={selectedProject.path || selectedProject.fullPath}
+                      isSidebar
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <CodeEditor
+                file={activeEditorFile}
+                onClose={() => handleCloseEditorTab(activeEditorFile.path)}
+                projectPath={selectedProject.path || selectedProject.fullPath}
+                isSidebar
+              />
+            )}
           </div>
+          {editorTabContextMenu && (
+            <EditorTabContextMenu
+              context={editorTabContextMenu}
+              file={openEditorTabs.find((tab) => tab.path === editorTabContextMenu.filePath) ?? null}
+              onClose={() => setEditorTabContextMenu(null)}
+              onCloseTab={handleCloseEditorTab}
+              onCloseAll={closeAllTabs}
+              onCopyPath={copyPath}
+              onSplitRight={(filePath) => splitRight(filePath)}
+              onSplitMoveRight={(filePath) => splitRight(filePath, true)}
+              t={t}
+            />
+          )}
         </div>
       );
     }
@@ -490,6 +830,17 @@ function VSCodeWorkbench({
         onShowSettings={onShowSettings}
         onQuickStartSession={onQuickStartSession}
         onQuickStartOrchestration={onQuickStartOrchestration}
+      />
+      <WorkbenchWorkspaceTabs
+        tabs={workspaceTabs}
+        projects={sidebarProps.projects}
+        selectedProject={selectedProject}
+        onSelect={handleWorkspaceTabSelect}
+        onClose={handleWorkspaceTabClose}
+        onRename={handleWorkspaceTabRename}
+        onToggleStar={handleWorkspaceTabStar}
+        onAdd={() => openProjectWizard('existing')}
+        t={t}
       />
 
       <div
@@ -811,6 +1162,296 @@ function WorkbenchMenuBar({
   );
 }
 
+function WorkbenchWorkspaceTabs({
+  tabs,
+  projects,
+  selectedProject,
+  onSelect,
+  onClose,
+  onRename,
+  onToggleStar,
+  onAdd,
+  t,
+}: {
+  tabs: WorkbenchWorkspaceTab[];
+  projects: Project[];
+  selectedProject: Project | null;
+  onSelect: (tab: WorkbenchWorkspaceTab) => void;
+  onClose: (tabId: string) => void;
+  onRename: (tabId: string, label: string) => void;
+  onToggleStar: (tabId: string) => void;
+  onAdd: () => void;
+  t: TFunction<'common'>;
+}) {
+  const selectedId = selectedProject ? getWorkspaceTabId(selectedProject) : null;
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftLabel, setDraftLabel] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  const tabsWithProjects = useMemo(() => (
+    tabs
+      .map((tab) => ({
+        tab,
+        project: projects.find((project) => (
+          project.name === tab.projectName || getWorkspaceTabId(project) === tab.id
+        )),
+      }))
+      .filter((entry): entry is { tab: WorkbenchWorkspaceTab; project: Project } => Boolean(entry.project))
+  ), [projects, tabs]);
+
+  const startRename = (tab: WorkbenchWorkspaceTab) => {
+    setOpenMenuId(null);
+    setEditingId(tab.id);
+    setDraftLabel(tab.label);
+  };
+
+  const submitRename = () => {
+    if (!editingId) return;
+    onRename(editingId, draftLabel);
+    setEditingId(null);
+    setDraftLabel('');
+  };
+
+  return (
+    <div className="flex h-9 shrink-0 items-center border-b border-border bg-background text-xs">
+      <div className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {tabsWithProjects.length === 0 ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex h-full min-w-0 items-center gap-2 border-r border-border px-3 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+          >
+            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {t('vscodeWorkbench.workspace.openFirst', { defaultValue: 'Open a workspace' })}
+            </span>
+          </button>
+        ) : (
+          tabsWithProjects.map(({ tab, project }) => {
+            const active = tab.id === selectedId;
+            return (
+              <div
+                key={tab.id}
+                className={cn(
+                  'group relative flex h-9 w-52 shrink-0 items-center border-r border-border px-2 transition-colors',
+                  active ? 'bg-muted/50 text-foreground' : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',
+                )}
+                title={`${tab.label} - ${formatProjectPath(project)}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onToggleStar(tab.id)}
+                  className={cn(
+                    'mr-1 rounded p-0.5 transition hover:bg-muted',
+                    tab.starred ? 'text-amber-500' : 'text-muted-foreground/60 opacity-0 group-hover:opacity-100',
+                  )}
+                  aria-label={t('vscodeWorkbench.workspace.toggleStar', { name: tab.label, defaultValue: 'Star {{name}}' })}
+                  title={t('vscodeWorkbench.workspace.toggleStar', { name: tab.label, defaultValue: 'Star {{name}}' })}
+                >
+                  <Star className="h-3.5 w-3.5" />
+                </button>
+
+                {editingId === tab.id ? (
+                  <input
+                    value={draftLabel}
+                    autoFocus
+                    onChange={(event) => setDraftLabel(event.target.value)}
+                    onBlur={submitRename}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') submitRename();
+                      if (event.key === 'Escape') {
+                        setEditingId(null);
+                        setDraftLabel('');
+                      }
+                    }}
+                    className="min-w-0 flex-1 rounded border border-primary/40 bg-background px-1 py-0.5 text-xs text-foreground outline-none"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSelect(tab)}
+                    onDoubleClick={() => startRename(tab)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className="truncate font-medium">{tab.label}</div>
+                    <div className="truncate text-[10px] text-muted-foreground">{formatProjectPath(project)}</div>
+                  </button>
+                )}
+
+                <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-70 group-hover:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => setOpenMenuId((current) => (current === tab.id ? null : tab.id))}
+                    className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                    aria-label={t('vscodeWorkbench.workspace.moreActions', { defaultValue: 'Workspace actions' })}
+                    title={t('vscodeWorkbench.workspace.moreActions', { defaultValue: 'Workspace actions' })}
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onClose(tab.id)}
+                    className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                    aria-label={t('vscodeWorkbench.workspace.close', { name: tab.label, defaultValue: 'Close {{name}}' })}
+                    title={t('vscodeWorkbench.workspace.close', { name: tab.label, defaultValue: 'Close {{name}}' })}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {openMenuId === tab.id && (
+                  <div className="absolute left-2 top-full z-50 mt-1 w-44 overflow-hidden rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-xl shadow-black/10">
+                    <button
+                      type="button"
+                      onClick={() => startRename(tab)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                      {t('vscodeWorkbench.workspace.rename', { defaultValue: 'Rename' })}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onToggleStar(tab.id);
+                        setOpenMenuId(null);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                      {tab.starred
+                        ? t('vscodeWorkbench.workspace.unstar', { defaultValue: 'Unstar' })
+                        : t('vscodeWorkbench.workspace.star', { defaultValue: 'Star' })}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose(tab.id);
+                        setOpenMenuId(null);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-600 hover:bg-muted dark:text-red-300"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      {t('vscodeWorkbench.workspace.closeAction', { defaultValue: 'Close workspace' })}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex h-full w-9 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
+        title={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
+      >
+        <Plus className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function EditorTabContextMenu({
+  context,
+  file,
+  onClose,
+  onCloseTab,
+  onCloseAll,
+  onCopyPath,
+  onSplitRight,
+  onSplitMoveRight,
+  t,
+}: {
+  context: NonNullable<EditorTabContextMenu>;
+  file: CodeEditorFile | null;
+  onClose: () => void;
+  onCloseTab: (filePath: string) => void;
+  onCloseAll: () => void;
+  onCopyPath: (filePath: string) => void;
+  onSplitRight: (filePath: string) => void;
+  onSplitMoveRight: (filePath: string) => void;
+  t: TFunction<'common'>;
+}) {
+  useEffect(() => {
+    const close = () => onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  if (!file) return null;
+
+  const items = [
+    {
+      id: 'close',
+      label: t('vscodeWorkbench.editor.context.close', { defaultValue: 'Close' }),
+      icon: X,
+      action: () => onCloseTab(file.path),
+    },
+    {
+      id: 'closeAllTabs',
+      label: t('vscodeWorkbench.editor.context.closeAll', { defaultValue: 'Close All' }),
+      icon: X,
+      action: onCloseAll,
+    },
+    {
+      id: 'copyPath',
+      label: t('vscodeWorkbench.editor.context.copyPath', { defaultValue: 'Copy Path' }),
+      icon: Copy,
+      action: () => onCopyPath(file.path),
+    },
+    {
+      id: 'splitRight',
+      label: t('vscodeWorkbench.editor.context.splitRight', { defaultValue: 'Split Right' }),
+      icon: Columns,
+      action: () => onSplitRight(file.path),
+    },
+    {
+      id: 'splitMoveRight',
+      label: t('vscodeWorkbench.editor.context.splitMoveRight', { defaultValue: 'Split and Move Right' }),
+      icon: PanelLeftOpen,
+      action: () => onSplitMoveRight(file.path),
+    },
+  ];
+
+  return (
+    <div
+      className="fixed z-[80] w-56 overflow-hidden rounded-md border border-border bg-popover py-1 text-xs text-popover-foreground shadow-xl shadow-black/15"
+      style={{ left: context.x, top: context.y }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="border-b border-border px-3 py-2 text-[11px] text-muted-foreground">
+        <div className="truncate font-medium text-foreground">{file.name}</div>
+        <div className="truncate font-mono">{file.path}</div>
+      </div>
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={item.action}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+          >
+            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function WorkbenchWorkspacePanel({
   selectedProject,
   onFileOpen,
@@ -820,43 +1461,11 @@ function WorkbenchWorkspacePanel({
   onFileOpen: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
   t: TFunction<'common'>;
 }) {
-  const workspaceSlots = selectedProject ? [
-    {
-      id: 'workspace-1',
-      label: 'Workspace 1',
-      project: selectedProject,
-    },
-  ] : [];
+  void t;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border p-2">
-        {workspaceSlots.length === 0 ? (
-          <div className="rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-            {t('vscodeWorkbench.workspace.empty', { defaultValue: 'Open a project to create Workspace 1.' })}
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {workspaceSlots.map((slot) => (
-              <div
-                key={slot.id}
-                className="flex min-w-0 items-center gap-2 rounded border border-primary/30 bg-primary/10 px-2.5 py-2"
-              >
-                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
-                <div className="min-w-0">
-                  <div className="truncate text-xs font-semibold text-foreground">{slot.label}</div>
-                  <div className="truncate text-[11px] text-muted-foreground">
-                    {slot.project.displayName || slot.project.name}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <FileTree selectedProject={selectedProject} onFileOpen={onFileOpen} />
-      </div>
+    <div className="h-full min-h-0 overflow-hidden">
+      <FileTree selectedProject={selectedProject} onFileOpen={onFileOpen} />
     </div>
   );
 }
@@ -1060,12 +1669,152 @@ function WorkbenchCliPanel({
     return cliProviders.some((provider) => provider.id === saved) ? saved as LLMProvider : 'claude';
   });
   const [showHistory, setShowHistory] = useState(false);
+  const [installState, setInstallState] = useState<ProviderInstallState>({
+    provider: null,
+    state: 'idle',
+    log: '',
+    error: null,
+  });
+  const installEventSourceRef = useRef<EventSource | null>(null);
+  const {
+    providerAuthStatus,
+    refreshProviderAuthStatuses,
+  } = useProviderAuthStatus({ initialLoading: false });
   const projectSessions = useMemo(() => getProjectCliSessions(project), [project]);
+  const selectedProviderStatus = providerAuthStatus[selectedProvider];
+  const sessionForShell = session?.__provider === selectedProvider ? session : null;
+  const canAutoConnect = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
 
-  const selectProvider = (provider: LLMProvider) => {
+  useEffect(() => {
+    const providers = cliProviders.map((provider) => provider.id);
+    void refreshProviderAuthStatuses(providers);
+  }, [refreshProviderAuthStatuses]);
+
+  useEffect(() => {
+    return () => {
+      try { installEventSourceRef.current?.close(); } catch { /* noop */ }
+    };
+  }, []);
+
+  const selectProvider = useCallback((provider: LLMProvider) => {
+    const status = providerAuthStatus[provider];
+    if (status?.installed === false) {
+      return;
+    }
+
     setSelectedProvider(provider);
     window.localStorage.setItem('selected-provider', provider);
-  };
+  }, [providerAuthStatus]);
+
+  const startProviderInstall = useCallback(async (provider: LLMProvider) => {
+    setInstallState({
+      provider,
+      state: 'running',
+      log: '',
+      error: null,
+    });
+
+    try { installEventSourceRef.current?.close(); } catch { /* noop */ }
+    installEventSourceRef.current = null;
+
+    try {
+      const response = await authenticatedFetch(`/api/providers/${provider}/install`, {
+        method: 'POST',
+        body: '{}',
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok || !body?.success) {
+        throw new Error(body?.error || `HTTP ${response.status}`);
+      }
+
+      if (body.data?.manual) {
+        throw new Error(body.data?.message || t('vscodeWorkbench.cli.manualInstall', {
+          defaultValue: 'This CLI needs manual installation.',
+        }));
+      }
+
+      const jobId = body.data?.jobId;
+      if (!jobId) {
+        throw new Error(t('vscodeWorkbench.cli.installNoJob', {
+          defaultValue: 'Install did not return a job id.',
+        }));
+      }
+
+      const token = window.localStorage.getItem('auth-token') || '';
+      const streamUrl = `/api/providers/${provider}/install/${jobId}/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const stream = new EventSource(streamUrl);
+      installEventSourceRef.current = stream;
+
+      stream.addEventListener('log', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          if (typeof payload.chunk === 'string') {
+            setInstallState((current) => ({
+              ...current,
+              log: `${current.log}${payload.chunk}`,
+            }));
+          }
+        } catch {
+          // Ignore malformed stream frames.
+        }
+      });
+
+      stream.addEventListener('done', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          if (!payload.success) {
+            throw new Error(payload.error || t('vscodeWorkbench.cli.installFailed', {
+              defaultValue: 'Install failed.',
+            }));
+          }
+
+          setInstallState((current) => ({
+            ...current,
+            state: 'done',
+            error: null,
+          }));
+          void refreshProviderAuthStatuses([provider], { force: true });
+          setSelectedProvider(provider);
+          window.localStorage.setItem('selected-provider', provider);
+        } catch (error) {
+          setInstallState((current) => ({
+            ...current,
+            state: 'error',
+            error: error instanceof Error ? error.message : t('vscodeWorkbench.cli.installFailed', {
+              defaultValue: 'Install failed.',
+            }),
+          }));
+        } finally {
+          try { stream.close(); } catch { /* noop */ }
+          installEventSourceRef.current = null;
+        }
+      });
+
+      stream.onerror = () => {
+        setInstallState((current) => (
+          current.state === 'running'
+            ? {
+                ...current,
+                state: 'error',
+                error: t('vscodeWorkbench.cli.installStreamLost', {
+                  defaultValue: 'Install stream closed early. The install may still be running.',
+                }),
+              }
+            : current
+        ));
+      };
+    } catch (error) {
+      setInstallState({
+        provider,
+        state: 'error',
+        log: '',
+        error: error instanceof Error ? error.message : t('vscodeWorkbench.cli.installFailed', {
+          defaultValue: 'Install failed.',
+        }),
+      });
+    }
+  }, [refreshProviderAuthStatuses, t]);
 
   const startNewSession = () => {
     if (!project) return;
@@ -1111,58 +1860,195 @@ function WorkbenchCliPanel({
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-1">
-          {cliProviders.map((provider) => (
-            <button
-              key={provider.id}
-              type="button"
-              className={cn(
-                'truncate rounded border px-2 py-1.5 text-[11px] font-medium transition-colors',
-                selectedProvider === provider.id
-                  ? 'border-blue-500 bg-blue-500/20 text-blue-100'
-                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800',
-              )}
-              onClick={() => selectProvider(provider.id)}
-            >
-              {provider.label}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-1.5">
+          {cliProviders.map((provider) => {
+            const status = providerAuthStatus[provider.id];
+            const isSelected = selectedProvider === provider.id;
+            const isLocked = status?.installed === false;
+            const isChecking = Boolean(status?.loading);
+            const isInstalling = installState.provider === provider.id && installState.state === 'running';
+            const hasUpdate = Boolean(status?.updateAvailable && status.latestVersion && !isLocked);
+            const statusText = isInstalling
+              ? t('vscodeWorkbench.cli.installing', { defaultValue: 'Installing...' })
+              : isChecking
+                ? t('vscodeWorkbench.cli.checking', { defaultValue: 'Checking...' })
+                : isLocked
+                  ? t('vscodeWorkbench.cli.notInstalled', { defaultValue: 'Not installed' })
+                  : hasUpdate
+                    ? t('vscodeWorkbench.cli.updateAvailable', {
+                        version: status?.latestVersion,
+                        defaultValue: 'Update {{version}}',
+                      })
+                    : status?.installedVersion || t('vscodeWorkbench.cli.ready', { defaultValue: 'Ready' });
+
+            return (
+              <div
+                key={provider.id}
+                className={cn(
+                  'group flex min-w-0 items-center gap-2 rounded border px-2 py-1.5 transition-colors',
+                  isSelected && !isLocked
+                    ? 'border-blue-500 bg-blue-500/15 text-blue-100'
+                    : 'border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700 hover:bg-gray-800',
+                  isLocked && 'border-amber-800/70 bg-amber-950/30 text-amber-100',
+                )}
+              >
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  onClick={() => {
+                    if (isLocked) {
+                      void startProviderInstall(provider.id);
+                      return;
+                    }
+                    selectProvider(provider.id);
+                  }}
+                  title={PROVIDER_DISPLAY_NAMES[provider.id] ?? provider.label}
+                >
+                  <SessionProviderLogo provider={provider.id} className={cn('h-4 w-4 shrink-0', isLocked && 'opacity-70 grayscale')} />
+                  <div className="min-w-0">
+                    <div className="truncate text-[11px] font-semibold">{provider.label}</div>
+                    <div className={cn(
+                      'truncate text-[10px]',
+                      isLocked ? 'text-amber-300' : hasUpdate ? 'text-amber-200' : 'text-gray-500',
+                    )}
+                    >
+                      {statusText}
+                    </div>
+                  </div>
+                  {isSelected && !isLocked && <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-blue-200" />}
+                </button>
+
+                {(isLocked || hasUpdate) && (
+                  <button
+                    type="button"
+                    disabled={isInstalling}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-gray-800 text-amber-200 hover:bg-gray-700 disabled:opacity-50"
+                    onClick={() => void startProviderInstall(provider.id)}
+                    aria-label={isLocked
+                      ? t('vscodeWorkbench.cli.installProvider', { provider: provider.label, defaultValue: 'Install {{provider}}' })
+                      : t('vscodeWorkbench.cli.updateProvider', { provider: provider.label, defaultValue: 'Update {{provider}}' })}
+                    title={isLocked
+                      ? t('vscodeWorkbench.cli.installProvider', { provider: provider.label, defaultValue: 'Install {{provider}}' })
+                      : t('vscodeWorkbench.cli.updateProvider', { provider: provider.label, defaultValue: 'Update {{provider}}' })}
+                  >
+                    {isInstalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : isLocked ? <Download className="h-3.5 w-3.5" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
         {showHistory && (
-          <div className="mt-2 max-h-36 overflow-y-auto rounded border border-gray-800 bg-gray-950">
-            {projectSessions.length === 0 ? (
-              <div className="px-3 py-2 text-[11px] text-gray-500">
-                {t('vscodeWorkbench.cli.noHistory', { defaultValue: 'No sessions for this project yet.' })}
-              </div>
-            ) : (
-              projectSessions.map((item) => (
-                <button
-                  key={`${item.__provider}-${item.id}`}
-                  type="button"
-                  className={cn(
-                    'block w-full truncate px-3 py-2 text-left text-[11px] hover:bg-gray-800',
-                    session?.id === item.id ? 'text-blue-200' : 'text-gray-300',
-                  )}
-                  onClick={() => onSessionSelect(item)}
-                  title={(item.summary as string) || (item.title as string) || item.id}
-                >
-                  <span className="mr-1 text-gray-500">{item.__provider}</span>
-                  {(item.summary as string) || (item.title as string) || (item.name as string) || item.id}
-                </button>
-              ))
+          <WorkbenchSessionHistory
+            sessions={projectSessions}
+            activeSessionId={session?.id ?? null}
+            onSessionSelect={onSessionSelect}
+            t={t}
+          />
+        )}
+
+        {(installState.state === 'running' || installState.state === 'done' || installState.state === 'error') && (
+          <div className="mt-2 rounded border border-gray-800 bg-gray-950 p-2">
+            <div className="flex items-center gap-2 text-[11px] text-gray-300">
+              {installState.state === 'running' && <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-300" />}
+              {installState.state === 'done' && <Check className="h-3.5 w-3.5 text-emerald-300" />}
+              {installState.state === 'error' && <AlertCircle className="h-3.5 w-3.5 text-red-300" />}
+              <span className="truncate">
+                {installState.provider ? PROVIDER_DISPLAY_NAMES[installState.provider] : t('vscodeWorkbench.cli.provider', { defaultValue: 'Provider' })}
+                {' '}
+                {installState.state === 'running'
+                  ? t('vscodeWorkbench.cli.installRunning', { defaultValue: 'is installing' })
+                  : installState.state === 'done'
+                    ? t('vscodeWorkbench.cli.installDone', { defaultValue: 'is ready' })
+                    : t('vscodeWorkbench.cli.installError', { defaultValue: 'needs attention' })}
+              </span>
+            </div>
+            {installState.error && (
+              <div className="mt-1 text-[11px] text-red-300">{installState.error}</div>
+            )}
+            {installState.log && (
+              <pre className="mt-2 max-h-20 overflow-y-auto rounded bg-black/40 p-2 font-mono text-[10px] leading-relaxed text-gray-300">
+                {installState.log}
+              </pre>
             )}
           </div>
         )}
       </div>
       <div className="min-h-0 flex-1">
         <StandaloneShell
-          key={`${selectedProvider}-${session?.id || 'new'}-${project?.name || 'none'}`}
+          key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}`}
           project={project}
-          session={session}
+          session={sessionForShell}
           showHeader
-          autoConnect={false}
+          autoConnect={canAutoConnect}
           isActive
         />
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchSessionHistory({
+  sessions,
+  activeSessionId,
+  onSessionSelect,
+  t,
+}: {
+  sessions: ProjectSession[];
+  activeSessionId: string | null;
+  onSessionSelect: (session: ProjectSession) => void;
+  t: TFunction<'common'>;
+}) {
+  const sortedSessions = useMemo(() => (
+    [...sessions].sort((first, second) => {
+      const firstTime = getSessionTimestamp(first);
+      const secondTime = getSessionTimestamp(second);
+      return new Date(secondTime || 0).getTime() - new Date(firstTime || 0).getTime();
+    })
+  ), [sessions]);
+
+  return (
+    <div className="mt-2 overflow-hidden rounded-md border border-gray-800 bg-gray-950">
+      <div className="flex items-center justify-between border-b border-gray-800 px-2.5 py-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          {t('vscodeWorkbench.cli.projectHistory', { defaultValue: 'Project history' })}
+        </div>
+        <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] text-gray-400">
+          {sessions.length}
+        </span>
+      </div>
+      <div className="max-h-52 overflow-y-auto p-1.5">
+        {sortedSessions.length === 0 ? (
+          <div className="px-3 py-4 text-center text-[11px] leading-5 text-gray-500">
+            {t('vscodeWorkbench.cli.noHistory', { defaultValue: 'No sessions for this project yet.' })}
+          </div>
+        ) : (
+          sortedSessions.map((item) => {
+            const active = activeSessionId === item.id;
+            const provider = item.__provider ?? 'claude';
+            return (
+              <button
+                key={`${provider}-${item.id}`}
+                type="button"
+                className={cn(
+                  'flex w-full min-w-0 items-center gap-2 rounded px-2.5 py-2 text-left transition-colors hover:bg-gray-900',
+                  active && 'bg-blue-500/15 text-blue-100',
+                )}
+                onClick={() => onSessionSelect(item)}
+                title={getSessionTitle(item)}
+              >
+                <SessionProviderLogo provider={provider} className="h-4 w-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-medium text-gray-200">{getSessionTitle(item)}</div>
+                  <div className="flex min-w-0 items-center gap-1.5 text-[10px] text-gray-500">
+                    <span className="truncate">{PROVIDER_DISPLAY_NAMES[provider] ?? provider}</span>
+                    {formatSessionTime(item) && <span className="shrink-0">- {formatSessionTime(item)}</span>}
+                  </div>
+                </div>
+              </button>
+            );
+          })
+        )}
       </div>
     </div>
   );

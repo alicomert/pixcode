@@ -796,7 +796,18 @@
     },
     "editor": {
       "emptyTitle": "エクスプローラーからファイルを開く",
-      "closeTab": "Close {{file}}"
+      "closeTab": "{{file}} を閉じる",
+      "scrollLeft": "タブを左へスクロール",
+      "scrollRight": "タブを右へスクロール",
+      "moreActions": "その他のタブ操作",
+      "closeSplit": "分割エディターを閉じる",
+      "context": {
+        "close": "閉じる",
+        "closeAll": "すべて閉じる",
+        "copyPath": "パスをコピー",
+        "splitRight": "右に分割",
+        "splitMoveRight": "右に分割して移動"
+      }
     },
     "resize": {
       "left": "左パネルのサイズ変更",
@@ -824,13 +835,38 @@
       "workHere": "Work in this folder"
     },
     "workspace": {
-      "empty": "Open a project to create Workspace 1."
+      "empty": "Workspace 1 を作成するにはプロジェクトを開いてください。",
+      "openFirst": "ワークスペースを開く",
+      "add": "ワークスペースを追加",
+      "close": "{{name}} を閉じる",
+      "closeAction": "ワークスペースを閉じる",
+      "rename": "名前を変更",
+      "star": "スターを付ける",
+      "unstar": "スターを外す",
+      "toggleStar": "{{name}} にスターを付ける",
+      "moreActions": "ワークスペース操作"
     },
     "cli": {
-      "projectScoped": "Project-scoped CLI terminal",
-      "newSession": "New CLI session",
-      "history": "History",
-      "noHistory": "No sessions for this project yet."
+      "projectScoped": "プロジェクト単位の CLI ターミナル",
+      "newSession": "新しい CLI セッション",
+      "history": "履歴",
+      "noHistory": "このプロジェクトにはまだセッションがありません。",
+      "projectHistory": "プロジェクト履歴",
+      "checking": "確認中...",
+      "ready": "準備完了",
+      "notInstalled": "未インストール",
+      "installing": "インストール中...",
+      "updateAvailable": "{{version}} に更新",
+      "installProvider": "{{provider}} をインストール",
+      "updateProvider": "{{provider}} を更新",
+      "manualInstall": "この CLI は手動インストールが必要です。",
+      "installNoJob": "インストールの job id が返されませんでした。",
+      "installFailed": "インストールに失敗しました。",
+      "installStreamLost": "インストールストリームが早く閉じました。まだ実行中の可能性があります。",
+      "provider": "プロバイダー",
+      "installRunning": "インストール中",
+      "installDone": "準備完了",
+      "installError": "確認が必要"
     }
   }
 }

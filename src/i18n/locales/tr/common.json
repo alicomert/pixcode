@@ -889,7 +889,18 @@
     },
     "editor": {
       "emptyTitle": "Gezginden bir dosya aç",
-      "closeTab": "{{file}} sekmesini kapat"
+      "closeTab": "{{file}} sekmesini kapat",
+      "scrollLeft": "Sekmeleri sola kaydir",
+      "scrollRight": "Sekmeleri saga kaydir",
+      "moreActions": "Diger sekme aksiyonlari",
+      "closeSplit": "Bolunmus editoru kapat",
+      "context": {
+        "close": "Kapat",
+        "closeAll": "Tumunu kapat",
+        "copyPath": "Yolu kopyala",
+        "splitRight": "Saga bol",
+        "splitMoveRight": "Saga bol ve tasi"
+      }
     },
     "resize": {
       "left": "Sol paneli boyutlandır",
@@ -917,13 +928,38 @@
       "workHere": "Bu klasorde calis"
     },
     "workspace": {
-      "empty": "Workspace 1 olusturmak icin bir proje ac."
+      "empty": "Workspace 1 olusturmak icin bir proje ac.",
+      "openFirst": "Workspace ac",
+      "add": "Workspace ekle",
+      "close": "{{name}} kapat",
+      "closeAction": "Workspace kapat",
+      "rename": "Yeniden adlandir",
+      "star": "Yildizla",
+      "unstar": "Yildizi kaldir",
+      "toggleStar": "{{name}} yildizla",
+      "moreActions": "Workspace aksiyonlari"
     },
     "cli": {
       "projectScoped": "Projeye bagli CLI terminali",
       "newSession": "Yeni CLI oturumu",
       "history": "Gecmis",
-      "noHistory": "Bu projede henuz oturum yok."
+      "noHistory": "Bu projede henuz oturum yok.",
+      "projectHistory": "Proje gecmisi",
+      "checking": "Kontrol ediliyor...",
+      "ready": "Hazir",
+      "notInstalled": "Kurulu degil",
+      "installing": "Kuruluyor...",
+      "updateAvailable": "{{version}} guncelle",
+      "installProvider": "{{provider}} kur",
+      "updateProvider": "{{provider}} guncelle",
+      "manualInstall": "Bu CLI elle kurulum istiyor.",
+      "installNoJob": "Kurulum job id dondurmedi.",
+      "installFailed": "Kurulum basarisiz.",
+      "installStreamLost": "Kurulum akisi erken kapandi. Kurulum sunucuda hala calisiyor olabilir.",
+      "provider": "Saglayici",
+      "installRunning": "kuruluyor",
+      "installDone": "hazir",
+      "installError": "kontrol istiyor"
     }
   }
 }

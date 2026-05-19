@@ -37,13 +37,13 @@ assert(
   workbench.includes('WorkbenchProjectLanding')
     && workbench.includes("useState<ActivityPanel>('projects')")
     && workbench.includes('WorkbenchWorkspacePanel')
-    && workbench.includes('Workspace 1')
+    && workbench.includes('WorkbenchWorkspaceTabs')
     && workbench.includes('openEditorTabs')
     && workbench.includes('activeEditorPath')
     && workbench.includes('WorkbenchCliPanel')
     && !workbench.includes('<ChatInterface')
     && !workbench.includes('TaskMasterPanel'),
-  'VSCodeWorkbench should open on Projects, expose workspace slots, tab files, and use terminal-only CLI panel.',
+  'VSCodeWorkbench should open on Projects, expose top workspace tabs, tab files, and use terminal-only CLI panel.',
 );
 
 assert(

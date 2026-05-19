@@ -231,9 +231,11 @@
     "loading": "Загрузка терминала...",
     "connecting": "Подключение к оболочке...",
     "startSession": "Начать новый сеанс Claude",
+    "startProviderSession": "Начать новый сеанс {{provider}}",
     "resumeSession": "Возобновить сеанс: {{displayName}}...",
     "runCommand": "Выполнить {{command}} в {{projectName}}",
     "startCli": "Запуск Claude CLI в {{projectName}}",
+    "startProviderCli": "Запуск {{provider}} в {{projectName}}",
     "defaultCommand": "команда"
   },
   "claudeStatus": {

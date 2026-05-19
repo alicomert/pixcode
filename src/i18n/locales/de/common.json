@@ -766,7 +766,18 @@
     },
     "editor": {
       "emptyTitle": "Datei im Explorer öffnen",
-      "closeTab": "Close {{file}}"
+      "closeTab": "{{file}} schließen",
+      "scrollLeft": "Tabs nach links scrollen",
+      "scrollRight": "Tabs nach rechts scrollen",
+      "moreActions": "Weitere Tab-Aktionen",
+      "closeSplit": "Geteilten Editor schließen",
+      "context": {
+        "close": "Schließen",
+        "closeAll": "Alle schließen",
+        "copyPath": "Pfad kopieren",
+        "splitRight": "Rechts teilen",
+        "splitMoveRight": "Rechts teilen und verschieben"
+      }
     },
     "resize": {
       "left": "Linkes Panel ändern",
@@ -794,13 +805,38 @@
       "workHere": "Work in this folder"
     },
     "workspace": {
-      "empty": "Open a project to create Workspace 1."
+      "empty": "Öffne ein Projekt, um Workspace 1 zu erstellen.",
+      "openFirst": "Workspace öffnen",
+      "add": "Workspace hinzufügen",
+      "close": "{{name}} schließen",
+      "closeAction": "Workspace schließen",
+      "rename": "Umbenennen",
+      "star": "Markieren",
+      "unstar": "Markierung entfernen",
+      "toggleStar": "{{name}} markieren",
+      "moreActions": "Workspace-Aktionen"
     },
     "cli": {
-      "projectScoped": "Project-scoped CLI terminal",
-      "newSession": "New CLI session",
-      "history": "History",
-      "noHistory": "No sessions for this project yet."
+      "projectScoped": "Projektbezogenes CLI-Terminal",
+      "newSession": "Neue CLI-Sitzung",
+      "history": "Verlauf",
+      "noHistory": "Für dieses Projekt gibt es noch keine Sitzungen.",
+      "projectHistory": "Projektverlauf",
+      "checking": "Wird geprüft...",
+      "ready": "Bereit",
+      "notInstalled": "Nicht installiert",
+      "installing": "Wird installiert...",
+      "updateAvailable": "{{version}} aktualisieren",
+      "installProvider": "{{provider}} installieren",
+      "updateProvider": "{{provider}} aktualisieren",
+      "manualInstall": "Diese CLI muss manuell installiert werden.",
+      "installNoJob": "Die Installation hat keine Job-ID zurückgegeben.",
+      "installFailed": "Installation fehlgeschlagen.",
+      "installStreamLost": "Der Installationsstream wurde früh geschlossen. Die Installation läuft eventuell noch.",
+      "provider": "Provider",
+      "installRunning": "wird installiert",
+      "installDone": "ist bereit",
+      "installError": "braucht Aufmerksamkeit"
     }
   }
 }
