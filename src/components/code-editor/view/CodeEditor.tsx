@@ -146,6 +146,8 @@ export default function CodeEditor({
     wordWrap,
   ]);
 
+  const useMonacoEditor = !(file.diffInfo && file.diffInfo.old_string !== undefined);
+
   useEditorKeyboardShortcuts({
     onSave: handleSave,
     onClose,
@@ -231,12 +233,17 @@ export default function CodeEditor({
             <CodeEditorSurface
               content={content}
               onChange={setContent}
+              onSave={handleSave}
               markdownPreview={markdownPreview}
               isMarkdownFile={isMarkdownFile}
               isDarkMode={isDarkMode}
               fontSize={fontSize}
               showLineNumbers={showLineNumbers}
+              wordWrap={wordWrap}
               extensions={extensions}
+              fileName={file.name}
+              filePath={file.path}
+              useMonacoEditor={useMonacoEditor}
             />
           </div>
 

@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.47.4](https://github.com/alicomert/pixcode/compare/v1.47.3...v1.47.4) (2026-05-19)
+
+Pixcode 1.47.4 makes the VS Code workbench file editor use the real Monaco editor for regular text files.
+
+### Fixes
+
+* **editor:** replace regular file editing with lazy-loaded Monaco so Ctrl/Cmd+A, mouse selection, line-number selection, and pane resizing behave like a VS Code editor.
+* **editor:** keep the existing CodeMirror merge/diff fallback for changed-file review flows.
+* **editor:** preserve Pixcode save, theme, line-number, font-size, word-wrap, and language-detection settings in the Monaco path.
+
+### Tests
+
+* add smoke coverage for the Monaco editor engine, VS Code-style editor commands, line-number selection, resizable pane layout, and diff fallback.
+
 ## [1.47.3](https://github.com/alicomert/pixcode/compare/v1.47.2...v1.47.3) (2026-05-18)
 
 Pixcode 1.47.3 makes source-install updates use normal Pixcode-facing commands.
