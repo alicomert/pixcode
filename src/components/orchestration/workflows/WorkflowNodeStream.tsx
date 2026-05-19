@@ -16,7 +16,7 @@ type WorkflowNodeStreamProps = {
   node: {
     nodeId: string;
     status: string;
-    a2aTaskId?: string;
+    hermesTaskId?: string;
     adapterId?: string;
     agentInstanceId?: string;
     agentLabel?: string;
@@ -105,8 +105,8 @@ export default function WorkflowNodeStream({ node }: WorkflowNodeStreamProps) {
             </Badge>
           </div>
         </div>
-        {node.a2aTaskId ? (
-          <div className="mt-2 truncate text-xs text-muted-foreground">{node.a2aTaskId}</div>
+        {node.hermesTaskId ? (
+          <div className="mt-2 truncate text-xs text-muted-foreground">{node.hermesTaskId}</div>
         ) : null}
         {node.assignment ? (
           <div className="mt-3 rounded-md border border-border/70 bg-muted/20 px-3 py-2">

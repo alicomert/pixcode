@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useWorkbenchLayoutPreference, type WorkbenchLayoutPreference } from '../../../hooks/useWorkbenchLayoutPreference';
 import { useAuth } from '../context/AuthContext';
 
 import AuthErrorAlert from './AuthErrorAlert';
@@ -27,7 +26,6 @@ const initialState: LoginFormState = {
 export default function LoginForm() {
   const { t } = useTranslation('auth');
   const { login } = useAuth();
-  const { workbenchLayout, setWorkbenchLayout } = useWorkbenchLayoutPreference();
 
   const [formState, setFormState] = useState<LoginFormState>(initialState);
   const [errorMessage, setErrorMessage] = useState('');
@@ -64,33 +62,6 @@ export default function LoginForm() {
       description={t('login.description')}
       footerText="Enter your credentials to access Pixcode"
     >
-      <div className="rounded-md border border-border bg-muted/20 p-3">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {t('login.layout.title')}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {(['classic', 'vscode'] as WorkbenchLayoutPreference[]).map((layout) => {
-            const active = workbenchLayout === layout;
-            return (
-              <button
-                key={layout}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                className={`rounded-md border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
-                  active
-                    ? 'border-primary bg-primary/10 text-foreground'
-                    : 'border-border bg-background hover:bg-muted/50'
-                }`}
-                onClick={() => setWorkbenchLayout(layout)}
-              >
-                {t(`login.layout.options.${layout}`)}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <form onSubmit={handleSubmit} className="space-y-4">
         <AuthInputField
           id="username"

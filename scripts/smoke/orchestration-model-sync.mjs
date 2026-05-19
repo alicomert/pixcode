@@ -17,8 +17,8 @@ assert.ok(
 );
 
 assert.ok(
-  runner.includes('resolveWorkflowModel') && runner.includes('modelCatalogsByProvider'),
-  'Workflow runner should validate provider models server-side before submitting A2A tasks.',
+  runner.includes('resolveWorkflowModel') && runner.includes('getProviderModelRegistryEntry'),
+  'Workflow runner should validate provider models server-side before submitting Hermes tasks.',
 );
 
 assert.ok(

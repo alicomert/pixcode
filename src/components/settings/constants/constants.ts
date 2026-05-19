@@ -12,7 +12,6 @@ export const SETTINGS_MAIN_TABS: SettingsMainTab[] = [
   'appearance',
   'git',
   'api',
-  'tasks',
   'notifications',
 ];
 

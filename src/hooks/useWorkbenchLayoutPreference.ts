@@ -1,18 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export type WorkbenchLayoutPreference = 'classic' | 'vscode';
+export type WorkbenchLayoutPreference = 'vscode';
 
 export const WORKBENCH_LAYOUT_STORAGE_KEY = 'pixcode.workbench.layout';
 export const WORKBENCH_LAYOUT_CHANGE_EVENT = 'pixcode:workbench-layout-change';
 
 function readWorkbenchLayoutPreference(): WorkbenchLayoutPreference {
-  if (typeof window === 'undefined') {
-    return 'classic';
-  }
-
-  return window.localStorage.getItem(WORKBENCH_LAYOUT_STORAGE_KEY) === 'vscode'
-    ? 'vscode'
-    : 'classic';
+  return 'vscode';
 }
 
 export function useWorkbenchLayoutPreference() {
@@ -27,8 +21,8 @@ export function useWorkbenchLayoutPreference() {
       return;
     }
 
-    window.localStorage.setItem(WORKBENCH_LAYOUT_STORAGE_KEY, nextLayout);
-    window.dispatchEvent(new CustomEvent(WORKBENCH_LAYOUT_CHANGE_EVENT, { detail: nextLayout }));
+    window.localStorage.setItem(WORKBENCH_LAYOUT_STORAGE_KEY, 'vscode');
+    window.dispatchEvent(new CustomEvent(WORKBENCH_LAYOUT_CHANGE_EVENT, { detail: 'vscode' }));
   }, []);
 
   useEffect(() => {
@@ -38,13 +32,12 @@ export function useWorkbenchLayoutPreference() {
 
     const handleStorage = (event: StorageEvent) => {
       if (event.key === WORKBENCH_LAYOUT_STORAGE_KEY) {
-        setWorkbenchLayoutState(readWorkbenchLayoutPreference());
+        setWorkbenchLayoutState('vscode');
       }
     };
 
-    const handlePreferenceChange = (event: Event) => {
-      const detail = (event as CustomEvent<WorkbenchLayoutPreference>).detail;
-      setWorkbenchLayoutState(detail === 'vscode' ? 'vscode' : 'classic');
+    const handlePreferenceChange = () => {
+      setWorkbenchLayoutState('vscode');
     };
 
     window.addEventListener('storage', handleStorage);
@@ -59,6 +52,6 @@ export function useWorkbenchLayoutPreference() {
   return {
     workbenchLayout,
     setWorkbenchLayout,
-    useVscodeWorkbench: workbenchLayout === 'vscode',
+    useVscodeWorkbench: true,
   };
 }

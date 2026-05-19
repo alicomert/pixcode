@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import type { ChatInterfaceProps, Provider } from '../types/types';
 import { useChatProviderState } from '../hooks/useChatProviderState';
@@ -84,9 +83,7 @@ function ChatInterface({
   sendByCtrlEnter,
   compactComposer,
   externalMessageUpdate,
-  onShowAllTasks,
 }: ChatInterfaceComponentProps) {
-  const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { t } = useTranslation('chat');
 
   const sessionStore = useSessionStore();
@@ -213,7 +210,6 @@ function ChatInterface({
 
   const {
     input,
-    setInput,
     textareaRef,
     inputHighlightRef,
     isTextareaExpanded,
@@ -429,10 +425,6 @@ function ChatInterface({
           setQwenModel={setQwenModel}
           opencodeModel={opencodeModel}
           setOpencodeModel={setOpencodeModel}
-          tasksEnabled={tasksEnabled}
-          isTaskMasterInstalled={isTaskMasterInstalled}
-          onShowAllTasks={onShowAllTasks}
-          setInput={setInput}
           isLoadingMoreMessages={isLoadingMoreMessages}
           hasMoreMessages={hasMoreMessages}
           totalMessages={totalMessages}

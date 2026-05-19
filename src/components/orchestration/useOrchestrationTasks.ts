@@ -4,8 +4,7 @@ import { authenticatedFetch } from '../../utils/api';
 
 export type OrchestrationTask = {
   id: string;
-  a2aTaskId?: string;
-  taskmasterId?: string;
+  hermesTaskId?: string;
   projectId: string;
   title: string;
   description?: string;
@@ -18,26 +17,8 @@ export type OrchestrationTask = {
   updatedAt: number;
 };
 
-export type TaskMasterTask = {
-  id: string | number;
-  title: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  details?: string;
-  testStrategy?: string;
-  parentId?: string | number;
-  dependencies?: Array<string | number>;
-  subtasks?: TaskMasterTask[];
-  createdAt?: string;
-  updatedAt?: string;
-};
-
 export type UnifiedTask = OrchestrationTask & {
-  source: 'orchestration' | 'taskmaster';
-  taskmasterId?: string | number;
-  taskmasterStatus?: string;
-  isImported?: boolean;
+  source: 'orchestration';
 };
 
 export type AgentCard = {
@@ -59,8 +40,6 @@ export function useOrchestrationTasks(projectId = 'default') {
     const unified: UnifiedTask[] = data.tasks.map((task) => ({
       ...task,
       source: 'orchestration' as const,
-      taskmasterId: task.taskmasterId,
-      isImported: Boolean(task.taskmasterId),
     }));
     setTasks(unified);
   }, [projectId]);
@@ -74,7 +53,7 @@ export function useOrchestrationTasks(projectId = 'default') {
   }, [refresh]);
 
   useEffect(() => {
-    void authenticatedFetch('/a2a/agents')
+    void authenticatedFetch('/api/orchestration/hermes/agents')
       .then((response) => response.ok ? response.json() : Promise.resolve({ agents: [] }))
       .then((data: { agents?: AgentCard[] }) => setAgents(data.agents ?? []));
   }, []);
@@ -104,24 +83,6 @@ export function useOrchestrationTasks(projectId = 'default') {
     await refresh();
   }, [refresh]);
 
-  const importTaskMasterTask = useCallback(async (taskmasterId: string | number, title: string, description?: string) => {
-    const response = await authenticatedFetch('/api/orchestration/tasks', {
-      method: 'POST',
-      body: JSON.stringify({ projectId, title, description, taskmasterId: String(taskmasterId) }),
-    });
-    if (!response.ok) throw new Error('Failed to import TaskMaster task');
-    await refresh();
-  }, [projectId, refresh]);
-
-  const syncTaskMaster = useCallback(async (projectName: string) => {
-    const response = await authenticatedFetch(`/api/taskmaster/sync-orchestration/${encodeURIComponent(projectName)}`, {
-      method: 'POST',
-      body: JSON.stringify({ projectId }),
-    });
-    if (!response.ok) throw new Error('Failed to sync TaskMaster tasks');
-    await refresh();
-  }, [projectId, refresh]);
-
   return {
     tasks,
     agents,
@@ -129,7 +90,5 @@ export function useOrchestrationTasks(projectId = 'default') {
     createTask,
     dispatchTask,
     cancelTask,
-    importTaskMasterTask,
-    syncTaskMaster,
   };
 }

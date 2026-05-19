@@ -2,9 +2,8 @@ export type OrchestrationTaskState = 'todo' | 'in_progress' | 'in_review' | 'don
 
 export interface OrchestrationTask {
   id: string;
-  a2aTaskId?: string;
+  hermesTaskId?: string;
   workflowRunIds?: string[];
-  taskmasterId?: string;
   projectId: string;
   title: string;
   description?: string;
@@ -13,7 +12,7 @@ export interface OrchestrationTask {
     id: string;
     label: string;
     status: 'pending' | 'passed' | 'failed';
-    source: 'taskmaster' | 'workflow';
+    source: 'workflow' | 'hermes';
   }>;
   changedFiles?: string[];
   adapterId?: string;
@@ -28,7 +27,6 @@ export interface CreateOrchestrationTaskInput {
   projectId: string;
   title: string;
   description?: string;
-  taskmasterId?: string;
   acceptanceCriteria?: OrchestrationTask['acceptanceCriteria'];
   changedFiles?: string[];
 }

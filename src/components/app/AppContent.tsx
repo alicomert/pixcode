@@ -10,17 +10,14 @@ import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
-import { useWorkbenchLayoutPreference } from '../../hooks/useWorkbenchLayoutPreference';
 
 export default function AppContent() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
-  const { useVscodeWorkbench } = useWorkbenchLayoutPreference();
   const { ws, sendMessage, latestMessage, isConnected } = useWebSocket();
   const wasConnectedRef = useRef(false);
-  const previousWorkbenchPreferenceRef = useRef(useVscodeWorkbench);
 
   const {
     activeSessions,
@@ -47,7 +44,6 @@ export default function AppContent() {
     refreshProjectsSilently,
     sidebarSharedProps,
     handleQuickStartOrchestration,
-    handleQuickStartTasks,
   } = useProjectsState({
     sessionId,
     navigate,
@@ -77,14 +73,6 @@ export default function AppContent() {
       }
     };
   }, [openSettings]);
-
-  useEffect(() => {
-    if (previousWorkbenchPreferenceRef.current !== useVscodeWorkbench) {
-      setShowSettings(false);
-    }
-
-    previousWorkbenchPreferenceRef.current = useVscodeWorkbench;
-  }, [setShowSettings, useVscodeWorkbench]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
@@ -138,6 +126,19 @@ export default function AppContent() {
     }
   }, [isConnected, selectedSession?.id, sendMessage]);
 
+  useEffect(() => {
+    if (!latestMessage || latestMessage.type !== 'projects_updated') {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent('pixcode:file-tree-refresh', {
+      detail: {
+        projectName: selectedProject?.name ?? null,
+        changedFile: typeof latestMessage.changedFile === 'string' ? latestMessage.changedFile : null,
+      },
+    }));
+  }, [latestMessage, selectedProject?.name]);
+
   // Adjust the app container to stay above the virtual keyboard on iOS Safari.
   // On Chrome for Android the layout viewport already shrinks when the keyboard opens,
   // so inset-0 adjusts automatically. On iOS the layout viewport stays full-height and
@@ -160,11 +161,7 @@ export default function AppContent() {
 
   return (
     <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
-      {!useVscodeWorkbench && !isMobile ? (
-        <div className="h-full flex-shrink-0 border-r border-border/50">
-          <Sidebar {...sidebarSharedProps} />
-        </div>
-      ) : isMobile ? (
+      {isMobile ? (
         <div
           className={`fixed inset-0 z-50 flex transition-all duration-150 ease-out ${sidebarOpen ? 'visible opacity-100' : 'invisible opacity-0'
             }`}
@@ -194,7 +191,7 @@ export default function AppContent() {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {useVscodeWorkbench && !isMobile ? (
+        {!isMobile ? (
           <VSCodeWorkbench
             sidebarProps={sidebarSharedProps}
             selectedProject={selectedProject}
@@ -219,7 +216,6 @@ export default function AppContent() {
             externalMessageUpdate={externalMessageUpdate}
             onQuickStartSession={sidebarSharedProps.onQuickStartSession}
             onQuickStartOrchestration={handleQuickStartOrchestration}
-            onQuickStartTasks={handleQuickStartTasks}
           />
         ) : (
           <MainContent
@@ -245,7 +241,6 @@ export default function AppContent() {
             externalMessageUpdate={externalMessageUpdate}
             onQuickStartSession={sidebarSharedProps.onQuickStartSession}
             onQuickStartOrchestration={handleQuickStartOrchestration}
-            onQuickStartTasks={handleQuickStartTasks}
           />
         )}
       </div>

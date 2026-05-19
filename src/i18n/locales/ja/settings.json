@@ -114,7 +114,6 @@
     "appearance": "外観",
     "git": "Git",
     "apiTokens": "API & トークン",
-    "tasks": "タスク",
     "notifications": "通知",
     "plugins": "プラグイン",
     "mobile": "モバイルで使う",
@@ -173,21 +172,6 @@
       "fontSize": {
         "label": "フォントサイズ",
         "description": "エディタのフォントサイズ（ピクセル）"
-      }
-    },
-    "workbenchLayout": {
-      "title": "ワークスペース レイアウト",
-      "label": "ワークベンチ モード",
-      "description": "デスクトップで使うアプリシェルを選択します。",
-      "options": {
-        "classic": {
-          "label": "クラシック Pixcode",
-          "description": "現在のチャット中心の Pixcode レイアウト。"
-        },
-        "vscode": {
-          "label": "VS Code 風",
-          "description": "ファイル、エディター、CLI の 3 ペイン構成。"
-        }
       }
     }
   },
@@ -318,25 +302,6 @@
     "loading": "読み込み中...",
     "version": {
       "updateAvailable": "アップデートあり: v{{version}}"
-    }
-  },
-  "tasks": {
-    "checking": "TaskMasterのインストールを確認しています...",
-    "notInstalled": {
-      "title": "TaskMaster AI CLIがインストールされていません",
-      "description": "タスク管理機能を使用するにはTaskMaster CLIが必要です。以下のコマンドでインストールしてください:",
-      "installCommand": "npm install -g task-master-ai",
-      "viewOnGitHub": "GitHubで見る",
-      "afterInstallation": "インストール後:",
-      "steps": {
-        "restart": "このアプリケーションを再起動してください",
-        "autoAvailable": "TaskMaster機能が自動的に利用可能になります",
-        "initCommand": "プロジェクトディレクトリで task-master init を実行してください"
-      }
-    },
-    "settings": {
-      "enableLabel": "TaskMaster統合を有効にする",
-      "enableDescription": "インターフェース全体でTaskMasterのタスク、バナー、サイドバーインジケータを表示します"
     }
   },
   "agents": {

@@ -40,7 +40,7 @@ export class OpenCodeA2AAdapter extends AbstractA2AAdapter {
   readonly agentCard: AgentCard = {
     name: 'pixcode-opencode',
     description: 'OpenCode CLI, accessed via Pixcode',
-    url: '/a2a/agents/opencode',
+    url: '/hermes/agents/opencode',
     version: '1.0.0',
     capabilities: ['streaming', 'fileEdit', 'commandExec', 'multiProvider'],
     skills: [

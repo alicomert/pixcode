@@ -20,12 +20,8 @@ export class OrchestrationTaskStore {
     return this.store.findWhere('orchestration_tasks', (r: OrchestrationTask) => r.id === id) ?? undefined;
   }
 
-  getByA2ATaskId(a2aTaskId: string): OrchestrationTask | undefined {
-    return this.store.findWhere('orchestration_tasks', (r: OrchestrationTask) => r.a2aTaskId === a2aTaskId) ?? undefined;
-  }
-
-  getByTaskMasterId(taskmasterId: string): OrchestrationTask | undefined {
-    return this.store.findWhere('orchestration_tasks', (r: OrchestrationTask) => r.taskmasterId === taskmasterId) ?? undefined;
+  getByHermesTaskId(hermesTaskId: string): OrchestrationTask | undefined {
+    return this.store.findWhere('orchestration_tasks', (r: OrchestrationTask) => r.hermesTaskId === hermesTaskId) ?? undefined;
   }
 
   list(projectId?: string): OrchestrationTask[] {

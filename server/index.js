@@ -58,7 +58,6 @@ import sessionManager from './sessionManager.js';
 import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
 import cursorRoutes from './routes/cursor.js';
-import taskmasterRoutes from './routes/taskmaster.js';
 import mcpUtilsRoutes from './routes/mcp-utils.js';
 import commandsRoutes from './routes/commands.js';
 import settingsRoutes from './routes/settings.js';
@@ -84,7 +83,7 @@ import platformizationRoutes from './routes/platformization.js';
 import liveViewRoutes, { createLiveViewPublicRouter } from './routes/live-view.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import {
-  createA2ARouter,
+  createHermesTaskRouter,
   adapterRegistry,
   ClaudeCodeA2AAdapter,
   CodexA2AAdapter,
@@ -94,6 +93,7 @@ import {
   QwenA2AAdapter,
   createPreviewProxyRouter,
   createOrchestrationTaskRouter,
+  createHermesRouter,
   createWorkflowRouter,
 } from './modules/orchestration/index.js';
 import networkRoutes from './routes/network.js';
@@ -370,9 +370,6 @@ app.use('/api/git', authenticateToken, gitRoutes);
 // Cursor API Routes (protected)
 app.use('/api/cursor', authenticateToken, cursorRoutes);
 
-// TaskMaster API Routes (protected)
-app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
-
 // MCP utilities
 app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);
 
@@ -424,16 +421,17 @@ app.use('/api/live-view', authenticateToken, liveViewRoutes);
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
 
-// A2A protocol router — has its own auth middleware, do NOT wrap with authenticateToken
+// Hermes internal task router has its own localhost/auth middleware; do not wrap with authenticateToken.
 adapterRegistry.register(new ClaudeCodeA2AAdapter());
 adapterRegistry.register(new CodexA2AAdapter());
 adapterRegistry.register(new CursorA2AAdapter());
 adapterRegistry.register(new GeminiA2AAdapter());
 adapterRegistry.register(new QwenA2AAdapter());
 adapterRegistry.register(new OpenCodeA2AAdapter());
-app.use('/a2a', createA2ARouter());
+app.use('/hermes', createHermesTaskRouter());
 app.use('/preview', authenticateToken, createPreviewProxyRouter());
 app.use('/api/orchestration', authenticateToken, createOrchestrationTaskRouter());
+app.use('/api/orchestration/hermes', authenticateToken, createHermesRouter());
 app.use('/api/orchestration', authenticateToken, createWorkflowRouter());
 app.use('/live', createLiveViewPublicRouter());
 

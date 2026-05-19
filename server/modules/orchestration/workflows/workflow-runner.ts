@@ -101,8 +101,8 @@ function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
 }
 
-function localA2ABaseUrl(): string {
-  return `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}/a2a`;
+function localHermesBaseUrl(): string {
+  return `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}/hermes`;
 }
 
 function validateWorkflow(workflow: Workflow): void {
@@ -505,7 +505,7 @@ function handoffPrompt(agent: AgentAssignment, role: AgentRole): string {
   return [
     `You are ${agent.label} in a Pixcode CLI team.`,
     `Your inferred stage is: ${role}.`,
-    'This is a bounded A2A handoff task, not the full implementation.',
+    'This is a bounded Hermes handoff task, not the full implementation.',
     'Read the original user goal and coordinator plan, then publish a compact contract for downstream agents.',
     agent.instruction ? `Your explicit assignment from the user is: ${agent.instruction}` : '',
     handoffArtifactInstructions('ready'),
@@ -1102,8 +1102,8 @@ function expandWorkflowForRun(workflow: Workflow, metadata?: Record<string, unkn
   };
 }
 
-async function cancelA2ATask(taskId: string): Promise<void> {
-  await fetch(`${localA2ABaseUrl()}/tasks/${taskId}/cancel`, { method: 'POST' }).catch(() => undefined);
+async function cancelHermesTask(taskId: string): Promise<void> {
+  await fetch(`${localHermesBaseUrl()}/tasks/${taskId}/cancel`, { method: 'POST' }).catch(() => undefined);
 }
 
 function readTaskResult(task: RawTask): TaskResult {
@@ -1156,7 +1156,7 @@ async function waitForTask(
     if (deadline && Date.now() >= deadline) {
       throw new WorkflowNodeTimeoutError(timeout ?? 0);
     }
-    const response = await fetch(`${localA2ABaseUrl()}/tasks/${taskId}`);
+    const response = await fetch(`${localHermesBaseUrl()}/tasks/${taskId}`);
     const task = await response.json() as RawTask;
     const snapshot = readTaskResult(task);
     onSnapshot?.(snapshot);
@@ -1307,13 +1307,13 @@ class WorkflowRunner {
 
     this.cancelingRuns.add(run.id);
     const taskIds = run.nodeRuns
-      .filter((node) => node.a2aTaskId && (node.status === 'running' || node.status === 'queued'))
-      .map((node) => node.a2aTaskId as string);
+      .filter((node) => node.hermesTaskId && (node.status === 'running' || node.status === 'queued'))
+      .map((node) => node.hermesTaskId as string);
 
     this.markCanceled(run);
     workflowStore.setRun(run);
 
-    await Promise.all(taskIds.map((taskId) => cancelA2ATask(taskId)));
+    await Promise.all(taskIds.map((taskId) => cancelHermesTask(taskId)));
 
     return workflowStore.getRun(run.id) ?? run;
   }
@@ -1838,7 +1838,7 @@ class WorkflowRunner {
     }
     let body: { id?: string; error?: { message?: string } };
     try {
-      const submit = await fetch(`${localA2ABaseUrl()}/tasks`, {
+      const submit = await fetch(`${localHermesBaseUrl()}/tasks`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -1910,11 +1910,11 @@ class WorkflowRunner {
       }
       throw error;
     }
-    nodeRun.a2aTaskId = body.id;
+    nodeRun.hermesTaskId = body.id;
     workflowStore.setRun(run);
 
     if (this.isCanceling(run.id)) {
-      await cancelA2ATask(body.id);
+      await cancelHermesTask(body.id);
       nodeRun.status = 'canceled';
       nodeRun.finishedAt = Date.now();
       workflowStore.setRun(run);
@@ -1940,7 +1940,7 @@ class WorkflowRunner {
         throw error;
       }
 
-      await cancelA2ATask(body.id);
+      await cancelHermesTask(body.id);
       nodeRun.finishedAt = Date.now();
       nodeRun.status = 'failed';
       nodeRun.error = error.message;
@@ -2037,7 +2037,7 @@ class WorkflowRunner {
     }
 
     nodeRun.status = 'failed';
-    nodeRun.error = result.error ?? `A2A task ended with ${result.state}`;
+    nodeRun.error = result.error ?? `Hermes task ended with ${result.state}`;
     workflowStore.setRun(run);
     if (isExternalDirectoryPermissionError(`${nodeRun.error}\n${nodeRun.outputText ?? ''}`)) {
       completeNodeWithPermissionFallback(nodeRun, node, outputs, completed, nodeRun.error, workspaceTarget);

@@ -106,8 +106,6 @@
       "startOrchestrationDescription": "Creates an automatic project and opens the Orchestration screen with agent control and run history.",
       "startChat": "Start a new chat",
       "startChatDescription": "Creates a folder automatically and opens the normal chat screen with one agent.",
-      "taskSystem": "Task system",
-      "taskSystemDescription": "Use the TaskMaster tab inside a project to track work items, status, and planned work.",
       "sidebarHint": "When you select an existing project from the sidebar, chat history, files, git status, tasks, and orchestration stay in the same main screen.",
       "createProject": "Create New Project",
       "createProjectDescription": "Add an existing workspace or create a folder, then open the provider picker for coding."
@@ -346,8 +344,6 @@
     "runTask": "Run",
     "cancelTask": "Cancel",
     "dispatchTask": "Dispatch task",
-    "syncTaskMaster": "Sync TaskMaster",
-    "taskMasterSource": "TaskMaster",
     "adapter": "Adapter",
     "isolation": "Isolation",
     "dispatch": "Dispatch",
@@ -381,7 +377,10 @@
     "customWorkspacePlaceholder": "/path/to/project",
     "workspaceTargetHint": "Agents will run in: {{path}}",
     "autoDetect": "auto-detect",
-    "needWorkspacePath": "Enter a custom workspace path."
+    "needWorkspacePath": "Enter a custom workspace path.",
+    "hermesTitle": "Hermes Agent",
+    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
+    "hermesCliControl": "Hermes CLI control"
   },
   "fileTree": {
     "loading": "Loading files...",
@@ -889,7 +888,8 @@
       "rightTerminal": "Terminal"
     },
     "editor": {
-      "emptyTitle": "Open a file from Explorer"
+      "emptyTitle": "Open a file from Explorer",
+      "closeTab": "Close {{file}}"
     },
     "resize": {
       "left": "Resize left panel",
@@ -911,7 +911,19 @@
       "selected": "Selected",
       "startChat": "Chat",
       "fileCount": "{{formattedCount}} files",
-      "fileCountPending": "Files pending"
+      "fileCountPending": "Files pending",
+      "startTitle": "Start a Pixcode workspace",
+      "startDescription": "Pick a folder and Pixcode will bind the explorer, terminal, and chat history to that workspace.",
+      "workHere": "Work in this folder"
+    },
+    "workspace": {
+      "empty": "Open a project to create Workspace 1."
+    },
+    "cli": {
+      "projectScoped": "Project-scoped CLI terminal",
+      "newSession": "New CLI session",
+      "history": "History",
+      "noHistory": "No sessions for this project yet."
     }
   }
 }

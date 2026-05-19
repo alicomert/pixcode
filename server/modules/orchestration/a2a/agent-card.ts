@@ -1,6 +1,6 @@
 // server/modules/orchestration/a2a/agent-card.ts
-// Pixcode advertises itself as one A2A agent at /a2a/.well-known/agent-card.json.
-// Per-CLI adapters publish their own cards under /a2a/agents/:id/agent-card.
+// Pixcode advertises Hermes as one local control agent at /hermes/.well-known/agent-card.json.
+// Per-CLI adapters publish their own cards under /hermes/agents/:id/agent-card.
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -44,9 +44,9 @@ export function buildPixcodeAgentCard(baseUrl: string): AgentCard {
   return {
     name: 'pixcode',
     description:
-      'Pixcode multi-CLI orchestration platform. Routes A2A tasks to ' +
+      'Pixcode Hermes multi-CLI orchestration platform. Routes Hermes tasks to ' +
       'Claude Code, Codex, Cursor, Gemini, Qwen, or OpenCode adapters.',
-    url: `${baseUrl.replace(/\/$/, '')}/a2a`,
+    url: `${baseUrl.replace(/\/$/, '')}/hermes`,
     version: VERSION,
     capabilities: ['streaming', 'taskRouting'],
     skills,

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useCallback, useRef } from 'react';
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import type { RefObject } from 'react';
 
 import type { ChatMessage } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
@@ -34,10 +34,6 @@ interface ChatMessagesPaneProps {
   setQwenModel: (model: string) => void;
   opencodeModel: string;
   setOpencodeModel: (model: string) => void;
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  onShowAllTasks?: (() => void) | null;
-  setInput: Dispatch<SetStateAction<string>>;
   isLoadingMoreMessages: boolean;
   hasMoreMessages: boolean;
   totalMessages: number;
@@ -86,10 +82,6 @@ export default function ChatMessagesPane({
   setQwenModel,
   opencodeModel,
   setOpencodeModel,
-  tasksEnabled,
-  isTaskMasterInstalled,
-  onShowAllTasks,
-  setInput,
   isLoadingMoreMessages,
   hasMoreMessages,
   totalMessages,
@@ -201,10 +193,6 @@ export default function ChatMessagesPane({
           setQwenModel={setQwenModel}
           opencodeModel={opencodeModel}
           setOpencodeModel={setOpencodeModel}
-          tasksEnabled={tasksEnabled}
-          isTaskMasterInstalled={isTaskMasterInstalled}
-          onShowAllTasks={onShowAllTasks}
-          setInput={setInput}
           compact={compact}
         />
       ) : (

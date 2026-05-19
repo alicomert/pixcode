@@ -114,7 +114,6 @@
     "appearance": "Внешний вид",
     "git": "Git",
     "apiTokens": "API и токены",
-    "tasks": "Задачи",
     "plugins": "Плагины",
     "mobile": "С мобильного",
     "telegram": "Telegram",
@@ -153,21 +152,6 @@
       "fontSize": {
         "label": "Размер шрифта",
         "description": "Размер шрифта редактора в пикселях"
-      }
-    },
-    "workbenchLayout": {
-      "title": "Макет рабочей области",
-      "label": "Режим workbench",
-      "description": "Выберите оболочку приложения для рабочего стола.",
-      "options": {
-        "classic": {
-          "label": "Классический Pixcode",
-          "description": "Текущий Pixcode с фокусом на чат."
-        },
-        "vscode": {
-          "label": "В стиле VS Code",
-          "description": "Три панели: файлы, редактор и CLI."
-        }
       }
     }
   },
@@ -298,25 +282,6 @@
     "loading": "Загрузка...",
     "version": {
       "updateAvailable": "Доступно обновление: v{{version}}"
-    }
-  },
-  "tasks": {
-    "checking": "Проверка установки TaskMaster...",
-    "notInstalled": {
-      "title": "TaskMaster AI CLI не установлен",
-      "description": "TaskMaster CLI требуется для использования функций управления задачами. Установите его для начала работы:",
-      "installCommand": "npm install -g task-master-ai",
-      "viewOnGitHub": "Посмотреть на GitHub",
-      "afterInstallation": "После установки:",
-      "steps": {
-        "restart": "Перезапустите это приложение",
-        "autoAvailable": "Функции TaskMaster станут автоматически доступны",
-        "initCommand": "Используйте task-master init в каталоге вашего проекта"
-      }
-    },
-    "settings": {
-      "enableLabel": "Включить интеграцию TaskMaster",
-      "enableDescription": "Показывать задачи TaskMaster, баннеры и индикаторы боковой панели в интерфейсе"
     }
   },
   "agents": {

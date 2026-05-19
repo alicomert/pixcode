@@ -106,8 +106,6 @@
       "startOrchestrationDescription": "Otomatik proje açılır, ajan seçimi ve çalışma geçmişiyle Orkestrasyon ekranına geçilir.",
       "startChat": "Yeni sohbet aç",
       "startChatDescription": "Klasör otomatik oluşturulur ve normal chat ekranında tek ajanla ilerlersin.",
-      "taskSystem": "Task sistemi",
-      "taskSystemDescription": "Proje içinde iş listesini, durumları ve planlı işleri takip etmek için TaskMaster sekmesini kullanırsın.",
       "sidebarHint": "Kenar çubuğundan mevcut bir proje seçersen sohbet geçmişi, dosyalar, git durumu, task sistemi ve orkestrasyon aynı ana ekranda kalır.",
       "createProject": "Yeni Proje Oluştur",
       "createProjectDescription": "Mevcut çalışma alanını ekle veya klasör oluştur; ardından kodlamaya başlamak için CLI seçim ekranına geç."
@@ -346,8 +344,6 @@
     "runTask": "Çalıştır",
     "cancelTask": "İptal",
     "dispatchTask": "Görevi ata",
-    "syncTaskMaster": "TaskMaster Senkronize Et",
-    "taskMasterSource": "TaskMaster",
     "adapter": "Adaptör",
     "isolation": "Çalışma alanı",
     "dispatch": "Ata",
@@ -381,7 +377,10 @@
     "customWorkspacePlaceholder": "/proje/yolu",
     "workspaceTargetHint": "Ajanlar şu dizinde çalışacak: {{path}}",
     "autoDetect": "otomatik algı",
-    "needWorkspacePath": "Özel çalışma alanı path bilgisini gir."
+    "needWorkspacePath": "Özel çalışma alanı path bilgisini gir.",
+    "hermesTitle": "Hermes Agent",
+    "hermesSubtitle": "Hermes Pixcode icinde {{project}} icin calisiyor; local kontrolleri, testleri, terminal islerini ve proje operasyonlarini yonetebilir.",
+    "hermesCliControl": "Hermes CLI kontrolu"
   },
   "fileTree": {
     "loading": "Dosyalar yükleniyor...",
@@ -889,7 +888,8 @@
       "rightTerminal": "Terminal"
     },
     "editor": {
-      "emptyTitle": "Gezginden bir dosya aç"
+      "emptyTitle": "Gezginden bir dosya aç",
+      "closeTab": "{{file}} sekmesini kapat"
     },
     "resize": {
       "left": "Sol paneli boyutlandır",
@@ -911,7 +911,19 @@
       "selected": "Seçili",
       "startChat": "Sohbet",
       "fileCount": "{{formattedCount}} dosya",
-      "fileCountPending": "Dosyalar hazırlanıyor"
+      "fileCountPending": "Dosyalar hazırlanıyor",
+      "startTitle": "Pixcode calisma alani baslat",
+      "startDescription": "Bir klasor sec; Pixcode explorer, terminal ve sohbet gecmisini bu calisma alanina baglar.",
+      "workHere": "Bu klasorde calis"
+    },
+    "workspace": {
+      "empty": "Workspace 1 olusturmak icin bir proje ac."
+    },
+    "cli": {
+      "projectScoped": "Projeye bagli CLI terminali",
+      "newSession": "Yeni CLI oturumu",
+      "history": "Gecmis",
+      "noHistory": "Bu projede henuz oturum yok."
     }
   }
 }

@@ -106,8 +106,6 @@
       "startOrchestrationDescription": "프로젝트를 자동 생성하고 에이전트 제어와 실행 기록이 있는 오케스트레이션 화면을 엽니다.",
       "startChat": "새 채팅 시작",
       "startChatDescription": "폴더를 자동 생성하고 단일 에이전트로 일반 채팅 화면을 엽니다.",
-      "taskSystem": "작업 시스템",
-      "taskSystemDescription": "프로젝트의 TaskMaster 탭에서 작업, 상태, 계획된 일을 추적합니다.",
       "sidebarHint": "사이드바에서 기존 프로젝트를 선택하면 채팅 기록, 파일, git 상태, 작업, 오케스트레이션이 같은 메인 화면에 유지됩니다."
     }
   },
@@ -427,8 +425,6 @@
     "runTask": "실행",
     "cancelTask": "취소",
     "dispatchTask": "작업 배정",
-    "syncTaskMaster": "TaskMaster 동기화",
-    "taskMasterSource": "TaskMaster",
     "adapter": "어댑터",
     "isolation": "격리",
     "dispatch": "배정",
@@ -527,7 +523,10 @@
     "customWorkspacePlaceholder": "/path/to/project",
     "workspaceTargetHint": "에이전트 실행 위치: {{path}}",
     "autoDetect": "자동 감지",
-    "needWorkspacePath": "사용자 지정 작업 영역 경로를 입력하세요."
+    "needWorkspacePath": "사용자 지정 작업 영역 경로를 입력하세요.",
+    "hermesTitle": "Hermes Agent",
+    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
+    "hermesCliControl": "Hermes CLI control"
   },
   "controlRoom": {
     "title": "컨트롤 룸",
@@ -796,7 +795,8 @@
       "rightTerminal": "터미널"
     },
     "editor": {
-      "emptyTitle": "탐색기에서 파일 열기"
+      "emptyTitle": "탐색기에서 파일 열기",
+      "closeTab": "Close {{file}}"
     },
     "resize": {
       "left": "왼쪽 패널 크기 조정",
@@ -818,7 +818,19 @@
       "selected": "선택됨",
       "startChat": "채팅",
       "fileCount": "{{formattedCount}}개 파일",
-      "fileCountPending": "파일 준비 중"
+      "fileCountPending": "파일 준비 중",
+      "startTitle": "Start a Pixcode workspace",
+      "startDescription": "Pick a folder and Pixcode will bind the explorer, terminal, and chat history to that workspace.",
+      "workHere": "Work in this folder"
+    },
+    "workspace": {
+      "empty": "Open a project to create Workspace 1."
+    },
+    "cli": {
+      "projectScoped": "Project-scoped CLI terminal",
+      "newSession": "New CLI session",
+      "history": "History",
+      "noHistory": "No sessions for this project yet."
     }
   }
 }

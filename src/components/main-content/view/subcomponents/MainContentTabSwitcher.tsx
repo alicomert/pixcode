@@ -15,7 +15,6 @@ import {
   GitBranch,
   FileCode,
   Globe,
-  ClipboardCheck,
   Workflow,
   Smartphone,
   X,
@@ -25,7 +24,6 @@ import {
 type MainContentTabSwitcherProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  shouldShowTasksTab: boolean;
   liveViewAvailable?: boolean;
   activeSidePanelTab?: AppTab | null;
   sidePanelMode?: 'split' | 'full';
@@ -62,19 +60,11 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'liveView', labelKey: 'tabs.liveView', icon: Globe },
 ];
 
-const TASKS_TAB: BuiltInTab = {
-  kind: 'builtin',
-  id: 'tasks',
-  labelKey: 'tabs.tasks',
-  icon: ClipboardCheck,
-};
-
 const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes', 'liveView']);
 
 export default function MainContentTabSwitcher({
   activeTab,
   setActiveTab,
-  shouldShowTasksTab,
   liveViewAvailable = false,
   activeSidePanelTab,
   sidePanelMode = 'split',
@@ -84,8 +74,6 @@ export default function MainContentTabSwitcher({
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
-
-  const builtInTabs: BuiltInTab[] = shouldShowTasksTab ? [...BASE_TABS, TASKS_TAB] : BASE_TABS;
 
   const pluginTabs: PluginTab[] = plugins
     .filter((p) => p.enabled)
@@ -97,7 +85,7 @@ export default function MainContentTabSwitcher({
       iconFile: p.icon,
     }));
 
-  const tabs: TabDefinition[] = [...builtInTabs, ...pluginTabs];
+  const tabs: TabDefinition[] = [...BASE_TABS, ...pluginTabs];
 
   return (
     <PillBar>

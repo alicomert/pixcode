@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
-import ChatInterface from '../../chat/view/ChatInterface';
 import CodeEditor from '../../code-editor/view/CodeEditor';
-import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
+import type { CodeEditorDiffInfo, CodeEditorFile } from '../../code-editor/types/types';
 import ControlRoomPage from '../../control-room/ControlRoomPage';
 import FileTree from '../../file-tree/view/FileTree';
 import GitPanel from '../../git-panel/view/GitPanel';
@@ -15,12 +14,9 @@ import RemoteConsole from '../../remote-console/RemoteConsole';
 import Sidebar from '../../sidebar/view/Sidebar';
 import type { SidebarProps } from '../../sidebar/types/types';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
-import { TaskMasterPanel } from '../../task-master';
 import type { WorkspaceType } from '../../project-creation-wizard/types';
-import { useTaskMaster } from '../../../contexts/TaskMasterContext';
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { cn } from '../../../lib/utils';
-import type { AppTab, Project } from '../../../types/app';
+import type { AppTab, LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { MainContentProps } from '../../main-content/types/types';
 
 import {
@@ -33,11 +29,11 @@ import {
   FolderOpen,
   GitBranch,
   Github,
+  History,
   MessageSquare,
   Monitor,
   PanelLeftClose,
   PanelLeftOpen,
-  Play,
   Plus,
   RefreshCw,
   Server,
@@ -52,7 +48,6 @@ type VSCodeWorkbenchProps = MainContentProps & {
 };
 
 type ActivityPanel = 'explorer' | 'projects' | 'sourceControl' | 'terminal';
-type RightPanel = 'cli' | 'terminal';
 
 type ResizeTarget = 'left' | 'right';
 
@@ -63,15 +58,6 @@ const RIGHT_MIN_WIDTH = 320;
 const RIGHT_MAX_WIDTH = 680;
 const RIGHT_DEFAULT_WIDTH = 420;
 
-type TaskMasterContextValue = {
-  currentProject?: Project | null;
-  setCurrentProject?: ((project: Project) => void) | null;
-};
-
-type TasksSettingsContextValue = {
-  tasksEnabled: boolean;
-};
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -81,7 +67,6 @@ function isCenterSystemTab(activeTab: AppTab) {
     activeTab === 'orchestration'
     || activeTab === 'remote'
     || activeTab === 'controlRoom'
-    || activeTab === 'tasks'
     || activeTab.startsWith('plugin:')
   );
 }
@@ -126,54 +111,21 @@ function VSCodeWorkbench({
   selectedSession,
   activeTab,
   setActiveTab,
-  ws,
-  sendMessage,
-  latestMessage,
-  isMobile,
   onMenuClick,
   isLoading,
-  onInputFocusChange,
-  onSessionActive,
-  onSessionInactive,
-  onSessionProcessing,
-  onSessionNotProcessing,
-  processingSessions,
-  onReplaceTemporarySession,
-  onNavigateToSession,
   onShowSettings,
-  externalMessageUpdate,
   onQuickStartSession,
   onQuickStartOrchestration,
-  onQuickStartTasks,
 }: VSCodeWorkbenchProps) {
   const { t } = useTranslation('common');
-  const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
-  const { tasksEnabled } = useTasksSettings() as TasksSettingsContextValue;
   const containerRef = useRef<HTMLDivElement>(null);
   const [leftPaneWidth, setLeftPaneWidth] = useState(LEFT_DEFAULT_WIDTH);
   const [rightPaneWidth, setRightPaneWidth] = useState(RIGHT_DEFAULT_WIDTH);
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
-  const [activityPanel, setActivityPanel] = useState<ActivityPanel>(() => activityForTab(activeTab));
-  const [rightPanel, setRightPanel] = useState<RightPanel>('cli');
+  const [activityPanel, setActivityPanel] = useState<ActivityPanel>('projects');
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
-
-  const {
-    editingFile,
-    handleFileOpen,
-    handleCloseEditor,
-  } = useEditorSidebar({
-    selectedProject,
-    isMobile,
-  });
-
-  useEffect(() => {
-    const selectedProjectName = selectedProject?.name;
-    const currentProjectName = currentProject?.name;
-
-    if (selectedProject && selectedProjectName !== currentProjectName) {
-      setCurrentProject?.(selectedProject);
-    }
-  }, [currentProject?.name, selectedProject, setCurrentProject]);
+  const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
+  const [activeEditorPath, setActiveEditorPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (isCenterSystemTab(activeTab)) {
@@ -188,10 +140,55 @@ function VSCodeWorkbench({
   }, [activeTab, activityPanel]);
 
   useEffect(() => {
-    if (!tasksEnabled && activeTab === 'tasks') {
-      setActiveTab('chat');
-    }
-  }, [activeTab, setActiveTab, tasksEnabled]);
+    setOpenEditorTabs([]);
+    setActiveEditorPath(null);
+  }, [selectedProject?.name]);
+
+  const handleFileOpen = useCallback(
+    (filePath: string, diffInfo: CodeEditorDiffInfo | null = null) => {
+      const normalizedPath = filePath.replace(/\\/g, '/');
+      const fileName = normalizedPath.split('/').pop() || filePath;
+      const nextFile: CodeEditorFile = {
+        name: fileName,
+        path: filePath,
+        projectName: selectedProject?.name,
+        diffInfo,
+      };
+
+      setOpenEditorTabs((currentTabs) => {
+        const existingIndex = currentTabs.findIndex((tab) => tab.path === filePath);
+        if (existingIndex === -1) {
+          return [...currentTabs, nextFile];
+        }
+
+        const nextTabs = [...currentTabs];
+        nextTabs[existingIndex] = nextFile;
+        return nextTabs;
+      });
+      setActiveEditorPath(filePath);
+      setActiveTab('files');
+    },
+    [selectedProject?.name, setActiveTab],
+  );
+
+  const handleCloseEditorTab = useCallback((filePath: string) => {
+    setOpenEditorTabs((currentTabs) => {
+      const nextTabs = currentTabs.filter((tab) => tab.path !== filePath);
+      setActiveEditorPath((currentActivePath) => {
+        if (currentActivePath !== filePath) {
+          return currentActivePath;
+        }
+
+        return nextTabs[nextTabs.length - 1]?.path ?? null;
+      });
+      return nextTabs;
+    });
+  }, []);
+
+  const activeEditorFile = useMemo(
+    () => openEditorTabs.find((tab) => tab.path === activeEditorPath) ?? openEditorTabs[0] ?? null,
+    [activeEditorPath, openEditorTabs],
+  );
 
   const activityButtons = useMemo(
     () => [
@@ -243,16 +240,8 @@ function VSCodeWorkbench({
         label: t('tabs.remote'),
         tab: 'remote' as AppTab,
       },
-      ...(tasksEnabled
-        ? [{
-            id: 'tasks',
-            icon: Play,
-            label: t('tabs.tasks'),
-            tab: 'tasks' as AppTab,
-          }]
-        : []),
     ],
-    [t, tasksEnabled],
+    [t],
   );
 
   const startResize = useCallback((target: ResizeTarget, event: React.PointerEvent<HTMLButtonElement>) => {
@@ -351,14 +340,16 @@ function VSCodeWorkbench({
           session={selectedSession}
           showHeader
           isActive={activeTab === 'shell'}
+          autoConnect={false}
         />
       );
     }
 
     return (
-      <FileTree
+      <WorkbenchWorkspacePanel
         selectedProject={selectedProject}
         onFileOpen={handleFileOpen}
+        t={t}
       />
     );
   };
@@ -380,10 +371,6 @@ function VSCodeWorkbench({
       return <ControlRoomPage selectedProject={selectedProject} />;
     }
 
-    if (activeTab === 'tasks') {
-      return <TaskMasterPanel isVisible />;
-    }
-
     if (activeTab.startsWith('plugin:')) {
       return (
         <PluginTabContent
@@ -396,26 +383,72 @@ function VSCodeWorkbench({
 
     if (!selectedProject) {
       return (
-        <MainContentStateView
-          mode="empty"
-          isMobile={false}
-          onMenuClick={onMenuClick}
+        <WorkbenchProjectLanding
+          projects={sidebarProps.projects}
+          onProjectSelect={handleWorkbenchProjectSelect}
+          onNewSession={sidebarProps.onNewSession}
+          onOpenProject={() => openProjectWizard('existing')}
+          onCloneProject={() => openProjectWizard('new')}
           onQuickStartSession={onQuickStartSession}
           onQuickStartOrchestration={onQuickStartOrchestration}
-          onQuickStartTasks={onQuickStartTasks}
           onOpenControlRoom={() => setActiveTab('controlRoom')}
+          t={t}
         />
       );
     }
 
-    if (editingFile) {
+    if (activeEditorFile) {
       return (
-        <CodeEditor
-          file={editingFile}
-          onClose={handleCloseEditor}
-          projectPath={selectedProject.path || selectedProject.fullPath}
-          isSidebar
-        />
+        <div className="flex h-full min-h-0 flex-col bg-background">
+          <div className="flex h-9 shrink-0 items-center overflow-x-auto border-b border-border bg-muted/20">
+            {openEditorTabs.map((tab) => {
+              const active = tab.path === activeEditorFile.path;
+              return (
+                <button
+                  key={tab.path}
+                  type="button"
+                  className={cn(
+                    'group flex h-full min-w-0 max-w-52 items-center gap-2 border-r border-border px-3 text-xs transition-colors',
+                    active ? 'bg-background text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                  )}
+                  onClick={() => setActiveEditorPath(tab.path)}
+                  title={tab.path}
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{tab.name}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="rounded p-0.5 text-muted-foreground opacity-70 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleCloseEditorTab(tab.path);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleCloseEditorTab(tab.path);
+                      }
+                    }}
+                    aria-label={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
+                    title={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
+                  >
+                    ×
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <CodeEditor
+              file={activeEditorFile}
+              onClose={() => handleCloseEditorTab(activeEditorFile.path)}
+              projectPath={selectedProject.path || selectedProject.fullPath}
+              isSidebar
+            />
+          </div>
+        </div>
       );
     }
 
@@ -435,42 +468,13 @@ function VSCodeWorkbench({
   };
 
   const renderRightPanel = () => {
-    if (rightPanel === 'terminal') {
-      return (
-        <StandaloneShell
-          project={selectedProject}
-          session={selectedSession}
-          showHeader
-          isActive={rightPanel === 'terminal'}
-        />
-      );
-    }
-
     return (
-      <ChatInterface
-        selectedProject={selectedProject}
-        selectedSession={selectedSession}
-        ws={ws}
-        sendMessage={sendMessage}
-        latestMessage={latestMessage}
-        onFileOpen={handleFileOpen}
-        onInputFocusChange={onInputFocusChange}
-        onSessionActive={onSessionActive}
-        onSessionInactive={onSessionInactive}
-        onSessionProcessing={onSessionProcessing}
-        onSessionNotProcessing={onSessionNotProcessing}
-        processingSessions={processingSessions}
-        onReplaceTemporarySession={onReplaceTemporarySession}
-        onNavigateToSession={onNavigateToSession}
-        onShowSettings={onShowSettings}
-        autoExpandTools
-        showRawParameters={false}
-        showThinking
-        autoScrollToBottom
-        sendByCtrlEnter={false}
-        externalMessageUpdate={externalMessageUpdate}
-        onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
-        compactComposer
+      <WorkbenchCliPanel
+        project={selectedProject}
+        session={selectedSession}
+        onSessionSelect={sidebarProps.onSessionSelect}
+        onNewSession={sidebarProps.onNewSession}
+        t={t}
       />
     );
   };
@@ -483,11 +487,9 @@ function VSCodeWorkbench({
         onOpenProject={openProjectWizard}
         onActivityPanel={selectActivityPanel}
         onSystemTab={openSystemTab}
-        onSetRightPanel={setRightPanel}
         onShowSettings={onShowSettings}
         onQuickStartSession={onQuickStartSession}
         onQuickStartOrchestration={onQuickStartOrchestration}
-        onQuickStartTasks={onQuickStartTasks}
       />
 
       <div
@@ -592,20 +594,12 @@ function VSCodeWorkbench({
           className="h-full shrink-0 overflow-hidden bg-background"
           style={{ width: rightPaneWidth }}
         >
-          <div className="flex h-10 items-center justify-between border-b border-border px-2">
+          <div className="flex h-10 items-center justify-between border-b border-border px-3">
             <div className="flex min-w-0 items-center gap-1">
-              <RightPanelButton
-                active={rightPanel === 'cli'}
-                icon={Bot}
-                label={t('vscodeWorkbench.panels.cli')}
-                onClick={() => setRightPanel('cli')}
-              />
-              <RightPanelButton
-                active={rightPanel === 'terminal'}
-                icon={Terminal}
-                label={t('vscodeWorkbench.panels.terminal')}
-                onClick={() => setRightPanel('terminal')}
-              />
+              <Bot className="h-4 w-4 text-muted-foreground" />
+              <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('vscodeWorkbench.panels.cli')}
+              </span>
             </div>
           </div>
           <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
@@ -622,11 +616,9 @@ type WorkbenchMenuBarProps = {
   onOpenProject: (type: WorkspaceType) => void;
   onActivityPanel: (panel: ActivityPanel, tab: AppTab) => void;
   onSystemTab: (tab: AppTab) => void;
-  onSetRightPanel: (panel: RightPanel) => void;
   onShowSettings: () => void;
   onQuickStartSession?: () => void | Promise<void>;
   onQuickStartOrchestration?: () => void | Promise<void>;
-  onQuickStartTasks?: () => void | Promise<void>;
 };
 
 type WorkbenchMenuCommand = {
@@ -641,11 +633,9 @@ function WorkbenchMenuBar({
   onOpenProject,
   onActivityPanel,
   onSystemTab,
-  onSetRightPanel,
   onShowSettings,
   onQuickStartSession,
   onQuickStartOrchestration,
-  onQuickStartTasks,
 }: WorkbenchMenuBarProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
@@ -738,11 +728,6 @@ function WorkbenchMenuBar({
           icon: Workflow,
           action: onQuickStartOrchestration ?? (() => onSystemTab('orchestration')),
         },
-        {
-          label: t('tabs.tasks'),
-          icon: Play,
-          action: onQuickStartTasks ?? (() => onSystemTab('tasks')),
-        },
       ],
     },
     {
@@ -751,12 +736,7 @@ function WorkbenchMenuBar({
         {
           label: t('vscodeWorkbench.panels.cli'),
           icon: Bot,
-          action: () => onSetRightPanel('cli'),
-        },
-        {
-          label: t('vscodeWorkbench.panels.terminal'),
-          icon: Terminal,
-          action: () => onSetRightPanel('terminal'),
+          action: () => onActivityPanel('terminal', 'shell'),
         },
       ],
     },
@@ -774,8 +754,6 @@ function WorkbenchMenuBar({
     onActivityPanel,
     onQuickStartOrchestration,
     onQuickStartSession,
-    onQuickStartTasks,
-    onSetRightPanel,
     onShowSettings,
     onSystemTab,
     t,
@@ -828,6 +806,363 @@ function WorkbenchMenuBar({
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchWorkspacePanel({
+  selectedProject,
+  onFileOpen,
+  t,
+}: {
+  selectedProject: Project | null;
+  onFileOpen: (filePath: string, diffInfo?: CodeEditorDiffInfo | null) => void;
+  t: TFunction<'common'>;
+}) {
+  const workspaceSlots = selectedProject ? [
+    {
+      id: 'workspace-1',
+      label: 'Workspace 1',
+      project: selectedProject,
+    },
+  ] : [];
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-border p-2">
+        {workspaceSlots.length === 0 ? (
+          <div className="rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+            {t('vscodeWorkbench.workspace.empty', { defaultValue: 'Open a project to create Workspace 1.' })}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {workspaceSlots.map((slot) => (
+              <div
+                key={slot.id}
+                className="flex min-w-0 items-center gap-2 rounded border border-primary/30 bg-primary/10 px-2.5 py-2"
+              >
+                <FolderOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-semibold text-foreground">{slot.label}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">
+                    {slot.project.displayName || slot.project.name}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <FileTree selectedProject={selectedProject} onFileOpen={onFileOpen} />
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchProjectLanding({
+  projects,
+  onProjectSelect,
+  onNewSession,
+  onOpenProject,
+  onCloneProject,
+  onQuickStartSession,
+  onQuickStartOrchestration,
+  onOpenControlRoom,
+  t,
+}: {
+  projects: Project[];
+  onProjectSelect: (project: Project) => void;
+  onNewSession: (project: Project) => void;
+  onOpenProject: () => void;
+  onCloneProject: () => void;
+  onQuickStartSession?: () => void | Promise<void>;
+  onQuickStartOrchestration?: () => void | Promise<void>;
+  onOpenControlRoom: () => void;
+  t: TFunction<'common'>;
+}) {
+  return (
+    <div className="h-full overflow-auto bg-background p-6">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              {t('vscodeWorkbench.projects.startTitle', { defaultValue: 'Start a Pixcode workspace' })}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t('vscodeWorkbench.projects.startDescription', {
+                defaultValue: 'Pick a folder and Pixcode will bind the explorer, terminal, and chat history to that workspace.',
+              })}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onOpenProject}
+              className="inline-flex items-center gap-2 rounded border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              {t('vscodeWorkbench.projects.openProject', { defaultValue: 'Open Project' })}
+            </button>
+            <button
+              type="button"
+              onClick={onCloneProject}
+              className="inline-flex items-center gap-2 rounded border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
+            >
+              <Github className="h-3.5 w-3.5" />
+              {t('vscodeWorkbench.projects.cloneFromGithub', { defaultValue: 'Clone' })}
+            </button>
+          </div>
+        </div>
+
+        {projects.length > 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => (
+              <div
+                key={project.name}
+                role="button"
+                tabIndex={0}
+                className="cursor-pointer rounded-md border border-border bg-card/40 p-3 text-left transition hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                onClick={() => onProjectSelect(project)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onProjectSelect(project);
+                  }
+                }}
+                title={getProjectPath(project)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-foreground">
+                      {project.displayName || project.name}
+                    </div>
+                    <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                      {formatProjectPath(project)}
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    {formatFileCount(project.fileCount, t)}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="rounded bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
+                    {t('vscodeWorkbench.projects.workHere', { defaultValue: 'Work in this folder' })}
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="rounded border border-border px-2 py-1 text-[11px] text-foreground"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onProjectSelect(project);
+                      onNewSession(project);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onProjectSelect(project);
+                        onNewSession(project);
+                      }
+                    }}
+                  >
+                    {t('vscodeWorkbench.projects.startChat', { defaultValue: 'Chat' })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-border p-8 text-center">
+            <Folder className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+            <div className="text-sm font-medium text-foreground">
+              {t('vscodeWorkbench.projects.emptyTitle', { defaultValue: 'No project directories yet' })}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t('vscodeWorkbench.projects.emptyDescription', {
+                defaultValue: 'Open a local folder or clone a repository to start.',
+              })}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-3">
+          <button type="button" onClick={() => { void onQuickStartSession?.(); }} className="rounded border border-border p-3 text-left text-xs hover:bg-muted">
+            <MessageSquare className="mb-2 h-4 w-4" />
+            {t('mainContent.landing.startChat')}
+          </button>
+          <button type="button" onClick={() => { void onQuickStartOrchestration?.(); }} className="rounded border border-border p-3 text-left text-xs hover:bg-muted">
+            <Workflow className="mb-2 h-4 w-4" />
+            {t('mainContent.landing.startOrchestration')}
+          </button>
+          <button type="button" onClick={onOpenControlRoom} className="rounded border border-border p-3 text-left text-xs hover:bg-muted">
+            <Sparkles className="mb-2 h-4 w-4" />
+            {t('mainContent.openControlRoom', { defaultValue: 'Open Control Room' })}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const cliProviders: Array<{ id: LLMProvider; label: string }> = [
+  { id: 'claude', label: 'Claude' },
+  { id: 'codex', label: 'Codex' },
+  { id: 'cursor', label: 'Cursor' },
+  { id: 'gemini', label: 'Gemini' },
+  { id: 'qwen', label: 'Qwen Code' },
+  { id: 'opencode', label: 'OpenCode' },
+];
+
+function tagProjectSessions(
+  sessions: ProjectSession[] | undefined,
+  provider: LLMProvider,
+  projectName: string,
+): ProjectSession[] {
+  return (sessions ?? []).map((session) => ({
+    ...session,
+    __provider: session.__provider ?? provider,
+    __projectName: session.__projectName ?? projectName,
+  }));
+}
+
+function getProjectCliSessions(project: Project | null): ProjectSession[] {
+  if (!project) return [];
+
+  return [
+    ...tagProjectSessions(project.sessions, 'claude', project.name),
+    ...tagProjectSessions(project.codexSessions, 'codex', project.name),
+    ...tagProjectSessions(project.cursorSessions, 'cursor', project.name),
+    ...tagProjectSessions(project.geminiSessions, 'gemini', project.name),
+    ...tagProjectSessions(project.qwenSessions, 'qwen', project.name),
+    ...tagProjectSessions(project.opencodeSessions, 'opencode', project.name),
+  ];
+}
+
+function WorkbenchCliPanel({
+  project,
+  session,
+  onSessionSelect,
+  onNewSession,
+  t,
+}: {
+  project: Project | null;
+  session: ProjectSession | null;
+  onSessionSelect: (session: ProjectSession) => void;
+  onNewSession: (project: Project) => void;
+  t: TFunction<'common'>;
+}) {
+  const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(() => {
+    if (typeof window === 'undefined') return 'claude';
+    const saved = window.localStorage.getItem('selected-provider') as LLMProvider | null;
+    return cliProviders.some((provider) => provider.id === saved) ? saved as LLMProvider : 'claude';
+  });
+  const [showHistory, setShowHistory] = useState(false);
+  const projectSessions = useMemo(() => getProjectCliSessions(project), [project]);
+
+  const selectProvider = (provider: LLMProvider) => {
+    setSelectedProvider(provider);
+    window.localStorage.setItem('selected-provider', provider);
+  };
+
+  const startNewSession = () => {
+    if (!project) return;
+    window.localStorage.setItem('selected-provider', selectedProvider);
+    onNewSession(project);
+  };
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
+      <div className="shrink-0 border-b border-gray-800 bg-gray-900/95 p-2">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-xs font-semibold text-gray-100">
+              {project?.displayName || project?.name || t('vscodeWorkbench.noProject')}
+            </div>
+            <div className="text-[11px] text-gray-400">
+              {t('vscodeWorkbench.cli.projectScoped', { defaultValue: 'Project-scoped CLI terminal' })}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+              disabled={!project}
+              onClick={startNewSession}
+              title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+              aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50',
+                showHistory && 'bg-gray-800',
+              )}
+              disabled={!project}
+              onClick={() => setShowHistory((previous) => !previous)}
+              title={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
+              aria-label={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
+            >
+              <History className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          {cliProviders.map((provider) => (
+            <button
+              key={provider.id}
+              type="button"
+              className={cn(
+                'truncate rounded border px-2 py-1.5 text-[11px] font-medium transition-colors',
+                selectedProvider === provider.id
+                  ? 'border-blue-500 bg-blue-500/20 text-blue-100'
+                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:bg-gray-800',
+              )}
+              onClick={() => selectProvider(provider.id)}
+            >
+              {provider.label}
+            </button>
+          ))}
+        </div>
+        {showHistory && (
+          <div className="mt-2 max-h-36 overflow-y-auto rounded border border-gray-800 bg-gray-950">
+            {projectSessions.length === 0 ? (
+              <div className="px-3 py-2 text-[11px] text-gray-500">
+                {t('vscodeWorkbench.cli.noHistory', { defaultValue: 'No sessions for this project yet.' })}
+              </div>
+            ) : (
+              projectSessions.map((item) => (
+                <button
+                  key={`${item.__provider}-${item.id}`}
+                  type="button"
+                  className={cn(
+                    'block w-full truncate px-3 py-2 text-left text-[11px] hover:bg-gray-800',
+                    session?.id === item.id ? 'text-blue-200' : 'text-gray-300',
+                  )}
+                  onClick={() => onSessionSelect(item)}
+                  title={(item.summary as string) || (item.title as string) || item.id}
+                >
+                  <span className="mr-1 text-gray-500">{item.__provider}</span>
+                  {(item.summary as string) || (item.title as string) || (item.name as string) || item.id}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+      <div className="min-h-0 flex-1">
+        <StandaloneShell
+          key={`${selectedProvider}-${session?.id || 'new'}-${project?.name || 'none'}`}
+          project={project}
+          session={session}
+          showHeader
+          autoConnect={false}
+          isActive
+        />
       </div>
     </div>
   );
@@ -998,33 +1333,6 @@ function ActivityButton({
     >
       {active && <span className="absolute left-0 h-5 w-0.5 rounded-r bg-primary" />}
       <Icon className="h-5 w-5" />
-    </button>
-  );
-}
-
-function RightPanelButton({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: IconComponent;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        'flex h-7 items-center gap-1.5 rounded px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
-        active && 'bg-muted text-foreground',
-      )}
-      onClick={onClick}
-      title={label}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      <span className="truncate">{label}</span>
     </button>
   );
 }

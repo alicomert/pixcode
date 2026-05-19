@@ -274,7 +274,7 @@ npm run build
 
 - `src/` - React + Vite frontend.
 - `server/` - Express, WebSocket, CLI adapter'ları, route'lar, auth, daemon, bildirim.
-- `server/modules/orchestration/` - multi-agent workflow engine ve A2A adapter'ları.
+- `server/modules/orchestration/` - Hermes destekli multi-agent workflow engine ve CLI adapter'ları.
 - `server/modules/providers/` - provider auth, MCP, session, model ve install endpoint'leri.
 - `shared/` - frontend/backend ortak contract'lar.
 - `public/openapi.yaml` - uygulamayla gelen API referansı.

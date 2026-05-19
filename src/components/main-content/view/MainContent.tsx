@@ -14,14 +14,11 @@ import ControlRoomPage from '../../control-room/ControlRoomPage';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
-import type { AppTab, Project } from '../../../types/app';
-import { useTaskMaster } from '../../../contexts/TaskMasterContext';
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
+import type { AppTab } from '../../../types/app';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useChangedFilesMonitor, type ChangedFilesTrackingMode } from '../../../hooks/useChangedFilesMonitor';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
-import { TaskMasterPanel } from '../../task-master';
 import type { ChangedFileEntry } from '../../../utils/changedFiles';
 import { api, authenticatedFetch } from '../../../utils/api';
 
@@ -29,17 +26,6 @@ import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
 import ChangedFilesActivityRail from './subcomponents/ChangedFilesActivityRail';
 import ErrorBoundary from './ErrorBoundary';
-
-type TaskMasterContextValue = {
-  currentProject?: Project | null;
-  setCurrentProject?: ((project: Project) => void) | null;
-};
-
-type TasksSettingsContextValue = {
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  isTaskMasterReady: boolean | null;
-};
 
 type FileWithDiffResponse = {
   currentContent?: string;
@@ -89,7 +75,6 @@ function MainContent({
   externalMessageUpdate,
   onQuickStartSession,
   onQuickStartOrchestration,
-  onQuickStartTasks,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
   const {
@@ -100,8 +85,6 @@ function MainContent({
     sendByCtrlEnter,
   } = preferences;
 
-  const { currentProject, setCurrentProject } = useTaskMaster() as TaskMasterContextValue;
-  const { tasksEnabled } = useTasksSettings() as TasksSettingsContextValue;
   const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
   const [sidePanelWidth, setSidePanelWidth] = useState(SIDE_PANEL_DEFAULT_WIDTH);
   const [isDraggingSidePanel, setIsDraggingSidePanel] = useState(false);
@@ -118,7 +101,6 @@ function MainContent({
     typeof window !== 'undefined' && window.innerWidth >= 1024
   ));
 
-  const shouldShowTasksTab = Boolean(tasksEnabled);
   const activeSidePanelTab = isSidePanelTab(activeTab) ? activeTab : null;
   const showSidePanelSplit = Boolean(activeSidePanelTab && !isMobile && canUseSidePanelSplit && sidePanelMode === 'split');
 
@@ -325,21 +307,6 @@ function MainContent({
 
     return <GitPanel selectedProject={selectedProject} isMobile={isMobile} onFileOpen={handleFileOpen} />;
   };
-
-  useEffect(() => {
-    const selectedProjectName = selectedProject?.name;
-    const currentProjectName = currentProject?.name;
-
-    if (selectedProject && selectedProjectName !== currentProjectName) {
-      setCurrentProject?.(selectedProject);
-    }
-  }, [selectedProject, currentProject?.name, setCurrentProject]);
-
-  useEffect(() => {
-    if (!tasksEnabled && activeTab === 'tasks') {
-      setActiveTab('chat');
-    }
-  }, [tasksEnabled, activeTab, setActiveTab]);
 
   useEffect(() => {
     if (!selectedProject) {
@@ -558,7 +525,6 @@ function MainContent({
           setActiveTab={handleActiveTabChange}
           selectedProject={null}
           selectedSession={null}
-          shouldShowTasksTab={false}
           liveViewAvailable={false}
           activeSidePanelTab={null}
           sidePanelMode={sidePanelMode}
@@ -584,7 +550,6 @@ function MainContent({
         onMenuClick={onMenuClick}
         onQuickStartSession={onQuickStartSession}
         onQuickStartOrchestration={onQuickStartOrchestration}
-        onQuickStartTasks={onQuickStartTasks}
         onOpenControlRoom={() => setActiveTab('controlRoom')}
       />
     );
@@ -597,7 +562,6 @@ function MainContent({
         setActiveTab={handleActiveTabChange}
         selectedProject={selectedProject}
         selectedSession={selectedSession}
-        shouldShowTasksTab={shouldShowTasksTab}
         liveViewAvailable={liveViewAvailable}
         activeSidePanelTab={activeSidePanelTab}
         sidePanelMode={sidePanelMode}
@@ -672,7 +636,6 @@ function MainContent({
                           autoScrollToBottom={autoScrollToBottom}
                           sendByCtrlEnter={sendByCtrlEnter}
                           externalMessageUpdate={externalMessageUpdate}
-                          onShowAllTasks={tasksEnabled ? () => handleActiveTabChange('tasks') : null}
                         />
                       </ErrorBoundary>
                     </div>
@@ -756,8 +719,6 @@ function MainContent({
               </div>
             </div>
           )}
-
-          {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
 
           <div className={`h-full overflow-hidden ${activeTab === 'preview' ? 'block' : 'hidden'}`} />
 

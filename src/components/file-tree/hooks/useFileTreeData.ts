@@ -82,6 +82,27 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
     };
   }, [selectedProject?.name, refreshKey]);
 
+  useEffect(() => {
+    const projectName = selectedProject?.name;
+    if (!projectName || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleExternalRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectName?: string | null }>).detail;
+      if (detail?.projectName && detail.projectName !== projectName) {
+        return;
+      }
+
+      refreshFiles();
+    };
+
+    window.addEventListener('pixcode:file-tree-refresh', handleExternalRefresh);
+    return () => {
+      window.removeEventListener('pixcode:file-tree-refresh', handleExternalRefresh);
+    };
+  }, [refreshFiles, selectedProject?.name]);
+
   return {
     files,
     loading,

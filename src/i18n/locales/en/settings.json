@@ -116,7 +116,6 @@
     "appearance": "Appearance",
     "git": "Git",
     "apiTokens": "API & Tokens",
-    "tasks": "Tasks",
     "notifications": "Notifications",
     "plugins": "Plugins",
     "mobile": "Use from Mobile",
@@ -286,21 +285,6 @@
         "label": "Font Size",
         "description": "Editor font size in pixels"
       }
-    },
-    "workbenchLayout": {
-      "title": "Workspace layout",
-      "label": "Workbench mode",
-      "description": "Choose the app shell used on desktop.",
-      "options": {
-        "classic": {
-          "label": "Classic Pixcode",
-          "description": "Current chat-first Pixcode layout."
-        },
-        "vscode": {
-          "label": "VS Code-style",
-          "description": "Three-pane workbench with files, editor, and CLI."
-        }
-      }
     }
   },
   "mcpForm": {
@@ -430,25 +414,6 @@
     "loading": "Loading...",
     "version": {
       "updateAvailable": "Update available: v{{version}}"
-    }
-  },
-  "tasks": {
-    "checking": "Checking TaskMaster installation...",
-    "notInstalled": {
-      "title": "TaskMaster AI CLI Not Installed",
-      "description": "TaskMaster CLI is required to use task management features. Install it to get started:",
-      "installCommand": "npm install -g task-master-ai",
-      "viewOnGitHub": "View on GitHub",
-      "afterInstallation": "After installation:",
-      "steps": {
-        "restart": "Restart this application",
-        "autoAvailable": "TaskMaster features will automatically become available",
-        "initCommand": "Use task-master init in your project directory"
-      }
-    },
-    "settings": {
-      "enableLabel": "Enable TaskMaster Integration",
-      "enableDescription": "Show TaskMaster tasks, banners, and sidebar indicators across the interface"
     }
   },
   "agents": {

@@ -6,11 +6,11 @@
     <title>Pixcode - Self-hosted AI Coding Agent Control Plane</title>
     <meta
       name="description"
-      content="Pixcode is a self-hosted AI coding control plane for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, TaskMaster, files, shell, Git, orchestration, Telegram, MCP, plugins, and API automation."
+      content="Pixcode is a self-hosted AI coding control plane for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, VS Code-style workspaces, Monaco editing, terminal panels, Git, Hermes orchestration, Telegram, MCP, plugins, and API automation."
     />
     <meta
       name="keywords"
-      content="Pixcode, AI coding agent UI, self hosted coding agent, Claude Code UI, OpenAI Codex UI, Cursor CLI UI, Gemini CLI UI, Qwen Code UI, OpenCode UI, TaskMaster AI, OpenAI compatible API, coding agent orchestration, MCP manager, Telegram coding bot, local AI development workspace, AI coding dashboard"
+      content="Pixcode, AI coding agent UI, self hosted coding agent, Claude Code UI, OpenAI Codex UI, Cursor CLI UI, Gemini CLI UI, Qwen Code UI, OpenCode UI, Hermes Agent, coding agent orchestration, MCP manager, Telegram coding bot, local AI development workspace, AI coding dashboard"
     />
     <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
     <meta name="author" content="Pixcode Contributors" />
@@ -21,7 +21,7 @@
     <meta property="og:title" content="Pixcode - Self-hosted AI Coding Agent Control Plane" />
     <meta
       property="og:description"
-      content="Run AI coding CLIs, inspect files, manage shell and Git, orchestrate agent teams, plan with TaskMaster, and automate everything from your own machine or server."
+      content="Run AI coding CLIs, inspect files, manage terminal sessions and Git, orchestrate agent teams with Hermes, and automate everything from your own machine or server."
     />
     <meta property="og:url" content="https://alicomert.github.io/pixcode/landing.html" />
     <meta property="og:image" content="https://alicomert.github.io/pixcode/logo.png" />
@@ -34,8 +34,8 @@
         "name": "Pixcode",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Windows, macOS, Linux, Web",
-        "description": "Self-hosted control plane for AI coding agents, coding CLIs, files, shell, Git, orchestration, TaskMaster planning, Telegram, MCP, plugins, and API automation.",
-        "softwareVersion": "1.40.10",
+        "description": "Self-hosted control plane for AI coding agents, coding CLIs, files, terminal panels, Git, Hermes orchestration, Telegram, MCP, plugins, and API automation.",
+        "softwareVersion": "1.48.0",
         "codeRepository": "https://github.com/alicomert/pixcode",
         "downloadUrl": "https://www.npmjs.com/package/@pixelbyte-software/pixcode",
         "isAccessibleForFree": true,
@@ -46,10 +46,9 @@
         },
         "featureList": [
           "Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode workspace",
-          "Project chat, session history, shell, files, and source control",
+          "VS Code-style project workspaces, Monaco editor tabs, terminal sessions, files, and source control",
           "Git and local changed-file command center",
-          "Multi-agent orchestration with roles, models, fallbacks, and handoffs",
-          "TaskMaster planning with provider keys and custom OpenAI-compatible API URL support",
+          "Hermes multi-agent orchestration with roles, models, fallbacks, and handoffs",
           "REST and WebSocket API automation with px_ API keys",
           "Telegram bridge, browser notifications, MCP management, plugin support, and themes"
         ],
@@ -69,7 +68,7 @@
       <div class="nav-links">
         <a href="#what">What it does</a>
         <a href="#capabilities">Capabilities</a>
-        <a href="#taskmaster">TaskMaster</a>
+        <a href="#hermes">Hermes Agent</a>
         <a href="#install">Install</a>
         <a href="docs.html">Docs</a>
         <a href="https://github.com/alicomert/pixcode">GitHub</a>
@@ -82,7 +81,7 @@
         <h1>Run every coding agent from one place.</h1>
         <p class="lead">
           Pixcode turns your machine or server into a live workspace for AI coding CLIs.
-          It keeps chat, files, shell, Git/local changes, orchestration, TaskMaster planning,
+          It keeps project workspaces, Monaco editor tabs, terminal panels, Git/local changes, Hermes orchestration,
           Telegram, notifications, MCP, plugins, and API automation in one browser or desktop app.
         </p>
         <div class="actions">
@@ -107,7 +106,7 @@ open http://localhost:3001</code></pre>
           <span class="chip">Gemini CLI</span>
           <span class="chip">Qwen Code</span>
           <span class="chip">OpenCode</span>
-          <span class="chip">TaskMaster</span>
+          <span class="chip">Hermes Agent</span>
           <span class="chip">MCP</span>
           <span class="chip">Telegram</span>
           <span class="chip">px_ API keys</span>
@@ -157,8 +156,8 @@ open http://localhost:3001</code></pre>
           </article>
           <article class="capability-card">
             <span>05</span>
-            <h3>Plan with TaskMaster</h3>
-            <p>Enable PRD parsing, task planning, task status, and agent task execution with provider keys or a custom OpenAI-compatible API.</p>
+            <h3>Run Hermes Agent</h3>
+            <p>Route background review, verification, and workflow tasks through project-aware CLI adapters.</p>
           </article>
           <article class="capability-card">
             <span>06</span>
@@ -198,22 +197,21 @@ open http://localhost:3001</code></pre>
         </div>
       </section>
 
-      <section id="taskmaster" class="section warm">
+      <section id="hermes" class="section warm">
         <div class="split">
           <div>
-            <div class="eyebrow">TaskMaster and custom APIs</div>
-            <h2>Use known providers or bring any OpenAI-compatible endpoint.</h2>
+            <div class="eyebrow">Hermes Agent APIs</div>
+            <h2>Let Pixcode coordinate background agent work.</h2>
             <p class="sublead">
-              TaskMaster settings can store standard provider variables and custom
-              OpenAI-compatible API URL, API key, and model values. That lets a private
-              gateway, local router, hosted model provider, or company endpoint power
-              task planning without hardcoding one provider.
+              Hermes runs inside Pixcode, knows the selected project, and exposes
+              authenticated endpoints for status, agent routing, task history, streamed
+              output, and artifacts.
             </p>
           </div>
           <div class="code-panel">
-            <pre><code>OPENAI_API_KEY=sk-custom-...
-OPENAI_BASE_URL=https://your-provider.example.com/v1
-OPENAI_MODEL=your-model-id</code></pre>
+            <pre><code>GET /api/orchestration/hermes/status
+GET /api/orchestration/hermes/agents
+GET /api/orchestration/hermes/tasks/:id</code></pre>
           </div>
         </div>
       </section>

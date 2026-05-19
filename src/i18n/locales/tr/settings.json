@@ -116,7 +116,6 @@
     "appearance": "Görünüm",
     "git": "Git",
     "apiTokens": "API ve Token'lar",
-    "tasks": "Görevler",
     "notifications": "Bildirimler",
     "plugins": "Eklentiler",
     "mobile": "Mobilden Kullan",
@@ -286,21 +285,6 @@
         "label": "Yazı Tipi Boyutu",
         "description": "Editör yazı tipi boyutu (piksel)"
       }
-    },
-    "workbenchLayout": {
-      "title": "Çalışma alanı görünümü",
-      "label": "Workbench modu",
-      "description": "Masaüstünde kullanılacak uygulama kabuğunu seç.",
-      "options": {
-        "classic": {
-          "label": "Klasik Pixcode",
-          "description": "Mevcut chat odaklı Pixcode görünümü."
-        },
-        "vscode": {
-          "label": "VS Code tarzı",
-          "description": "Dosyalar, editör ve CLI olan üç panelli çalışma alanı."
-        }
-      }
     }
   },
   "mcpForm": {
@@ -430,25 +414,6 @@
     "loading": "Yükleniyor...",
     "version": {
       "updateAvailable": "Güncelleme mevcut: v{{version}}"
-    }
-  },
-  "tasks": {
-    "checking": "TaskMaster kurulumu kontrol ediliyor...",
-    "notInstalled": {
-      "title": "TaskMaster AI CLI Kurulu Değil",
-      "description": "Görev yönetim özelliklerini kullanmak için TaskMaster CLI gereklidir. Başlamak için kur:",
-      "installCommand": "npm install -g task-master-ai",
-      "viewOnGitHub": "GitHub'da Görüntüle",
-      "afterInstallation": "Kurulumdan sonra:",
-      "steps": {
-        "restart": "Bu uygulamayı yeniden başlat",
-        "autoAvailable": "TaskMaster özellikleri otomatik olarak kullanılabilir hale gelecek",
-        "initCommand": "Proje dizininde task-master init komutunu kullan"
-      }
-    },
-    "settings": {
-      "enableLabel": "TaskMaster Entegrasyonunu Etkinleştir",
-      "enableDescription": "TaskMaster görevlerini, banner'larını ve kenar çubuğu göstergelerini arayüz genelinde göster"
     }
   },
   "agents": {

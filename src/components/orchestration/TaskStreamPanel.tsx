@@ -4,21 +4,21 @@ import { useTranslation } from 'react-i18next';
 import { authenticatedFetch } from '../../utils/api';
 
 type TaskStreamPanelProps = {
-  a2aTaskId?: string;
+  hermesTaskId?: string;
 };
 
-export default function TaskStreamPanel({ a2aTaskId }: TaskStreamPanelProps) {
+export default function TaskStreamPanel({ hermesTaskId }: TaskStreamPanelProps) {
   const { t } = useTranslation();
   const [lines, setLines] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!a2aTaskId) {
+    if (!hermesTaskId) {
       setLines([]);
       return;
     }
     let cancelled = false;
     const load = async () => {
-      const response = await authenticatedFetch(`/a2a/tasks/${encodeURIComponent(a2aTaskId)}`);
+      const response = await authenticatedFetch(`/api/orchestration/hermes/tasks/${encodeURIComponent(hermesTaskId)}`);
       if (!response.ok || cancelled) return;
       const task = await response.json() as {
         history?: Array<{ parts?: Array<{ kind?: string; text?: string }> }>;
@@ -37,9 +37,9 @@ export default function TaskStreamPanel({ a2aTaskId }: TaskStreamPanelProps) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [a2aTaskId]);
+  }, [hermesTaskId]);
 
-  if (!a2aTaskId) return null;
+  if (!hermesTaskId) return null;
 
   return (
     <pre className="max-h-40 overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">

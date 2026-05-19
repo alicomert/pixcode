@@ -8,7 +8,6 @@ import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import AgentConnectionsStep from './subcomponents/AgentConnectionsStep';
 import GitConfigurationStep from './subcomponents/GitConfigurationStep';
 import OnboardingStepProgress from './subcomponents/OnboardingStepProgress';
-import TaskSystemStep from './subcomponents/TaskSystemStep';
 import {
   gitEmailPattern,
   readErrorMessageFromResponse,
@@ -27,15 +26,6 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeLoginProvider, setActiveLoginProvider] = useState<LLMProvider | null>(null);
-  const [taskSystemEnabled, setTaskSystemEnabled] = useState(() => {
-    try {
-      const stored = localStorage.getItem('tasks-enabled');
-      return stored === null ? true : JSON.parse(stored) !== false;
-    } catch {
-      return true;
-    }
-  });
-  const [isTaskSystemReady, setIsTaskSystemReady] = useState(false);
   const {
     providerAuthStatus,
     checkProviderAuthStatus,
@@ -137,16 +127,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   const handleFinish = async () => {
-    if (taskSystemEnabled && !isTaskSystemReady) {
-      setErrorMessage('Install TaskMaster or disable TaskMaster features to finish setup.');
-      return;
-    }
-
     setIsSubmitting(true);
     setErrorMessage('');
 
     try {
-      localStorage.setItem('tasks-enabled', JSON.stringify(taskSystemEnabled));
       const response = await authenticatedFetch('/api/user/complete-onboarding', { method: 'POST' });
       if (!response.ok) {
         const message = await readErrorMessageFromResponse(response, 'Failed to complete onboarding');
@@ -163,9 +147,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const isCurrentStepValid = currentStep === 0
     ? Boolean(gitName.trim() && gitEmail.trim() && gitEmailPattern.test(gitEmail))
-    : currentStep === 2
-      ? (!taskSystemEnabled || isTaskSystemReady)
-      : true;
+    : true;
 
   return (
     <>
@@ -188,10 +170,9 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 onOpenProviderLogin={handleProviderLoginOpen}
               />
             ) : (
-              <TaskSystemStep
-                enabled={taskSystemEnabled}
-                onEnabledChange={setTaskSystemEnabled}
-                onReadyChange={setIsTaskSystemReady}
+              <AgentConnectionsStep
+                providerStatuses={providerAuthStatus}
+                onOpenProviderLogin={handleProviderLoginOpen}
               />
             )}
 
@@ -212,7 +193,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               </button>
 
               <div className="flex items-center gap-3">
-                {currentStep < 2 ? (
+                {currentStep < 1 ? (
                   <button
                     onClick={handleNextStep}
                     disabled={!isCurrentStepValid || isSubmitting}

@@ -114,7 +114,6 @@
     "appearance": "外观",
     "git": "Git",
     "apiTokens": "API 和令牌",
-    "tasks": "任务",
     "notifications": "通知",
     "plugins": "插件",
     "mobile": "移动端使用",
@@ -173,21 +172,6 @@
       "fontSize": {
         "label": "字体大小",
         "description": "编辑器字体大小（px）"
-      }
-    },
-    "workbenchLayout": {
-      "title": "工作区布局",
-      "label": "Workbench 模式",
-      "description": "选择桌面端应用外壳。",
-      "options": {
-        "classic": {
-          "label": "经典 Pixcode",
-          "description": "当前以聊天为中心的 Pixcode 布局。"
-        },
-        "vscode": {
-          "label": "VS Code 风格",
-          "description": "包含文件、编辑器和 CLI 的三栏工作区。"
-        }
       }
     }
   },
@@ -318,25 +302,6 @@
     "loading": "加载中...",
     "version": {
       "updateAvailable": "有可用更新：v{{version}}"
-    }
-  },
-  "tasks": {
-    "checking": "正在检查 TaskMaster 安装...",
-    "notInstalled": {
-      "title": "未安装 TaskMaster AI CLI",
-      "description": "需要 TaskMaster CLI 才能使用任务管理功能。安装它以开始使用：",
-      "installCommand": "npm install -g task-master-ai",
-      "viewOnGitHub": "在 GitHub 上查看",
-      "afterInstallation": "安装后：",
-      "steps": {
-        "restart": "重启此应用程序",
-        "autoAvailable": "TaskMaster 功能将自动可用",
-        "initCommand": "在项目目录中使用 task-master init"
-      }
-    },
-    "settings": {
-      "enableLabel": "启用 TaskMaster 集成",
-      "enableDescription": "在整个界面中显示 TaskMaster 任务、横幅和侧边栏指示器"
     }
   },
   "agents": {

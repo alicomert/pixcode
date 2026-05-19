@@ -1,59 +1,24 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
-const taskmasterRoutes = readFileSync('server/routes/taskmaster.js', 'utf8');
-const taskmasterConfig = readFileSync('server/services/taskmaster-config.js', 'utf8');
-const tasksSettingsContext = readFileSync('src/contexts/TasksSettingsContext.jsx', 'utf8');
-const tasksSettingsTab = readFileSync('src/components/settings/view/tabs/tasks-settings/TasksSettingsTab.tsx', 'utf8');
-const mainContentState = readFileSync('src/components/main-content/view/subcomponents/MainContentStateView.tsx', 'utf8');
+const read = (path) => readFileSync(path, 'utf8');
 
-assert.ok(
-  taskmasterConfig.includes('TASKMASTER_CONFIG_FIELDS') && taskmasterConfig.includes('ANTHROPIC_API_KEY'),
-  'TaskMaster should have a dedicated config store for provider environment variables.',
-);
+const serverIndex = read('server/index.js');
+const api = read('src/utils/api.js');
+const app = read('src/App.tsx');
+const settings = read('src/components/settings/view/Settings.tsx');
+const settingsSidebar = read('src/components/settings/view/SettingsSidebar.tsx');
 
-assert.ok(
-  taskmasterConfig.includes('OPENAI_BASE_URL') && taskmasterConfig.includes('AZURE_OPENAI_ENDPOINT'),
-  'TaskMaster config should support API URL / endpoint fields, not only keys.',
-);
+assert.doesNotMatch(serverIndex, /taskmasterRoutes|\/api\/taskmaster/, 'TaskMaster API route should not be mounted.');
+assert.doesNotMatch(api, /taskmaster:\s*\{|\/api\/taskmaster/, 'Frontend API client should not expose TaskMaster endpoints.');
+assert.doesNotMatch(app, /TaskMasterProvider/, 'App should not mount TaskMasterProvider.');
+assert.doesNotMatch(settings, /TasksSettingsTab|activeTab === 'tasks'/, 'Settings should not render the TaskMaster settings tab.');
+assert.doesNotMatch(settingsSidebar, /mainTabs\.tasks|id: 'tasks'/, 'Settings navigation should not include Tasks.');
+assert.ok(!existsSync('src/components/onboarding/view/subcomponents/TaskSystemStep.tsx'), 'TaskMaster onboarding step should be removed.');
+assert.ok(!existsSync('src/components/task-master'), 'TaskMaster component directory should be removed.');
+assert.ok(!existsSync('src/components/prd-editor'), 'TaskMaster PRD editor should be removed.');
+assert.ok(!existsSync('server/routes/taskmaster.js'), 'TaskMaster backend route file should be removed.');
 
-assert.ok(
-  taskmasterConfig.includes('openaiCompatibleApiKey')
-    && taskmasterConfig.includes('OPENAI_COMPATIBLE_BASE_URL')
-    && taskmasterConfig.includes('CUSTOM_OPENAI_API_KEY')
-    && taskmasterConfig.includes('buildTaskMasterConfigEnvValues'),
-  'TaskMaster config should support custom OpenAI-compatible API keys, API URLs, model values, and shared env resolution.',
-);
-
-assert.ok(
-  taskmasterRoutes.includes("router.get('/config'") && taskmasterRoutes.includes("router.put('/config'"),
-  'TaskMaster routes should expose authenticated config read/write endpoints.',
-);
-
-assert.ok(
-  taskmasterRoutes.includes('buildTaskMasterCliEnv') && taskmasterRoutes.includes('task-master-ai'),
-  'TaskMaster CLI execution should receive saved env config and detect both task-master and task-master-ai binaries.',
-);
-
-assert.ok(
-  tasksSettingsContext.includes('refreshTaskMasterInstallation'),
-  'Task settings context should expose a manual TaskMaster installation refresh action.',
-);
-
-assert.ok(
-  tasksSettingsTab.includes('/api/taskmaster/config')
-    && tasksSettingsTab.includes('ANTHROPIC_API_KEY')
-    && tasksSettingsTab.includes('OPENAI_BASE_URL')
-    && tasksSettingsTab.includes('Custom OpenAI-compatible')
-    && tasksSettingsTab.includes('OPENAI_COMPATIBLE_MODEL'),
-  'Task settings tab should let users save TaskMaster API keys, API URLs, and custom OpenAI-compatible provider settings.',
-);
-
-assert.ok(
-  mainContentState.includes('pixcode:create-project') && mainContentState.includes('mainContent.landing.taskSystem'),
-  'Landing Task system card should be actionable instead of a static locked-looking panel.',
-);
-
-console.log('taskmaster config smoke passed');
+console.log('taskmaster removal smoke passed');

@@ -5,10 +5,8 @@ import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck, type VersionCheckResult } from '../../../hooks/useVersionCheck';
 import { useUiPreferences, type HistoryViewMode } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
-import { useTaskMaster } from '../../../contexts/TaskMasterContext';
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
-import type { MCPServerStatus, SidebarProps } from '../types/types';
+import type { SidebarProps } from '../types/types';
 import type { WorkspaceType } from '../../project-creation-wizard/types';
 
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
@@ -18,11 +16,6 @@ import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList
 import type { SidebarFlatSessionListProps } from './subcomponents/SidebarFlatSessionList';
 
 const VERSION_RELEASE_NOTES_SEEN_KEY = 'pixcode.version.releaseNotes.seenVersion';
-
-type TaskMasterSidebarContext = {
-  setCurrentProject: (project: Project) => void;
-  mcpServerStatus: MCPServerStatus;
-};
 
 function Sidebar({
   projects,
@@ -57,8 +50,6 @@ function Sidebar({
   const [versionModalSnapshot, setVersionModalSnapshot] = useState<VersionCheckResult | null>(null);
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible, historyView } = preferences;
-  const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
-  const { tasksEnabled } = useTasksSettings();
   const [newProjectInitialType, setNewProjectInitialType] = useState<WorkspaceType>('existing');
 
   const {
@@ -125,7 +116,6 @@ function Sidebar({
     onSessionSelect,
     onSessionDelete,
     onProjectDelete,
-    setCurrentProject,
     setSidebarVisible: (visible) => setPreference('sidebarVisible', visible),
     sidebarVisible,
   });
@@ -241,8 +231,6 @@ function Sidebar({
     editingSession,
     editingSessionName,
     deletingProjects,
-    tasksEnabled,
-    mcpServerStatus,
     getProjectSessions,
     isProjectStarred,
     isSessionStarred,

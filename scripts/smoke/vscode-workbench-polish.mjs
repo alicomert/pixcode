@@ -41,6 +41,18 @@ assert.match(
   'Projects activity should use a dedicated project-directory panel.',
 );
 
+assert.match(
+  workbench,
+  /function WorkbenchProjectLanding/,
+  'Workbench center should show a project landing page instead of a blank editor when no project is selected.',
+);
+
+assert.match(
+  workbench,
+  /function WorkbenchCliPanel/,
+  'Right workbench pane should use a terminal-only CLI panel.',
+);
+
 assert.doesNotMatch(
   workbench,
   /return <Sidebar \{\.\.\.sidebarProps\} isMobile=\{false\} \/>/,
@@ -59,6 +71,12 @@ assert.match(
   'Projects panel should show file counts.',
 );
 
+assert.match(
+  workbench,
+  /Work in this folder/,
+  'Project cards should make the folder binding explicit.',
+);
+
 assert.match(projectType, /fileCount\?: number/, 'Project type should expose optional fileCount metadata.');
 assert.match(projectsServer, /async function countProjectFiles/, 'Backend should count project files for the workbench project list.');
 
@@ -74,11 +92,7 @@ assert.doesNotMatch(
   'Workbench center panel should be allowed to shrink with narrow three-pane layouts.',
 );
 
-assert.match(
-  workbench,
-  /compactComposer/,
-  'Workbench should request compact composer behavior in the right CLI pane.',
-);
+assert.doesNotMatch(workbench, /<ChatInterface/, 'Workbench should not embed the chat composer in the right CLI pane.');
 
 assert.match(
   workbench,

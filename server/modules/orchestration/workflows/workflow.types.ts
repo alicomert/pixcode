@@ -58,7 +58,7 @@ export interface WorkflowNodeRun {
   fallbackTrigger?: WorkflowFallbackTrigger;
   fallbackSourceNodeId?: string;
   status: WorkflowNodeStatus;
-  a2aTaskId?: string;
+  hermesTaskId?: string;
   startedAt?: number;
   finishedAt?: number;
   error?: string;

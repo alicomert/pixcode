@@ -3,7 +3,7 @@
 // All cross-module consumers must import from here per
 // eslint.config.js boundaries rules.
 
-export { createA2ARouter } from './a2a/routes.js';
+export { createHermesTaskRouter } from './a2a/routes.js';
 export { adapterRegistry } from './a2a/adapter-registry.js';
 export { ClaudeCodeA2AAdapter } from './a2a/adapters/claude-code.adapter.js';
 export { CodexA2AAdapter } from './a2a/adapters/codex.adapter.js';
@@ -30,6 +30,7 @@ export {
 } from './security/permission-policy.js';
 export { createOrchestrationTaskRouter } from './tasks/orchestration-task.routes.js';
 export { orchestrationTaskService } from './tasks/orchestration-task.service.js';
+export { createHermesRouter } from './hermes/hermes.routes.js';
 export { createWorkflowRouter } from './workflows/workflow.routes.js';
 export {
   listPendingApprovals,

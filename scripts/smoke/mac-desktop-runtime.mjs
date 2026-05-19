@@ -2,7 +2,6 @@
 import { readFileSync } from 'node:fs';
 
 const installJobs = readFileSync('server/services/install-jobs.js', 'utf8');
-const taskmaster = readFileSync('server/routes/taskmaster.js', 'utf8');
 const codexAuth = readFileSync('server/modules/providers/list/codex/codex-auth.provider.ts', 'utf8');
 const cursorAuth = readFileSync('server/modules/providers/list/cursor/cursor-auth.provider.ts', 'utf8');
 const geminiAuth = readFileSync('server/modules/providers/list/gemini/gemini-auth.provider.ts', 'utf8');
@@ -27,12 +26,7 @@ assert(
 
 assert(
   installJobs.includes("findExecutableOnPath('npm'") && installJobs.includes('buildCliSpawnEnv'),
-  'Task/CLI installers should resolve npm from the augmented runtime PATH before spawning',
-);
-
-assert(
-  taskmaster.includes('findExecutableOnPath') && !taskmaster.includes("spawn('which'"),
-  'TaskMaster status should use Pixcode executable resolution, not bare which from a minimal GUI PATH',
+  'CLI installers should resolve npm from the augmented runtime PATH before spawning',
 );
 
 assert(codexAuth.includes('CODEX_CLI_PATH'), 'Codex auth should honor CODEX_CLI_PATH');

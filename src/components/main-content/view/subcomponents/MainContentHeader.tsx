@@ -11,7 +11,6 @@ export default function MainContentHeader({
   setActiveTab,
   selectedProject,
   selectedSession,
-  shouldShowTasksTab,
   liveViewAvailable,
   activeSidePanelTab,
   sidePanelMode,
@@ -49,7 +48,6 @@ export default function MainContentHeader({
             activeTab={activeTab}
             selectedProject={selectedProject}
             selectedSession={selectedSession}
-            shouldShowTasksTab={shouldShowTasksTab}
           />
         </div>
 
@@ -67,7 +65,6 @@ export default function MainContentHeader({
                 <MainContentTabSwitcher
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
-                  shouldShowTasksTab={shouldShowTasksTab}
                   liveViewAvailable={liveViewAvailable}
                   activeSidePanelTab={activeSidePanelTab}
                   sidePanelMode={sidePanelMode}

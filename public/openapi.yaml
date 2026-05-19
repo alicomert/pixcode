@@ -73,7 +73,7 @@ tags:
   - name: Providers
     description: Multi-CLI provider auth, install, sessions, configuration.
   - name: Orchestration
-    description: A2A-backed multi-agent workflow planning, preview, execution, streaming, and cancellation.
+    description: Hermes-backed multi-agent workflow planning, preview, execution, streaming, and cancellation.
   - name: Network
     description: LAN discovery, UPnP, public tunnel.
   - name: Settings
@@ -280,7 +280,7 @@ components:
         status:
           type: string
           enum: [queued, running, completed, failed, canceled, skipped]
-        a2aTaskId: { type: string }
+        hermesTaskId: { type: string }
         startedAt: { type: integer, format: int64 }
         finishedAt: { type: integer, format: int64 }
         error: { type: string }
@@ -324,7 +324,7 @@ components:
         workflowId: { type: string, example: agent_team }
         contextId:
           type: string
-          description: Shared A2A context id used by every child task in this run.
+          description: Shared Hermes context id used by every child task in this run.
           example: ctx_1234abcd
         status:
           type: string
@@ -1386,9 +1386,9 @@ paths:
       tags: [Orchestration]
       summary: Start a workflow run
       description: |
-        Starts a multi-agent workflow. Every child A2A task shares one
-        `contextId`, and the returned `nodeRuns[].a2aTaskId` values can be used
-        for low-level A2A inspection.
+        Starts a multi-agent workflow. Every child Hermes task shares one
+        `contextId`, and returned child task ids can be used for low-level
+        Hermes inspection.
 
         For `agent_team`, Pixcode creates a coordinator, optional bounded
         backend handoff nodes, worker nodes, review nodes, and a final report.
@@ -1481,7 +1481,7 @@ paths:
   /api/orchestration/workflows/runs/{runId}/cancel:
     post:
       tags: [Orchestration]
-      summary: Cancel a workflow run and active child A2A tasks
+      summary: Cancel a workflow run and active child Hermes tasks
       parameters:
         - name: runId
           in: path

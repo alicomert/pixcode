@@ -79,7 +79,6 @@ class OrchestrationTaskService {
       projectId: input.projectId,
       title: input.title,
       description: input.description,
-      taskmasterId: input.taskmasterId,
       acceptanceCriteria: input.acceptanceCriteria,
       changedFiles: input.changedFiles,
       state: 'todo',
@@ -90,27 +89,11 @@ class OrchestrationTaskService {
     return task;
   }
 
-  upsertFromTaskMaster(input: CreateOrchestrationTaskInput): OrchestrationTask {
-    const existing = this.store.list(input.projectId).find((task) =>
-      task.taskmasterId === input.taskmasterId,
-    );
-    if (existing) {
-      existing.title = input.title;
-      existing.description = input.description;
-      existing.acceptanceCriteria = input.acceptanceCriteria ?? existing.acceptanceCriteria;
-      existing.changedFiles = uniqueStrings([...(existing.changedFiles ?? []), ...(input.changedFiles ?? [])]);
-      existing.updatedAt = Date.now();
-      this.store.set(existing);
-      return existing;
-    }
-    return this.create(input);
-  }
-
   async dispatch(taskId: string, input: DispatchOrchestrationTaskInput): Promise<OrchestrationTask> {
     const task = this.store.get(taskId);
     if (!task) throw new Error('TASK_NOT_FOUND');
 
-    const a2aResponse = await fetch(`http://127.0.0.1:${process.env.SERVER_PORT ?? '3001'}/a2a/tasks`, {
+    const a2aResponse = await fetch(`http://127.0.0.1:${process.env.SERVER_PORT ?? '3001'}/hermes/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -129,7 +112,6 @@ class OrchestrationTaskService {
             projectPath: input.projectPath,
           },
           orchestrationTaskId: task.id,
-          taskmasterId: task.taskmasterId,
         },
       }),
     });
@@ -139,7 +121,7 @@ class OrchestrationTaskService {
       throw new Error(body?.error?.message ?? 'DISPATCH_FAILED');
     }
 
-    task.a2aTaskId = body.id;
+    task.hermesTaskId = body.id;
     task.adapterId = input.adapterId;
     task.adapterSelector = input.adapterId;
     task.workspaceKind = input.isolation ?? 'worktree';
@@ -163,12 +145,7 @@ class OrchestrationTaskService {
   updateFromWorkflowRun(run: WorkflowRun): OrchestrationTask | undefined {
     const metadata = run.metadata ?? {};
     const taskId = readString(metadata.orchestrationTaskId);
-    const taskmasterId = readString(metadata.taskmasterId);
-    const task = taskId
-      ? this.store.get(taskId)
-      : taskmasterId
-        ? this.store.list(readString(metadata.projectId)).find((candidate) => candidate.taskmasterId === taskmasterId)
-        : undefined;
+    const task = taskId ? this.store.get(taskId) : undefined;
     if (!task) return undefined;
 
     const changedFiles = changedFilesFromWorkflowRun(run);
@@ -187,9 +164,6 @@ class OrchestrationTaskService {
     task.updatedAt = Date.now();
     this.store.set(task);
 
-    if (task.taskmasterId && task.state === 'done') {
-      this.syncTaskMasterStatus(task.taskmasterId, 'done');
-    }
     return task;
   }
 
@@ -207,7 +181,7 @@ class OrchestrationTaskService {
       if (event.kind !== 'task-state') return;
       if (!TERMINAL_A2A_STATES.includes(event.state)) return;
 
-      const orchTask = this.store.getByA2ATaskId(event.taskId);
+      const orchTask = this.store.getByHermesTaskId(event.taskId);
       if (!orchTask) return;
       if (orchTask.state === 'done' || orchTask.state === 'failed' || orchTask.state === 'canceled') return;
 
@@ -219,18 +193,7 @@ class OrchestrationTaskService {
       orchTask.updatedAt = Date.now();
       this.store.set(orchTask);
 
-      if (orchTask.taskmasterId && mapped === 'done') {
-        this.syncTaskMasterStatus(orchTask.taskmasterId, 'done');
-      }
     });
-  }
-
-  private syncTaskMasterStatus(taskmasterId: string, status: string): void {
-    const { spawn } = require('node:child_process') as typeof import('node:child_process');
-    spawn('task-master', ['set-status', '--id', taskmasterId, '--status', status], {
-      stdio: 'ignore',
-      detached: true,
-    }).unref();
   }
 
   cancel(taskId: string): OrchestrationTask {

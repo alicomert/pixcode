@@ -4,7 +4,7 @@ import type { MainContentStateViewProps } from '../../types/types';
 
 import MobileMenuButton from './MobileMenuButton';
 
-import { ClipboardCheck, Folder, FolderPlus, Sparkles, Workflow } from '@/lib/icons';
+import { Folder, FolderPlus, Sparkles, Workflow } from '@/lib/icons';
 
 export default function MainContentStateView({
   mode,
@@ -12,7 +12,6 @@ export default function MainContentStateView({
   onMenuClick,
   onQuickStartSession,
   onQuickStartOrchestration,
-  onQuickStartTasks,
   onOpenControlRoom,
 }: MainContentStateViewProps) {
   const { t } = useTranslation();
@@ -100,7 +99,7 @@ export default function MainContentStateView({
 
               <button
                 type="button"
-                onClick={() => { void onQuickStartTasks?.(); }}
+                onClick={() => window.dispatchEvent(new CustomEvent('pixcode:create-project'))}
                 className="rounded-md border border-border p-4 text-left transition-colors hover:bg-muted/40"
               >
                 <FolderPlus className="mb-3 h-5 w-5 text-foreground" />
@@ -111,18 +110,6 @@ export default function MainContentStateView({
                   {t('mainContent.landing.createProjectDescription', {
                     defaultValue: 'Add an existing workspace or create a folder, then open the provider picker for coding.',
                   })}
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('pixcode:create-project'))}
-                className="rounded-md border border-border p-4 text-left transition-colors hover:bg-muted/40"
-              >
-                <ClipboardCheck className="mb-3 h-5 w-5 text-foreground" />
-                <div className="text-sm font-semibold">{t('mainContent.landing.taskSystem')}</div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  {t('mainContent.landing.taskSystemDescription')}
                 </p>
               </button>
             </div>

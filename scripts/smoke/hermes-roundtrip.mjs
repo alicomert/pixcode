@@ -1,7 +1,7 @@
-// scripts/smoke/a2a-roundtrip.mjs
-// End-to-end smoke check for the A2A foundation.
+// scripts/smoke/hermes-roundtrip.mjs
+// End-to-end smoke check for the Hermes task router.
 //
-// Usage:   node scripts/smoke/a2a-roundtrip.mjs [baseUrl]
+// Usage:   node scripts/smoke/hermes-roundtrip.mjs [baseUrl]
 // Default: http://127.0.0.1:3001
 //
 // Pre-reqs:
@@ -9,10 +9,10 @@
 //   - ANTHROPIC_API_KEY (or pixcode auth) configured for Claude Code
 //
 // What it does:
-//   1. GET /a2a/.well-known/agent-card.json   - sanity check
-//   2. GET /a2a/agents                        - confirms claude-code is registered
-//   3. POST /a2a/tasks                        - submits a tiny task
-//   4. Streams /a2a/tasks/:id/stream          - prints events until terminal state
+//   1. GET /hermes/.well-known/agent-card.json   - sanity check
+//   2. GET /hermes/agents                        - confirms claude-code is registered
+//   3. POST /hermes/tasks                        - submits a tiny task
+//   4. Streams /hermes/tasks/:id/stream          - prints events until terminal state
 //
 // Pass/fail:
 //   Exits 0 on terminal state "completed". Non-zero otherwise.
@@ -35,13 +35,13 @@ async function jpost(path, body) {
 }
 
 async function main() {
-  console.log('1) /a2a/.well-known/agent-card.json');
-  const card = await jget('/a2a/.well-known/agent-card.json');
+  console.log('1) /hermes/.well-known/agent-card.json');
+  const card = await jget('/hermes/.well-known/agent-card.json');
   console.log('   name=', card.name, 'version=', card.version);
   if (card.name !== 'pixcode') throw new Error('AgentCard.name != "pixcode"');
 
-  console.log('2) /a2a/agents');
-  const agents = await jget('/a2a/agents');
+  console.log('2) /hermes/agents');
+  const agents = await jget('/hermes/agents');
   const ids = agents.agents.map((a) => a.name);
   console.log('   registered:', ids.join(', '));
   const expectedAgents = [
@@ -58,8 +58,8 @@ async function main() {
     }
   }
 
-  console.log('3) POST /a2a/adapters/resolve');
-  const resolveRes = await jpost('/a2a/adapters/resolve', {
+  console.log('3) POST /hermes/adapters/resolve');
+  const resolveRes = await jpost('/hermes/adapters/resolve', {
     adapterId: 'skill:typescript-edit',
     routing: { preferredAdapterId: 'codex' },
   });
@@ -69,8 +69,8 @@ async function main() {
     throw new Error('skill resolution did not honor preferredAdapterId=codex');
   }
 
-  console.log('4) POST /a2a/tasks (invalid adapter)');
-  const invalidSubmit = await jpost('/a2a/tasks', {
+  console.log('4) POST /hermes/tasks (invalid adapter)');
+  const invalidSubmit = await jpost('/hermes/tasks', {
     adapterId: 'missing-adapter',
     message: {
       messageId: 'm_invalid_adapter',
@@ -82,8 +82,8 @@ async function main() {
     throw new Error(`invalid submit -> expected 404, got ${invalidSubmit.status}`);
   }
 
-  console.log('5) POST /a2a/messages (missing task)');
-  const missingTaskMessage = await jpost('/a2a/messages', {
+  console.log('5) POST /hermes/messages (missing task)');
+  const missingTaskMessage = await jpost('/hermes/messages', {
     messageId: 'm_missing_task',
     role: 'user',
     taskId: 'task_missing',
@@ -93,8 +93,8 @@ async function main() {
     throw new Error(`missing task message -> expected 404, got ${missingTaskMessage.status}`);
   }
 
-  console.log('6) POST /a2a/tasks');
-  const submitRes = await jpost('/a2a/tasks', {
+  console.log('6) POST /hermes/tasks');
+  const submitRes = await jpost('/hermes/tasks', {
     adapterId: 'claude-code',
     message: {
       messageId: 'm_smoke_1',
@@ -112,8 +112,8 @@ async function main() {
     throw new Error('resolved adapterId was not persisted to task metadata');
   }
 
-  console.log('7) GET /a2a/tasks?adapterId=claude-code&limit=5');
-  const listedTasks = await jget('/a2a/tasks?adapterId=claude-code&limit=5');
+  console.log('7) GET /hermes/tasks?adapterId=claude-code&limit=5');
+  const listedTasks = await jget('/hermes/tasks?adapterId=claude-code&limit=5');
   if (!Array.isArray(listedTasks.tasks) || listedTasks.count < 1) {
     throw new Error('task listing did not return any tasks');
   }
@@ -125,8 +125,8 @@ async function main() {
     throw new Error('task summary adapterId mismatch');
   }
 
-  console.log('8) GET /a2a/tasks/:id/stream (SSE)');
-  const streamRes = await fetch(`${baseUrl}/a2a/tasks/${task.id}/stream`);
+  console.log('8) GET /hermes/tasks/:id/stream (SSE)');
+  const streamRes = await fetch(`${baseUrl}/hermes/tasks/${task.id}/stream`);
   if (!streamRes.ok) throw new Error(`stream -> ${streamRes.status}`);
 
   const reader = streamRes.body.getReader();

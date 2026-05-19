@@ -2,6 +2,32 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.48.0](https://github.com/alicomert/pixcode/compare/v1.47.5...v1.48.0) (2026-05-19)
+
+Pixcode 1.48.0 makes the VS Code workbench the only desktop experience, removes the TaskMaster product surface, and moves orchestration behind Hermes Agent.
+
+### Breaking Changes
+
+* **workbench:** remove the Classic Pixcode desktop layout switcher from login, settings, and the runtime shell.
+* **taskmaster:** remove TaskMaster UI, settings, onboarding, backend routes, and public API manifest entries.
+
+### New Features
+
+* **workbench:** open directly on a project/workspace landing with project cards, add/open/clone actions, and workspace slots in Explorer.
+* **editor:** add a tabbed Monaco editing surface in the center pane for opened files.
+* **cli:** make the right workbench panel a terminal-first CLI surface with provider launch, new-session, and project-scoped history controls.
+* **orchestration:** add Hermes Agent status/context/agent/task APIs and route internal task dispatch through `/hermes`.
+
+### Fixes
+
+* **files:** refresh the Explorer tree when project/file websocket updates arrive so AI-created files appear without a manual reload.
+* **shell:** stop automatically opening Codex in the workbench terminal and remove the stuck chat/continue shell handoff.
+* **docs:** replace public TaskMaster/A2A wording with Hermes/workbench terminology.
+
+### Tests
+
+* add Pixcode 1.48 workbench smoke coverage for Classic removal, workspace landing, tabbed editor state, terminal-only right panel, TaskMaster removal, Hermes routing, and file refresh events.
+
 ## [1.47.5](https://github.com/alicomert/pixcode/compare/v1.47.4...v1.47.5) (2026-05-19)
 
 Pixcode 1.47.5 fixes provider status cards in the VS Code workbench picker.

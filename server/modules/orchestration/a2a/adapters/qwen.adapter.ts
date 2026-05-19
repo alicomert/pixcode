@@ -40,7 +40,7 @@ export class QwenA2AAdapter extends AbstractA2AAdapter {
   readonly agentCard: AgentCard = {
     name: 'pixcode-qwen',
     description: 'Qwen Code CLI, accessed via Pixcode',
-    url: '/a2a/agents/qwen',
+    url: '/hermes/agents/qwen',
     version: '1.0.0',
     capabilities: ['streaming', 'fileEdit', 'commandExec', 'mcp'],
     skills: [

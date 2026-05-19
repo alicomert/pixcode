@@ -25,11 +25,6 @@ export default function TaskCard({ task, onDispatch, onCancel }: TaskCardProps) 
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-sm font-semibold">{task.title}</h3>
-            {task.taskmasterId ? (
-              <Badge variant="outline" className="text-[10px]">
-                {t('orchestration.taskMasterSource')}
-              </Badge>
-            ) : null}
           </div>
           {task.description ? (
             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
@@ -49,7 +44,7 @@ export default function TaskCard({ task, onDispatch, onCancel }: TaskCardProps) 
         ) : null}
       </div>
       <div className="mt-3">
-        <TaskStreamPanel a2aTaskId={task.a2aTaskId} />
+        <TaskStreamPanel hermesTaskId={task.hermesTaskId} />
       </div>
       <div className="mt-3 flex justify-end gap-2">
         {canDispatch ? (

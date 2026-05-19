@@ -1,5 +1,6 @@
 // server/modules/orchestration/a2a/routes.ts
-// HTTP surface for A2A v0.2. Mounted at /a2a in server/index.js.
+// Internal Hermes task router. The adapter primitives still live in this legacy
+// folder, but the public mount is /hermes.
 
 import crypto from 'node:crypto';
 
@@ -257,7 +258,7 @@ for (const task of taskStore.values()) {
   }
 }
 
-export function createA2ARouter(): Router {
+function createA2ARouter(): Router {
   const router: Router = express.Router();
 
   router.use(express.json({ limit: '5mb' }));
@@ -582,4 +583,8 @@ export function createA2ARouter(): Router {
   });
 
   return router;
+}
+
+export function createHermesTaskRouter(): Router {
+  return createA2ARouter();
 }

@@ -25,27 +25,16 @@ export default function TaskBoard() {
     createTask,
     dispatchTask,
     cancelTask,
-    syncTaskMaster,
   } = useOrchestrationTasks('default');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dispatching, setDispatching] = useState<UnifiedTask | null>(null);
-  const [syncing, setSyncing] = useState(false);
 
   const submit = async () => {
     if (!title.trim()) return;
     await createTask(title.trim(), description.trim());
     setTitle('');
     setDescription('');
-  };
-
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      await syncTaskMaster('default');
-    } finally {
-      setSyncing(false);
-    }
   };
 
   return (
@@ -72,9 +61,9 @@ export default function TaskBoard() {
             <Plus />
             {t('orchestration.addTask')}
           </Button>
-          <Button type="button" variant="outline" onClick={() => void handleSync()} disabled={syncing}>
-            <RefreshCw className={syncing ? 'animate-spin' : ''} />
-            {t('orchestration.syncTaskMaster')}
+          <Button type="button" variant="outline" onClick={() => void createTask('Hermes check', 'Review the active Pixcode workspace and suggest the next safe action.')}>
+            <RefreshCw />
+            {t('orchestration.hermesTitle', { defaultValue: 'Hermes Agent' })}
           </Button>
         </div>
       </header>

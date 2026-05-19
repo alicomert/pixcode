@@ -144,35 +144,21 @@ Orchestration controls include:
 - streamed step output and final report,
 - resizable setup/output panes.
 
-### TaskMaster planning
+### Hermes Agent orchestration
 
-Pixcode can integrate TaskMaster-backed planning into project work. The Tasks
-tab is meant for PRD parsing, task breakdown, task status, and handing planned
-work to agents.
+Pixcode uses Hermes Agent as the orchestration control plane for background
+agent work. Hermes runs inside the current Pixcode instance, understands the
+active project context, and can route bounded tasks to Claude Code, Codex,
+Cursor, Gemini, Qwen, or OpenCode through terminal-first CLI adapters.
 
-TaskMaster settings support both known provider variables and custom
-OpenAI-compatible endpoints:
+Hermes controls include:
 
-- `ANTHROPIC_API_KEY`
-- `PERPLEXITY_API_KEY`
-- `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `GOOGLE_API_KEY` / `GEMINI_API_KEY`
-- `OPENROUTER_API_KEY`
-- `AZURE_OPENAI_API_KEY`
-- `AZURE_OPENAI_ENDPOINT`
-- `OLLAMA_BASE_URL`
-- custom OpenAI-compatible API key, API URL, and model fields
-
-For a private gateway, local model router, or third-party OpenAI-compatible
-provider, open Settings, go to Tasks, and set:
-
-- Custom OpenAI-compatible key
-- Custom OpenAI-compatible API URL
-- Custom OpenAI-compatible model, optional
-
-Pixcode maps those values into the environment TaskMaster expects during CLI
-execution, while keeping secret values masked in UI responses.
+- project-scoped task context,
+- provider/model routing,
+- streamed task status and artifacts,
+- workflow run coordination,
+- background checks and previews,
+- authenticated local APIs under `/api/orchestration/hermes`.
 
 ### API-first automation
 
@@ -342,7 +328,7 @@ only for separate Vite frontend development.
 2. Add the project folders you want to manage.
 3. Connect the CLI providers you actually use.
 4. Open Settings and check provider install/auth/model status.
-5. Enable TaskMaster if you want planning and task execution flows.
+5. Use Hermes Agent if you want background workflow and review flows.
 6. Generate a `px_` API key for external automation.
 7. Pair Telegram if you want remote prompts and completion notifications.
 8. Pick your theme palette under Appearance.
@@ -371,8 +357,8 @@ Important development notes:
 - `src/` - React + Vite frontend.
 - `server/` - Express, WebSocket, CLI adapters, routes, auth, daemon,
   notifications.
-- `server/modules/orchestration/` - multi-agent workflow engine and A2A
-  adapters.
+- `server/modules/orchestration/` - Hermes-backed multi-agent workflow engine
+  and CLI adapters.
 - `server/modules/providers/` - provider auth, MCP, sessions, model and install
   endpoints.
 - `shared/` - contracts shared by frontend and backend.
@@ -430,4 +416,4 @@ read [`SECURITY.md`](SECURITY.md).
 - AI discovery: [`public/llms.txt`](public/llms.txt), [`public/llms-full.txt`](public/llms-full.txt)
 
 Pixcode is an independent open-source project and is not affiliated with OpenAI,
-Anthropic, Google, Cursor, Alibaba/Qwen, OpenCode, or TaskMaster.
+Anthropic, Google, Cursor, Alibaba/Qwen, or OpenCode.

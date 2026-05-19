@@ -11,7 +11,7 @@ export interface TaskRunGraphCriterion {
   id: string;
   label: string;
   status: TaskRunGraphCriterionStatus;
-  source: 'taskmaster' | 'workflow';
+  source: 'workflow' | 'hermes';
 }
 
 export interface TaskRunGraphRunSummary {
@@ -20,7 +20,6 @@ export interface TaskRunGraphRunSummary {
   status: WorkflowRun['status'];
   startedAt: number;
   finishedAt?: number;
-  taskmasterId?: string;
   orchestrationTaskId?: string;
   changedFiles: string[];
 }
@@ -28,7 +27,6 @@ export interface TaskRunGraphRunSummary {
 export interface TaskRunGraph {
   protocol: typeof PIXCODE_TASK_RUN_GRAPH_PROTOCOL;
   projectId: string;
-  taskmasterId?: string;
   orchestrationTaskId?: string;
   workflowRuns: TaskRunGraphRunSummary[];
   changedFiles: string[];
@@ -53,59 +51,6 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 function uniqueStrings(values: Array<string | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value?.trim())))]
     .sort((a, b) => a.localeCompare(b));
-}
-
-function taskStatusPassed(status: unknown): boolean {
-  const normalized = String(status ?? '').toLocaleLowerCase('en');
-  return normalized === 'done' || normalized === 'completed';
-}
-
-function taskStatusFailed(status: unknown): boolean {
-  const normalized = String(status ?? '').toLocaleLowerCase('en');
-  return normalized === 'failed' || normalized === 'blocked' || normalized === 'cancelled' || normalized === 'canceled';
-}
-
-function criterionStatus(status: unknown): TaskRunGraphCriterionStatus {
-  if (taskStatusPassed(status)) return 'passed';
-  if (taskStatusFailed(status)) return 'failed';
-  return 'pending';
-}
-
-function taskmasterAcceptanceCriteria(taskmasterTask: Record<string, unknown> | undefined): TaskRunGraphCriterion[] {
-  if (!taskmasterTask) return [];
-
-  const criteria: TaskRunGraphCriterion[] = [];
-  const testStrategy = readString(taskmasterTask.testStrategy) ?? readString(taskmasterTask.test_strategy);
-  if (testStrategy) {
-    criteria.push({
-      id: 'test-strategy',
-      label: testStrategy,
-      status: criterionStatus(taskmasterTask.status),
-      source: 'taskmaster',
-    });
-  }
-
-  const subtasks = Array.isArray(taskmasterTask.subtasks) ? taskmasterTask.subtasks : [];
-  subtasks.forEach((subtask, index) => {
-    const record = readRecord(subtask);
-    if (!record) return;
-    const title = readString(record.title);
-    if (!title) return;
-    criteria.push({
-      id: `subtask-${readString(record.id) ?? index + 1}`,
-      label: title,
-      status: criterionStatus(record.status),
-      source: 'taskmaster',
-    });
-  });
-
-  return criteria;
-}
-
-function metadataTaskmasterId(run: WorkflowRun): string | undefined {
-  return readString(run.metadata?.taskmasterId)
-    ?? readString(readRecord(run.metadata?.taskGraph)?.taskmasterId)
-    ?? readString(readRecord(run.metadata?.replay)?.taskmasterId);
 }
 
 function metadataOrchestrationTaskId(run: WorkflowRun): string | undefined {
@@ -146,10 +91,8 @@ export function changedFilesFromWorkflowRun(run: WorkflowRun): string[] {
   return uniqueStrings(run.nodeRuns.flatMap((node) => artifactChangedFiles(node)));
 }
 
-function workflowRunMatchesTask(run: WorkflowRun, task: OrchestrationTask | undefined, taskmasterId: string | undefined): boolean {
-  const runTaskmasterId = metadataTaskmasterId(run);
+function workflowRunMatchesTask(run: WorkflowRun, task: OrchestrationTask | undefined): boolean {
   const runOrchestrationTaskId = metadataOrchestrationTaskId(run);
-  if (taskmasterId && runTaskmasterId === taskmasterId) return true;
   if (task?.id && runOrchestrationTaskId === task.id) return true;
   if (task?.workflowRunIds?.includes(run.id)) return true;
   return false;
@@ -162,7 +105,6 @@ function runSummary(run: WorkflowRun): TaskRunGraphRunSummary {
     status: run.status,
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
-    taskmasterId: metadataTaskmasterId(run),
     orchestrationTaskId: metadataOrchestrationTaskId(run),
     changedFiles: changedFilesFromWorkflowRun(run),
   };
@@ -170,19 +112,15 @@ function runSummary(run: WorkflowRun): TaskRunGraphRunSummary {
 
 export function buildTaskRunGraph({
   projectId,
-  taskmasterId,
-  taskmasterTask,
+  orchestrationTaskId,
 }: {
   projectId: string;
-  taskmasterId?: string;
-  taskmasterTask?: Record<string, unknown>;
+  orchestrationTaskId?: string;
 }): TaskRunGraph {
-  const orchestrationTask = taskmasterId
-    ? orchestrationTaskService.list(projectId).find((task) => task.taskmasterId === taskmasterId)
-    : undefined;
+  const orchestrationTask = orchestrationTaskId ? orchestrationTaskService.get(orchestrationTaskId) : undefined;
   const workflowRuns = workflowStore
     .listRuns()
-    .filter((run) => workflowRunMatchesTask(run, orchestrationTask, taskmasterId))
+    .filter((run) => workflowRunMatchesTask(run, orchestrationTask))
     .map(runSummary);
   const workflowCriteria: TaskRunGraphCriterion[] = workflowRuns.map((run) => ({
     id: `run-${run.id}`,
@@ -191,7 +129,6 @@ export function buildTaskRunGraph({
     source: 'workflow',
   }));
   const acceptanceCriteria = [
-    ...taskmasterAcceptanceCriteria(taskmasterTask),
     ...(orchestrationTask?.acceptanceCriteria ?? []),
     ...workflowCriteria,
   ];
@@ -203,7 +140,6 @@ export function buildTaskRunGraph({
   return {
     protocol: PIXCODE_TASK_RUN_GRAPH_PROTOCOL,
     projectId,
-    taskmasterId,
     orchestrationTaskId: orchestrationTask?.id,
     workflowRuns,
     changedFiles,

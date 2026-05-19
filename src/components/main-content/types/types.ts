@@ -4,35 +4,6 @@ import type { AppTab, Project, ProjectSession } from '../../../types/app';
 
 export type SessionLifecycleHandler = (sessionId?: string | null) => void;
 
-export type TaskMasterTask = {
-  id: string | number;
-  title?: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  details?: string;
-  testStrategy?: string;
-  parentId?: string | number;
-  dependencies?: Array<string | number>;
-  subtasks?: TaskMasterTask[];
-  [key: string]: unknown;
-};
-
-export type TaskReference = {
-  id: string | number;
-  title?: string;
-  [key: string]: unknown;
-};
-
-export type TaskSelection = TaskMasterTask | TaskReference;
-
-export type PrdFile = {
-  name: string;
-  content?: string;
-  isExisting?: boolean;
-  [key: string]: unknown;
-};
-
 export type MainContentProps = {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
@@ -58,7 +29,6 @@ export type MainContentProps = {
    *  pixcode-project-N and open the selected workspace surface. */
   onQuickStartSession?: () => void | Promise<void>;
   onQuickStartOrchestration?: () => void | Promise<void>;
-  onQuickStartTasks?: () => void | Promise<void>;
 };
 
 export type MainContentHeaderProps = {
@@ -66,7 +36,6 @@ export type MainContentHeaderProps = {
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
-  shouldShowTasksTab: boolean;
   liveViewAvailable?: boolean;
   activeSidePanelTab?: AppTab | null;
   sidePanelMode?: 'split' | 'full';
@@ -84,15 +53,10 @@ export type MainContentStateViewProps = {
    *  a focused workspace surface without the project creation wizard. */
   onQuickStartSession?: () => void | Promise<void>;
   onQuickStartOrchestration?: () => void | Promise<void>;
-  onQuickStartTasks?: () => void | Promise<void>;
   onOpenControlRoom?: () => void;
 };
 
 export type MobileMenuButtonProps = {
   onMenuClick: () => void;
   compact?: boolean;
-};
-
-export type TaskMasterPanelProps = {
-  isVisible: boolean;
 };

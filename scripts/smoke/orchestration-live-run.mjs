@@ -70,7 +70,7 @@ function compactNodes(run) {
     nodeId: node.nodeId,
     label: node.agentLabel,
     status: node.status,
-    taskId: node.a2aTaskId,
+    taskId: node.hermesTaskId,
     messageCount: (node.messages || []).filter((message) => message.role !== 'user').length,
     hasOutput: Boolean(node.outputText?.trim()),
     error: node.error,

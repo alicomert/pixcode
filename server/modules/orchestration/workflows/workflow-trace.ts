@@ -333,7 +333,7 @@ export function buildWorkflowTrace(run: WorkflowRun): WorkflowTraceEvent[] {
         id: traceId([run.id, node.nodeId, 'provider']),
         type: 'provider',
         severity: node.status === 'failed' ? 'error' : 'info',
-        status: node.a2aTaskId ? 'submitted' : node.status,
+        status: node.hermesTaskId ? 'submitted' : node.status,
         timestamp: timestamp + 2,
         durationMs: nodeDuration,
         ...base,
@@ -341,7 +341,7 @@ export function buildWorkflowTrace(run: WorkflowRun): WorkflowTraceEvent[] {
         titleKey: 'workflow.trace.providerCall',
         summary: [node.adapterId, node.model].filter(Boolean).join(' / '),
         metadata: {
-          a2aTaskId: node.a2aTaskId,
+          hermesTaskId: node.hermesTaskId,
           permissionMode: node.permissionMode,
           timeoutMs: node.timeoutMs,
         },

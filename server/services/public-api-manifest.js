@@ -4,7 +4,6 @@ const API_GROUPS = [
   { id: 'sessions', title: 'Sessions and messages', basePath: '/api/sessions', scopes: ['sessions:read', 'sessions:write'] },
   { id: 'providers', title: 'CLI providers', basePath: '/api/providers', scopes: ['providers:read', 'providers:write'] },
   { id: 'orchestration', title: 'Orchestration runs', basePath: '/api/orchestration', scopes: ['orchestration:read', 'orchestration:write'] },
-  { id: 'taskmaster', title: 'Taskmaster queue', basePath: '/api/taskmaster', scopes: ['taskmaster:read', 'taskmaster:write'] },
   { id: 'notifications', title: 'Notifications', basePath: '/api/settings/notifications', scopes: ['notifications:read', 'notifications:write'] },
   { id: 'files', title: 'Files', basePath: '/api/projects/:projectName/files', scopes: ['files:read', 'files:write'] },
   { id: 'git', title: 'Source control', basePath: '/api/git', scopes: ['git:read', 'git:write'] },
@@ -40,10 +39,6 @@ export function buildPublicApiManifest({ baseUrl = '' } = {}) {
       {
         title: 'List projects',
         curl: `curl -H "X-API-Key: px_your_key" ${origin || 'http://127.0.0.1:3001'}/api/projects`,
-      },
-      {
-        title: 'Start a Taskmaster task with a model',
-        curl: `curl -X POST -H "Content-Type: application/json" -H "X-API-Key: px_your_key" -d '{"provider":"opencode","model":"minimax/minimax-m2"}' ${origin || 'http://127.0.0.1:3001'}/api/taskmaster/execute/my-project/1`,
       },
       {
         title: 'Fetch diagnostics bundle',

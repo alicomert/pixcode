@@ -15,33 +15,14 @@ export function createOrchestrationTaskRouter(): Router {
     const projectId = typeof req.body?.projectId === 'string' ? req.body.projectId : 'default';
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
     const description = typeof req.body?.description === 'string' ? req.body.description : undefined;
-    const taskmasterId = typeof req.body?.taskmasterId === 'string' ? req.body.taskmasterId : undefined;
 
     if (!title) {
       res.status(400).json({ error: { code: 'TITLE_REQUIRED', message: 'title is required' } });
       return;
     }
 
-    const task = orchestrationTaskService.create({ projectId, title, description, taskmasterId });
+    const task = orchestrationTaskService.create({ projectId, title, description });
     res.status(201).json(task);
-  });
-
-  router.post('/tasks/import-taskmaster', (req, res) => {
-    const projectId = typeof req.body?.projectId === 'string' ? req.body.projectId : 'default';
-    const entries = Array.isArray(req.body?.tasks) ? req.body.tasks : [];
-    const imported = entries
-      .map((entry: unknown) => {
-        if (!entry || typeof entry !== 'object') return null;
-        const record = entry as Record<string, unknown>;
-        const taskmasterId = typeof record.id === 'string' ? record.id : undefined;
-        const title = typeof record.title === 'string' ? record.title : undefined;
-        const description = typeof record.description === 'string' ? record.description : undefined;
-        if (!taskmasterId || !title) return null;
-        return orchestrationTaskService.upsertFromTaskMaster({ projectId, title, description, taskmasterId });
-      })
-      .filter(Boolean);
-
-    res.json({ tasks: imported, count: imported.length });
   });
 
   router.post('/tasks/:id/dispatch', async (req, res) => {

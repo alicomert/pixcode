@@ -106,8 +106,6 @@
       "startOrchestrationDescription": "自動でプロジェクトを作成し、エージェント制御と実行履歴を持つオーケストレーション画面を開きます。",
       "startChat": "新しいチャットを開始",
       "startChatDescription": "フォルダを自動作成し、通常のチャット画面を1つのエージェントで開きます。",
-      "taskSystem": "タスクシステム",
-      "taskSystemDescription": "プロジェクト内のTaskMasterタブで作業項目、状態、計画作業を追跡します。",
       "sidebarHint": "サイドバーから既存プロジェクトを選ぶと、チャット履歴、ファイル、git状態、タスク、オーケストレーションが同じメイン画面に残ります。"
     }
   },
@@ -427,8 +425,6 @@
     "runTask": "実行",
     "cancelTask": "キャンセル",
     "dispatchTask": "タスクを割り当て",
-    "syncTaskMaster": "TaskMaster を同期",
-    "taskMasterSource": "TaskMaster",
     "adapter": "アダプター",
     "isolation": "分離",
     "dispatch": "割り当て",
@@ -527,7 +523,10 @@
     "customWorkspacePlaceholder": "/path/to/project",
     "workspaceTargetHint": "エージェントは次で実行されます: {{path}}",
     "autoDetect": "自動検出",
-    "needWorkspacePath": "カスタムワークスペースのパスを入力してください。"
+    "needWorkspacePath": "カスタムワークスペースのパスを入力してください。",
+    "hermesTitle": "Hermes Agent",
+    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
+    "hermesCliControl": "Hermes CLI control"
   },
   "controlRoom": {
     "title": "コントロールルーム",
@@ -796,7 +795,8 @@
       "rightTerminal": "ターミナル"
     },
     "editor": {
-      "emptyTitle": "エクスプローラーからファイルを開く"
+      "emptyTitle": "エクスプローラーからファイルを開く",
+      "closeTab": "Close {{file}}"
     },
     "resize": {
       "left": "左パネルのサイズ変更",
@@ -818,7 +818,19 @@
       "selected": "選択中",
       "startChat": "チャット",
       "fileCount": "{{formattedCount}} ファイル",
-      "fileCountPending": "ファイルを準備中"
+      "fileCountPending": "ファイルを準備中",
+      "startTitle": "Start a Pixcode workspace",
+      "startDescription": "Pick a folder and Pixcode will bind the explorer, terminal, and chat history to that workspace.",
+      "workHere": "Work in this folder"
+    },
+    "workspace": {
+      "empty": "Open a project to create Workspace 1."
+    },
+    "cli": {
+      "projectScoped": "Project-scoped CLI terminal",
+      "newSession": "New CLI session",
+      "history": "History",
+      "noHistory": "No sessions for this project yet."
     }
   }
 }

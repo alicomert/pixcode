@@ -43,8 +43,6 @@ const CONTROL_COMMANDS = new Set([
   '/webhooks',
   '/sessions',
   '/newchat',
-  '/tasks',
-  '/task',
   '/settings',
   '/install',
   '/auth',
@@ -206,9 +204,8 @@ function mainMenuKeyboard(lang) {
   return [
     [button(t(lang, 'control.button.projects'), 'projects'), button(t(lang, 'control.button.provider'), 'providers')],
     [button(t(lang, 'control.button.models'), 'models'), button(t(lang, 'control.button.workflows'), 'workflows')],
-    [button(t(lang, 'control.button.tasks'), 'tasks'), button(t(lang, 'control.button.runs'), 'runs')],
-    [button(t(lang, 'control.button.approvals'), 'approvals'), button(t(lang, 'control.button.controlRoom'), 'control_room')],
-    [button(t(lang, 'control.button.webhooks'), 'webhooks')],
+    [button(t(lang, 'control.button.runs'), 'runs'), button(t(lang, 'control.button.approvals'), 'approvals')],
+    [button(t(lang, 'control.button.controlRoom'), 'control_room'), button(t(lang, 'control.button.webhooks'), 'webhooks')],
     [button(t(lang, 'control.button.sessions'), 'sessions'), button(t(lang, 'control.button.newChat'), 'new_chat')],
     [button(t(lang, 'control.button.install'), 'install_menu'), button(t(lang, 'control.button.auth'), 'auth_menu')],
     [button(t(lang, 'control.button.settings'), 'settings')],
@@ -458,37 +455,6 @@ async function startNewChat({ bot, chatId, link, editMessageId }) {
   });
 }
 
-async function showTaskMasterTasks({ bot, chatId, link, editMessageId }) {
-  const lang = languageFor(link);
-  const state = getState(link.user_id);
-  if (!state.selectedProjectName) {
-    await send(bot, chatId, t(lang, 'control.selectProjectFirst'), { editMessageId });
-    await showProjectMenu({ bot, chatId, link });
-    return;
-  }
-
-  const data = await localApi(link.user_id, `/api/taskmaster/tasks/${encodeURIComponent(state.selectedProjectName)}`);
-  const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-  const activeTasks = tasks.filter((task) => !['done', 'completed', 'cancelled', 'canceled'].includes(String(task.status || '').toLowerCase()));
-  if (activeTasks.length === 0) {
-    await send(bot, chatId, t(lang, 'control.noTaskMasterTasks'), {
-      editMessageId,
-      reply_markup: { inline_keyboard: [[button(t(lang, 'control.button.mainMenu'), 'menu')]] },
-    });
-    return;
-  }
-
-  const buttons = activeTasks.slice(0, 12).map((task) => button(
-    `#${task.id} ${compact(task.title, 38)}`,
-    'task_run',
-    { taskId: String(task.id) },
-  ));
-  await send(bot, chatId, t(lang, 'control.pickTaskMasterTask'), {
-    editMessageId,
-    reply_markup: { inline_keyboard: rows(buttons, 1) },
-  });
-}
-
 function extractAssistantText(response) {
   const messages = Array.isArray(response?.messages) ? response.messages : [];
   const chunks = [];
@@ -582,10 +548,6 @@ async function fetchRun(userId, runId) {
   return localApi(userId, `/api/orchestration/workflows/runs/${runId}`);
 }
 
-async function fetchA2ATask(userId, taskId) {
-  return localApi(userId, `/a2a/tasks/${encodeURIComponent(taskId)}`);
-}
-
 function summarizeRun(run, mode) {
   const lines = [
     `Run ${run.id}`,
@@ -643,100 +605,6 @@ async function monitorWorkflowRun({ bot, chatId, link, runId }) {
     }
   } finally {
     runMonitors.delete(runId);
-  }
-}
-
-function extractA2ATaskText(task) {
-  const chunks = [];
-  const artifacts = Array.isArray(task?.artifacts) ? task.artifacts : [];
-  for (const artifact of artifacts) {
-    for (const part of Array.isArray(artifact?.parts) ? artifact.parts : []) {
-      if (part?.kind === 'text' && typeof part.text === 'string') chunks.push(part.text);
-      if (part?.type === 'text' && typeof part.text === 'string') chunks.push(part.text);
-    }
-  }
-  const history = Array.isArray(task?.history) ? task.history : [];
-  for (const message of history) {
-    if (message?.role !== 'assistant') continue;
-    for (const part of Array.isArray(message?.parts) ? message.parts : []) {
-      if (part?.kind === 'text' && typeof part.text === 'string') chunks.push(part.text);
-      if (part?.type === 'text' && typeof part.text === 'string') chunks.push(part.text);
-    }
-  }
-  return chunks.join('\n\n').trim();
-}
-
-function summarizeA2ATask(task) {
-  const text = extractA2ATaskText(task);
-  const error = task?.error?.message || task?.metadata?.error?.message || '';
-  return truncate([
-    `Task ${task?.id || ''}`,
-    `Status: ${task?.state || 'unknown'}`,
-    error ? `Error: ${error}` : '',
-    text,
-  ].filter(Boolean).join('\n\n'));
-}
-
-async function monitorA2ATask({ bot, chatId, link, taskId }) {
-  const key = `a2a:${taskId}`;
-  if (runMonitors.has(key)) return;
-  runMonitors.set(key, true);
-  const lang = languageFor(link);
-  try {
-    for (;;) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      const task = await fetchA2ATask(link.user_id, taskId);
-      if (TERMINAL_RUN_STATES.has(task?.state)) {
-        await send(bot, chatId, t(lang, 'control.taskFinished', {
-          taskId,
-          status: task.state,
-          summary: summarizeA2ATask(task),
-        }));
-        return;
-      }
-    }
-  } finally {
-    runMonitors.delete(key);
-  }
-}
-
-async function runTaskMasterTask({ bot, chatId, link, taskId }) {
-  const lang = languageFor(link);
-  const state = getState(link.user_id);
-  if (!state.remoteControlEnabled) {
-    await send(bot, chatId, t(lang, 'control.disabled'));
-    return;
-  }
-  if (!state.selectedProjectName) {
-    await send(bot, chatId, t(lang, 'control.selectProjectFirst'));
-    await showProjectMenu({ bot, chatId, link });
-    return;
-  }
-
-  const result = await localApi(
-    link.user_id,
-    `/api/taskmaster/execute/${encodeURIComponent(state.selectedProjectName)}/${encodeURIComponent(taskId)}`,
-    {
-      method: 'POST',
-      body: {
-        projectId: state.selectedProjectName,
-        adapterId: state.selectedProvider,
-        model: state.selectedModel || undefined,
-        isolation: 'worktree',
-      },
-    },
-  );
-  const a2aTaskId = result?.task?.a2aTaskId;
-  await send(bot, chatId, t(lang, 'control.taskStarted', {
-    taskId,
-    provider: state.selectedProvider,
-    a2aTaskId: a2aTaskId || result?.task?.id || 'unknown',
-  }));
-
-  if (a2aTaskId) {
-    monitorA2ATask({ bot, chatId, link, taskId: a2aTaskId }).catch((error) => {
-      console.warn('[telegram-control] task monitor failed:', error?.message || error);
-    });
   }
 }
 
@@ -824,10 +692,6 @@ async function handleAwaitingInput({ bot, chatId, link, text }) {
     await runWorkflow({ bot, chatId, link, input: text });
     return true;
   }
-  if (awaiting.type === 'task_id') {
-    await runTaskMasterTask({ bot, chatId, link, taskId: text });
-    return true;
-  }
   return false;
 }
 
@@ -883,19 +747,6 @@ async function handleCommand({ bot, chatId, link, text }) {
   }
   if (command === '/newchat') {
     await startNewChat({ bot, chatId, link });
-    return true;
-  }
-  if (command === '/tasks') {
-    await showTaskMasterTasks({ bot, chatId, link });
-    return true;
-  }
-  if (command === '/task') {
-    if (!argText) {
-      updateTelegramControlState(link.user_id, { awaiting: { type: 'task_id' } });
-      await send(bot, chatId, t(lang, 'control.sendTaskId'));
-      return true;
-    }
-    await runTaskMasterTask({ bot, chatId, link, taskId: argText });
     return true;
   }
   if (command === '/settings') {
@@ -1026,7 +877,6 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
   if (action === 'webhooks') return showWebhookMenu({ bot, chatId, link, editMessageId });
   if (action === 'sessions') return showSessions({ bot, chatId, link, editMessageId });
   if (action === 'new_chat') return startNewChat({ bot, chatId, link, editMessageId });
-  if (action === 'tasks') return showTaskMasterTasks({ bot, chatId, link, editMessageId });
   if (action === 'install_menu') return showInstallMenu({ bot, chatId, link, editMessageId });
   if (action === 'auth_menu') return showAuthMenu({ bot, chatId, link, editMessageId });
   if (action === 'settings') return showSettings({ bot, chatId, link, editMessageId });
@@ -1102,7 +952,6 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
     }), { editMessageId });
     return showApprovalQueue({ bot, chatId, link });
   }
-  if (action === 'task_run') return runTaskMasterTask({ bot, chatId, link, taskId: payload.taskId });
   if (action === 'install_provider') return startCliInstall({ bot, chatId, link, provider: payload.provider });
   if (action === 'auth_provider') {
     await send(bot, chatId, `${payload.provider} login:\n${AUTH_HELP[payload.provider] || t(languageFor(link), 'control.providerAuthFallback')}`, { editMessageId });
