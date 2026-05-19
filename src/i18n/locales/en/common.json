@@ -941,6 +941,9 @@
     },
     "cli": {
       "projectScoped": "Project-scoped CLI terminal",
+      "chooseTitle": "Start a CLI terminal",
+      "chooseDescription": "Choose a CLI, then start a full-height terminal.",
+      "startSelected": "Start {{provider}}",
       "newSession": "New CLI session",
       "history": "History",
       "noHistory": "No sessions for this project yet.",

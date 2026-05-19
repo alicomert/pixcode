@@ -848,6 +848,9 @@
     },
     "cli": {
       "projectScoped": "프로젝트 범위 CLI 터미널",
+      "chooseTitle": "CLI 터미널 시작",
+      "chooseDescription": "CLI를 선택한 뒤 전체 높이 터미널을 시작합니다.",
+      "startSelected": "{{provider}} 시작",
       "newSession": "새 CLI 세션",
       "history": "기록",
       "noHistory": "이 프로젝트에는 아직 세션이 없습니다.",

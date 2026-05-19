@@ -818,6 +818,9 @@
     },
     "cli": {
       "projectScoped": "CLI-терминал в рамках проекта",
+      "chooseTitle": "Запустить CLI-терминал",
+      "chooseDescription": "Выберите CLI, затем запустите терминал на всю высоту.",
+      "startSelected": "Запустить {{provider}}",
       "newSession": "Новая CLI-сессия",
       "history": "История",
       "noHistory": "Для этого проекта еще нет сессий.",

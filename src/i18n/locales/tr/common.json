@@ -941,6 +941,9 @@
     },
     "cli": {
       "projectScoped": "Projeye bagli CLI terminali",
+      "chooseTitle": "CLI terminali baslat",
+      "chooseDescription": "Bir CLI sec, sonra sag paneli tamamen terminal olarak baslat.",
+      "startSelected": "{{provider}} baslat",
       "newSession": "Yeni CLI oturumu",
       "history": "Gecmis",
       "noHistory": "Bu projede henuz oturum yok.",

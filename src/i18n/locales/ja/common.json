@@ -848,6 +848,9 @@
     },
     "cli": {
       "projectScoped": "プロジェクト単位の CLI ターミナル",
+      "chooseTitle": "CLI ターミナルを開始",
+      "chooseDescription": "CLI を選んでから、全高のターミナルを開始します。",
+      "startSelected": "{{provider}} を開始",
       "newSession": "新しい CLI セッション",
       "history": "履歴",
       "noHistory": "このプロジェクトにはまだセッションがありません。",

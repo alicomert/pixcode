@@ -848,6 +848,9 @@
     },
     "cli": {
       "projectScoped": "项目范围 CLI 终端",
+      "chooseTitle": "启动 CLI 终端",
+      "chooseDescription": "选择 CLI，然后启动全高终端。",
+      "startSelected": "启动 {{provider}}",
       "newSession": "新建 CLI 会话",
       "history": "历史",
       "noHistory": "此项目还没有会话。",

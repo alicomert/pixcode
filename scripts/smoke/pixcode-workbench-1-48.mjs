@@ -35,10 +35,14 @@ assert.match(workbench, /WorkbenchWorkspaceTabs|WORKBENCH_WORKSPACE_TABS_STORAGE
 assert.match(workbench, /openEditorTabs|activeEditorPath/, 'Workbench editor should keep a Monaco-style tab set.');
 assert.doesNotMatch(workbench, /<ChatInterface/, 'Right workbench panel should not render the chat composer.');
 assert.match(workbench, /WorkbenchCliPanel/, 'Right workbench panel should render the CLI terminal panel.');
+assert.match(workbench, /setIsTerminalOpen\(true\)/, 'CLI picker should give way to a full-height terminal after the user starts a provider.');
+assert.match(workbench, /onClose=\{\(\) => setIsTerminalOpen\(false\)\}/, 'Closing the workbench terminal should return to the CLI picker.');
 assert.doesNotMatch(workbench, /TaskMasterPanel|useTaskMaster|useTasksSettings|tabs\.tasks/, 'Workbench should not expose TaskMaster.');
 
 assert.match(fileTreeData, /pixcode:file-tree-refresh/, 'File tree data should listen for websocket-backed file refresh events.');
 assert.match(appContent, /pixcode:file-tree-refresh/, 'AppContent should bridge project websocket updates into file-tree refresh events.');
+assert.match(read('src/components/file-tree/view/FileTree.tsx'), /loading && files\.length === 0/, 'File tree refresh should keep the current tree visible after the initial load.');
+assert.match(read('src/components/file-tree/view/FileTree.tsx'), /liveChangedFilePaths/, 'File tree should highlight websocket-backed file changes without a manual refresh.');
 
 assert.doesNotMatch(app, /TaskMasterProvider/, 'App should not wrap the product UI in TaskMasterProvider.');
 assert.doesNotMatch(settingsSidebar, /id: 'tasks'/, 'Settings sidebar should not show a Tasks tab.');

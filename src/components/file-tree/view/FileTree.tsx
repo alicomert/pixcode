@@ -81,7 +81,9 @@ export default function FileTree({
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const newItemInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const liveChangedFileTimersRef = useRef<Map<string, number>>(new Map());
   const [isNarrow, setIsNarrow] = useState(false);
+  const [liveChangedFilePaths, setLiveChangedFilePaths] = useState<string[]>([]);
   const projectRootPath = useMemo(
     () => normalizeTreePath(selectedProject?.path || selectedProject?.fullPath),
     [selectedProject?.fullPath, selectedProject?.path],
@@ -89,7 +91,7 @@ export default function FileTree({
   const changedFilePathSet = useMemo(() => {
     const paths = new Set<string>();
 
-    changedFilePaths.forEach((filePath) => {
+    [...changedFilePaths, ...liveChangedFilePaths].forEach((filePath) => {
       const normalizedPath = normalizeTreePath(filePath);
       const projectResolvedPath = resolveProjectTreePath(filePath, projectRootPath);
 
@@ -102,7 +104,7 @@ export default function FileTree({
     });
 
     return paths;
-  }, [changedFilePaths, projectRootPath]);
+  }, [changedFilePaths, liveChangedFilePaths, projectRootPath]);
   const focusedTreeFilePath = useMemo(
     () => resolveProjectTreePath(focusedFilePath, projectRootPath),
     [focusedFilePath, projectRootPath],
@@ -192,6 +194,64 @@ export default function FileTree({
     return () => window.clearTimeout(timeout);
   }, [expandDirectories, files, focusedTreeFilePath, upload.treeRef]);
 
+  useEffect(() => {
+    liveChangedFileTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    liveChangedFileTimersRef.current.clear();
+    setLiveChangedFilePaths([]);
+  }, [selectedProject?.name]);
+
+  useEffect(() => {
+    if (!selectedProject?.name || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const markChangedFile = (filePath: string) => {
+      const normalizedPath = normalizeTreePath(filePath);
+      const resolvedPath = resolveProjectTreePath(filePath, projectRootPath);
+      const nextPaths = [normalizedPath, resolvedPath].filter((path): path is string => Boolean(path));
+
+      if (nextPaths.length === 0) {
+        return;
+      }
+
+      setLiveChangedFilePaths((currentPaths) => Array.from(new Set([...currentPaths, ...nextPaths])));
+
+      nextPaths.forEach((path) => {
+        const existingTimer = liveChangedFileTimersRef.current.get(path);
+        if (existingTimer) {
+          window.clearTimeout(existingTimer);
+        }
+
+        const timer = window.setTimeout(() => {
+          liveChangedFileTimersRef.current.delete(path);
+          setLiveChangedFilePaths((currentPaths) => currentPaths.filter((currentPath) => currentPath !== path));
+        }, 6000);
+        liveChangedFileTimersRef.current.set(path, timer);
+      });
+    };
+
+    const handleFileTreeRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectName?: string | null; changedFile?: string | null }>).detail;
+      if (detail?.projectName && detail.projectName !== selectedProject.name) {
+        return;
+      }
+
+      if (typeof detail?.changedFile === 'string' && detail.changedFile.trim()) {
+        markChangedFile(detail.changedFile);
+      }
+    };
+
+    window.addEventListener('pixcode:file-tree-refresh', handleFileTreeRefresh);
+    return () => {
+      window.removeEventListener('pixcode:file-tree-refresh', handleFileTreeRefresh);
+    };
+  }, [projectRootPath, selectedProject?.name]);
+
+  useEffect(() => () => {
+    liveChangedFileTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    liveChangedFileTimersRef.current.clear();
+  }, []);
+
   const renderFileIcon = useCallback((filename: string) => {
     const { icon: Icon, color } = getFileIconData(filename);
     return <Icon className={cn(ICON_SIZE_CLASS, color)} />;
@@ -225,7 +285,7 @@ export default function FileTree({
     [t],
   );
 
-  if (loading) {
+  if (loading && files.length === 0) {
     return <FileTreeLoadingState />;
   }
 

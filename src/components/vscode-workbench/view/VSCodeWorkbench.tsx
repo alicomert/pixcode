@@ -813,7 +813,6 @@ function VSCodeWorkbench({
         project={selectedProject}
         session={selectedSession}
         onSessionSelect={sidebarProps.onSessionSelect}
-        onNewSession={sidebarProps.onNewSession}
         t={t}
       />
     );
@@ -1339,16 +1338,16 @@ function WorkbenchWorkspaceTabs({
             );
           })
         )}
+        <button
+          type="button"
+          onClick={onAdd}
+          className="flex h-full w-9 shrink-0 items-center justify-center border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
+          title={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onAdd}
-        className="flex h-full w-9 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-        aria-label={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
-        title={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
-      >
-        <Plus className="h-4 w-4" />
-      </button>
     </div>
   );
 }
@@ -1654,13 +1653,11 @@ function WorkbenchCliPanel({
   project,
   session,
   onSessionSelect,
-  onNewSession,
   t,
 }: {
   project: Project | null;
   session: ProjectSession | null;
   onSessionSelect: (session: ProjectSession) => void;
-  onNewSession: (project: Project) => void;
   t: TFunction<'common'>;
 }) {
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(() => {
@@ -1669,6 +1666,8 @@ function WorkbenchCliPanel({
     return cliProviders.some((provider) => provider.id === saved) ? saved as LLMProvider : 'claude';
   });
   const [showHistory, setShowHistory] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [terminalRunId, setTerminalRunId] = useState(0);
   const [installState, setInstallState] = useState<ProviderInstallState>({
     provider: null,
     state: 'idle',
@@ -1683,12 +1682,18 @@ function WorkbenchCliPanel({
   const projectSessions = useMemo(() => getProjectCliSessions(project), [project]);
   const selectedProviderStatus = providerAuthStatus[selectedProvider];
   const sessionForShell = session?.__provider === selectedProvider ? session : null;
-  const canAutoConnect = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
+  const canStartSelectedProvider = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
+  const canAutoConnect = Boolean(isTerminalOpen && canStartSelectedProvider);
 
   useEffect(() => {
     const providers = cliProviders.map((provider) => provider.id);
     void refreshProviderAuthStatuses(providers);
   }, [refreshProviderAuthStatuses]);
+
+  useEffect(() => {
+    setIsTerminalOpen(false);
+    setShowHistory(false);
+  }, [project?.name]);
 
   useEffect(() => {
     return () => {
@@ -1816,35 +1821,52 @@ function WorkbenchCliPanel({
     }
   }, [refreshProviderAuthStatuses, t]);
 
-  const startNewSession = () => {
+  const startTerminal = useCallback(() => {
     if (!project) return;
+    if (!canStartSelectedProvider) return;
     window.localStorage.setItem('selected-provider', selectedProvider);
-    onNewSession(project);
-  };
+    setIsTerminalOpen(true);
+    setTerminalRunId((current) => current + 1);
+  }, [canStartSelectedProvider, project, selectedProvider]);
+
+  const handleHistorySessionSelect = useCallback((nextSession: ProjectSession) => {
+    const provider = nextSession.__provider ?? 'claude';
+    setSelectedProvider(provider);
+    window.localStorage.setItem('selected-provider', provider);
+    onSessionSelect(nextSession);
+    setIsTerminalOpen(true);
+    setTerminalRunId((current) => current + 1);
+  }, [onSessionSelect]);
+
+  if (isTerminalOpen) {
+    return (
+      <div className="h-full min-h-0 bg-gray-950 text-gray-100">
+        <StandaloneShell
+          key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalRunId}`}
+          project={project}
+          session={sessionForShell}
+          showHeader
+          autoConnect={canAutoConnect}
+          isActive
+          onClose={() => setIsTerminalOpen(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
-      <div className="shrink-0 border-b border-gray-800 bg-gray-900/95 p-2">
+      <div className="flex min-h-0 flex-1 flex-col border-b border-gray-800 bg-gray-900/95 p-2">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-xs font-semibold text-gray-100">
               {project?.displayName || project?.name || t('vscodeWorkbench.noProject')}
             </div>
             <div className="text-[11px] text-gray-400">
-              {t('vscodeWorkbench.cli.projectScoped', { defaultValue: 'Project-scoped CLI terminal' })}
+              {t('vscodeWorkbench.cli.chooseDescription', { defaultValue: 'Choose a CLI, then start a full-height terminal.' })}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
-              disabled={!project}
-              onClick={startNewSession}
-              title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
-              aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
             <button
               type="button"
               className={cn(
@@ -1860,7 +1882,18 @@ function WorkbenchCliPanel({
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="mb-2 flex items-center gap-2 rounded border border-gray-800 bg-gray-950 px-2.5 py-2">
+          <Terminal className="h-4 w-4 shrink-0 text-blue-300" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[11px] font-semibold text-gray-200">
+              {t('vscodeWorkbench.cli.chooseTitle', { defaultValue: 'Start a CLI terminal' })}
+            </div>
+            <div className="truncate text-[10px] text-gray-500">
+              {t('vscodeWorkbench.cli.projectScoped', { defaultValue: 'Project-scoped CLI terminal' })}
+            </div>
+          </div>
+        </div>
+        <div className="grid min-h-0 gap-1.5 overflow-y-auto pr-1">
           {cliProviders.map((provider) => {
             const status = providerAuthStatus[provider.id];
             const isSelected = selectedProvider === provider.id;
@@ -1885,7 +1918,7 @@ function WorkbenchCliPanel({
               <div
                 key={provider.id}
                 className={cn(
-                  'group flex min-w-0 items-center gap-2 rounded border px-2 py-1.5 transition-colors',
+                  'group flex min-w-0 items-center gap-2 rounded border px-2 py-2 transition-colors',
                   isSelected && !isLocked
                     ? 'border-blue-500 bg-blue-500/15 text-blue-100'
                     : 'border-gray-800 bg-gray-900 text-gray-300 hover:border-gray-700 hover:bg-gray-800',
@@ -1942,7 +1975,7 @@ function WorkbenchCliPanel({
           <WorkbenchSessionHistory
             sessions={projectSessions}
             activeSessionId={session?.id ?? null}
-            onSessionSelect={onSessionSelect}
+            onSessionSelect={handleHistorySessionSelect}
             t={t}
           />
         )}
@@ -1973,16 +2006,18 @@ function WorkbenchCliPanel({
             )}
           </div>
         )}
-      </div>
-      <div className="min-h-0 flex-1">
-        <StandaloneShell
-          key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}`}
-          project={project}
-          session={sessionForShell}
-          showHeader
-          autoConnect={canAutoConnect}
-          isActive
-        />
+        <button
+          type="button"
+          disabled={!canStartSelectedProvider}
+          onClick={startTerminal}
+          className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded bg-blue-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-500"
+        >
+          <Terminal className="h-4 w-4" />
+          {t('vscodeWorkbench.cli.startSelected', {
+            provider: PROVIDER_DISPLAY_NAMES[selectedProvider] ?? selectedProvider,
+            defaultValue: 'Start {{provider}}',
+          })}
+        </button>
       </div>
     </div>
   );

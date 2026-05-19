@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.48.2](https://github.com/alicomert/pixcode/compare/v1.48.1...v1.48.2) (2026-05-19)
+
+Pixcode 1.48.2 tightens the VS Code workbench tab, CLI, and Explorer refresh behavior.
+
+### Fixes
+
+* **workspace-tabs:** move the add-workspace button beside the last open workspace tab instead of pinning it to the far right of the workbench.
+* **cli:** split the right panel into a CLI picker and a full-height terminal so provider selection no longer steals space from the running terminal.
+* **shell:** make the terminal close button return to the CLI picker instead of leaving the dead "Continue in Shell" overlay.
+* **explorer:** keep the current file tree visible during websocket-backed refreshes and highlight changed files without a manual reload.
+* **i18n:** add the new CLI picker copy across all supported locales.
+
+### Tests
+
+* extend VS Code workbench smoke coverage for CLI picker-to-terminal flow, close behavior, and non-disruptive Explorer refreshes.
+
 ## [1.48.1](https://github.com/alicomert/pixcode/compare/v1.48.0...v1.48.1) (2026-05-19)
 
 Pixcode 1.48.1 polishes the VS Code workbench after the 1.48 launch.

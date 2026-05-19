@@ -33,6 +33,7 @@ type ShellProps = {
   minimal?: boolean;
   autoConnect?: boolean;
   isActive?: boolean;
+  onClose?: (() => void) | null;
 };
 
 export default function Shell({
@@ -44,6 +45,7 @@ export default function Shell({
   minimal = false,
   autoConnect = false,
   isActive = true,
+  onClose = null,
 }: ShellProps) {
   const { t } = useTranslation('chat');
   const [isRestarting, setIsRestarting] = useState(false);
@@ -205,6 +207,11 @@ export default function Shell({
     }, SHELL_RESTART_DELAY_MS);
   }, []);
 
+  const handleDisconnectClick = useCallback(() => {
+    disconnectFromShell();
+    onClose?.();
+  }, [disconnectFromShell, onClose]);
+
   if (!selectedProject) {
     return (
       <ShellEmptyState
@@ -270,7 +277,7 @@ export default function Shell({
         isRestarting={isRestarting}
         hasSession={Boolean(selectedSession)}
         sessionDisplayNameShort={sessionDisplayNameShort}
-        onDisconnect={disconnectFromShell}
+        onDisconnect={handleDisconnectClick}
         onRestart={handleRestartShell}
         statusNewSessionText={t('shell.status.newSession')}
         statusInitializingText={t('shell.status.initializing')}

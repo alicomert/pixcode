@@ -818,6 +818,9 @@
     },
     "cli": {
       "projectScoped": "Projektbezogenes CLI-Terminal",
+      "chooseTitle": "CLI-Terminal starten",
+      "chooseDescription": "CLI auswaehlen und dann ein Terminal in voller Hoehe starten.",
+      "startSelected": "{{provider}} starten",
       "newSession": "Neue CLI-Sitzung",
       "history": "Verlauf",
       "noHistory": "Für dieses Projekt gibt es noch keine Sitzungen.",

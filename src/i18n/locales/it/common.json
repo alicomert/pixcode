@@ -848,6 +848,9 @@
     },
     "cli": {
       "projectScoped": "Terminale CLI legato al progetto",
+      "chooseTitle": "Avvia terminale CLI",
+      "chooseDescription": "Scegli una CLI, poi avvia un terminale a tutta altezza.",
+      "startSelected": "Avvia {{provider}}",
       "newSession": "Nuova sessione CLI",
       "history": "Cronologia",
       "noHistory": "Nessuna sessione per questo progetto.",

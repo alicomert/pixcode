@@ -107,6 +107,18 @@ assert.match(
 
 assert.match(
   workbench,
+  /setIsTerminalOpen\(true\)/,
+  'Right CLI panel should switch from picker mode into a full-height terminal after Start.',
+);
+
+assert.match(
+  workbench,
+  /onClose=\{\(\) => setIsTerminalOpen\(false\)\}/,
+  'Right CLI terminal close button should return to the picker instead of leaving a dead reconnect overlay.',
+);
+
+assert.match(
+  workbench,
   /function WorkbenchSessionHistory/,
   'CLI history should be integrated as a polished project-scoped panel.',
 );

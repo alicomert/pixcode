@@ -72,6 +72,7 @@ export default function StandaloneShell({
           onProcessComplete={handleProcessComplete}
           minimal={minimal}
           autoConnect={minimal ? true : autoConnect}
+          onClose={onClose}
         />
       </div>
     </div>
