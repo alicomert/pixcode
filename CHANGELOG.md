@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.0](https://github.com/alicomert/pixcode/compare/v1.48.6...v1.49.0) (2026-05-20)
+
+Pixcode 1.49.0 ships the Hermes control workbench and a simpler VS Code-style welcome flow.
+
+### New Features
+
+* **hermes:** configure Pixcode as a Hermes MCP server with project listing, provider status checks, and visible CLI terminal launch tools.
+* **workbench:** replace the old workspace start screen with a compact welcome page for opening projects, cloning repositories, starting Hermes, recent projects, and theme controls.
+* **terminal:** make the bottom terminal resizable and minimizable, and add shrink/expand/collapse controls for the right CLI panel.
+
+### Fixes
+
+* **hermes:** launch Hermes from the bottom terminal instead of the right CLI picker and expand Hermes commands on the server host so Windows browsers do not send PowerShell syntax to Linux servers.
+* **theme:** default new installs to the dark workbench while preserving any saved user theme preference.
+* **updates:** skip npm install and build during source updates when package manifests or build inputs did not change.
+
+### Tests
+
+* verify the new workbench welcome actions, Hermes MCP bridge, terminal resizing, smart source updater, typecheck, lint, and production build.
+
 ## [1.48.6](https://github.com/alicomert/pixcode/compare/v1.48.5...v1.48.6) (2026-05-20)
 
 Pixcode 1.48.6 republishes the 1.48.5 workbench update with a verified npm runtime tarball.
