@@ -4,7 +4,7 @@ import type { LLMProvider } from '../../../types/app';
 import type { ProviderAuthStatus } from '../../provider-auth/types';
 
 export type SettingsMainTab = 'agents' | 'access' | 'appearance' | 'git' | 'api' | 'notifications' | 'plugins' | 'mobile' | 'telegram' | 'diagnostics' | 'about';
-export type AgentProvider = LLMProvider;
+export type AgentProvider = LLMProvider | 'hermes';
 export type AgentCategory = 'account' | 'permissions' | 'mcp' | 'config';
 export type ProjectSortOrder = 'name' | 'date';
 export type SaveStatus = 'success' | 'error' | null;

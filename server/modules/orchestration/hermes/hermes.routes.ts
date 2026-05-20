@@ -1,4 +1,7 @@
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 
 import express, { type Router } from 'express';
 
@@ -19,6 +22,63 @@ type HermesTerminalLaunchEvent = {
 
 let nextHermesTerminalLaunchId = 1;
 const hermesTerminalLaunches: HermesTerminalLaunchEvent[] = [];
+
+function hermesCommandCandidates(): string[] {
+  const candidates = [process.env.HERMES_CLI_PATH, 'hermes'].filter((candidate): candidate is string => (
+    typeof candidate === 'string' && candidate.trim().length > 0
+  ));
+
+  if (process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA;
+    if (localAppData) {
+      candidates.push(
+        path.join(localAppData, 'hermes', 'hermes-agent', 'venv', 'Scripts', 'hermes.exe'),
+        path.join(localAppData, 'hermes', 'hermes-agent', '.venv', 'Scripts', 'hermes.exe'),
+        path.join(localAppData, 'hermes', 'hermes-agent', 'hermes.exe'),
+      );
+    }
+  } else {
+    candidates.push(
+      path.join(os.homedir(), '.local', 'bin', 'hermes'),
+      path.join(os.homedir(), '.hermes', 'hermes-agent', 'venv', 'bin', 'hermes'),
+      '/usr/local/bin/hermes',
+    );
+  }
+
+  return [...new Set(candidates)];
+}
+
+function readHermesInstallStatus() {
+  for (const candidate of hermesCommandCandidates()) {
+    const isBareCommand = candidate === 'hermes';
+    if (!isBareCommand && !existsSync(candidate)) {
+      continue;
+    }
+
+    const result = spawnSync(candidate, ['--version'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 5000,
+      shell: false,
+    });
+    if (!result.error && result.status === 0) {
+      const version = `${result.stdout || result.stderr || ''}`.trim() || null;
+      return {
+        installed: true,
+        command: candidate,
+        version,
+        error: null,
+      };
+    }
+  }
+
+  return {
+    installed: false,
+    command: null,
+    version: null,
+    error: 'Hermes Agent CLI is not installed or is not on PATH.',
+  };
+}
 
 export function createHermesRouter(): Router {
   const router = express.Router();
@@ -56,6 +116,10 @@ export function createHermesRouter(): Router {
         ? `Hermes is operating inside Pixcode for ${project}.`
         : 'Hermes is operating inside Pixcode.',
     });
+  });
+
+  router.get('/install-status', (_req, res) => {
+    res.json(readHermesInstallStatus());
   });
 
   router.get('/agents', (_req, res) => {

@@ -91,6 +91,15 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     subtextClass: 'text-teal-700 dark:text-teal-300',
     buttonClass: 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800',
   },
+  hermes: {
+    name: 'Hermes Agent',
+    description: 'Pixcode MCP control agent for project-scoped terminal orchestration',
+    bgClass: 'bg-emerald-50 dark:bg-emerald-900/20',
+    borderClass: 'border-emerald-200 dark:border-emerald-800',
+    textClass: 'text-emerald-900 dark:text-emerald-100',
+    subtextClass: 'text-emerald-700 dark:text-emerald-300',
+    buttonClass: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
+  },
 };
 
 // ---------- Install-runner dialog ----------
@@ -233,7 +242,7 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
   // Fall back to a neutral config for unknown providers so we never crash the
   // render path (a defensive net on top of the registered provider list).
   const config = agentConfig[agent] ?? {
-    name: PROVIDER_DISPLAY_NAMES[agent] ?? String(agent),
+    name: agent === 'hermes' ? 'Hermes Agent' : PROVIDER_DISPLAY_NAMES[agent] ?? String(agent),
     bgClass: 'bg-muted/50',
     borderClass: 'border-border',
     textClass: 'text-foreground',
@@ -241,14 +250,108 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
     buttonClass: 'bg-foreground text-background hover:opacity-90',
   };
 
-  const displayName = PROVIDER_DISPLAY_NAMES[agent] ?? config.name;
-  const installCommand = PROVIDER_INSTALL_COMMANDS[agent];
+  const displayName = agent === 'hermes' ? 'Hermes Agent' : PROVIDER_DISPLAY_NAMES[agent] ?? config.name;
+  const installCommand = agent === 'hermes' ? null : PROVIDER_INSTALL_COMMANDS[agent];
   const checkedAtLabel = authStatus.checkedAt
     ? new Intl.DateTimeFormat(undefined, {
         dateStyle: 'medium',
         timeStyle: 'short',
       }).format(new Date(authStatus.checkedAt))
     : null;
+
+  if (agent === 'hermes') {
+    const openHermesTerminal = (mode: 'start' | 'install') => {
+      window.dispatchEvent(new CustomEvent('pixcode:hermes-terminal', {
+        detail: { mode },
+      }));
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="mb-4 flex items-center gap-3">
+          <SessionProviderLogo provider={agent} className="h-6 w-6" />
+          <div>
+            <h3 className="text-lg font-medium text-foreground">{displayName}</h3>
+            <p className="text-sm text-muted-foreground">
+              {t('agents.account.hermes.description', {
+                defaultValue: 'Project-scoped Hermes Agent terminal with Pixcode MCP control.',
+              })}
+            </p>
+          </div>
+        </div>
+
+        <div className={`${config.bgClass} border ${config.borderClass} rounded-lg p-4`}>
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className={`font-medium ${config.textClass}`}>
+                  {authStatus.installed
+                    ? t('agents.authStatus.connected', { defaultValue: 'Connected' })
+                    : t('agents.authStatus.notConnected', { defaultValue: 'Not connected' })}
+                </div>
+                <div className={`mt-1 text-sm ${config.subtextClass}`}>
+                  {authStatus.installed
+                    ? authStatus.installedVersion || t('agents.cliVersion.unknownInstalled', { defaultValue: 'Installed version unknown' })
+                    : authStatus.error || t('agents.account.hermes.notInstalled', { defaultValue: 'Hermes is not installed on this host yet.' })}
+                </div>
+                {authStatus.method && (
+                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                    {authStatus.method}
+                  </div>
+                )}
+              </div>
+              <Badge variant="secondary" className={authStatus.installed ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200'}>
+                {authStatus.loading
+                  ? t('agents.authStatus.checking', { defaultValue: 'Checking' })
+                  : authStatus.installed
+                    ? t('agents.authStatus.connected', { defaultValue: 'Connected' })
+                    : t('agents.authStatus.disconnected', { defaultValue: 'Disconnected' })}
+              </Badge>
+            </div>
+
+            <div className="flex flex-wrap gap-2 border-t border-border/50 pt-4">
+              <Button
+                type="button"
+                onClick={() => openHermesTerminal('start')}
+                size="sm"
+                className={`${config.buttonClass} text-white`}
+              >
+                <LogIn className="mr-2 h-4 w-4" />
+                {t('agents.account.hermes.start', { defaultValue: 'Start Hermes' })}
+              </Button>
+              {!authStatus.installed && (
+                <Button
+                  type="button"
+                  onClick={() => openHermesTerminal('install')}
+                  size="sm"
+                  variant="outline"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {t('agents.account.hermes.install', { defaultValue: 'Install Hermes' })}
+                </Button>
+              )}
+              {onRefreshAuth && (
+                <Button
+                  type="button"
+                  onClick={() => void onRefreshAuth()}
+                  disabled={authStatus.loading}
+                  variant="outline"
+                  size="sm"
+                >
+                  {authStatus.loading ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  {t('agents.cliVersion.refresh', { defaultValue: 'Refresh' })}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Surface a clear "CLI not installed" state before we try to render the
   // login/reauth controls — those are meaningless if the binary isn't

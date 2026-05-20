@@ -335,6 +335,64 @@ function shellQuotePowerShell(value) {
     return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+function normalizeShellPermissionMode(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function shouldBypassShellPermissions(permissionMode, skipPermissions) {
+    return Boolean(skipPermissions) || permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo';
+}
+
+function buildProviderShellPermissionFlags(provider, permissionMode, skipPermissions) {
+    const mode = normalizeShellPermissionMode(permissionMode);
+    const bypass = shouldBypassShellPermissions(mode, skipPermissions);
+
+    if (provider === 'codex') {
+        if (mode === 'bypassPermissions' || mode === 'yolo') {
+            return ['--dangerously-bypass-approvals-and-sandbox'];
+        }
+        if (mode === 'acceptEdits' || mode === 'auto_edit' || bypass) {
+            return ['--sandbox', 'workspace-write', '--ask-for-approval', 'never'];
+        }
+        return [];
+    }
+
+    if (provider === 'gemini' || provider === 'qwen') {
+        if (bypass) {
+            return ['--yolo'];
+        }
+        if (mode === 'auto_edit') {
+            return ['--approval-mode', 'auto_edit'];
+        }
+        if (mode === 'plan') {
+            return ['--approval-mode', 'plan'];
+        }
+        return [];
+    }
+
+    if (provider === 'cursor') {
+        return bypass ? ['-f'] : [];
+    }
+
+    if (provider === 'opencode') {
+        if (mode === 'plan') {
+            return ['--agent', 'plan'];
+        }
+        return bypass ? ['--dangerously-skip-permissions'] : [];
+    }
+
+    if (provider === 'claude') {
+        return bypass ? ['--dangerously-skip-permissions'] : [];
+    }
+
+    return [];
+}
+
+function buildProviderShellCommand(command, permissionFlags = []) {
+    const flags = Array.isArray(permissionFlags) ? permissionFlags.filter(Boolean) : [];
+    return flags.length > 0 ? `${command} ${flags.join(' ')}` : command;
+}
+
 function resolvePublicBaseUrl(request) {
     const headers = request?.headers || {};
     const forwardedProto = String(headers['x-forwarded-proto'] || '').split(',')[0].trim();
@@ -373,11 +431,37 @@ function buildHermesShellCommand(kind, env) {
             `$env:PIXCODE_API_KEY=${quote(env.PIXCODE_API_KEY)}`,
             `$env:PIXCODE_APP_ROOT=${quote(env.PIXCODE_APP_ROOT)}`,
         ].join('; ');
-        const install = '& ([scriptblock]::Create((irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1))) -SkipSetup -Branch main';
+        const resolveHermesCommand = [
+            'function Resolve-HermesCommand {',
+            '$cmd = Get-Command hermes -ErrorAction SilentlyContinue;',
+            'if ($cmd) { return $cmd.Source; }',
+            '$candidates = @(',
+            '$env:HERMES_CLI_PATH,',
+            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\venv\\Scripts\\hermes.exe"),',
+            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\.venv\\Scripts\\hermes.exe"),',
+            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\hermes.exe")',
+            ');',
+            'foreach ($candidate in $candidates) { if ($candidate -and (Test-Path $candidate)) { return $candidate; } }',
+            'return $null;',
+            '}',
+        ].join(' ');
+        const installHermesIfMissing = [
+            'function Install-HermesIfMissing {',
+            '$script:HermesCmd = Resolve-HermesCommand;',
+            'if ($script:HermesCmd) { Write-Host "Hermes already installed:"; & $script:HermesCmd --version; return; }',
+            '$installer = Join-Path $env:TEMP "pixcode-hermes-install.ps1";',
+            'Invoke-WebRequest -Uri "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1" -UseBasicParsing -OutFile $installer;',
+            '& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -SkipSetup -Branch main;',
+            'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE; }',
+            '$env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + $env:Path;',
+            '$script:HermesCmd = Resolve-HermesCommand;',
+            'if (-not $script:HermesCmd) { throw "Hermes installed, but the hermes command could not be found. Restart Pixcode or add Hermes to PATH."; }',
+            '}',
+        ].join(' ');
         if (kind === 'pixcode:hermes:install') {
-            return `${setEnv}; ${install}; ${configure}`;
+            return `${setEnv}; ${resolveHermesCommand}; ${installHermesIfMissing}; Install-HermesIfMissing; ${configure}`;
         }
-        return `${setEnv}; ${configure}; if (-not (Get-Command hermes -ErrorAction SilentlyContinue)) { ${install} }; hermes chat --toolsets "hermes-cli,mcp-pixcode"`;
+        return `${setEnv}; ${resolveHermesCommand}; ${installHermesIfMissing}; Install-HermesIfMissing; ${configure}; & $script:HermesCmd chat --toolsets "hermes-cli,mcp-pixcode"`;
     }
 
     const setEnv = [
@@ -385,11 +469,30 @@ function buildHermesShellCommand(kind, env) {
         `PIXCODE_API_KEY=${quote(env.PIXCODE_API_KEY)}`,
         `PIXCODE_APP_ROOT=${quote(env.PIXCODE_APP_ROOT)}`,
     ].join(' ');
+    const resolveHermesCommand = [
+        'resolveHermesCommand() {',
+        'if command -v hermes >/dev/null 2>&1; then command -v hermes; return 0; fi;',
+        'if [ -n "${HERMES_CLI_PATH:-}" ] && [ -x "$HERMES_CLI_PATH" ]; then printf "%s\\n" "$HERMES_CLI_PATH"; return 0; fi;',
+        'if [ -x "$HOME/.local/bin/hermes" ]; then printf "%s\\n" "$HOME/.local/bin/hermes"; return 0; fi;',
+        'if [ -x "$HOME/.hermes/hermes-agent/venv/bin/hermes" ]; then printf "%s\\n" "$HOME/.hermes/hermes-agent/venv/bin/hermes"; return 0; fi;',
+        'if [ -x "/usr/local/bin/hermes" ]; then printf "%s\\n" "/usr/local/bin/hermes"; return 0; fi;',
+        'return 1;',
+        '}',
+    ].join(' ');
     const install = 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash';
+    const installHermesIfMissing = [
+        'installHermesIfMissing() {',
+        'HERMES_CMD="$(resolveHermesCommand 2>/dev/null || true)";',
+        'if [ -n "$HERMES_CMD" ]; then echo "Hermes already installed:"; "$HERMES_CMD" --version 2>/dev/null || true; return 0; fi;',
+        `${install};`,
+        'HERMES_CMD="$(resolveHermesCommand 2>/dev/null || true)";',
+        'if [ -z "$HERMES_CMD" ]; then echo "Hermes installed, but the hermes command could not be found. Reload PATH and retry." >&2; exit 127; fi;',
+        '}',
+    ].join(' ');
     if (kind === 'pixcode:hermes:install') {
-        return `${setEnv} sh -lc ${quote(`${install} && node ${shellQuotePosix(configureScript)}`)}`;
+        return `${setEnv} sh -lc ${quote(`${resolveHermesCommand} ${installHermesIfMissing} installHermesIfMissing && node ${shellQuotePosix(configureScript)}`)}`;
     }
-    return `${setEnv} sh -lc ${quote(`node ${shellQuotePosix(configureScript)} && if ! command -v hermes >/dev/null 2>&1; then ${install}; fi; hermes chat --toolsets "hermes-cli,mcp-pixcode"`)}`;
+    return `${setEnv} sh -lc ${quote(`${resolveHermesCommand} ${installHermesIfMissing} installHermesIfMissing && node ${shellQuotePosix(configureScript)} && "$HERMES_CMD" chat --toolsets "hermes-cli,mcp-pixcode"`)}`;
 }
 
 // Single WebSocket server that handles both paths
@@ -2175,6 +2278,9 @@ function handleShellConnection(ws, request) {
                 }
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
                 const forceNewSession = Boolean(data.forceNewSession);
+                const shellPermissionMode = normalizeShellPermissionMode(data.permissionMode);
+                const shellSkipPermissions = Boolean(data.skipPermissions);
+                const shellPermissionFlags = buildProviderShellPermissionFlags(provider, shellPermissionMode, shellSkipPermissions);
                 urlDetectionBuffer = '';
                 announcedAuthUrls.clear();
 
@@ -2305,25 +2411,27 @@ function handleShellConnection(ws, request) {
                         // Plain shell mode without an initial command must stay interactive.
                         shellCommand = initialCommand || null;
                     } else if (provider === 'cursor') {
+                        const command = buildProviderShellCommand('cursor-agent', shellPermissionFlags);
                         if (hasSession && sessionId) {
-                            shellCommand = `cursor-agent --resume="${sessionId}"`;
+                            shellCommand = `${command} --resume="${sessionId}"`;
                         } else {
-                            shellCommand = 'cursor-agent';
+                            shellCommand = command;
                         }
                     } else if (provider === 'codex') {
                         // Use codex command; attempt to resume and fall back to a new session when the resume fails.
+                        const command = buildProviderShellCommand('codex', shellPermissionFlags);
                         if (hasSession && sessionId) {
                             if (os.platform() === 'win32') {
                                 // PowerShell syntax for fallback
-                                shellCommand = `codex resume "${sessionId}"; if ($LASTEXITCODE -ne 0) { codex }`;
+                                shellCommand = `${command} resume "${sessionId}"; if ($LASTEXITCODE -ne 0) { ${command} }`;
                             } else {
-                                shellCommand = `codex resume "${sessionId}" || codex`;
+                                shellCommand = `${command} resume "${sessionId}" || ${command}`;
                             }
                         } else {
-                            shellCommand = 'codex';
+                            shellCommand = command;
                         }
                     } else if (provider === 'gemini') {
-                        const command = initialCommand || 'gemini';
+                        const command = buildProviderShellCommand(initialCommand || 'gemini', shellPermissionFlags);
                         let resumeId = sessionId;
                         if (hasSession && sessionId) {
                             try {
@@ -2352,7 +2460,7 @@ function handleShellConnection(ws, request) {
                         // Qwen Code shares Gemini CLI's --resume semantics (it's a fork),
                         // so the resume path resolves the backend-tracked cliSessionId the
                         // same way. Falls back to a fresh session when the ID can't be found.
-                        const command = initialCommand || 'qwen';
+                        const command = buildProviderShellCommand(initialCommand || 'qwen', shellPermissionFlags);
                         let resumeId = sessionId;
                         if (hasSession && sessionId) {
                             try {
@@ -2380,7 +2488,7 @@ function handleShellConnection(ws, request) {
                         // we pass them straight through without a cliSessionId
                         // mapping layer — OpenCode doesn't renumber IDs the way
                         // Gemini does.
-                        const command = initialCommand || 'opencode';
+                        const command = buildProviderShellCommand(initialCommand || 'opencode', shellPermissionFlags);
                         if (hasSession && sessionId && safeSessionIdPattern.test(sessionId)) {
                             shellCommand = `${command} --session "${sessionId}"`;
                         } else {
@@ -2388,12 +2496,12 @@ function handleShellConnection(ws, request) {
                         }
                     } else {
                         // Claude (default provider)
-                        const command = initialCommand || 'claude';
+                        const command = buildProviderShellCommand(initialCommand || 'claude', shellPermissionFlags);
                         if (hasSession && sessionId) {
                             if (os.platform() === 'win32') {
-                                shellCommand = `claude --resume "${sessionId}"; if ($LASTEXITCODE -ne 0) { claude }`;
+                                shellCommand = `${command} --resume "${sessionId}"; if ($LASTEXITCODE -ne 0) { ${command} }`;
                             } else {
-                                shellCommand = `claude --resume "${sessionId}" || claude`;
+                                shellCommand = `${command} --resume "${sessionId}" || ${command}`;
                             }
                         } else {
                             shellCommand = command;

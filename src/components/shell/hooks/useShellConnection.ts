@@ -3,13 +3,19 @@ import type { MutableRefObject } from 'react';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
 
-import type { Project, ProjectSession } from '../../../types/app';
+import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import { TERMINAL_INIT_DELAY_MS } from '../constants/constants';
 import { getShellWebSocketUrl, parseShellMessage, sendSocketMessage } from '../utils/socket';
 
 const ANSI_ESCAPE_REGEX =
   /(?:\u001B\[[0-?]*[ -/]*[@-~]|\u009B[0-?]*[ -/]*[@-~]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)|\u009D[^\u0007\u009C]*(?:\u0007|\u009C)|\u001B[PX^_][^\u001B]*\u001B\\|[\u0090\u0098\u009E\u009F][^\u009C]*\u009C|\u001B[@-Z\\-_])/g;
 const PROCESS_EXIT_REGEX = /Process exited with code (\d+)/;
+const GLOBAL_PERMISSION_MODE_KEY = 'permissionMode-global';
+
+type ShellPermissionOptions = {
+  permissionMode: string;
+  skipPermissions: boolean;
+};
 
 type UseShellConnectionOptions = {
   wsRef: MutableRefObject<WebSocket | null>;
@@ -36,6 +42,94 @@ type UseShellConnectionResult = {
   connectToShell: () => void;
   disconnectFromShell: (manual?: boolean) => void;
 };
+
+function readJsonRecord(key: string): Record<string, unknown> {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function readGlobalPermissionMode() {
+  const mode = window.localStorage.getItem(GLOBAL_PERMISSION_MODE_KEY);
+  return typeof mode === 'string' ? mode : 'default';
+}
+
+function toGeminiLikePermissionMode(mode: unknown, fallback: string) {
+  if (mode === 'yolo' || mode === 'auto_edit' || mode === 'plan' || mode === 'default') {
+    return mode;
+  }
+
+  if (fallback === 'bypassPermissions' || fallback === 'acceptEdits') {
+    return 'yolo';
+  }
+
+  if (fallback === 'plan') {
+    return 'plan';
+  }
+
+  return 'default';
+}
+
+function readProviderShellPermissionOptions(provider: LLMProvider | 'plain-shell'): ShellPermissionOptions {
+  const globalMode = readGlobalPermissionMode();
+  const globalBypass = globalMode === 'bypassPermissions' || globalMode === 'acceptEdits';
+
+  if (provider === 'plain-shell') {
+    return { permissionMode: 'default', skipPermissions: false };
+  }
+
+  if (provider === 'claude') {
+    const settings = readJsonRecord('claude-settings');
+    return {
+      permissionMode: globalMode,
+      skipPermissions: Boolean(settings.skipPermissions) || globalBypass,
+    };
+  }
+
+  if (provider === 'cursor') {
+    const settings = {
+      ...readJsonRecord('cursor-settings'),
+      ...readJsonRecord('cursor-tools-settings'),
+    };
+    return {
+      permissionMode: globalMode,
+      skipPermissions: Boolean(settings.skipPermissions) || globalBypass,
+    };
+  }
+
+  if (provider === 'codex') {
+    const settings = readJsonRecord('codex-settings');
+    return {
+      permissionMode: typeof settings.permissionMode === 'string' ? settings.permissionMode : globalMode,
+      skipPermissions: false,
+    };
+  }
+
+  if (provider === 'gemini' || provider === 'qwen') {
+    const settings = readJsonRecord(`${provider}-settings`);
+    return {
+      permissionMode: toGeminiLikePermissionMode(settings.permissionMode, globalMode),
+      skipPermissions: false,
+    };
+  }
+
+  if (provider === 'opencode') {
+    const settings = readJsonRecord('opencode-settings');
+    return {
+      permissionMode: Boolean(settings.skipPermissions) || globalBypass ? 'bypassPermissions' : globalMode,
+      skipPermissions: Boolean(settings.skipPermissions) || globalBypass,
+    };
+  }
+
+  return { permissionMode: globalMode, skipPermissions: globalBypass };
+}
 
 export function useShellConnection({
   wsRef,
@@ -149,17 +243,24 @@ export function useShellConnection({
 
             currentFitAddon.fit();
 
+            const provider = isPlainShellRef.current
+              ? 'plain-shell'
+              : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude') as LLMProvider;
+            const permissionOptions = readProviderShellPermissionOptions(provider);
+
             sendSocketMessage(socket, {
               type: 'init',
               projectPath: currentProject.fullPath || currentProject.path || '',
               sessionId: isPlainShellRef.current ? null : selectedSessionRef.current?.id || null,
               hasSession: isPlainShellRef.current ? false : Boolean(selectedSessionRef.current),
-              provider: isPlainShellRef.current ? 'plain-shell' : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude'),
+              provider,
               cols: currentTerminal.cols,
               rows: currentTerminal.rows,
               initialCommand: initialCommandRef.current,
               isPlainShell: isPlainShellRef.current,
               forceNewSession: !isPlainShellRef.current && forceNewSessionRef.current,
+              permissionMode: permissionOptions.permissionMode,
+              skipPermissions: permissionOptions.skipPermissions,
             });
           }, TERMINAL_INIT_DELAY_MS);
         };

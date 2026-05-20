@@ -10,6 +10,7 @@ import type {
   QwenPermissionMode,
   SettingsProject,
 } from '../../../types/types';
+import type { LLMProvider } from '../../../../../types/app';
 
 export type AgentContext = {
   authStatus: AuthStatus;
@@ -17,7 +18,7 @@ export type AgentContext = {
 };
 
 export type AgentContextByProvider = Record<AgentProvider, AgentContext>;
-export type ProviderAuthStatusByProvider = Record<AgentProvider, AuthStatus>;
+export type ProviderAuthStatusByProvider = Record<LLMProvider, AuthStatus>;
 
 export type AgentsSettingsTabProps = {
   providerAuthStatus: ProviderAuthStatusByProvider;

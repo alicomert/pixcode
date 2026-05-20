@@ -110,6 +110,13 @@ type HermesTerminalLaunchEvent = {
   createdAt: string;
 };
 
+type HermesInstallStatus = {
+  installed: boolean;
+  command: string | null;
+  version: string | null;
+  error: string | null;
+};
+
 type WorkbenchCliProjectState = {
   provider: LLMProvider;
   isTerminalOpen: boolean;
@@ -141,7 +148,6 @@ const WORKBENCH_EDITOR_STATE_STORAGE_KEY = 'pixcode.workbench.editorState.v1';
 const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
 const CLI_PROVIDER_IDS: LLMProvider[] = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
 const MAX_PERSISTED_EDITOR_TABS = 30;
-const HERMES_AGENT_DOCS_URL = 'https://hermes-agent.nousresearch.com/docs/';
 const HERMES_AGENT_START_COMMAND = 'pixcode:hermes:start';
 const HERMES_AGENT_INSTALL_COMMAND = 'pixcode:hermes:install';
 const HERMES_TERMINAL_LAUNCH_POLL_MS = 2000;
@@ -406,6 +412,7 @@ function VSCodeWorkbench({
   const [bottomTerminalHeight, setBottomTerminalHeight] = useState(BOTTOM_TERMINAL_DEFAULT_HEIGHT);
   const [isBottomTerminalMinimized, setIsBottomTerminalMinimized] = useState(false);
   const [hermesCliLaunch, setHermesCliLaunch] = useState<HermesTerminalLaunchEvent | null>(null);
+  const [hermesInstallStatus, setHermesInstallStatus] = useState<HermesInstallStatus | null>(null);
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>('projects');
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
   const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
@@ -612,6 +619,30 @@ function VSCodeWorkbench({
     setBottomTerminalRunId((current) => current + 1);
   }, []);
 
+  const refreshHermesInstallStatus = useCallback(async () => {
+    try {
+      const response = await authenticatedFetch('/api/orchestration/hermes/install-status');
+      const status = await response.json();
+      setHermesInstallStatus({
+        installed: Boolean(status?.installed),
+        command: typeof status?.command === 'string' ? status.command : null,
+        version: typeof status?.version === 'string' ? status.version : null,
+        error: typeof status?.error === 'string' ? status.error : null,
+      });
+    } catch {
+      setHermesInstallStatus({
+        installed: false,
+        command: null,
+        version: null,
+        error: null,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshHermesInstallStatus();
+  }, [refreshHermesInstallStatus]);
+
   useEffect(() => {
     if (!pendingHermesProjectPath || !selectedProject) {
       return;
@@ -783,8 +814,23 @@ function VSCodeWorkbench({
       return;
     }
 
-    openBottomTerminal('hermes-install');
-  }, [openBottomTerminal, selectedProject, setActiveTab]);
+    openBottomTerminal(hermesInstallStatus?.installed ? 'hermes' : 'hermes-install');
+  }, [hermesInstallStatus?.installed, openBottomTerminal, selectedProject, setActiveTab]);
+
+  useEffect(() => {
+    const handleHermesTerminalRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ mode?: string }>).detail;
+      if (detail?.mode === 'install') {
+        installHermesAgent();
+        return;
+      }
+
+      openHermesAgent();
+    };
+
+    window.addEventListener('pixcode:hermes-terminal', handleHermesTerminalRequest);
+    return () => window.removeEventListener('pixcode:hermes-terminal', handleHermesTerminalRequest);
+  }, [installHermesAgent, openHermesAgent]);
 
   const shrinkCliPanel = useCallback(() => {
     setRightPaneWidth((current) => clamp(current - RIGHT_RESIZE_STEP, RIGHT_MIN_WIDTH, RIGHT_MAX_WIDTH));
@@ -1282,6 +1328,7 @@ function VSCodeWorkbench({
               <WorkbenchBottomTerminal
                 project={selectedProject}
                 mode={bottomTerminalMode}
+                hermesInstallStatus={hermesInstallStatus}
                 runId={bottomTerminalRunId}
                 height={bottomTerminalHeight}
                 isMinimized={isBottomTerminalMinimized}
@@ -1988,6 +2035,7 @@ function EditorTabContextMenu({
 function WorkbenchBottomTerminal({
   project,
   mode,
+  hermesInstallStatus,
   runId,
   height,
   isMinimized,
@@ -2002,6 +2050,7 @@ function WorkbenchBottomTerminal({
 }: {
   project: Project | null;
   mode: WorkbenchBottomTerminalMode;
+  hermesInstallStatus: HermesInstallStatus | null;
   runId: number;
   height: number;
   isMinimized: boolean;
@@ -2015,6 +2064,7 @@ function WorkbenchBottomTerminal({
   t: TFunction<'common'>;
 }) {
   const isHermes = mode === 'hermes' || mode === 'hermes-install';
+  const isHermesInstalled = hermesInstallStatus?.installed === true;
   const title = mode === 'hermes-install'
     ? t('vscodeWorkbench.hermes.installTitle', { defaultValue: 'Install Hermes Agent' })
     : mode === 'hermes'
@@ -2051,27 +2101,26 @@ function WorkbenchBottomTerminal({
           <span className="truncate font-mono text-[10px] text-gray-500">
             {project ? getProjectPath(project) : t('vscodeWorkbench.noProject')}
           </span>
+          {isHermes && isHermesInstalled && (
+            <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-200">
+              {hermesInstallStatus?.version || t('vscodeWorkbench.hermes.ready', { defaultValue: 'Ready' })}
+            </span>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {isHermes && (
             <>
-              <a
-                href={HERMES_AGENT_DOCS_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded px-2 py-1 text-[10px] font-semibold text-gray-300 hover:bg-gray-800 hover:text-gray-100"
-              >
-                {t('vscodeWorkbench.hermes.docsShort', { defaultValue: 'Docs' })}
-              </a>
-              <button
-                type="button"
-                className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
-                onClick={onInstallHermes}
-                aria-label={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
-                title={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
+              {!isHermesInstalled && (
+                <button
+                  type="button"
+                  className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+                  onClick={onInstallHermes}
+                  aria-label={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
+                  title={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"

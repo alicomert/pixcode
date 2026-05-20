@@ -3,6 +3,7 @@ import { McpServers } from '../../../../../mcp';
 
 import AccountContent from './content/AccountContent';
 import ConfigContent from './content/ConfigContent';
+import HermesContent from './content/HermesContent';
 import PermissionsContent from './content/PermissionsContent';
 
 export default function AgentCategoryContentSection({
@@ -110,14 +111,26 @@ export default function AgentCategoryContentSection({
         />
       )}
 
-      {selectedCategory === 'mcp' && (
+      {selectedCategory === 'permissions' && selectedAgent === 'hermes' && (
+        <HermesContent />
+      )}
+
+      {selectedCategory === 'mcp' && selectedAgent === 'hermes' && (
+        <HermesContent />
+      )}
+
+      {selectedCategory === 'mcp' && selectedAgent !== 'hermes' && (
         <McpServers
           selectedProvider={selectedAgent}
           currentProjects={projects}
         />
       )}
 
-      {selectedCategory === 'config' && (
+      {selectedCategory === 'config' && selectedAgent === 'hermes' && (
+        <HermesContent />
+      )}
+
+      {selectedCategory === 'config' && selectedAgent !== 'hermes' && (
         <ConfigContent agent={selectedAgent} />
       )}
     </div>

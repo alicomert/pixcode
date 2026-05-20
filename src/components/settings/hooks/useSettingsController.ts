@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useTheme } from '../../../contexts/ThemeContext';
+import type { LLMProvider } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';
 import { persistLocalNotificationPreferences } from '../../../utils/localNotifications';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
@@ -60,7 +61,7 @@ type NotificationPreferencesResponse = {
   preferences?: NotificationPreferencesState;
 };
 
-type ActiveLoginProvider = AgentProvider | '';
+type ActiveLoginProvider = LLMProvider | '';
 
 const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'access', 'appearance', 'git', 'api', 'notifications', 'plugins', 'mobile', 'telegram', 'diagnostics', 'about'];
 
@@ -266,6 +267,13 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   }, []);
 
   const openLoginForProvider = useCallback((provider: AgentProvider) => {
+    if (provider === 'hermes') {
+      window.dispatchEvent(new CustomEvent('pixcode:hermes-terminal', {
+        detail: { mode: 'start' },
+      }));
+      return;
+    }
+
     setLoginProvider(provider);
     setShowLoginModal(true);
   }, []);

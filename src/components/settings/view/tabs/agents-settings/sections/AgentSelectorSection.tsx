@@ -10,6 +10,7 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   gemini: 'Gemini',
   qwen: 'Qwen Code',
   opencode: 'OpenCode',
+  hermes: 'Hermes Agent',
 };
 
 export default function AgentSelectorSection({
@@ -36,7 +37,8 @@ export default function AgentSelectorSection({
               agent === 'claude' ? 'bg-blue-500' :
               agent === 'cursor' ? 'bg-purple-500' :
               agent === 'gemini' ? 'bg-indigo-500' :
-              agent === 'qwen' ? 'bg-orange-500' : 'bg-foreground/60';
+              agent === 'qwen' ? 'bg-orange-500' :
+              agent === 'hermes' ? 'bg-emerald-500' : 'bg-foreground/60';
 
             return (
               <Pill

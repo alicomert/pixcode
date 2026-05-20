@@ -139,7 +139,11 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 <AgentsSettingsTab
                   providerAuthStatus={providerAuthStatus}
                   onProviderLogin={openLoginForProvider}
-                  onRefreshProviderAuth={(provider) => checkProviderAuthStatus(provider, { force: true })}
+                  onRefreshProviderAuth={(provider) => (
+                    provider === 'hermes'
+                      ? Promise.resolve()
+                      : checkProviderAuthStatus(provider, { force: true })
+                  )}
                   onRefreshAllProviderAuth={() => refreshProviderAuthStatuses(undefined, { force: true })}
                   claudePermissions={claudePermissions}
                   onClaudePermissionsChange={setClaudePermissions}

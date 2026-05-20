@@ -190,7 +190,13 @@ async function spawnGemini(command, options = {}, ws) {
     args.push('--output-format', 'stream-json');
 
     // Handle approval modes and allowed tools
-    if (settings.skipPermissions || options.skipPermissions || permissionMode === 'yolo') {
+    if (
+        settings.skipPermissions ||
+        options.skipPermissions ||
+        permissionMode === 'yolo' ||
+        permissionMode === 'bypassPermissions' ||
+        permissionMode === 'acceptEdits'
+    ) {
         args.push('--yolo');
     } else if (permissionMode === 'auto_edit') {
         args.push('--approval-mode', 'auto_edit');

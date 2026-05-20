@@ -102,7 +102,13 @@ async function spawnQwen(command, options = {}, ws) {
     args.push('--model', modelToUse);
     args.push('--output-format', 'stream-json');
 
-    if (settings.skipPermissions || options.skipPermissions || permissionMode === 'yolo') {
+    if (
+        settings.skipPermissions ||
+        options.skipPermissions ||
+        permissionMode === 'yolo' ||
+        permissionMode === 'bypassPermissions' ||
+        permissionMode === 'acceptEdits'
+    ) {
         args.push('--yolo');
     } else if (permissionMode === 'auto_edit') {
         args.push('--approval-mode', 'auto_edit');

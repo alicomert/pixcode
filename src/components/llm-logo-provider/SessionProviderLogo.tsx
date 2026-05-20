@@ -7,6 +7,8 @@ import GeminiLogo from './GeminiLogo';
 import OpencodeLogo from './OpencodeLogo';
 import QwenLogo from './QwenLogo';
 
+import { Workflow } from '@/lib/icons';
+
 type SessionProviderLogoProps = {
   provider?: LLMProvider | string | null;
   className?: string;
@@ -34,6 +36,10 @@ export default function SessionProviderLogo({
 
   if (provider === 'opencode') {
     return <OpencodeLogo className={className} />;
+  }
+
+  if (provider === 'hermes') {
+    return <Workflow className={className} />;
   }
 
   return <ClaudeLogo className={className} />;

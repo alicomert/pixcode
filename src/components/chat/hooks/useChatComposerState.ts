@@ -641,6 +641,21 @@ export function useChatComposerState({
       };
 
       const toolsSettings = getToolsSettings();
+      const geminiLikePermissionMode = (savedMode: unknown) => {
+        if (savedMode === 'yolo' || savedMode === 'auto_edit' || savedMode === 'plan' || savedMode === 'default') {
+          return savedMode;
+        }
+
+        if (permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits') {
+          return 'yolo';
+        }
+
+        if (permissionMode === 'plan') {
+          return 'plan';
+        }
+
+        return 'default';
+      };
       const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
 
@@ -687,7 +702,7 @@ export function useChatComposerState({
             resume: Boolean(effectiveSessionId),
             model: geminiModel,
             sessionSummary,
-            permissionMode,
+            permissionMode: geminiLikePermissionMode(toolsSettings?.permissionMode),
             toolsSettings,
           },
         });
@@ -706,7 +721,7 @@ export function useChatComposerState({
             resume: Boolean(effectiveSessionId),
             model: qwenModel,
             sessionSummary,
-            permissionMode,
+            permissionMode: geminiLikePermissionMode(toolsSettings?.permissionMode),
             toolsSettings,
           },
         });

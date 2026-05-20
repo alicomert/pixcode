@@ -17,6 +17,10 @@ const app = read('src/App.tsx');
 const serverIndex = read('server/index.js');
 const hermesRoutes = read('server/modules/orchestration/hermes/hermes.routes.ts');
 const shellTerminal = read('src/components/shell/hooks/useShellTerminal.ts');
+const shellConnection = read('src/components/shell/hooks/useShellConnection.ts');
+const geminiCli = read('server/gemini-cli.js');
+const qwenCli = read('server/qwen-code-cli.js');
+const agentSettings = read('src/components/settings/view/tabs/agents-settings/AgentsSettingsTab.tsx');
 const gitPanelHeader = read('src/components/git-panel/view/GitPanelHeader.tsx');
 const themeContext = read('src/contexts/ThemeContext.jsx');
 
@@ -58,6 +62,7 @@ assert.match(workbench, /isBottomTerminalMinimized/, 'Bottom terminal should sup
 assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selected project folder without starting the selected AI CLI.');
 assert.match(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should launch from the bottom terminal through a server-side sentinel.');
 assert.doesNotMatch(workbench, /Project-scoped agent terminal\. Installs Hermes when missing/, 'Right CLI panel should not show the old Hermes card.');
+assert.doesNotMatch(workbench, /vscodeWorkbench\.hermes\.docsShort|HERMES_AGENT_DOCS_URL/, 'Hermes terminal header should not include a docs shortcut.');
 assert.match(workbench, /shrinkCliPanel/, 'Right CLI panel should expose a shrink action.');
 assert.match(workbench, /expandCliPanel/, 'Right CLI panel should expose an expand action.');
 assert.match(workbench, /vscodeWorkbench\.welcome\.openProject/, 'Workbench welcome should expose a simple Open Project action.');
@@ -72,6 +77,10 @@ assert.match(serverIndex, /\/api\/shell\/sessions\/terminate/, 'Backend should e
 assert.match(serverIndex, /isPlainShell && !initialCommand/, 'Backend should spawn an interactive plain shell when no terminal command is provided.');
 assert.match(serverIndex, /pixcode:hermes:start/, 'Backend should expand Hermes terminal sentinels on the server host.');
 assert.doesNotMatch(serverIndex, /iex \(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)/, 'Windows Hermes install should avoid the old inline iex pattern.');
+assert.doesNotMatch(serverIndex, /scriptblock\]::Create\(\(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)\)/, 'Windows Hermes install should avoid scriptblock Invoke-RestMethod eval patterns.');
+assert.match(serverIndex, /Invoke-WebRequest[\s\S]+install\.ps1[\s\S]+-OutFile/, 'Windows Hermes install should download the installer to a file before running it.');
+assert.match(serverIndex, /Resolve-HermesCommand|resolveHermesCommand/, 'Hermes start/install should resolve an existing hermes binary before installing.');
+assert.match(serverIndex, /buildProviderShellCommand/, 'Provider terminal launch should centralize provider-specific permission flags.');
 assert.doesNotMatch(shellTerminal, /new WebglAddon\(\)/, 'Workbench terminal should use the stable xterm renderer.');
 assert.match(workbench, /setActivityPanel\('explorer'\)/, 'Selecting a project should return the side panel to Explorer.');
 assert.match(gitPanelHeader, /compact/, 'Workbench Source Control should have compact icon-only controls.');
@@ -94,7 +103,19 @@ assert.match(serverIndex, /app\.use\('\/hermes', createHermesTaskRouter\(\)\)/, 
 assert.doesNotMatch(serverIndex, /app\.use\('\/a2a'/, 'Server should not expose the old A2A route.');
 assert.match(hermesRoutes, /createHermesRouter/, 'Hermes should have a dedicated orchestration API router.');
 assert.match(hermesRoutes, /terminal-launches/, 'Hermes MCP should be able to request visible Pixcode CLI terminal launches.');
+assert.match(hermesRoutes, /install-status/, 'Hermes settings and terminal UI should have an install-status endpoint.');
 assert.match(serverIndex, /forceNewSession/, 'Shell backend should support explicit fresh-session launches from the workbench.');
 assert.match(serverIndex, /killProviderPtySessions/, 'Shell backend should terminate old provider PTYs when a fresh CLI session is requested.');
+
+assert.match(settingsTypes, /'hermes'/, 'Settings Agents should support Hermes Agent as a first-class agent.');
+assert.match(agentSettings, /'hermes'/, 'Settings Agents should list Hermes Agent.');
+assert.match(workbench, /hermesInstallStatus/, 'Workbench should hide Hermes install actions when Hermes is already installed.');
+assert.match(shellConnection, /cursor-tools-settings/, 'Cursor shell launches should read Cursor permission settings, not Claude settings.');
+assert.match(shellConnection, /permissionMode/, 'Shell websocket init should send provider permission mode to the backend.');
+assert.match(serverIndex, /--dangerously-bypass-approvals-and-sandbox/, 'Codex terminal bypass mode should use the Codex CLI bypass flag.');
+assert.match(serverIndex, /--yolo/, 'Gemini and Qwen terminal bypass mode should use --yolo.');
+assert.match(serverIndex, /--dangerously-skip-permissions/, 'Claude/OpenCode terminal bypass mode should pass the provider bypass flag.');
+assert.match(geminiCli, /permissionMode === 'bypassPermissions'[\s\S]+--yolo|--yolo[\s\S]+permissionMode === 'bypassPermissions'/, 'Gemini chat route should map Pixcode bypassPermissions to --yolo.');
+assert.match(qwenCli, /permissionMode === 'bypassPermissions'[\s\S]+--yolo|--yolo[\s\S]+permissionMode === 'bypassPermissions'/, 'Qwen chat route should map Pixcode bypassPermissions to --yolo.');
 
 console.log('pixcode workbench 1.48 smoke passed');

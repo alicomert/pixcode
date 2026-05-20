@@ -4,7 +4,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { AgentProvider } from '../../../../../types/types';
+import type { LLMProvider } from '../../../../../../../types/app';
 
 import { AlertCircle, Check, Clipboard, Lock, RefreshCw } from '@/lib/icons';
 import SessionProviderLogo from '@/components/llm-logo-provider/SessionProviderLogo';
@@ -42,7 +42,7 @@ type ConfigFileDetailResponse = {
 };
 
 type ConfigContentProps = {
-  agent: AgentProvider;
+  agent: LLMProvider;
 };
 
 /**
