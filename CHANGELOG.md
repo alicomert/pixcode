@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.1](https://github.com/alicomert/pixcode/compare/v1.49.0...v1.49.1) (2026-05-20)
+
+Pixcode 1.49.1 fixes Hermes installation, Hermes settings visibility, and AI CLI bypass-permission launch flags.
+
+### Fixes
+
+* **hermes:** detect an existing Hermes binary before offering install, remove the docs shortcut from the terminal header, and expose Hermes Agent in Settings > Agents.
+* **hermes:** avoid antivirus-blocked Windows `irm | iex` install execution by downloading the installer to a temp file before running PowerShell with `-File`.
+* **cli:** pass provider-specific permission bypass flags for Codex, Cursor, Gemini, Qwen, OpenCode, and Claude-backed terminal sessions.
+
+### Tests
+
+* verify Hermes workbench coverage, VS Code workbench polish, server syntax, typecheck, lint, production build, package contents, npm publish, registry metadata, and tarball download.
+
 ## [1.49.0](https://github.com/alicomert/pixcode/compare/v1.48.6...v1.49.0) (2026-05-20)
 
 Pixcode 1.49.0 ships the Hermes control workbench and a simpler VS Code-style welcome flow.
