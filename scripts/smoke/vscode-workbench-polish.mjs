@@ -12,6 +12,10 @@ const chatComposer = read('src/components/chat/view/subcomponents/ChatComposer.t
 const workerSlots = read('src/components/chat/view/subcomponents/WorkerSlotsControl.tsx');
 const wizard = read('src/components/project-creation-wizard/ProjectCreationWizard.tsx');
 const sidebar = read('src/components/sidebar/view/Sidebar.tsx');
+const shellTerminal = read('src/components/shell/hooks/useShellTerminal.ts');
+const gitPanel = read('src/components/git-panel/view/GitPanel.tsx');
+const gitPanelHeader = read('src/components/git-panel/view/GitPanelHeader.tsx');
+const gitViewTabs = read('src/components/git-panel/view/GitViewTabs.tsx');
 
 assert.match(
   workbench,
@@ -57,6 +61,45 @@ assert.match(
   workbench,
   /function WorkbenchWorkspaceTabs/,
   'Workbench should render Chrome-style workspace tabs directly under the menu bar.',
+);
+
+assert.doesNotMatch(
+  workbench,
+  /\.\.\.currentTabs\.filter\(\(tab\) => tab\.id !== tabId\)/,
+  'Selecting an existing workspace tab must preserve tab order instead of moving it to the end.',
+);
+
+assert.match(
+  workbench,
+  /function WorkspaceTabContextMenu/,
+  'Workspace tabs should expose their actions through a right-click context menu.',
+);
+
+assert.match(
+  workbench,
+  /onContextMenu=\{\(event\) => openWorkspaceContextMenu\(event, tab\)\}/,
+  'Workspace tab actions should open from right-click on the tab.',
+);
+
+const workspaceTabsSource = workbench.slice(
+  workbench.indexOf('function WorkbenchWorkspaceTabs'),
+  workbench.indexOf('function EditorTabContextMenu'),
+);
+
+assert.doesNotMatch(
+  workspaceTabsSource,
+  /MoreHorizontal/,
+  'Workspace tabs should not render a three-dot action button.',
+);
+
+for (const token of ['closeOtherWorkspaces', 'closeAllWorkspaces']) {
+  assert.match(workbench, new RegExp(token), `Workspace tab context menu should support ${token}.`);
+}
+
+assert.match(
+  workspaceTabsSource,
+  /self-center/,
+  'Workspace add button should be vertically centered in the tab strip.',
 );
 
 assert.match(
@@ -123,6 +166,30 @@ assert.match(
   'CLI history should be integrated as a polished project-scoped panel.',
 );
 
+assert.match(
+  workbench,
+  /terminalSession/,
+  'Right CLI panel should track whether the terminal is running a new session or a selected history session.',
+);
+
+assert.match(
+  workbench,
+  /startNewCliSession/,
+  'Right CLI panel should expose a one-click new CLI session action.',
+);
+
+assert.match(
+  workbench,
+  /function WorkbenchCliPanelToolbar/,
+  'Right CLI terminal should keep compact History and New Session actions visible while the terminal is open.',
+);
+
+assert.match(
+  workbench,
+  /onNewSession=\{startNewCliSession\}/,
+  'Right CLI terminal toolbar should wire the plus button to a new CLI session.',
+);
+
 assert.doesNotMatch(
   workbench,
   /return <Sidebar \{\.\.\.sidebarProps\} isMobile=\{false\} \/>/,
@@ -168,6 +235,28 @@ assert.match(
   workbench,
   /activeTab === 'chat' && activityPanel === 'projects'/,
   'Projects activity should stay selected while the center chat tab is active.',
+);
+
+assert.match(
+  workbench,
+  /setActivityPanel\('explorer'\)/,
+  'Selecting a project from Projects should switch the left pane back to Explorer.',
+);
+
+assert.match(
+  workbench,
+  /<GitPanel selectedProject=\{selectedProject\} isMobile=\{false\} compact onFileOpen=\{handleFileOpen\}/,
+  'Source Control should render in compact icon-first mode inside the VS Code workbench side panel.',
+);
+
+assert.match(gitPanel, /compact = false/, 'GitPanel should accept a compact prop.');
+assert.match(gitPanelHeader, /compact/, 'GitPanelHeader should receive compact mode for narrow panes.');
+assert.match(gitViewTabs, /compact/, 'GitViewTabs should render compact icon-only tabs.');
+
+assert.doesNotMatch(
+  shellTerminal,
+  /new WebglAddon\(\)/,
+  'Shell terminal should avoid the WebGL renderer that can leave stale glyph trails with OpenCode output.',
 );
 
 assert.match(chatInterface, /compactComposer\?: boolean/, 'ChatInterface should expose compactComposer for narrow workbench panes.');

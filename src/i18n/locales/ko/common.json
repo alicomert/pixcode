@@ -840,6 +840,8 @@
       "add": "워크스페이스 추가",
       "close": "{{name}} 닫기",
       "closeAction": "워크스페이스 닫기",
+      "closeOthers": "다른 항목 닫기",
+      "closeAll": "모두 닫기",
       "rename": "이름 바꾸기",
       "star": "별표",
       "unstar": "별표 해제",

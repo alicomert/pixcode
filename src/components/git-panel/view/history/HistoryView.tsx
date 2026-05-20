@@ -8,6 +8,7 @@ import { History, RefreshCw } from '@/lib/icons';
 
 type HistoryViewProps = {
   isMobile: boolean;
+  compact?: boolean;
   isLoading: boolean;
   recentCommits: GitCommitSummary[];
   commitDiffs: GitDiffMap;
@@ -17,6 +18,7 @@ type HistoryViewProps = {
 
 export default function HistoryView({
   isMobile,
+  compact = false,
   isLoading,
   recentCommits,
   commitDiffs,
@@ -61,7 +63,7 @@ export default function HistoryView({
           <p className="text-sm">No commits found</p>
         </div>
       ) : (
-        <div className={isMobile ? 'pb-4' : ''}>
+        <div className={isMobile || compact ? 'pb-4' : ''}>
           {recentCommits.map((commit) => (
             <CommitHistoryItem
               key={commit.hash}

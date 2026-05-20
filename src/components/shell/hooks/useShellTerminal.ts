@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject, RefObject } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal } from '@xterm/xterm';
 
 import type { Project } from '../../../types/app';
@@ -95,12 +94,6 @@ export function useShellTerminal({
     // Avoid wrapped partial links in compact login flows.
     if (!minimal) {
       nextTerminal.loadAddon(new WebLinksAddon());
-    }
-
-    try {
-      nextTerminal.loadAddon(new WebglAddon());
-    } catch {
-      console.warn('[Shell] WebGL renderer unavailable, using Canvas fallback');
     }
 
     nextTerminal.open(terminalContainerRef.current);

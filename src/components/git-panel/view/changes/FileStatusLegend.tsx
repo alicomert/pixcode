@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, Info } from '@/lib/icons';
 
 type FileStatusLegendProps = {
   isMobile: boolean;
+  compact?: boolean;
 };
 
 const LEGEND_ITEMS = [
@@ -15,10 +16,10 @@ const LEGEND_ITEMS = [
   { status: 'U', label: 'Untracked' },
 ] as const;
 
-export default function FileStatusLegend({ isMobile }: FileStatusLegendProps) {
+export default function FileStatusLegend({ isMobile, compact = false }: FileStatusLegendProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  if (isMobile) {
+  if (isMobile || compact) {
     return null;
   }
 

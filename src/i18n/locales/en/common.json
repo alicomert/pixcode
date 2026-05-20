@@ -933,6 +933,8 @@
       "add": "Add workspace",
       "close": "Close {{name}}",
       "closeAction": "Close workspace",
+      "closeOthers": "Close others",
+      "closeAll": "Close all",
       "rename": "Rename",
       "star": "Star",
       "unstar": "Unstar",

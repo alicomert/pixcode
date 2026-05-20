@@ -94,7 +94,10 @@ export function useShellConnection({
       if (message.type === 'output') {
         const output = typeof message.data === 'string' ? message.data : '';
         handleProcessCompletion(output);
-        terminalRef.current?.write(output);
+        const terminal = terminalRef.current;
+        terminal?.write(output, () => {
+          terminal.refresh(0, Math.max(0, terminal.rows - 1));
+        });
         onOutputRef?.current?.();
         return;
       }

@@ -2,6 +2,23 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.48.3](https://github.com/alicomert/pixcode/compare/v1.48.2...v1.48.3) (2026-05-20)
+
+Pixcode 1.48.3 tightens the VS Code workbench workspace tabs, Projects panel, Source Control side panel, and OpenCode terminal rendering.
+
+### Fixes
+
+* **workspace-tabs:** keep workspace tabs in their original order when selected, align the add-workspace button, and move tab actions to a right-click menu with rename, star, close, close others, and close all.
+* **projects:** make the Projects side panel denser and switch back to Explorer immediately after a project is selected.
+* **cli:** keep project history and a new-session plus button visible in the right terminal pane while a CLI is running.
+* **source-control:** add compact workbench Source Control controls so narrow side panels use icon-first actions instead of overflowing labels.
+* **terminal:** disable the xterm WebGL renderer and refresh terminal rows after streamed output to avoid stale glyph trails with OpenCode output.
+* **i18n:** add the new workspace tab close actions across all supported locales.
+
+### Tests
+
+* extend workbench smoke coverage for stable workspace tab ordering, right-click workspace actions, compact Source Control, project-to-Explorer selection, visible CLI history/new-session actions, and stable terminal rendering.
+
 ## [1.48.2](https://github.com/alicomert/pixcode/compare/v1.48.1...v1.48.2) (2026-05-19)
 
 Pixcode 1.48.2 tightens the VS Code workbench tab, CLI, and Explorer refresh behavior.

@@ -933,6 +933,8 @@
       "add": "Workspace ekle",
       "close": "{{name}} kapat",
       "closeAction": "Workspace kapat",
+      "closeOthers": "Digerlerini kapat",
+      "closeAll": "Tumunu kapat",
       "rename": "Yeniden adlandir",
       "star": "Yildizla",
       "unstar": "Yildizi kaldir",

@@ -5,6 +5,7 @@ import { FileText, GitBranch, History } from '@/lib/icons';
 type GitViewTabsProps = {
   activeView: GitPanelView;
   isHidden: boolean;
+  compact?: boolean;
   changeCount: number;
   onChange: (view: GitPanelView) => void;
 };
@@ -15,7 +16,7 @@ const TABS: { id: GitPanelView; label: string; Icon: typeof FileText }[] = [
   { id: 'branches', label: 'Branches', Icon: GitBranch },
 ];
 
-export default function GitViewTabs({ activeView, isHidden, changeCount, onChange }: GitViewTabsProps) {
+export default function GitViewTabs({ activeView, isHidden, compact = false, changeCount, onChange }: GitViewTabsProps) {
   return (
     <div
       className={`flex border-b border-border/60 transition-all duration-300 ease-in-out ${
@@ -26,7 +27,7 @@ export default function GitViewTabs({ activeView, isHidden, changeCount, onChang
         <button
           key={id}
           onClick={() => onChange(id)}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+          className={`flex-1 ${compact ? 'px-2 py-2' : 'px-4 py-2'} text-sm font-medium transition-colors ${
             activeView === id
               ? 'border-b-2 border-primary text-primary'
               : 'text-muted-foreground hover:text-foreground'
@@ -34,7 +35,7 @@ export default function GitViewTabs({ activeView, isHidden, changeCount, onChang
         >
           <span className="flex items-center justify-center gap-2">
             <Icon className="h-4 w-4" />
-            <span>{label}</span>
+            {!compact && <span>{label}</span>}
             {id === 'changes' && changeCount > 0 && (
               <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">
                 {changeCount}

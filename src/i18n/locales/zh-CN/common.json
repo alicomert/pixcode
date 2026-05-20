@@ -840,6 +840,8 @@
       "add": "添加工作区",
       "close": "关闭 {{name}}",
       "closeAction": "关闭工作区",
+      "closeOthers": "关闭其他",
+      "closeAll": "全部关闭",
       "rename": "重命名",
       "star": "标星",
       "unstar": "取消标星",

@@ -11,6 +11,7 @@ import { GitBranch, GitCommit, RefreshCw } from '@/lib/icons';
 
 type ChangesViewProps = {
   isMobile: boolean;
+  compact?: boolean;
   projectPath: string;
   gitStatus: GitStatusResponse | null;
   gitDiff: GitDiffMap;
@@ -30,6 +31,7 @@ type ChangesViewProps = {
 
 export default function ChangesView({
   isMobile,
+  compact = false,
   projectPath,
   gitStatus,
   gitDiff,
@@ -146,6 +148,7 @@ export default function ChangesView({
       {!isFilesystemTracking && (
         <CommitComposer
           isMobile={isMobile}
+          compact={compact}
           projectPath={projectPath}
           selectedFileCount={selectedFiles.size}
           isHidden={hasExpandedFiles}
@@ -155,7 +158,7 @@ export default function ChangesView({
         />
       )}
 
-      {!gitStatus?.error && !isFilesystemTracking && <FileStatusLegend isMobile={isMobile} />}
+      {!gitStatus?.error && !isFilesystemTracking && <FileStatusLegend isMobile={isMobile} compact={compact} />}
 
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (

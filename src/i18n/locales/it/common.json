@@ -840,6 +840,8 @@
       "add": "Aggiungi workspace",
       "close": "Chiudi {{name}}",
       "closeAction": "Chiudi workspace",
+      "closeOthers": "Chiudi altri",
+      "closeAll": "Chiudi tutto",
       "rename": "Rinomina",
       "star": "Aggiungi stella",
       "unstar": "Rimuovi stella",

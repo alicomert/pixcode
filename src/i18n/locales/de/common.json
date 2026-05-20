@@ -810,6 +810,8 @@
       "add": "Workspace hinzufügen",
       "close": "{{name}} schließen",
       "closeAction": "Workspace schließen",
+      "closeOthers": "Andere schließen",
+      "closeAll": "Alle schließen",
       "rename": "Umbenennen",
       "star": "Markieren",
       "unstar": "Markierung entfernen",

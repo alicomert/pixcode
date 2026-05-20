@@ -9,6 +9,7 @@ const commitMessageCache = new Map<string, string>();
 
 type CommitComposerProps = {
   isMobile: boolean;
+  compact?: boolean;
   projectPath: string;
   selectedFileCount: number;
   isHidden: boolean;
@@ -19,6 +20,7 @@ type CommitComposerProps = {
 
 export default function CommitComposer({
   isMobile,
+  compact = false,
   projectPath,
   selectedFileCount,
   isHidden,
@@ -39,7 +41,7 @@ export default function CommitComposer({
 
   const [isCommitting, setIsCommitting] = useState(false);
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(isMobile);
+  const [isCollapsed, setIsCollapsed] = useState(isMobile || compact);
 
   const handleCommit = async (message = commitMessage) => {
     const trimmedMessage = message.trim();
@@ -96,8 +98,8 @@ export default function CommitComposer({
         isHidden ? 'max-h-0 -translate-y-2 overflow-hidden opacity-0' : 'max-h-96 translate-y-0 opacity-100'
       }`}
     >
-      {isMobile && isCollapsed ? (
-        <div className="border-b border-border/60 px-4 py-2">
+      {(isMobile || compact) && isCollapsed ? (
+        <div className="border-b border-border/60 px-3 py-2">
           <button
             onClick={() => setIsCollapsed(false)}
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
@@ -109,7 +111,7 @@ export default function CommitComposer({
         </div>
       ) : (
         <div className="border-b border-border/60 px-4 py-3">
-          {isMobile && (
+          {(isMobile || compact) && (
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-medium text-foreground">Commit Changes</span>
               <button
@@ -159,9 +161,10 @@ export default function CommitComposer({
               onClick={requestCommitConfirmation}
               disabled={!commitMessage.trim() || selectedFileCount === 0 || isCommitting}
               className="flex items-center space-x-1 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              title={isCommitting ? 'Committing...' : 'Commit'}
             >
               <Check className="h-3 w-3" />
-              <span>{isCommitting ? 'Committing...' : 'Commit'}</span>
+              {!compact && <span>{isCommitting ? 'Committing...' : 'Commit'}</span>}
             </button>
           </div>
         </div>

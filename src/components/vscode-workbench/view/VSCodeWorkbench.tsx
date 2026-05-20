@@ -82,6 +82,12 @@ type EditorTabContextMenu = {
   y: number;
 } | null;
 
+type WorkspaceTabContextMenu = {
+  tabId: string;
+  x: number;
+  y: number;
+} | null;
+
 type ProviderInstallState = {
   provider: LLMProvider | null;
   state: 'idle' | 'running' | 'done' | 'error';
@@ -246,6 +252,7 @@ function VSCodeWorkbench({
   const [splitEditorFile, setSplitEditorFile] = useState<CodeEditorFile | null>(null);
   const [editorTabContextMenu, setEditorTabContextMenu] = useState<EditorTabContextMenu>(null);
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkbenchWorkspaceTab[]>(readWorkspaceTabs);
+  const [workspaceTabContextMenu, setWorkspaceTabContextMenu] = useState<WorkspaceTabContextMenu>(null);
   const editorTabStripRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -276,14 +283,15 @@ function VSCodeWorkbench({
       const tabId = getWorkspaceTabId(selectedProject);
       const existing = currentTabs.find((tab) => tab.id === tabId);
       if (existing) {
-        return [
-          ...currentTabs.filter((tab) => tab.id !== tabId),
-          {
-            ...existing,
-            projectName: selectedProject.name,
-            path: getProjectPath(selectedProject),
-          },
-        ].slice(-DEFAULT_WORKSPACE_TAB_LIMIT);
+        return currentTabs.map((tab) => (
+          tab.id === tabId
+            ? {
+                ...existing,
+                projectName: selectedProject.name,
+                path: getProjectPath(selectedProject),
+              }
+            : tab
+        ));
       }
 
       const nextLabel = `Workspace ${currentTabs.length + 1}`;
@@ -516,7 +524,8 @@ function VSCodeWorkbench({
 
   const handleWorkbenchProjectSelect = useCallback((project: Project) => {
     sidebarProps.onProjectSelect(project);
-    setActiveTab('chat');
+    setActivityPanel('explorer');
+    setActiveTab('files');
   }, [setActiveTab, sidebarProps]);
 
   const handleWorkspaceTabSelect = useCallback((tab: WorkbenchWorkspaceTab) => {
@@ -546,6 +555,14 @@ function VSCodeWorkbench({
       return nextTabs;
     });
   }, [handleWorkbenchProjectSelect, selectedProject, sidebarProps.projects]);
+
+  const closeOtherWorkspaces = useCallback((tabId: string) => {
+    setWorkspaceTabs((currentTabs) => currentTabs.filter((tab) => tab.id === tabId));
+  }, []);
+
+  const closeAllWorkspaces = useCallback(() => {
+    setWorkspaceTabs([]);
+  }, []);
 
   const handleWorkspaceTabRename = useCallback((tabId: string, label: string) => {
     const nextLabel = label.trim();
@@ -580,7 +597,7 @@ function VSCodeWorkbench({
     }
 
     if (activityPanel === 'sourceControl') {
-      return <GitPanel selectedProject={selectedProject} isMobile={false} onFileOpen={handleFileOpen} />;
+      return <GitPanel selectedProject={selectedProject} isMobile={false} compact onFileOpen={handleFileOpen} />;
     }
 
     if (activityPanel === 'terminal') {
@@ -836,8 +853,12 @@ function VSCodeWorkbench({
         selectedProject={selectedProject}
         onSelect={handleWorkspaceTabSelect}
         onClose={handleWorkspaceTabClose}
+        onCloseOthers={closeOtherWorkspaces}
+        onCloseAll={closeAllWorkspaces}
         onRename={handleWorkspaceTabRename}
         onToggleStar={handleWorkspaceTabStar}
+        contextMenu={workspaceTabContextMenu}
+        onContextMenuChange={setWorkspaceTabContextMenu}
         onAdd={() => openProjectWizard('existing')}
         t={t}
       />
@@ -1167,8 +1188,12 @@ function WorkbenchWorkspaceTabs({
   selectedProject,
   onSelect,
   onClose,
+  onCloseOthers,
+  onCloseAll,
   onRename,
   onToggleStar,
+  contextMenu,
+  onContextMenuChange,
   onAdd,
   t,
 }: {
@@ -1177,15 +1202,18 @@ function WorkbenchWorkspaceTabs({
   selectedProject: Project | null;
   onSelect: (tab: WorkbenchWorkspaceTab) => void;
   onClose: (tabId: string) => void;
+  onCloseOthers: (tabId: string) => void;
+  onCloseAll: () => void;
   onRename: (tabId: string, label: string) => void;
   onToggleStar: (tabId: string) => void;
+  contextMenu: WorkspaceTabContextMenu;
+  onContextMenuChange: (contextMenu: WorkspaceTabContextMenu) => void;
   onAdd: () => void;
   t: TFunction<'common'>;
 }) {
   const selectedId = selectedProject ? getWorkspaceTabId(selectedProject) : null;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const tabsWithProjects = useMemo(() => (
     tabs
@@ -1199,7 +1227,7 @@ function WorkbenchWorkspaceTabs({
   ), [projects, tabs]);
 
   const startRename = (tab: WorkbenchWorkspaceTab) => {
-    setOpenMenuId(null);
+    onContextMenuChange(null);
     setEditingId(tab.id);
     setDraftLabel(tab.label);
   };
@@ -1211,14 +1239,28 @@ function WorkbenchWorkspaceTabs({
     setDraftLabel('');
   };
 
+  const openWorkspaceContextMenu = (event: React.MouseEvent, tab: WorkbenchWorkspaceTab) => {
+    event.preventDefault();
+    onSelect(tab);
+    onContextMenuChange({
+      tabId: tab.id,
+      x: event.clientX,
+      y: event.clientY,
+    });
+  };
+
+  const contextMenuEntry = contextMenu
+    ? tabsWithProjects.find((entry) => entry.tab.id === contextMenu.tabId) ?? null
+    : null;
+
   return (
-    <div className="flex h-9 shrink-0 items-center border-b border-border bg-background text-xs">
-      <div className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="relative flex h-9 shrink-0 items-center border-b border-border bg-background text-xs">
+      <div className="flex h-full min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabsWithProjects.length === 0 ? (
           <button
             type="button"
             onClick={onAdd}
-            className="flex h-full min-w-0 items-center gap-2 border-r border-border px-3 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+            className="flex h-8 min-w-0 items-center gap-2 border-r border-border px-3 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
           >
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">
@@ -1231,9 +1273,12 @@ function WorkbenchWorkspaceTabs({
             return (
               <div
                 key={tab.id}
+                onContextMenu={(event) => openWorkspaceContextMenu(event, tab)}
                 className={cn(
-                  'group relative flex h-9 w-52 shrink-0 items-center border-r border-border px-2 transition-colors',
-                  active ? 'bg-muted/50 text-foreground' : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',
+                  'group relative flex h-8 w-52 shrink-0 items-center border-r border-border px-2 transition-colors',
+                  active
+                    ? 'bg-background text-foreground shadow-[inset_0_-2px_0_hsl(var(--primary))]'
+                    : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',
                 )}
                 title={`${tab.label} - ${formatProjectPath(project)}`}
               >
@@ -1280,15 +1325,6 @@ function WorkbenchWorkspaceTabs({
                 <div className="ml-1 flex shrink-0 items-center gap-0.5 opacity-70 group-hover:opacity-100">
                   <button
                     type="button"
-                    onClick={() => setOpenMenuId((current) => (current === tab.id ? null : tab.id))}
-                    className="rounded p-0.5 hover:bg-muted hover:text-foreground"
-                    aria-label={t('vscodeWorkbench.workspace.moreActions', { defaultValue: 'Workspace actions' })}
-                    title={t('vscodeWorkbench.workspace.moreActions', { defaultValue: 'Workspace actions' })}
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => onClose(tab.id)}
                     className="rounded p-0.5 hover:bg-muted hover:text-foreground"
                     aria-label={t('vscodeWorkbench.workspace.close', { name: tab.label, defaultValue: 'Close {{name}}' })}
@@ -1297,43 +1333,6 @@ function WorkbenchWorkspaceTabs({
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-
-                {openMenuId === tab.id && (
-                  <div className="absolute left-2 top-full z-50 mt-1 w-44 overflow-hidden rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-xl shadow-black/10">
-                    <button
-                      type="button"
-                      onClick={() => startRename(tab)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                      {t('vscodeWorkbench.workspace.rename', { defaultValue: 'Rename' })}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onToggleStar(tab.id);
-                        setOpenMenuId(null);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
-                    >
-                      <Star className="h-3.5 w-3.5" />
-                      {tab.starred
-                        ? t('vscodeWorkbench.workspace.unstar', { defaultValue: 'Unstar' })
-                        : t('vscodeWorkbench.workspace.star', { defaultValue: 'Star' })}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose(tab.id);
-                        setOpenMenuId(null);
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-red-600 hover:bg-muted dark:text-red-300"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                      {t('vscodeWorkbench.workspace.closeAction', { defaultValue: 'Close workspace' })}
-                    </button>
-                  </div>
-                )}
               </div>
             );
           })
@@ -1341,13 +1340,123 @@ function WorkbenchWorkspaceTabs({
         <button
           type="button"
           onClick={onAdd}
-          className="flex h-full w-9 shrink-0 items-center justify-center border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="flex h-7 w-8 shrink-0 self-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
           title={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
+      {contextMenu && contextMenuEntry && (
+        <WorkspaceTabContextMenu
+          context={contextMenu}
+          tab={contextMenuEntry.tab}
+          onClose={() => onContextMenuChange(null)}
+          onRename={() => startRename(contextMenuEntry.tab)}
+          onToggleStar={() => onToggleStar(contextMenuEntry.tab.id)}
+          onCloseTab={() => onClose(contextMenuEntry.tab.id)}
+          onCloseOthers={() => onCloseOthers(contextMenuEntry.tab.id)}
+          onCloseAll={onCloseAll}
+          t={t}
+        />
+      )}
+    </div>
+  );
+}
+
+function WorkspaceTabContextMenu({
+  context,
+  tab,
+  onClose,
+  onRename,
+  onToggleStar,
+  onCloseTab,
+  onCloseOthers,
+  onCloseAll,
+  t,
+}: {
+  context: NonNullable<WorkspaceTabContextMenu>;
+  tab: WorkbenchWorkspaceTab;
+  onClose: () => void;
+  onRename: () => void;
+  onToggleStar: () => void;
+  onCloseTab: () => void;
+  onCloseOthers: () => void;
+  onCloseAll: () => void;
+  t: TFunction<'common'>;
+}) {
+  useEffect(() => {
+    const closeOnPointer = () => onClose();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('mousedown', closeOnPointer);
+    window.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      window.removeEventListener('mousedown', closeOnPointer);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [onClose]);
+
+  const runAction = (action: () => void) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    action();
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed z-50 w-48 overflow-hidden rounded-md border border-border bg-popover py-1 text-xs text-popover-foreground shadow-xl shadow-black/10"
+      style={{ left: context.x, top: context.y }}
+      onMouseDown={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={runAction(onRename)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+      >
+        <Edit2 className="h-3.5 w-3.5" />
+        {t('vscodeWorkbench.workspace.rename', { defaultValue: 'Rename' })}
+      </button>
+      <button
+        type="button"
+        onClick={runAction(onToggleStar)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+      >
+        <Star className="h-3.5 w-3.5" />
+        {tab.starred
+          ? t('vscodeWorkbench.workspace.unstar', { defaultValue: 'Unstar' })
+          : t('vscodeWorkbench.workspace.star', { defaultValue: 'Star' })}
+      </button>
+      <div className="my-1 border-t border-border" />
+      <button
+        type="button"
+        onClick={runAction(onCloseTab)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+      >
+        <X className="h-3.5 w-3.5" />
+        {t('vscodeWorkbench.workspace.closeAction', { defaultValue: 'Close workspace' })}
+      </button>
+      <button
+        type="button"
+        onClick={runAction(onCloseOthers)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+      >
+        <PanelLeftClose className="h-3.5 w-3.5" />
+        {t('vscodeWorkbench.workspace.closeOthers', { defaultValue: 'Close others' })}
+      </button>
+      <button
+        type="button"
+        onClick={runAction(onCloseAll)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-600 hover:bg-muted dark:text-red-300"
+      >
+        <X className="h-3.5 w-3.5" />
+        {t('vscodeWorkbench.workspace.closeAll', { defaultValue: 'Close all' })}
+      </button>
     </div>
   );
 }
@@ -1666,6 +1775,7 @@ function WorkbenchCliPanel({
     return cliProviders.some((provider) => provider.id === saved) ? saved as LLMProvider : 'claude';
   });
   const [showHistory, setShowHistory] = useState(false);
+  const [terminalSession, setTerminalSession] = useState<ProjectSession | null>(null);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [terminalRunId, setTerminalRunId] = useState(0);
   const [installState, setInstallState] = useState<ProviderInstallState>({
@@ -1681,7 +1791,8 @@ function WorkbenchCliPanel({
   } = useProviderAuthStatus({ initialLoading: false });
   const projectSessions = useMemo(() => getProjectCliSessions(project), [project]);
   const selectedProviderStatus = providerAuthStatus[selectedProvider];
-  const sessionForShell = session?.__provider === selectedProvider ? session : null;
+  const sessionForShell = terminalSession?.__provider === selectedProvider ? terminalSession : null;
+  const activeHistorySessionId = terminalSession?.id ?? session?.id ?? null;
   const canStartSelectedProvider = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
   const canAutoConnect = Boolean(isTerminalOpen && canStartSelectedProvider);
 
@@ -1693,6 +1804,7 @@ function WorkbenchCliPanel({
   useEffect(() => {
     setIsTerminalOpen(false);
     setShowHistory(false);
+    setTerminalSession(null);
   }, [project?.name]);
 
   useEffect(() => {
@@ -1824,32 +1936,65 @@ function WorkbenchCliPanel({
   const startTerminal = useCallback(() => {
     if (!project) return;
     if (!canStartSelectedProvider) return;
+    setTerminalSession(null);
+    setShowHistory(false);
     window.localStorage.setItem('selected-provider', selectedProvider);
     setIsTerminalOpen(true);
     setTerminalRunId((current) => current + 1);
   }, [canStartSelectedProvider, project, selectedProvider]);
 
+  const startNewCliSession = useCallback(() => {
+    startTerminal();
+  }, [startTerminal]);
+
   const handleHistorySessionSelect = useCallback((nextSession: ProjectSession) => {
     const provider = nextSession.__provider ?? 'claude';
     setSelectedProvider(provider);
     window.localStorage.setItem('selected-provider', provider);
+    setTerminalSession(nextSession);
     onSessionSelect(nextSession);
+    setShowHistory(false);
     setIsTerminalOpen(true);
     setTerminalRunId((current) => current + 1);
   }, [onSessionSelect]);
 
   if (isTerminalOpen) {
     return (
-      <div className="h-full min-h-0 bg-gray-950 text-gray-100">
-        <StandaloneShell
-          key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalRunId}`}
+      <div className="relative flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
+        <WorkbenchCliPanelToolbar
           project={project}
+          provider={selectedProvider}
           session={sessionForShell}
-          showHeader
-          autoConnect={canAutoConnect}
-          isActive
-          onClose={() => setIsTerminalOpen(false)}
+          historyCount={projectSessions.length}
+          historyOpen={showHistory}
+          canStart={canStartSelectedProvider}
+          onToggleHistory={() => setShowHistory((previous) => !previous)}
+          onNewSession={startNewCliSession}
+          t={t}
         />
+
+        {showHistory && (
+          <div className="absolute inset-x-2 top-10 z-30 max-h-[48%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
+            <WorkbenchSessionHistory
+              sessions={projectSessions}
+              activeSessionId={activeHistorySessionId}
+              onSessionSelect={handleHistorySessionSelect}
+              t={t}
+            />
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1">
+          <StandaloneShell
+            key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalRunId}`}
+            project={project}
+            session={sessionForShell}
+            showHeader
+            autoConnect={canAutoConnect}
+            isActive
+            onClose={() => setIsTerminalOpen(false)}
+          />
+        </div>
       </div>
     );
   }
@@ -1867,6 +2012,16 @@ function WorkbenchCliPanel({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+              disabled={!canStartSelectedProvider}
+              onClick={startNewCliSession}
+              title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+              aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
             <button
               type="button"
               className={cn(
@@ -1974,7 +2129,7 @@ function WorkbenchCliPanel({
         {showHistory && (
           <WorkbenchSessionHistory
             sessions={projectSessions}
-            activeSessionId={session?.id ?? null}
+            activeSessionId={activeHistorySessionId}
             onSessionSelect={handleHistorySessionSelect}
             t={t}
           />
@@ -2009,7 +2164,7 @@ function WorkbenchCliPanel({
         <button
           type="button"
           disabled={!canStartSelectedProvider}
-          onClick={startTerminal}
+          onClick={startNewCliSession}
           className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded bg-blue-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-500"
         >
           <Terminal className="h-4 w-4" />
@@ -2017,6 +2172,77 @@ function WorkbenchCliPanel({
             provider: PROVIDER_DISPLAY_NAMES[selectedProvider] ?? selectedProvider,
             defaultValue: 'Start {{provider}}',
           })}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WorkbenchCliPanelToolbar({
+  project,
+  provider,
+  session,
+  historyCount,
+  historyOpen,
+  canStart,
+  onToggleHistory,
+  onNewSession,
+  t,
+}: {
+  project: Project | null;
+  provider: LLMProvider;
+  session: ProjectSession | null;
+  historyCount: number;
+  historyOpen: boolean;
+  canStart: boolean;
+  onToggleHistory: () => void;
+  onNewSession: () => void;
+  t: TFunction<'common'>;
+}) {
+  return (
+    <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-gray-800 bg-gray-900/95 px-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <SessionProviderLogo provider={provider} className="h-4 w-4 shrink-0" />
+        <div className="min-w-0">
+          <div className="truncate text-[11px] font-semibold text-gray-100">
+            {PROVIDER_DISPLAY_NAMES[provider] ?? provider}
+          </div>
+          <div className="truncate text-[10px] text-gray-500">
+            {session
+              ? getSessionTitle(session)
+              : project?.displayName || project?.name || t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          className={cn(
+            'relative rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50',
+            historyOpen && 'bg-gray-800',
+          )}
+          disabled={!project}
+          onClick={onToggleHistory}
+          title={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
+          aria-label={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
+        >
+          <History className="h-3.5 w-3.5" />
+          {historyCount > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-blue-600 px-0.5 text-[8px] font-semibold text-white">
+              {Math.min(historyCount, 9)}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+          disabled={!canStart}
+          onClick={onNewSession}
+          title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+          aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+        >
+          <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
@@ -2114,12 +2340,12 @@ function WorkbenchProjectsPanel({
 }: WorkbenchProjectsPanelProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-border p-2">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="border-b border-border p-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={onOpenProject}
-            className="flex min-w-0 items-center justify-center gap-1.5 rounded border border-border px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+            className="flex min-w-0 items-center justify-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
           >
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t('vscodeWorkbench.projects.openProject', { defaultValue: 'Open Project' })}</span>
@@ -2127,7 +2353,7 @@ function WorkbenchProjectsPanel({
           <button
             type="button"
             onClick={onCloneProject}
-            className="flex min-w-0 items-center justify-center gap-1.5 rounded border border-border px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+            className="flex min-w-0 items-center justify-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
           >
             <Github className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t('vscodeWorkbench.projects.cloneFromGithub', { defaultValue: 'Clone' })}</span>
@@ -2135,8 +2361,8 @@ function WorkbenchProjectsPanel({
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className="flex items-center justify-between border-b border-border px-2.5 py-1.5">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           {t('vscodeWorkbench.projects.directoryList', { defaultValue: 'Directories' })}
         </span>
         <button
@@ -2151,7 +2377,7 @@ function WorkbenchProjectsPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {projects.length === 0 ? (
           <div className="flex h-full items-center justify-center px-4 text-center">
             <div>
@@ -2167,7 +2393,7 @@ function WorkbenchProjectsPanel({
             </div>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {projects.map((project) => {
               const isSelected = selectedProject?.name === project.name;
               return (
@@ -2176,7 +2402,7 @@ function WorkbenchProjectsPanel({
                   role="button"
                   tabIndex={0}
                   className={cn(
-                    'group w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                    'group w-full cursor-pointer rounded border px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                     isSelected
                       ? 'border-primary/40 bg-primary/10'
                       : 'border-transparent hover:border-border hover:bg-muted/40',
@@ -2190,32 +2416,33 @@ function WorkbenchProjectsPanel({
                     }
                   }}
                 >
-                  <div className="flex min-w-0 items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-foreground">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className={cn(
+                      'h-1.5 w-1.5 shrink-0 rounded-full',
+                      isSelected ? 'bg-primary' : 'bg-muted-foreground/30 group-hover:bg-muted-foreground/60',
+                    )}
+                    />
+                    <span className="truncate text-xs font-medium text-foreground">
                       {project.displayName || project.name}
                     </span>
-                    {isSelected && (
-                      <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                        {t('vscodeWorkbench.projects.selected', { defaultValue: 'Selected' })}
-                      </span>
-                    )}
                   </div>
-                  <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <div className="mt-0.5 flex min-w-0 items-center justify-between gap-2 pl-3.5 text-[10px] text-muted-foreground">
                     <span className="truncate font-mono">{formatProjectPath(project)}</span>
                     <span className="shrink-0">{formatFileCount(project.fileCount, t)}</span>
                   </div>
-                  <div className="mt-2 flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <div className="mt-1.5 flex justify-end opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-medium text-foreground"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-border text-foreground"
                       onClick={(event) => {
                         event.stopPropagation();
                         onProjectSelect(project);
                         onNewSession(project);
                       }}
+                      title={t('vscodeWorkbench.projects.startChat', { defaultValue: 'Chat' })}
+                      aria-label={t('vscodeWorkbench.projects.startChat', { defaultValue: 'Chat' })}
                     >
                       <MessageSquare className="h-3 w-3" />
-                      {t('vscodeWorkbench.projects.startChat', { defaultValue: 'Chat' })}
                     </button>
                   </div>
                 </div>

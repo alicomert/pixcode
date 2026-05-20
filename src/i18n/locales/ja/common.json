@@ -840,6 +840,8 @@
       "add": "ワークスペースを追加",
       "close": "{{name}} を閉じる",
       "closeAction": "ワークスペースを閉じる",
+      "closeOthers": "ほかを閉じる",
+      "closeAll": "すべて閉じる",
       "rename": "名前を変更",
       "star": "スターを付ける",
       "unstar": "スターを外す",

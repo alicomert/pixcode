@@ -12,7 +12,7 @@ import GitRepositoryErrorState from '../view/GitRepositoryErrorState';
 import GitViewTabs from '../view/GitViewTabs';
 import ConfirmActionModal from '../view/modals/ConfirmActionModal';
 
-export default function GitPanel({ selectedProject, isMobile = false, onFileOpen }: GitPanelProps) {
+export default function GitPanel({ selectedProject, isMobile = false, compact = false, onFileOpen }: GitPanelProps) {
   const [activeView, setActiveView] = useState<GitPanelView>('changes');
   const [wrapText, setWrapText] = useState(true);
   const [hasExpandedFiles, setHasExpandedFiles] = useState(false);
@@ -88,6 +88,7 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
     <div className="flex h-full flex-col bg-background">
       <GitPanelHeader
         isMobile={isMobile}
+        compact={compact}
         isGitRepository={gitStatus?.isGitRepository !== false}
         currentBranch={currentBranch}
         branches={branches}
@@ -119,6 +120,7 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
           <GitViewTabs
             activeView={activeView}
             isHidden={hasExpandedFiles}
+            compact={compact}
             changeCount={changeCount}
             onChange={setActiveView}
           />
@@ -127,6 +129,7 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
             <ChangesView
               key={selectedProject.fullPath}
               isMobile={isMobile}
+              compact={compact}
               projectPath={selectedProject.fullPath}
               gitStatus={gitStatus}
               gitDiff={gitDiff}
@@ -148,6 +151,7 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
           {activeView === 'history' && (
             <HistoryView
               isMobile={isMobile}
+              compact={compact}
               isLoading={isLoading}
               recentCommits={recentCommits}
               commitDiffs={commitDiffs}

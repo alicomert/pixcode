@@ -17,6 +17,8 @@ const app = read('src/App.tsx');
 const orchestration = read('src/components/orchestration/OrchestrationPage.tsx');
 const serverIndex = read('server/index.js');
 const hermesRoutes = read('server/modules/orchestration/hermes/hermes.routes.ts');
+const shellTerminal = read('src/components/shell/hooks/useShellTerminal.ts');
+const gitPanelHeader = read('src/components/git-panel/view/GitPanelHeader.tsx');
 
 assert.match(
   preferenceHook,
@@ -32,11 +34,18 @@ assert.doesNotMatch(appearanceTab, /workbenchLayout|WorkbenchLayoutPreference|on
 
 assert.match(workbench, /useState<ActivityPanel>\('projects'\)/, 'Workbench should open on the Projects panel.');
 assert.match(workbench, /WorkbenchWorkspaceTabs|WORKBENCH_WORKSPACE_TABS_STORAGE_KEY/, 'Workbench should expose persistent top workspace tabs.');
+assert.match(workbench, /WorkspaceTabContextMenu/, 'Workbench workspace tabs should use right-click actions.');
+assert.doesNotMatch(workbench, /\.\.\.currentTabs\.filter\(\(tab\) => tab\.id !== tabId\)/, 'Workspace selection should not reorder tabs.');
 assert.match(workbench, /openEditorTabs|activeEditorPath/, 'Workbench editor should keep a Monaco-style tab set.');
 assert.doesNotMatch(workbench, /<ChatInterface/, 'Right workbench panel should not render the chat composer.');
 assert.match(workbench, /WorkbenchCliPanel/, 'Right workbench panel should render the CLI terminal panel.');
 assert.match(workbench, /setIsTerminalOpen\(true\)/, 'CLI picker should give way to a full-height terminal after the user starts a provider.');
 assert.match(workbench, /onClose=\{\(\) => setIsTerminalOpen\(false\)\}/, 'Closing the workbench terminal should return to the CLI picker.');
+assert.match(workbench, /WorkbenchCliPanelToolbar/, 'CLI terminal should keep history and new-session actions visible.');
+assert.match(workbench, /startNewCliSession/, 'CLI terminal should support starting a fresh provider session from the right pane.');
+assert.doesNotMatch(shellTerminal, /new WebglAddon\(\)/, 'Workbench terminal should use the stable xterm renderer.');
+assert.match(workbench, /setActivityPanel\('explorer'\)/, 'Selecting a project should return the side panel to Explorer.');
+assert.match(gitPanelHeader, /compact/, 'Workbench Source Control should have compact icon-only controls.');
 assert.doesNotMatch(workbench, /TaskMasterPanel|useTaskMaster|useTasksSettings|tabs\.tasks/, 'Workbench should not expose TaskMaster.');
 
 assert.match(fileTreeData, /pixcode:file-tree-refresh/, 'File tree data should listen for websocket-backed file refresh events.');

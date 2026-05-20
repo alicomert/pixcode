@@ -810,6 +810,8 @@
       "add": "Добавить workspace",
       "close": "Закрыть {{name}}",
       "closeAction": "Закрыть workspace",
+      "closeOthers": "Закрыть остальные",
+      "closeAll": "Закрыть все",
       "rename": "Переименовать",
       "star": "Добавить звезду",
       "unstar": "Убрать звезду",
