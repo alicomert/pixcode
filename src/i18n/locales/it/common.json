@@ -838,6 +838,8 @@
       "empty": "Apri un progetto per creare Workspace 1.",
       "openFirst": "Apri workspace",
       "add": "Aggiungi workspace",
+      "scrollLeft": "Scorri workspace a sinistra",
+      "scrollRight": "Scorri workspace a destra",
       "close": "Chiudi {{name}}",
       "closeAction": "Chiudi workspace",
       "closeOthers": "Chiudi altri",
@@ -871,7 +873,24 @@
       "provider": "Provider",
       "installRunning": "si sta installando",
       "installDone": "è pronto",
-      "installError": "richiede attenzione"
+      "installError": "richiede attenzione",
+      "showPanel": "Mostra pannello CLI",
+      "hidePanel": "Nascondi pannello CLI",
+      "close": "Chiudi terminale"
+    },
+    "terminal": {
+      "title": "Terminale",
+      "close": "Chiudi terminale"
+    },
+    "hermes": {
+      "title": "Hermes Agent",
+      "installTitle": "Installa Hermes Agent",
+      "description": "Terminale agente legato al progetto. Installa Hermes se manca, poi lo apre in questo workspace.",
+      "docs": "Documentazione Hermes",
+      "docsShort": "Docs",
+      "start": "Avvia Hermes",
+      "install": "Installa",
+      "newSession": "Nuova sessione Hermes"
     }
   }
 }

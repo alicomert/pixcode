@@ -838,6 +838,8 @@
       "empty": "Workspace 1 を作成するにはプロジェクトを開いてください。",
       "openFirst": "ワークスペースを開く",
       "add": "ワークスペースを追加",
+      "scrollLeft": "ワークスペースを左へスクロール",
+      "scrollRight": "ワークスペースを右へスクロール",
       "close": "{{name}} を閉じる",
       "closeAction": "ワークスペースを閉じる",
       "closeOthers": "ほかを閉じる",
@@ -871,7 +873,24 @@
       "provider": "プロバイダー",
       "installRunning": "インストール中",
       "installDone": "準備完了",
-      "installError": "確認が必要"
+      "installError": "確認が必要",
+      "showPanel": "CLI パネルを表示",
+      "hidePanel": "CLI パネルを非表示",
+      "close": "ターミナルを閉じる"
+    },
+    "terminal": {
+      "title": "ターミナル",
+      "close": "ターミナルを閉じる"
+    },
+    "hermes": {
+      "title": "Hermes Agent",
+      "installTitle": "Hermes Agent をインストール",
+      "description": "プロジェクト単位のエージェントターミナルです。Hermes がない場合はインストールして、このワークスペースで開きます。",
+      "docs": "Hermes ドキュメント",
+      "docsShort": "Docs",
+      "start": "Hermes を開始",
+      "install": "インストール",
+      "newSession": "新しい Hermes セッション"
     }
   }
 }

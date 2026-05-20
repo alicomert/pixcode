@@ -14,7 +14,6 @@ const settingsMainTabs = read('src/components/settings/view/SettingsMainTabs.tsx
 const settingsTypes = read('src/components/settings/types/types.ts');
 const settingsController = read('src/components/settings/hooks/useSettingsController.ts');
 const app = read('src/App.tsx');
-const orchestration = read('src/components/orchestration/OrchestrationPage.tsx');
 const serverIndex = read('server/index.js');
 const hermesRoutes = read('server/modules/orchestration/hermes/hermes.routes.ts');
 const shellTerminal = read('src/components/shell/hooks/useShellTerminal.ts');
@@ -34,6 +33,8 @@ assert.doesNotMatch(appearanceTab, /workbenchLayout|WorkbenchLayoutPreference|on
 
 assert.match(workbench, /useState<ActivityPanel>\('projects'\)/, 'Workbench should open on the Projects panel.');
 assert.match(workbench, /WorkbenchWorkspaceTabs|WORKBENCH_WORKSPACE_TABS_STORAGE_KEY/, 'Workbench should expose persistent top workspace tabs.');
+assert.match(workbench, /workspaceTabStripRef/, 'Workbench workspace tabs should scroll instead of overflowing the viewport.');
+assert.match(workbench, /onToggleCliPanel/, 'Workbench workspace tab bar should expose a right CLI panel collapse toggle.');
 assert.match(workbench, /WorkspaceTabContextMenu/, 'Workbench workspace tabs should use right-click actions.');
 assert.doesNotMatch(workbench, /\.\.\.currentTabs\.filter\(\(tab\) => tab\.id !== tabId\)/, 'Workspace selection should not reorder tabs.');
 assert.match(workbench, /openEditorTabs|activeEditorPath/, 'Workbench editor should keep a Monaco-style tab set.');
@@ -50,10 +51,14 @@ assert.match(workbench, /setIsTerminalOpen\(true\)/, 'CLI picker should give way
 assert.match(workbench, /onClose=\{closeTerminal\}/, 'Closing the workbench terminal should return to the CLI picker.');
 assert.match(workbench, /WorkbenchCliPanelToolbar/, 'CLI terminal should keep history and new-session actions visible.');
 assert.match(workbench, /WORKBENCH_CLI_STATE_STORAGE_KEY/, 'CLI terminal should remember per-project open state across workspace switches.');
+assert.match(workbench, /function WorkbenchBottomTerminal/, 'Terminal activity should render as a bottom plain-shell panel.');
+assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selected project folder without starting the selected AI CLI.');
+assert.match(workbench, /startHermesAgent/, 'Right CLI panel should launch Hermes Agent in the active project.');
 assert.match(workbench, /openNewCliSessionPicker/, 'CLI terminal plus should return to provider selection before starting a fresh session.');
 assert.match(workbench, /terminateCurrentCliSession\(selectedProvider\)/, 'CLI terminal plus should terminate the existing provider PTY before showing selection.');
 assert.match(workbench, /forceNewSession=\{terminalLaunch\.forceNewSession\}/, 'Fresh CLI sessions should bypass the cached default PTY.');
 assert.match(serverIndex, /\/api\/shell\/sessions\/terminate/, 'Backend should expose an authenticated endpoint to terminate cached provider PTYs immediately.');
+assert.match(serverIndex, /isPlainShell && !initialCommand/, 'Backend should spawn an interactive plain shell when no terminal command is provided.');
 assert.doesNotMatch(shellTerminal, /new WebglAddon\(\)/, 'Workbench terminal should use the stable xterm renderer.');
 assert.match(workbench, /setActivityPanel\('explorer'\)/, 'Selecting a project should return the side panel to Explorer.');
 assert.match(gitPanelHeader, /compact/, 'Workbench Source Control should have compact icon-only controls.');
@@ -70,8 +75,8 @@ assert.doesNotMatch(settingsMainTabs, /id: 'tasks'/, 'Settings main tabs should 
 assert.doesNotMatch(settingsTypes, /'tasks'/, 'Settings tab type should not include tasks.');
 assert.doesNotMatch(settingsController, /'tasks'/, 'Settings controller should not treat tasks as a known tab.');
 
-assert.match(orchestration, /Hermes/, 'Orchestration page should present Hermes as the control agent.');
-assert.doesNotMatch(orchestration, /A2A|a2a/, 'Orchestration page should not present A2A terminology.');
+assert.doesNotMatch(workbench, /<OrchestrationPage/, 'Workbench should not expose the old orchestration page.');
+assert.doesNotMatch(workbench, /tabs\.orchestration/, 'Workbench menus should not route users into orchestration.');
 assert.match(serverIndex, /app\.use\('\/hermes', createHermesTaskRouter\(\)\)/, 'Internal task router should be mounted behind Hermes.');
 assert.doesNotMatch(serverIndex, /app\.use\('\/a2a'/, 'Server should not expose the old A2A route.');
 assert.match(hermesRoutes, /createHermesRouter/, 'Hermes should have a dedicated orchestration API router.');

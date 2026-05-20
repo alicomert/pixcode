@@ -931,6 +931,8 @@
       "empty": "Workspace 1 olusturmak icin bir proje ac.",
       "openFirst": "Workspace ac",
       "add": "Workspace ekle",
+      "scrollLeft": "Workspace sekmelerini sola kaydir",
+      "scrollRight": "Workspace sekmelerini saga kaydir",
       "close": "{{name}} kapat",
       "closeAction": "Workspace kapat",
       "closeOthers": "Digerlerini kapat",
@@ -964,7 +966,24 @@
       "provider": "Saglayici",
       "installRunning": "kuruluyor",
       "installDone": "hazir",
-      "installError": "kontrol istiyor"
+      "installError": "kontrol istiyor",
+      "showPanel": "CLI panelini goster",
+      "hidePanel": "CLI panelini gizle",
+      "close": "Terminali kapat"
+    },
+    "terminal": {
+      "title": "Terminal",
+      "close": "Terminali kapat"
+    },
+    "hermes": {
+      "title": "Hermes Agent",
+      "installTitle": "Hermes Agent kur",
+      "description": "Projeye bagli ajan terminali. Hermes eksikse kurar, sonra bu workspace icinde acar.",
+      "docs": "Hermes dokumanlari",
+      "docsShort": "Dokuman",
+      "start": "Hermes baslat",
+      "install": "Kur",
+      "newSession": "Yeni Hermes oturumu"
     }
   }
 }

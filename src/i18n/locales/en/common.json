@@ -931,6 +931,8 @@
       "empty": "Open a project to create Workspace 1.",
       "openFirst": "Open a workspace",
       "add": "Add workspace",
+      "scrollLeft": "Scroll workspaces left",
+      "scrollRight": "Scroll workspaces right",
       "close": "Close {{name}}",
       "closeAction": "Close workspace",
       "closeOthers": "Close others",
@@ -964,7 +966,24 @@
       "provider": "Provider",
       "installRunning": "is installing",
       "installDone": "is ready",
-      "installError": "needs attention"
+      "installError": "needs attention",
+      "showPanel": "Show CLI panel",
+      "hidePanel": "Hide CLI panel",
+      "close": "Close terminal"
+    },
+    "terminal": {
+      "title": "Terminal",
+      "close": "Close terminal"
+    },
+    "hermes": {
+      "title": "Hermes Agent",
+      "installTitle": "Install Hermes Agent",
+      "description": "Project-scoped agent terminal. Installs Hermes when missing, then opens it in this workspace.",
+      "docs": "Hermes docs",
+      "docsShort": "Docs",
+      "start": "Start Hermes",
+      "install": "Install",
+      "newSession": "New Hermes session"
     }
   }
 }

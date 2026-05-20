@@ -104,8 +104,26 @@ assert.match(
 
 assert.match(
   workspaceTabsSource,
+  /workspaceTabStripRef/,
+  'Workspace tabs should use a scrollable strip like editor tabs.',
+);
+
+assert.match(
+  workspaceTabsSource,
+  /scrollWorkspaceTabs/,
+  'Workspace tabs should expose left/right scroll controls when the tab row overflows.',
+);
+
+assert.match(
+  workspaceTabsSource,
   /border-r border-border/,
   'Workspace add button should read as part of the tab strip instead of a floating bare button.',
+);
+
+assert.match(
+  workspaceTabsSource,
+  /onToggleCliPanel/,
+  'Workspace tab bar should expose a right-panel toggle at the end of the strip.',
 );
 
 assert.match(
@@ -218,6 +236,24 @@ assert.match(
   workbench,
   /function WorkbenchCliPanelToolbar/,
   'Right CLI terminal should keep compact History and New Session actions visible while the terminal is open.',
+);
+
+assert.match(
+  workbench,
+  /function WorkbenchBottomTerminal/,
+  'Terminal activity should open a VS Code-style bottom terminal instead of the provider CLI picker.',
+);
+
+assert.match(
+  workbench,
+  /isPlainShell/,
+  'Workbench bottom terminal should run a plain shell in the selected project directory.',
+);
+
+assert.match(
+  workbench,
+  /startHermesAgent/,
+  'Right CLI panel should offer Hermes Agent as a project-scoped control agent.',
 );
 
 assert.match(

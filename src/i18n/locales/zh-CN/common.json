@@ -838,6 +838,8 @@
       "empty": "打开项目以创建 Workspace 1。",
       "openFirst": "打开工作区",
       "add": "添加工作区",
+      "scrollLeft": "向左滚动工作区",
+      "scrollRight": "向右滚动工作区",
       "close": "关闭 {{name}}",
       "closeAction": "关闭工作区",
       "closeOthers": "关闭其他",
@@ -871,7 +873,24 @@
       "provider": "提供方",
       "installRunning": "正在安装",
       "installDone": "已就绪",
-      "installError": "需要处理"
+      "installError": "需要处理",
+      "showPanel": "显示 CLI 面板",
+      "hidePanel": "隐藏 CLI 面板",
+      "close": "关闭终端"
+    },
+    "terminal": {
+      "title": "终端",
+      "close": "关闭终端"
+    },
+    "hermes": {
+      "title": "Hermes Agent",
+      "installTitle": "安装 Hermes Agent",
+      "description": "项目范围的代理终端。缺少 Hermes 时会先安装，然后在此工作区中打开。",
+      "docs": "Hermes 文档",
+      "docsShort": "Docs",
+      "start": "启动 Hermes",
+      "install": "安装",
+      "newSession": "新建 Hermes 会话"
     }
   }
 }

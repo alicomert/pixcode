@@ -808,6 +808,8 @@
       "empty": "Откройте проект, чтобы создать Workspace 1.",
       "openFirst": "Открыть workspace",
       "add": "Добавить workspace",
+      "scrollLeft": "Прокрутить workspace влево",
+      "scrollRight": "Прокрутить workspace вправо",
       "close": "Закрыть {{name}}",
       "closeAction": "Закрыть workspace",
       "closeOthers": "Закрыть остальные",
@@ -841,7 +843,24 @@
       "provider": "Провайдер",
       "installRunning": "устанавливается",
       "installDone": "готов",
-      "installError": "требует внимания"
+      "installError": "требует внимания",
+      "showPanel": "Показать CLI-панель",
+      "hidePanel": "Скрыть CLI-панель",
+      "close": "Закрыть терминал"
+    },
+    "terminal": {
+      "title": "Терминал",
+      "close": "Закрыть терминал"
+    },
+    "hermes": {
+      "title": "Hermes Agent",
+      "installTitle": "Установить Hermes Agent",
+      "description": "Проектный терминал агента. Устанавливает Hermes, если он отсутствует, затем открывает его в этом workspace.",
+      "docs": "Документация Hermes",
+      "docsShort": "Docs",
+      "start": "Запустить Hermes",
+      "install": "Установить",
+      "newSession": "Новая сессия Hermes"
     }
   }
 }

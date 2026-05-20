@@ -2092,7 +2092,7 @@ function handleShellConnection(ws) {
                 const provider = data.provider || 'claude';
                 const initialCommand = data.initialCommand;
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
-                const forceNewSession = Boolean(data.forceNewSession && !isPlainShell);
+                const forceNewSession = Boolean(data.forceNewSession);
                 urlDetectionBuffer = '';
                 announcedAuthUrls.clear();
 
@@ -2129,9 +2129,16 @@ function handleShellConnection(ws) {
                         terminatePtySession(ptySessionKey, oldSession, 'fresh login');
                     }
                 } else if (forceNewSession) {
-                    const killedSessions = killProviderPtySessions(projectPath, provider);
-                    if (killedSessions > 0) {
-                        console.log(`🧹 Fresh ${provider} session requested; terminated ${killedSessions} cached PTY session(s).`);
+                    if (isPlainShell) {
+                        const oldSession = ptySessionsMap.get(ptySessionKey);
+                        if (oldSession) {
+                            terminatePtySession(ptySessionKey, oldSession, 'fresh plain shell session');
+                        }
+                    } else {
+                        const killedSessions = killProviderPtySessions(projectPath, provider);
+                        if (killedSessions > 0) {
+                            console.log(`🧹 Fresh ${provider} session requested; terminated ${killedSessions} cached PTY session(s).`);
+                        }
                     }
                 }
 
@@ -2213,8 +2220,8 @@ function handleShellConnection(ws) {
                     // Build shell command — use cwd for project path (never interpolate into shell string)
                     let shellCommand;
                     if (isPlainShell) {
-                        // Plain shell mode - run the initial command in the project directory
-                        shellCommand = initialCommand;
+                        // Plain shell mode without an initial command must stay interactive.
+                        shellCommand = initialCommand || null;
                     } else if (provider === 'cursor') {
                         if (hasSession && sessionId) {
                             shellCommand = `cursor-agent --resume="${sessionId}"`;
@@ -2311,11 +2318,13 @@ function handleShellConnection(ws) {
                         }
                     }
 
-                    console.log('🔧 Executing shell command:', shellCommand);
+                    console.log('🔧 Executing shell command:', shellCommand || 'interactive shell');
 
                     // Use appropriate shell based on platform
                     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
-                    const shellArgs = os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand];
+                    const shellArgs = isPlainShell && !initialCommand
+                        ? (os.platform() === 'win32' ? ['-NoLogo'] : ['-l'])
+                        : (os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand]);
 
                     // Use terminal dimensions from client if provided, otherwise use defaults
                     const termCols = data.cols || 80;

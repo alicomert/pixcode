@@ -838,6 +838,8 @@
       "empty": "Workspace 1을 만들려면 프로젝트를 여세요.",
       "openFirst": "워크스페이스 열기",
       "add": "워크스페이스 추가",
+      "scrollLeft": "워크스페이스를 왼쪽으로 스크롤",
+      "scrollRight": "워크스페이스를 오른쪽으로 스크롤",
       "close": "{{name}} 닫기",
       "closeAction": "워크스페이스 닫기",
       "closeOthers": "다른 항목 닫기",
@@ -871,7 +873,24 @@
       "provider": "Provider",
       "installRunning": "설치 중",
       "installDone": "준비됨",
-      "installError": "확인이 필요함"
+      "installError": "확인이 필요함",
+      "showPanel": "CLI 패널 표시",
+      "hidePanel": "CLI 패널 숨기기",
+      "close": "터미널 닫기"
+    },
+    "terminal": {
+      "title": "터미널",
+      "close": "터미널 닫기"
+    },
+    "hermes": {
+      "title": "Hermes Agent",
+      "installTitle": "Hermes Agent 설치",
+      "description": "프로젝트 범위 에이전트 터미널입니다. Hermes가 없으면 설치한 뒤 이 워크스페이스에서 엽니다.",
+      "docs": "Hermes 문서",
+      "docsShort": "Docs",
+      "start": "Hermes 시작",
+      "install": "설치",
+      "newSession": "새 Hermes 세션"
     }
   }
 }
