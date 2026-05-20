@@ -117,6 +117,14 @@ type HermesInstallStatus = {
   error: string | null;
 };
 
+type HermesInstallJobState = {
+  state: 'idle' | 'running' | 'done' | 'error';
+  log: string;
+  error: string | null;
+  jobId: string | null;
+  startAfterInstall: boolean;
+};
+
 type WorkbenchCliProjectState = {
   provider: LLMProvider;
   isTerminalOpen: boolean;
@@ -149,7 +157,6 @@ const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
 const CLI_PROVIDER_IDS: LLMProvider[] = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
 const MAX_PERSISTED_EDITOR_TABS = 30;
 const HERMES_AGENT_START_COMMAND = 'pixcode:hermes:start';
-const HERMES_AGENT_INSTALL_COMMAND = 'pixcode:hermes:install';
 const HERMES_TERMINAL_LAUNCH_POLL_MS = 2000;
 
 function clamp(value: number, min: number, max: number) {
@@ -413,6 +420,13 @@ function VSCodeWorkbench({
   const [isBottomTerminalMinimized, setIsBottomTerminalMinimized] = useState(false);
   const [hermesCliLaunch, setHermesCliLaunch] = useState<HermesTerminalLaunchEvent | null>(null);
   const [hermesInstallStatus, setHermesInstallStatus] = useState<HermesInstallStatus | null>(null);
+  const [hermesInstallJob, setHermesInstallJob] = useState<HermesInstallJobState>({
+    state: 'idle',
+    log: '',
+    error: null,
+    jobId: null,
+    startAfterInstall: false,
+  });
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>('projects');
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
   const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
@@ -423,6 +437,7 @@ function VSCodeWorkbench({
   const [workspaceTabContextMenu, setWorkspaceTabContextMenu] = useState<WorkspaceTabContextMenu>(null);
   const [pendingHermesProjectPath, setPendingHermesProjectPath] = useState<string | null>(null);
   const editorTabStripRef = useRef<HTMLDivElement>(null);
+  const hermesInstallEventSourceRef = useRef<EventSource | null>(null);
   const hasPrimedHermesTerminalLaunchesRef = useRef(false);
   const lastHermesTerminalLaunchIdRef = useRef(0);
   const editorStateProjectKey = useMemo(() => getProjectEditorStateKey(selectedProject), [selectedProject]);
@@ -639,6 +654,109 @@ function VSCodeWorkbench({
     }
   }, []);
 
+  const startHermesApiInstall = useCallback(async ({ force = false, startAfterInstall = false }: { force?: boolean; startAfterInstall?: boolean } = {}) => {
+    try { hermesInstallEventSourceRef.current?.close(); } catch { /* noop */ }
+    hermesInstallEventSourceRef.current = null;
+
+    openBottomTerminal('hermes-install');
+    setHermesInstallJob({
+      state: 'running',
+      log: '',
+      error: null,
+      jobId: null,
+      startAfterInstall,
+    });
+
+    try {
+      const response = await authenticatedFetch('/api/orchestration/hermes/install', {
+        method: 'POST',
+        body: JSON.stringify({
+          force,
+          skipBrowser: true,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body?.jobId) {
+        throw new Error(body?.error?.message || body?.error || `HTTP ${response.status}`);
+      }
+
+      const jobId = String(body.jobId);
+      setHermesInstallJob((current) => ({ ...current, jobId }));
+
+      const token = window.localStorage.getItem('auth-token') || '';
+      const streamUrl = `/api/orchestration/hermes/install/${encodeURIComponent(jobId)}/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const stream = new EventSource(streamUrl);
+      hermesInstallEventSourceRef.current = stream;
+
+      stream.addEventListener('log', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          if (typeof payload.chunk === 'string') {
+            setHermesInstallJob((current) => ({
+              ...current,
+              log: `${current.log}${payload.chunk}`,
+            }));
+          }
+        } catch {
+          // Ignore malformed stream frames.
+        }
+      });
+
+      stream.addEventListener('done', (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data);
+          if (!payload.success) {
+            throw new Error(payload.error || t('vscodeWorkbench.hermes.installFailed', { defaultValue: 'Hermes install failed.' }));
+          }
+
+          setHermesInstallJob((current) => ({
+            ...current,
+            state: 'done',
+            error: null,
+          }));
+          void refreshHermesInstallStatus().then(() => {
+            if (startAfterInstall) {
+              openBottomTerminal('hermes');
+            }
+          });
+        } catch (error) {
+          setHermesInstallJob((current) => ({
+            ...current,
+            state: 'error',
+            error: error instanceof Error ? error.message : t('vscodeWorkbench.hermes.installFailed', { defaultValue: 'Hermes install failed.' }),
+          }));
+        } finally {
+          try { stream.close(); } catch { /* noop */ }
+          hermesInstallEventSourceRef.current = null;
+        }
+      });
+
+      stream.onerror = () => {
+        setHermesInstallJob((current) => (
+          current.state === 'running'
+            ? {
+                ...current,
+                state: 'error',
+                error: t('vscodeWorkbench.hermes.installStreamLost', { defaultValue: 'Hermes install stream closed early. The install may still be running.' }),
+              }
+            : current
+        ));
+      };
+    } catch (error) {
+      setHermesInstallJob({
+        state: 'error',
+        log: '',
+        error: error instanceof Error ? error.message : t('vscodeWorkbench.hermes.installFailed', { defaultValue: 'Hermes install failed.' }),
+        jobId: null,
+        startAfterInstall,
+      });
+    }
+  }, [openBottomTerminal, refreshHermesInstallStatus, t]);
+
+  useEffect(() => () => {
+    try { hermesInstallEventSourceRef.current?.close(); } catch { /* noop */ }
+  }, []);
+
   useEffect(() => {
     void refreshHermesInstallStatus();
   }, [refreshHermesInstallStatus]);
@@ -804,18 +922,17 @@ function VSCodeWorkbench({
       return;
     }
 
-    openBottomTerminal('hermes');
-  }, [openBottomTerminal, selectedProject, setActiveTab, sidebarProps]);
-
-  const installHermesAgent = useCallback(() => {
-    if (!selectedProject) {
-      setActivityPanel('projects');
-      setActiveTab('chat');
+    if (hermesInstallStatus?.installed !== true) {
+      void startHermesApiInstall({ startAfterInstall: true });
       return;
     }
 
-    openBottomTerminal(hermesInstallStatus?.installed ? 'hermes' : 'hermes-install');
-  }, [hermesInstallStatus?.installed, openBottomTerminal, selectedProject, setActiveTab]);
+    openBottomTerminal('hermes');
+  }, [hermesInstallStatus?.installed, openBottomTerminal, selectedProject, setActiveTab, sidebarProps, startHermesApiInstall]);
+
+  const installHermesAgent = useCallback(() => {
+    void startHermesApiInstall({ force: true });
+  }, [startHermesApiInstall]);
 
   useEffect(() => {
     const handleHermesTerminalRequest = (event: Event) => {
@@ -1329,6 +1446,7 @@ function VSCodeWorkbench({
                 project={selectedProject}
                 mode={bottomTerminalMode}
                 hermesInstallStatus={hermesInstallStatus}
+                hermesInstallJob={hermesInstallJob}
                 runId={bottomTerminalRunId}
                 height={bottomTerminalHeight}
                 isMinimized={isBottomTerminalMinimized}
@@ -2036,6 +2154,7 @@ function WorkbenchBottomTerminal({
   project,
   mode,
   hermesInstallStatus,
+  hermesInstallJob,
   runId,
   height,
   isMinimized,
@@ -2051,6 +2170,7 @@ function WorkbenchBottomTerminal({
   project: Project | null;
   mode: WorkbenchBottomTerminalMode;
   hermesInstallStatus: HermesInstallStatus | null;
+  hermesInstallJob: HermesInstallJobState;
   runId: number;
   height: number;
   isMinimized: boolean;
@@ -2070,9 +2190,7 @@ function WorkbenchBottomTerminal({
     : mode === 'hermes'
       ? t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })
       : t('vscodeWorkbench.terminal.title', { defaultValue: 'Terminal' });
-  const command = mode === 'hermes-install'
-    ? HERMES_AGENT_INSTALL_COMMAND
-    : mode === 'hermes'
+  const command = mode === 'hermes'
       ? HERMES_AGENT_START_COMMAND
       : null;
 
@@ -2166,21 +2284,88 @@ function WorkbenchBottomTerminal({
       </div>
       {!isMinimized && (
         <div className="h-[calc(100%-2rem)] min-h-0">
-          <StandaloneShell
-            key={`bottom-terminal-${mode}-${project?.name || 'none'}-${runId}`}
-            project={project}
-            session={null}
-            command={command}
-            isPlainShell
-            forceNewSession
-            showHeader={false}
-            autoConnect={Boolean(project)}
-            isActive={isActive}
-            title={title}
-          />
+          {mode === 'hermes-install' ? (
+            <HermesInstallLogPanel installJob={hermesInstallJob} onRetry={onInstallHermes} onStart={onStartHermes} t={t} />
+          ) : (
+            <StandaloneShell
+              key={`bottom-terminal-${mode}-${project?.name || 'none'}-${runId}`}
+              project={project}
+              session={null}
+              command={command}
+              isPlainShell
+              forceNewSession
+              showHeader={false}
+              autoConnect={Boolean(project)}
+              isActive={isActive}
+              title={title}
+            />
+          )}
         </div>
       )}
     </section>
+  );
+}
+
+function HermesInstallLogPanel({
+  installJob,
+  onRetry,
+  onStart,
+  t,
+}: {
+  installJob: HermesInstallJobState;
+  onRetry: () => void;
+  onStart: () => void;
+  t: TFunction<'common'>;
+}) {
+  const running = installJob.state === 'running';
+  const done = installJob.state === 'done';
+  const error = installJob.state === 'error';
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-gray-950">
+      <div className="flex h-9 shrink-0 items-center justify-between border-b border-gray-800 px-3">
+        <div className="flex min-w-0 items-center gap-2 text-[11px] text-gray-300">
+          {running ? <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-300" /> : <Workflow className="h-3.5 w-3.5 text-emerald-300" />}
+          <span className="truncate">
+            {running
+              ? t('vscodeWorkbench.hermes.installRunning', { defaultValue: 'Installing Hermes through Pixcode API...' })
+              : done
+                ? t('vscodeWorkbench.hermes.installDone', { defaultValue: 'Hermes installed and Pixcode MCP configured.' })
+                : error
+                  ? t('vscodeWorkbench.hermes.installError', { defaultValue: 'Hermes install failed.' })
+                  : t('vscodeWorkbench.hermes.installReady', { defaultValue: 'Ready to install Hermes.' })}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {done && (
+            <button
+              type="button"
+              className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-500"
+              onClick={onStart}
+            >
+              {t('vscodeWorkbench.hermes.start', { defaultValue: 'Start Hermes' })}
+            </button>
+          )}
+          {error && (
+            <button
+              type="button"
+              className="rounded bg-gray-800 px-2 py-1 text-[11px] font-medium text-gray-100 hover:bg-gray-700"
+              onClick={onRetry}
+            >
+              {t('vscodeWorkbench.hermes.retryInstall', { defaultValue: 'Retry install' })}
+            </button>
+          )}
+        </div>
+      </div>
+      {installJob.error && (
+        <div className="border-b border-red-900/60 bg-red-950/40 px-3 py-2 text-[11px] text-red-100">
+          {installJob.error}
+        </div>
+      )}
+      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-5 text-gray-200">
+        {installJob.log || t('vscodeWorkbench.hermes.installWaiting', { defaultValue: 'Waiting for Hermes install logs...' })}
+      </pre>
+    </div>
   );
 }
 

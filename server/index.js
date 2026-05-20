@@ -651,7 +651,11 @@ adapterRegistry.register(new OpenCodeA2AAdapter());
 app.use('/hermes', createHermesTaskRouter());
 app.use('/preview', authenticateToken, createPreviewProxyRouter());
 app.use('/api/orchestration', authenticateToken, createOrchestrationTaskRouter());
-app.use('/api/orchestration/hermes', authenticateToken, createHermesRouter());
+app.use('/api/orchestration/hermes', authenticateToken, createHermesRouter({
+    appRoot: APP_ROOT,
+    createHermesApiKey: getOrCreateHermesApiKey,
+    resolvePublicBaseUrl,
+}));
 app.use('/api/orchestration', authenticateToken, createWorkflowRouter());
 app.use('/live', createLiveViewPublicRouter());
 

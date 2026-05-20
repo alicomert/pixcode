@@ -1,12 +1,16 @@
-import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
 
-import express, { type Router } from 'express';
+import express, { type Request, type Response, type Router } from 'express';
 
 import { adapterRegistry } from '@/modules/orchestration/a2a/adapter-registry.js';
 import { a2aTaskStore as hermesTaskStore } from '@/modules/orchestration/a2a/task-store.js';
+import {
+  cancelHermesInstallJob,
+  createHermesInstallJob,
+  getHermesInstallJob,
+  readHermesInstallStatus,
+  snapshotHermesInstallDonePayload,
+} from '@/services/hermes-install-jobs.js';
 
 const HERMES_TERMINAL_LAUNCH_LIMIT = 100;
 const HERMES_TERMINAL_LAUNCH_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
@@ -20,67 +24,32 @@ type HermesTerminalLaunchEvent = {
   createdAt: string;
 };
 
+type HermesRouterOptions = {
+  appRoot?: string;
+  createHermesApiKey?: (userId: number | string | null | undefined) => string | null;
+  resolvePublicBaseUrl?: (req: Request) => string;
+};
+
+type PixcodeRequest = Request & {
+  user?: {
+    id?: number | string;
+    userId?: number | string;
+  };
+};
+
 let nextHermesTerminalLaunchId = 1;
 const hermesTerminalLaunches: HermesTerminalLaunchEvent[] = [];
 
-function hermesCommandCandidates(): string[] {
-  const candidates = [process.env.HERMES_CLI_PATH, 'hermes'].filter((candidate): candidate is string => (
-    typeof candidate === 'string' && candidate.trim().length > 0
-  ));
-
-  if (process.platform === 'win32') {
-    const localAppData = process.env.LOCALAPPDATA;
-    if (localAppData) {
-      candidates.push(
-        path.join(localAppData, 'hermes', 'hermes-agent', 'venv', 'Scripts', 'hermes.exe'),
-        path.join(localAppData, 'hermes', 'hermes-agent', '.venv', 'Scripts', 'hermes.exe'),
-        path.join(localAppData, 'hermes', 'hermes-agent', 'hermes.exe'),
-      );
-    }
-  } else {
-    candidates.push(
-      path.join(os.homedir(), '.local', 'bin', 'hermes'),
-      path.join(os.homedir(), '.hermes', 'hermes-agent', 'venv', 'bin', 'hermes'),
-      '/usr/local/bin/hermes',
-    );
-  }
-
-  return [...new Set(candidates)];
+function writeSse(res: Response, event: string, payload: unknown) {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
-function readHermesInstallStatus() {
-  for (const candidate of hermesCommandCandidates()) {
-    const isBareCommand = candidate === 'hermes';
-    if (!isBareCommand && !existsSync(candidate)) {
-      continue;
-    }
-
-    const result = spawnSync(candidate, ['--version'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 5000,
-      shell: false,
-    });
-    if (!result.error && result.status === 0) {
-      const version = `${result.stdout || result.stderr || ''}`.trim() || null;
-      return {
-        installed: true,
-        command: candidate,
-        version,
-        error: null,
-      };
-    }
-  }
-
-  return {
-    installed: false,
-    command: null,
-    version: null,
-    error: 'Hermes Agent CLI is not installed or is not on PATH.',
-  };
+function readUserId(req: PixcodeRequest) {
+  return req.user?.id ?? req.user?.userId ?? null;
 }
 
-export function createHermesRouter(): Router {
+export function createHermesRouter(options: HermesRouterOptions = {}): Router {
   const router = express.Router();
 
   router.get('/status', (_req, res) => {
@@ -120,6 +89,115 @@ export function createHermesRouter(): Router {
 
   router.get('/install-status', (_req, res) => {
     res.json(readHermesInstallStatus());
+  });
+
+  router.post('/install', (req: PixcodeRequest, res) => {
+    const apiKey = options.createHermesApiKey?.(readUserId(req)) ?? null;
+    if (!apiKey) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_API_KEY_UNAVAILABLE',
+          message: 'Pixcode could not create a Hermes MCP API key for this user.',
+        },
+      });
+      return;
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const job = createHermesInstallJob({
+      appRoot: options.appRoot ?? process.cwd(),
+      force: Boolean(body.force),
+      pixcodeApiKey: apiKey,
+      pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+      skipBrowser: body.skipBrowser !== false,
+    });
+
+    res.status(202).json({
+      jobId: job.id,
+      provider: 'hermes',
+      status: job.status,
+      startedAt: job.startedAt,
+    });
+  });
+
+  router.get('/install/:jobId/stream', (req, res) => {
+    const job = getHermesInstallJob(req.params.jobId);
+    if (!job) {
+      res.status(404).json({
+        error: {
+          code: 'HERMES_INSTALL_JOB_NOT_FOUND',
+          message: 'Hermes install job not found or already expired.',
+        },
+      });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+    try {
+      (res.socket as NodeJS.Socket & { setNoDelay?: (on: boolean) => void })?.setNoDelay?.(true);
+    } catch { /* noop */ }
+
+    let closed = false;
+    const safeWrite = (event: string, payload: unknown) => {
+      if (closed) return;
+      try { writeSse(res, event, payload); } catch { /* socket gone */ }
+    };
+
+    try { res.write(': start\n\n'); } catch { /* noop */ }
+    const heartbeat = setInterval(() => {
+      if (closed) return;
+      try { res.write(': ping\n\n'); } catch { /* noop */ }
+    }, 5000);
+
+    for (const entry of job.logs) {
+      safeWrite('log', { stream: entry.stream, chunk: entry.chunk });
+    }
+
+    const onLog = (entry: { stream: string; chunk: string }) => {
+      safeWrite('log', { stream: entry.stream, chunk: entry.chunk });
+    };
+    const onDone = (payload: Record<string, unknown>) => {
+      safeWrite('done', payload);
+      cleanup();
+      try { res.end(); } catch { /* noop */ }
+    };
+    function cleanup() {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      job.emitter.off('log', onLog);
+      job.emitter.off('done', onDone);
+    }
+
+    if (job.status !== 'running') {
+      safeWrite('done', snapshotHermesInstallDonePayload(job));
+      cleanup();
+      try { res.end(); } catch { /* noop */ }
+      return;
+    }
+
+    job.emitter.on('log', onLog);
+    job.emitter.once('done', onDone);
+    req.on('close', cleanup);
+  });
+
+  router.delete('/install/:jobId', (req, res) => {
+    const job = getHermesInstallJob(req.params.jobId);
+    if (!job) {
+      res.status(404).json({
+        error: {
+          code: 'HERMES_INSTALL_JOB_NOT_FOUND',
+          message: 'Hermes install job not found.',
+        },
+      });
+      return;
+    }
+
+    res.json({ cancelled: cancelHermesInstallJob(req.params.jobId) });
   });
 
   router.get('/agents', (_req, res) => {
