@@ -33,8 +33,16 @@ assert.match(hermesInstallJobs, /export function buildHermesPathEnv/, 'Hermes sh
 assert.match(serverIndex, /Test-HermesCommand/, 'Hermes terminal start should verify a resolved command before running it.');
 assert.match(serverIndex, /buildHermesPathEnv\(process\.env/, 'Shell PTYs should inherit Hermes bin directories so typing hermes in Pixcode terminal works on Windows.');
 assert.match(serverIndex, /env: shellEnv/, 'Shell PTYs should use the augmented shell environment instead of raw process.env.');
+assert.match(serverIndex, /const isHermesShellSession = Boolean\(hermesCommand\)/, 'Hermes terminal sessions should be tracked separately from disposable plain-shell command sessions.');
+assert.match(serverIndex, /keepAliveUntilExit: isHermesShellSession/, 'Hermes PTYs should stay alive until the backend process exits, even if the UI closes or switches workspaces.');
+assert.match(serverIndex, /session\.keepAliveUntilExit/, 'Shell disconnect should skip the 30-minute timeout for Hermes sessions.');
+assert.match(serverIndex, /Invoke-PixcodeHermesConfigure/, 'Hermes start should configure Pixcode MCP as a best-effort step before launch.');
+assert.doesNotMatch(serverIndex, /\$script:HermesCmd chat --toolsets/, 'Hermes H button should launch the same interactive Hermes entrypoint that works when the user types hermes.');
+assert.doesNotMatch(serverIndex, /node \$\{quote\(configureScript\)\}; & \$script:HermesCmd/, 'A failed Pixcode MCP configure step must not prevent Hermes from opening.');
+assert.doesNotMatch(serverIndex, /Hermes already installed:/, 'Hermes H launch should not leave a version/status banner stuck before the interactive prompt.');
 assert.doesNotMatch(serverIndex, /if command -v hermes >\/dev\/null 2>&1; then command -v hermes; return 0; fi;/, 'POSIX Hermes start must not accept a stale PATH shim without testing it.');
 assert.match(workbench, /HermesActivityButton/, 'Workbench activity rail should expose a dedicated Hermes H button under Terminal.');
+assert.match(workbench, /forceNewSession=\{false\}/, 'Opening the Hermes H terminal should reconnect the existing backend PTY instead of killing it.');
 assert.match(workbench, /installLogRef/, 'Hermes install log panel should keep a scroll ref.');
 assert.match(workbench, /scrollTop = installLogRef\.current\.scrollHeight/, 'Hermes install logs should auto-scroll to the latest line.');
 assert.match(workbench, /suspendAutoConnect/, 'Right CLI auto-connect should be suspendable while Hermes opens in the bottom terminal.');

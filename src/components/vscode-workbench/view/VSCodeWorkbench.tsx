@@ -2302,7 +2302,7 @@ function WorkbenchBottomTerminal({
               session={null}
               command={command}
               isPlainShell
-              forceNewSession
+              forceNewSession={false}
               showHeader={false}
               autoConnect={Boolean(project)}
               isActive={isActive}
@@ -2424,10 +2424,12 @@ function WorkbenchProjectLanding({
   t: TFunction<'common'>;
 }) {
   const recentProjects = projects.slice(0, 6);
+  const welcomeActionCards = 'grid gap-2';
+  const welcomeAppearancePanel = 'mt-4 rounded-md border border-border bg-card/70 p-3 sm:p-4';
 
   return (
     <div className="h-full overflow-auto bg-background">
-      <div className="mx-auto grid max-w-6xl gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-4 sm:p-6">
         <section className="min-w-0">
           <div className="mb-6">
             <div className="text-xs font-semibold uppercase tracking-wide text-primary">
@@ -2443,7 +2445,10 @@ function WorkbenchProjectLanding({
             </p>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div
+            className={welcomeActionCards}
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 13rem), 1fr))' }}
+          >
             <button
               type="button"
               onClick={onOpenProject}
@@ -2485,6 +2490,35 @@ function WorkbenchProjectLanding({
                 {t('vscodeWorkbench.welcome.startHermesDescription', { defaultValue: 'Aktif projede agent terminalini aç.' })}
               </span>
             </button>
+          </div>
+
+          <div className={welcomeAppearancePanel}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">
+                  {t('vscodeWorkbench.welcome.appearanceTitle', { defaultValue: 'Görünüm' })}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {t('vscodeWorkbench.welcome.appearanceDescription', { defaultValue: 'Pixcode koyu modla başlar; gerekirse açık moda geçebilirsin.' })}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 rounded border border-border bg-background px-3 py-2">
+                  <span className="text-xs font-medium text-foreground">
+                    {t('vscodeWorkbench.welcome.darkMode', { defaultValue: 'Koyu mod' })}
+                  </span>
+                  <DarkModeToggle ariaLabel={t('vscodeWorkbench.welcome.themeToggle', { defaultValue: 'Tema modunu değiştir' })} />
+                </div>
+                <button
+                  type="button"
+                  onClick={onShowSettings}
+                  className="inline-flex items-center justify-center gap-2 rounded border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  {t('vscodeWorkbench.welcome.themeSettings', { defaultValue: 'Tema ayarları' })}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="mt-7">
@@ -2577,31 +2611,6 @@ function WorkbenchProjectLanding({
             )}
           </div>
         </section>
-
-        <aside className="h-fit rounded-md border border-border bg-card/70 p-4">
-          <div className="mb-4">
-            <div className="text-sm font-semibold text-foreground">
-              {t('vscodeWorkbench.welcome.appearanceTitle', { defaultValue: 'Görünüm' })}
-            </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {t('vscodeWorkbench.welcome.appearanceDescription', { defaultValue: 'Pixcode koyu modla başlar; gerekirse açık moda geçebilirsin.' })}
-            </p>
-          </div>
-          <div className="flex items-center justify-between gap-3 rounded border border-border bg-background px-3 py-2">
-            <span className="text-xs font-medium text-foreground">
-              {t('vscodeWorkbench.welcome.darkMode', { defaultValue: 'Koyu mod' })}
-            </span>
-            <DarkModeToggle ariaLabel={t('vscodeWorkbench.welcome.themeToggle', { defaultValue: 'Tema modunu değiştir' })} />
-          </div>
-          <button
-            type="button"
-            onClick={onShowSettings}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted"
-          >
-            <Settings className="h-3.5 w-3.5" />
-            {t('vscodeWorkbench.welcome.themeSettings', { defaultValue: 'Tema ayarları' })}
-          </button>
-        </aside>
       </div>
     </div>
   );

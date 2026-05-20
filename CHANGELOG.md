@@ -2,6 +2,17 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.5](https://github.com/alicomert/pixcode/compare/v1.49.4...v1.49.5) (2026-05-20)
+
+Pixcode 1.49.5 makes the Hermes activity button behave like the working terminal command and keeps Hermes sessions alive in the backend.
+
+### Fixes
+
+* **hermes:** launch the same interactive Hermes entrypoint used by typing `hermes` instead of forcing the `chat --toolsets` subcommand.
+* **hermes:** make Pixcode MCP configuration best-effort so a config write failure does not block the Hermes terminal from opening.
+* **hermes:** keep Hermes PTYs alive until the process exits, so closing the panel or switching workspaces can reconnect to the same backend session.
+* **workbench:** move the welcome Görünüm controls below Proje Aç / Klonla / Hermes’i Başlat and make the action cards auto-wrap in narrow spaces.
+
 ## [1.49.4](https://github.com/alicomert/pixcode/compare/v1.49.3...v1.49.4) (2026-05-20)
 
 Pixcode 1.49.4 fixes the Windows Hermes terminal PATH gap found after 1.49.3.

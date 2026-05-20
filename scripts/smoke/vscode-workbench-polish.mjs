@@ -56,9 +56,34 @@ for (const token of [
   'vscodeWorkbench.welcome.cloneProject',
   'vscodeWorkbench.welcome.startHermes',
   'DarkModeToggle',
+  'welcomeActionCards',
+  'welcomeAppearancePanel',
 ]) {
   assert.match(workbench, new RegExp(token.replaceAll('.', '\\.')), `Workbench welcome should include ${token}.`);
 }
+
+const welcomeSource = workbench.slice(
+  workbench.indexOf('function WorkbenchProjectLanding'),
+  workbench.indexOf('const cliProviders'),
+);
+
+assert.doesNotMatch(
+  welcomeSource,
+  /lg:grid-cols-\[minmax\(0,1fr\)_18rem\]/,
+  'Workbench welcome should not reserve a right column that squeezes the three start actions.',
+);
+
+assert.match(
+  welcomeSource,
+  /welcomeAppearancePanel[\s\S]*?recentProjects/,
+  'Appearance controls should sit below the three primary welcome actions and above recent projects.',
+);
+
+assert.match(
+  welcomeSource,
+  /gridTemplateColumns:\s*'repeat\(auto-fit, minmax\(min\(100%, 13rem\), 1fr\)\)'/,
+  'Workbench welcome action cards should auto-wrap responsively instead of staying cramped.',
+);
 
 assert.match(
   workbench,
