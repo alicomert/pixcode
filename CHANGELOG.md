@@ -2,6 +2,18 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.48.6](https://github.com/alicomert/pixcode/compare/v1.48.5...v1.48.6) (2026-05-20)
+
+Pixcode 1.48.6 republishes the 1.48.5 workbench update with a verified npm runtime tarball.
+
+### Fixes
+
+* **release:** move latest from the broken 1.48.5 npm artifact to a fresh 1.48.6 package and verify the registry tarball can be downloaded by runtime-dir updates.
+
+### Tests
+
+* verify npm metadata, npm tarball download, GitHub release assets, remote main, and remote tag after publish.
+
 ## [1.48.5](https://github.com/alicomert/pixcode/compare/v1.48.4...v1.48.5) (2026-05-20)
 
 Pixcode 1.48.5 adds a project-scoped terminal/Hermes pass to the VS Code workbench.
