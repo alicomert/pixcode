@@ -113,6 +113,7 @@
   "mainTabs": {
     "label": "Ayarlar",
     "agents": "Ajanlar",
+    "hermes": "Hermes Agent",
     "appearance": "Görünüm",
     "git": "Git",
     "apiTokens": "API ve Token'lar",
@@ -800,5 +801,19 @@
       "title": "Kullanicilar nasil baglanir",
       "description": "Kullaniciyi Admin sisteminde olustur, Control Room icinde proje rolunu ata, sonra bu Access URLlerinden birini paylas. Atanmis projeye erismek icin global admin olmasi gerekmez."
     }
+  },
+  "hermes": {
+    "title": "Hermes Agent",
+    "description": "Hermes Agenti Pixcode kontrolunde proje terminali olarak yonet; projelere, saglayici durumuna ve gorunur CLI acilislarina MCP erisimi verir.",
+    "statusTitle": "Kurulum durumu",
+    "statusFailed": "Hermes Agent kontrol edilemedi.",
+    "ready": "Hazir",
+    "notInstalled": "Kurulu degil",
+    "start": "Hermes baslat",
+    "install": "Kur",
+    "repair": "Komutu onar",
+    "refresh": "Yenile",
+    "pixcodeControlTitle": "Pixcode kontrolu",
+    "pixcodeControlDescription": "Pixcode, baslatmadan once Hermes MCP sunucusunu ayarlar. Boylece Hermes workspaceleri inceleyebilir ve istediginde gorunur Pixcode UI icinde provider terminalleri acabilir."
   }
 }

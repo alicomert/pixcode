@@ -12,6 +12,7 @@ const hermesInstallJobs = fs.existsSync(path.join(repoRoot, 'server/services/her
   ? read('server/services/hermes-install-jobs.js')
   : '';
 const workbench = read('src/components/vscode-workbench/view/VSCodeWorkbench.tsx');
+const serverIndex = read('server/index.js');
 const smoke = read('scripts/smoke/pixcode-workbench-1-48.mjs');
 
 assert.match(hermesRoutes, /createHermesInstallJob/, 'Hermes API should start backend install jobs.');
@@ -24,6 +25,16 @@ assert.match(hermesInstallJobs, /--skip-browser/, 'Hermes API install should ski
 assert.doesNotMatch(hermesInstallJobs, /curl -fsSL .* \| bash/, 'Hermes API install must not pipe curl directly into bash.');
 assert.match(workbench, /\/api\/orchestration\/hermes\/install/, 'Workbench Hermes install button should call the Hermes install API.');
 assert.doesNotMatch(workbench, /HERMES_AGENT_INSTALL_COMMAND/, 'Workbench should not launch Hermes install through a terminal command.');
+assert.match(hermesInstallJobs, /formatHermesVersionOutput/, 'Hermes install status should collapse multi-line --version output before showing it in UI badges.');
+assert.match(hermesInstallJobs, /repairHermesCommandLaunchers/, 'Hermes installer should repair stale or text launcher shims after install/status checks.');
+assert.match(hermesInstallJobs, /hermes\.cmd/, 'Windows Hermes repair should create or prefer a hermes.cmd shim so typing hermes does not open the Python launcher as text.');
+assert.match(hermesInstallJobs, /isUsableHermesCommand/, 'Hermes status should verify candidates before treating them as installed.');
+assert.match(serverIndex, /Test-HermesCommand/, 'Hermes terminal start should verify a resolved command before running it.');
+assert.doesNotMatch(serverIndex, /if command -v hermes >\/dev\/null 2>&1; then command -v hermes; return 0; fi;/, 'POSIX Hermes start must not accept a stale PATH shim without testing it.');
+assert.match(workbench, /HermesActivityButton/, 'Workbench activity rail should expose a dedicated Hermes H button under Terminal.');
+assert.match(workbench, /installLogRef/, 'Hermes install log panel should keep a scroll ref.');
+assert.match(workbench, /scrollTop = installLogRef\.current\.scrollHeight/, 'Hermes install logs should auto-scroll to the latest line.');
+assert.match(workbench, /suspendAutoConnect/, 'Right CLI auto-connect should be suspendable while Hermes opens in the bottom terminal.');
 assert.match(smoke, /hermes-api-install\.mjs/, 'Main workbench smoke should mention the dedicated Hermes API install smoke.');
 
 console.log('hermes API install smoke passed');

@@ -63,7 +63,7 @@ type NotificationPreferencesResponse = {
 
 type ActiveLoginProvider = LLMProvider | '';
 
-const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'access', 'appearance', 'git', 'api', 'notifications', 'plugins', 'mobile', 'telegram', 'diagnostics', 'about'];
+const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'hermes', 'access', 'appearance', 'git', 'api', 'notifications', 'plugins', 'mobile', 'telegram', 'diagnostics', 'about'];
 
 const normalizeMainTab = (tab: string): SettingsMainTab => {
   // Keep backwards compatibility with older callers that still pass "tools".
@@ -267,13 +267,6 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
   }, []);
 
   const openLoginForProvider = useCallback((provider: AgentProvider) => {
-    if (provider === 'hermes') {
-      window.dispatchEvent(new CustomEvent('pixcode:hermes-terminal', {
-        detail: { mode: 'start' },
-      }));
-      return;
-    }
-
     setLoginProvider(provider);
     setShowLoginModal(true);
   }, []);

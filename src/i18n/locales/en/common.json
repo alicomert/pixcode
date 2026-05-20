@@ -979,11 +979,19 @@
       "title": "Hermes Agent",
       "installTitle": "Install Hermes Agent",
       "description": "Project-scoped agent terminal. Installs Hermes when missing, then opens it in this workspace.",
-      "docs": "Hermes docs",
-      "docsShort": "Docs",
       "start": "Start Hermes",
       "install": "Install",
-      "newSession": "New Hermes session"
+      "newSession": "New Hermes session",
+      "connect": "Connect Hermes Agent",
+      "ready": "Ready",
+      "installRunning": "Installing Hermes through Pixcode API...",
+      "installDone": "Hermes installed and Pixcode MCP configured.",
+      "installError": "Hermes install failed.",
+      "installReady": "Ready to install Hermes.",
+      "installWaiting": "Waiting for Hermes install logs...",
+      "retryInstall": "Retry install",
+      "installFailed": "Hermes install failed.",
+      "installStreamLost": "Hermes install stream closed early. The install may still be running."
     }
   }
 }

@@ -92,6 +92,177 @@ function buildHermesEnv(baseEnv = process.env, extras = {}) {
     return env;
 }
 
+const ANSI_ESCAPE_REGEX =
+    /(?:\u001B\[[0-?]*[ -/]*[@-~]|\u009B[0-?]*[ -/]*[@-~]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)|\u009D[^\u0007\u009C]*(?:\u0007|\u009C)|\u001B[PX^_][^\u001B]*\u001B\\|[\u0090\u0098\u009E\u009F][^\u009C]*\u009C|\u001B[@-Z\\-_])/g;
+
+export function formatHermesVersionOutput(output) {
+    const firstLine = String(output || '')
+        .replace(ANSI_ESCAPE_REGEX, '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean);
+    if (!firstLine) return null;
+
+    const versionMatch = firstLine.match(/Hermes Agent v[^\s]+(?:\s+\([^)]+\))?/i);
+    return versionMatch?.[0] || firstLine;
+}
+
+function hermesExecutableNames() {
+    return process.platform === 'win32'
+        ? ['hermes.cmd', 'hermes.bat', 'hermes.exe', 'hermes']
+        : ['hermes'];
+}
+
+function pushHermesCommandFiles(candidates, dir) {
+    if (!dir) return;
+    for (const name of hermesExecutableNames()) {
+        candidates.push(path.join(dir, name));
+    }
+}
+
+function runHermesVersion(candidate, env) {
+    try {
+        const result = spawn.sync(candidate, ['--version'], {
+            encoding: 'utf8',
+            env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            timeout: 5000,
+            windowsHide: true,
+        });
+        if (result.error || result.status !== 0) {
+            return { ok: false, output: '', error: result.error?.message || result.stderr || result.stdout || null };
+        }
+
+        return { ok: true, output: `${result.stdout || result.stderr || ''}` };
+    } catch (error) {
+        return { ok: false, output: '', error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+export function isUsableHermesCommand(candidate, env = process.env) {
+    return runHermesVersion(candidate, buildHermesEnv(env)).ok;
+}
+
+function isHermesPythonLauncher(candidate) {
+    if (!candidate || process.platform !== 'win32') return false;
+    const extension = path.extname(candidate).toLowerCase();
+    if (extension && extension !== '.py') return false;
+
+    try {
+        const source = fs.readFileSync(candidate, 'utf8').slice(0, 1000);
+        return source.includes('Hermes Agent CLI launcher') || source.includes('hermes_cli.main');
+    } catch {
+        return false;
+    }
+}
+
+function windowsPythonCandidates(candidate, env = process.env) {
+    const localAppData = env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    const candidateDir = candidate ? path.dirname(candidate) : '';
+    const installDir = env.HERMES_INSTALL_DIR || path.join(localAppData, 'hermes', 'hermes-agent');
+    return [
+        candidateDir ? path.join(candidateDir, 'python.exe') : null,
+        path.join(installDir, 'venv', 'Scripts', 'python.exe'),
+        path.join(installDir, '.venv', 'Scripts', 'python.exe'),
+        env.HERMES_HOME ? path.join(env.HERMES_HOME, 'hermes-agent', 'venv', 'Scripts', 'python.exe') : null,
+        env.HERMES_HOME ? path.join(env.HERMES_HOME, 'hermes-agent', '.venv', 'Scripts', 'python.exe') : null,
+    ].filter(Boolean);
+}
+
+function windowsHermesCmdShimBody(command, env = process.env) {
+    const hermesHome = env.HERMES_HOME || path.join(env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'hermes');
+    const normalizedCommand = command.replace(/"/g, '""');
+    const extension = path.extname(command).toLowerCase();
+    const lines = [
+        '@echo off',
+        'setlocal',
+        'set PYTHONPATH=',
+        'set PYTHONHOME=',
+        `set "HERMES_HOME=${hermesHome.replace(/"/g, '""')}"`,
+    ];
+
+    if (isHermesPythonLauncher(command)) {
+        const python = windowsPythonCandidates(command, env).find((candidate) => {
+            try {
+                return fs.existsSync(candidate);
+            } catch {
+                return false;
+            }
+        });
+        if (python) {
+            lines.push(`"${python.replace(/"/g, '""')}" "${normalizedCommand}" %*`);
+            lines.push('exit /b %ERRORLEVEL%');
+            return `${lines.join('\r\n')}\r\n`;
+        }
+    }
+
+    if (extension === '.ps1') {
+        lines.push(`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${normalizedCommand}" %*`);
+    } else if (extension === '.cmd' || extension === '.bat') {
+        lines.push(`call "${normalizedCommand}" %*`);
+    } else {
+        lines.push(`"${normalizedCommand}" %*`);
+    }
+    lines.push('exit /b %ERRORLEVEL%');
+    return `${lines.join('\r\n')}\r\n`;
+}
+
+function repairWindowsHermesShim(command, env, appendLog) {
+    if (!path.isAbsolute(command) || !fs.existsSync(command)) return null;
+    const localAppData = env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    const binDir = path.join(localAppData, 'hermes', 'bin');
+    const shimPath = path.join(binDir, 'hermes.cmd');
+    if (path.resolve(command).toLowerCase() === path.resolve(shimPath).toLowerCase()) return shimPath;
+    fs.mkdirSync(binDir, { recursive: true });
+    const body = windowsHermesCmdShimBody(command, env);
+    const previous = fs.existsSync(shimPath) ? fs.readFileSync(shimPath, 'utf8') : '';
+    if (previous !== body) {
+        fs.writeFileSync(shimPath, body);
+        appendLog?.('meta', `Repaired Windows Hermes command shim: ${shimPath}\n`);
+    }
+    return shimPath;
+}
+
+function repairPosixHermesShim(command, env, appendLog) {
+    void env;
+    if (!path.isAbsolute(command) || !fs.existsSync(command)) return null;
+    const localBin = path.join(os.homedir(), '.local', 'bin');
+    const shimPath = path.join(localBin, 'hermes');
+    const resolvedCommand = fs.realpathSync.native?.(command) || fs.realpathSync(command);
+    const resolvedShim = fs.existsSync(shimPath)
+        ? (fs.realpathSync.native?.(shimPath) || fs.realpathSync(shimPath))
+        : null;
+    if (resolvedShim && resolvedShim === resolvedCommand) return shimPath;
+
+    fs.mkdirSync(localBin, { recursive: true });
+    const body = [
+        '#!/usr/bin/env bash',
+        'unset PYTHONPATH',
+        'unset PYTHONHOME',
+        `exec "${resolvedCommand.replace(/"/g, '\\"')}" "$@"`,
+        '',
+    ].join('\n');
+    const previous = fs.existsSync(shimPath) ? fs.readFileSync(shimPath, 'utf8') : '';
+    if (previous !== body) {
+        fs.writeFileSync(shimPath, body, { mode: 0o755 });
+        fs.chmodSync(shimPath, 0o755);
+        appendLog?.('meta', `Repaired Hermes command shim: ${shimPath}\n`);
+    }
+    return shimPath;
+}
+
+export function repairHermesCommandLaunchers(command, env = process.env, appendLog = null) {
+    if (!command || command === 'hermes') return null;
+    try {
+        return process.platform === 'win32'
+            ? repairWindowsHermesShim(command, env, appendLog)
+            : repairPosixHermesShim(command, env, appendLog);
+    } catch (error) {
+        appendLog?.('stderr', `Hermes command shim repair skipped: ${error instanceof Error ? error.message : String(error)}\n`);
+        return null;
+    }
+}
+
 export function primeHermesPath(env = process.env) {
     const next = buildHermesEnv(env);
     env.PATH = next.PATH;
@@ -104,26 +275,15 @@ export function hermesCommandCandidates(env = process.env) {
     const resolved = findExecutableOnPath('hermes', hermesEnv);
 
     if (env.HERMES_CLI_PATH) candidates.push(env.HERMES_CLI_PATH);
-    if (resolved) candidates.push(resolved);
-    candidates.push('hermes');
+    for (const dir of knownHermesBinDirs(env)) {
+        pushHermesCommandFiles(candidates, dir);
+    }
 
     if (process.platform === 'win32') {
         const localAppData = env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-        candidates.push(
-            ...(env.HERMES_INSTALL_DIR ? [
-                path.join(env.HERMES_INSTALL_DIR, 'venv', 'Scripts', 'hermes.exe'),
-                path.join(env.HERMES_INSTALL_DIR, '.venv', 'Scripts', 'hermes.exe'),
-                path.join(env.HERMES_INSTALL_DIR, 'hermes.exe'),
-            ] : []),
-            ...(env.HERMES_HOME ? [
-                path.join(env.HERMES_HOME, 'hermes-agent', 'venv', 'Scripts', 'hermes.exe'),
-                path.join(env.HERMES_HOME, 'hermes-agent', '.venv', 'Scripts', 'hermes.exe'),
-                path.join(env.HERMES_HOME, 'hermes-agent', 'hermes.exe'),
-            ] : []),
-            path.join(localAppData, 'hermes', 'hermes-agent', 'venv', 'Scripts', 'hermes.exe'),
-            path.join(localAppData, 'hermes', 'hermes-agent', '.venv', 'Scripts', 'hermes.exe'),
-            path.join(localAppData, 'hermes', 'hermes-agent', 'hermes.exe'),
-        );
+        pushHermesCommandFiles(candidates, env.HERMES_INSTALL_DIR);
+        pushHermesCommandFiles(candidates, env.HERMES_HOME ? path.join(env.HERMES_HOME, 'hermes-agent') : null);
+        pushHermesCommandFiles(candidates, path.join(localAppData, 'hermes', 'hermes-agent'));
     } else {
         candidates.push(
             ...(env.HERMES_INSTALL_DIR ? [
@@ -142,6 +302,9 @@ export function hermesCommandCandidates(env = process.env) {
         );
     }
 
+    if (resolved) candidates.push(resolved);
+    candidates.push('hermes');
+
     return [...new Set(candidates.filter(Boolean))];
 }
 
@@ -154,15 +317,10 @@ export function readHermesInstallStatus(env = process.env) {
             continue;
         }
 
-        const result = spawn.sync(candidate, ['--version'], {
-            encoding: 'utf8',
-            env: hermesEnv,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            timeout: 5000,
-            windowsHide: true,
-        });
-        if (!result.error && result.status === 0) {
-            const version = `${result.stdout || result.stderr || ''}`.trim() || null;
+        const result = runHermesVersion(candidate, hermesEnv);
+        if (result.ok) {
+            repairHermesCommandLaunchers(candidate, hermesEnv);
+            const version = formatHermesVersionOutput(result.output);
             return {
                 installed: true,
                 command: candidate,

@@ -9,13 +9,14 @@ import type {
 
 export const SETTINGS_MAIN_TABS: SettingsMainTab[] = [
   'agents',
+  'hermes',
   'appearance',
   'git',
   'api',
   'notifications',
 ];
 
-export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode', 'hermes'];
+export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'];
 export const AGENT_CATEGORIES: AgentCategory[] = ['account', 'permissions', 'mcp'];
 
 export const DEFAULT_PROJECT_SORT_ORDER: ProjectSortOrder = 'name';

@@ -111,6 +111,7 @@
   "mainTabs": {
     "label": "Impostazioni",
     "agents": "Agenti",
+    "hermes": "Hermes Agent",
     "appearance": "Aspetto",
     "git": "Git",
     "apiTokens": "API e Token",
@@ -632,5 +633,19 @@
       "title": "Come si collegano gli utenti",
       "description": "Crea l utente nel sistema Admin, assegna il ruolo progetto nel Control Room e condividi una Access URL. Non serve essere admin globali per il progetto assegnato."
     }
+  },
+  "hermes": {
+    "title": "Hermes Agent",
+    "description": "Gestisci Hermes Agent come terminale di progetto controllato da Pixcode, con accesso MCP a progetti, stato dei provider e avvii CLI visibili.",
+    "statusTitle": "Stato installazione",
+    "statusFailed": "Impossibile controllare Hermes Agent.",
+    "ready": "Pronto",
+    "notInstalled": "Non installato",
+    "start": "Avvia Hermes",
+    "install": "Installa",
+    "repair": "Ripara comando",
+    "refresh": "Aggiorna",
+    "pixcodeControlTitle": "Controllo Pixcode",
+    "pixcodeControlDescription": "Pixcode configura il server MCP di Hermes prima dell avvio, cosi Hermes puo ispezionare i workspace e aprire terminali provider visibili nell interfaccia Pixcode."
   }
 }

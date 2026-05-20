@@ -979,11 +979,19 @@
       "title": "Hermes Agent",
       "installTitle": "Hermes Agent kur",
       "description": "Projeye bagli ajan terminali. Hermes eksikse kurar, sonra bu workspace icinde acar.",
-      "docs": "Hermes dokumanlari",
-      "docsShort": "Dokuman",
       "start": "Hermes baslat",
       "install": "Kur",
-      "newSession": "Yeni Hermes oturumu"
+      "newSession": "Yeni Hermes oturumu",
+      "connect": "Hermes Agent bagla",
+      "ready": "Hazir",
+      "installRunning": "Hermes Pixcode API ile kuruluyor...",
+      "installDone": "Hermes kuruldu ve Pixcode MCP ayarlandi.",
+      "installError": "Hermes kurulumu basarisiz.",
+      "installReady": "Hermes kuruluma hazir.",
+      "installWaiting": "Hermes kurulum loglari bekleniyor...",
+      "retryInstall": "Kurulumu tekrar dene",
+      "installFailed": "Hermes kurulumu basarisiz.",
+      "installStreamLost": "Hermes kurulum akisi erken kapandi. Kurulum hala calisiyor olabilir."
     }
   }
 }

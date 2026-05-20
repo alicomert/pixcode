@@ -111,6 +111,7 @@
   "mainTabs": {
     "label": "Einstellungen",
     "agents": "Agenten",
+    "hermes": "Hermes Agent",
     "appearance": "Darstellung",
     "git": "Git",
     "apiTokens": "API & Token",
@@ -606,5 +607,19 @@
       "title": "So verbinden sich Nutzer",
       "description": "Erstelle den Nutzer im Admin-System, weise die Projektrolle im Control Room zu und teile dann eine Access-URL. Globale Adminrechte sind fuer zugewiesene Projekte nicht noetig."
     }
+  },
+  "hermes": {
+    "title": "Hermes Agent",
+    "description": "Verwalte Hermes Agent als von Pixcode gesteuertes Projekt-Terminal mit MCP-Zugriff auf Projekte, Providerstatus und sichtbare CLI-Starts.",
+    "statusTitle": "Installationsstatus",
+    "statusFailed": "Hermes Agent konnte nicht geprüft werden.",
+    "ready": "Bereit",
+    "notInstalled": "Nicht installiert",
+    "start": "Hermes starten",
+    "install": "Installieren",
+    "repair": "Befehl reparieren",
+    "refresh": "Aktualisieren",
+    "pixcodeControlTitle": "Pixcode-Steuerung",
+    "pixcodeControlDescription": "Pixcode konfiguriert den Hermes-MCP-Server vor dem Start, damit Hermes Workspaces prüfen und Provider-Terminals sichtbar in Pixcode öffnen kann."
   }
 }

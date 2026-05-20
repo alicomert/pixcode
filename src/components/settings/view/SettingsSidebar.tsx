@@ -5,7 +5,7 @@ import { cn } from '../../../lib/utils';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import type { SettingsMainTab } from '../types/types';
 
-import { Bell, Bot, Bug, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone } from '@/lib/icons';
+import { Bell, Bot, Bug, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone, Workflow } from '@/lib/icons';
 
 type SettingsSidebarProps = {
   activeTab: SettingsMainTab;
@@ -20,6 +20,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'agents', labelKey: 'mainTabs.agents', icon: Bot },
+  { id: 'hermes', labelKey: 'mainTabs.hermes', icon: Workflow },
   { id: 'access', labelKey: 'mainTabs.access', icon: Globe },
   { id: 'appearance', labelKey: 'mainTabs.appearance', icon: Palette },
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },

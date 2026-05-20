@@ -8,6 +8,7 @@ import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
 import AppearanceSettingsTab from '../view/tabs/AppearanceSettingsTab';
 import CredentialsSettingsTab from '../view/tabs/api-settings/CredentialsSettingsTab';
 import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
+import HermesSettingsTab from '../view/tabs/HermesSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
 import MobileSettingsTab from '../view/tabs/mobile-settings/MobileSettingsTab';
@@ -139,11 +140,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 <AgentsSettingsTab
                   providerAuthStatus={providerAuthStatus}
                   onProviderLogin={openLoginForProvider}
-                  onRefreshProviderAuth={(provider) => (
-                    provider === 'hermes'
-                      ? Promise.resolve()
-                      : checkProviderAuthStatus(provider, { force: true })
-                  )}
+                  onRefreshProviderAuth={(provider) => checkProviderAuthStatus(provider, { force: true })}
                   onRefreshAllProviderAuth={() => refreshProviderAuthStatuses(undefined, { force: true })}
                   claudePermissions={claudePermissions}
                   onClaudePermissionsChange={setClaudePermissions}
@@ -160,6 +157,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   projects={projects}
                 />
               )}
+
+              {activeTab === 'hermes' && <HermesSettingsTab />}
 
             {activeTab === 'notifications' && (
               <NotificationsSettingsTab

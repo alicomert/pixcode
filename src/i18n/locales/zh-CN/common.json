@@ -886,11 +886,19 @@
       "title": "Hermes Agent",
       "installTitle": "安装 Hermes Agent",
       "description": "项目范围的代理终端。缺少 Hermes 时会先安装，然后在此工作区中打开。",
-      "docs": "Hermes 文档",
-      "docsShort": "Docs",
       "start": "启动 Hermes",
       "install": "安装",
-      "newSession": "新建 Hermes 会话"
+      "newSession": "新建 Hermes 会话",
+      "connect": "连接 Hermes Agent",
+      "ready": "就绪",
+      "installRunning": "正在通过 Pixcode API 安装 Hermes...",
+      "installDone": "Hermes 已安装，Pixcode MCP 已配置。",
+      "installError": "Hermes 安装失败。",
+      "installReady": "已准备好安装 Hermes。",
+      "installWaiting": "正在等待 Hermes 安装日志...",
+      "retryInstall": "重试安装",
+      "installFailed": "Hermes 安装失败。",
+      "installStreamLost": "Hermes 安装流提前关闭。安装可能仍在运行。"
     }
   }
 }

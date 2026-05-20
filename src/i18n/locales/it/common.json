@@ -886,11 +886,19 @@
       "title": "Hermes Agent",
       "installTitle": "Installa Hermes Agent",
       "description": "Terminale agente legato al progetto. Installa Hermes se manca, poi lo apre in questo workspace.",
-      "docs": "Documentazione Hermes",
-      "docsShort": "Docs",
       "start": "Avvia Hermes",
       "install": "Installa",
-      "newSession": "Nuova sessione Hermes"
+      "newSession": "Nuova sessione Hermes",
+      "connect": "Connetti Hermes Agent",
+      "ready": "Pronto",
+      "installRunning": "Installazione di Hermes tramite API Pixcode...",
+      "installDone": "Hermes installato e Pixcode MCP configurato.",
+      "installError": "Installazione Hermes non riuscita.",
+      "installReady": "Pronto per installare Hermes.",
+      "installWaiting": "In attesa dei log di installazione Hermes...",
+      "retryInstall": "Riprova installazione",
+      "installFailed": "Installazione Hermes non riuscita.",
+      "installStreamLost": "Lo stream di installazione Hermes si è chiuso in anticipo. L installazione potrebbe essere ancora in corso."
     }
   }
 }

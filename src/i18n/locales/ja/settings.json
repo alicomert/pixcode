@@ -111,6 +111,7 @@
   "mainTabs": {
     "label": "設定",
     "agents": "エージェント",
+    "hermes": "Hermes Agent",
     "appearance": "外観",
     "git": "Git",
     "apiTokens": "API & トークン",
@@ -626,5 +627,19 @@
       "title": "ユーザーの接続方法",
       "description": "Admin system でユーザーを作成し、Control Room でプロジェクトロールを割り当て、この Access URL を共有します。割り当て済みプロジェクトにグローバル管理者権限は不要です。"
     }
+  },
+  "hermes": {
+    "title": "Hermes Agent",
+    "description": "Pixcode が制御するプロジェクト端末として Hermes Agent を管理し、プロジェクト、プロバイダー状態、表示される CLI 起動へ MCP でアクセスします。",
+    "statusTitle": "インストール状態",
+    "statusFailed": "Hermes Agent を確認できません。",
+    "ready": "準備完了",
+    "notInstalled": "未インストール",
+    "start": "Hermes を開始",
+    "install": "インストール",
+    "repair": "コマンドを修復",
+    "refresh": "更新",
+    "pixcodeControlTitle": "Pixcode 制御",
+    "pixcodeControlDescription": "Pixcode は起動前に Hermes MCP サーバーを設定するため、Hermes はワークスペースを確認し、必要に応じて Pixcode UI 内でプロバイダー端末を開けます。"
   }
 }

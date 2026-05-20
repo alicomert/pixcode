@@ -111,6 +111,7 @@
   "mainTabs": {
     "label": "设置",
     "agents": "智能体",
+    "hermes": "Hermes Agent",
     "appearance": "外观",
     "git": "Git",
     "apiTokens": "API 和令牌",
@@ -626,5 +627,19 @@
       "title": "用户如何连接",
       "description": "在 Admin system 创建用户，在 Control Room 分配项目角色，然后分享一个 Access URL。访问已分配项目不需要全局管理员权限。"
     }
+  },
+  "hermes": {
+    "title": "Hermes Agent",
+    "description": "将 Hermes Agent 作为 Pixcode 控制的项目终端管理，并通过 MCP 访问项目、提供商状态和可见的 CLI 启动。",
+    "statusTitle": "安装状态",
+    "statusFailed": "无法检查 Hermes Agent。",
+    "ready": "就绪",
+    "notInstalled": "未安装",
+    "start": "启动 Hermes",
+    "install": "安装",
+    "repair": "修复命令",
+    "refresh": "刷新",
+    "pixcodeControlTitle": "Pixcode 控制",
+    "pixcodeControlDescription": "Pixcode 会在启动前配置 Hermes MCP 服务器，因此 Hermes 可以检查工作区，并在需要时在 Pixcode UI 中打开可见的提供商终端。"
   }
 }

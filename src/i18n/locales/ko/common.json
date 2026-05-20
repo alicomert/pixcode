@@ -886,11 +886,19 @@
       "title": "Hermes Agent",
       "installTitle": "Hermes Agent 설치",
       "description": "프로젝트 범위 에이전트 터미널입니다. Hermes가 없으면 설치한 뒤 이 워크스페이스에서 엽니다.",
-      "docs": "Hermes 문서",
-      "docsShort": "Docs",
       "start": "Hermes 시작",
       "install": "설치",
-      "newSession": "새 Hermes 세션"
+      "newSession": "새 Hermes 세션",
+      "connect": "Hermes Agent 연결",
+      "ready": "준비됨",
+      "installRunning": "Pixcode API로 Hermes를 설치하는 중...",
+      "installDone": "Hermes가 설치되었고 Pixcode MCP가 구성되었습니다.",
+      "installError": "Hermes 설치에 실패했습니다.",
+      "installReady": "Hermes 설치 준비 완료.",
+      "installWaiting": "Hermes 설치 로그를 기다리는 중...",
+      "retryInstall": "설치 다시 시도",
+      "installFailed": "Hermes 설치에 실패했습니다.",
+      "installStreamLost": "Hermes 설치 스트림이 일찍 닫혔습니다. 설치가 아직 실행 중일 수 있습니다."
     }
   }
 }

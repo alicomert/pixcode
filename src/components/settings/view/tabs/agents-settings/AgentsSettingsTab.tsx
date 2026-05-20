@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { AgentCategory, AgentProvider, AuthStatus } from '../../../types/types';
+import type { AgentCategory, AgentProvider } from '../../../types/types';
 
 import type { AgentContext, AgentsSettingsTabProps } from './types';
 import AgentCategoryContentSection from './sections/AgentCategoryContentSection';
@@ -9,20 +9,6 @@ import AgentCategoryTabsSection from './sections/AgentCategoryTabsSection';
 import AgentSelectorSection from './sections/AgentSelectorSection';
 
 import { Loader2, RefreshCw } from '@/lib/icons';
-import { authenticatedFetch } from '@/utils/api';
-
-const createHermesLoadingStatus = (): AuthStatus => ({
-  authenticated: false,
-  installed: null,
-  email: null,
-  method: null,
-  error: null,
-  loading: true,
-  checkedAt: null,
-  installedVersion: null,
-  latestVersion: null,
-  updateAvailable: false,
-});
 
 export default function AgentsSettingsTab({
   providerAuthStatus,
@@ -47,7 +33,6 @@ export default function AgentsSettingsTab({
   const [selectedAgent, setSelectedAgent] = useState<AgentProvider>('claude');
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
-  const [hermesAuthStatus, setHermesAuthStatus] = useState(createHermesLoadingStatus);
 
   // Previously we filtered Cursor out on Windows because the upstream
   // install command is `curl | bash`. Cursor now ships a cross-platform
@@ -55,46 +40,9 @@ export default function AgentsSettingsTab({
   // the card back so they can manage its permissions and auth status.
   // The auth-status probe handles the "not installed" case gracefully.
   const visibleAgents = useMemo<AgentProvider[]>(
-    () => ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode', 'hermes'],
+    () => ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'],
     [],
   );
-
-  const refreshHermesStatus = useCallback(async () => {
-    setHermesAuthStatus((current) => ({ ...current, loading: true }));
-    try {
-      const response = await authenticatedFetch('/api/orchestration/hermes/install-status');
-      const status = await response.json();
-      setHermesAuthStatus({
-        authenticated: Boolean(status?.installed),
-        installed: Boolean(status?.installed),
-        email: status?.installed ? 'Local Hermes Agent' : null,
-        method: status?.command || null,
-        error: status?.installed ? null : typeof status?.error === 'string' ? status.error : 'Hermes Agent CLI is not installed',
-        loading: false,
-        checkedAt: new Date().toISOString(),
-        installedVersion: typeof status?.version === 'string' ? status.version : null,
-        latestVersion: null,
-        updateAvailable: false,
-      });
-    } catch (error) {
-      setHermesAuthStatus({
-        authenticated: false,
-        installed: false,
-        email: null,
-        method: null,
-        error: error instanceof Error ? error.message : 'Unable to check Hermes Agent',
-        loading: false,
-        checkedAt: new Date().toISOString(),
-        installedVersion: null,
-        latestVersion: null,
-        updateAvailable: false,
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshHermesStatus();
-  }, [refreshHermesStatus]);
 
   const agentContextById = useMemo<Record<AgentProvider, AgentContext>>(() => ({
     claude: {
@@ -121,12 +69,7 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.opencode,
       onLogin: () => onProviderLogin('opencode'),
     },
-    hermes: {
-      authStatus: hermesAuthStatus,
-      onLogin: () => onProviderLogin('hermes'),
-    },
   }), [
-    hermesAuthStatus,
     onProviderLogin,
     providerAuthStatus.claude,
     providerAuthStatus.codex,
@@ -137,7 +80,7 @@ export default function AgentsSettingsTab({
   ]);
 
   const statusSummary = useMemo(() => {
-    const statuses = visibleAgents.map((agent) => agent === 'hermes' ? hermesAuthStatus : providerAuthStatus[agent]);
+    const statuses = visibleAgents.map((agent) => providerAuthStatus[agent]);
     const updateCount = statuses.filter((status) => status?.updateAvailable).length;
     const lastCheckedAt = statuses
       .map((status) => status?.checkedAt ? new Date(status.checkedAt).getTime() : 0)
@@ -145,23 +88,17 @@ export default function AgentsSettingsTab({
       .sort((left, right) => right - left)[0] ?? null;
 
     return { updateCount, lastCheckedAt };
-  }, [hermesAuthStatus, providerAuthStatus, visibleAgents]);
+  }, [providerAuthStatus, visibleAgents]);
 
   const refreshAgentStatus = useCallback(async (provider: AgentProvider) => {
-    if (provider === 'hermes') {
-      await refreshHermesStatus();
-      return;
-    }
-
     await onRefreshProviderAuth?.(provider);
-  }, [onRefreshProviderAuth, refreshHermesStatus]);
+  }, [onRefreshProviderAuth]);
 
   const refreshAll = async () => {
     if (!onRefreshAllProviderAuth) return;
     setIsRefreshingAll(true);
     try {
       await onRefreshAllProviderAuth();
-      await refreshHermesStatus();
     } finally {
       setIsRefreshingAll(false);
     }

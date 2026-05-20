@@ -886,11 +886,19 @@
       "title": "Hermes Agent",
       "installTitle": "Hermes Agent をインストール",
       "description": "プロジェクト単位のエージェントターミナルです。Hermes がない場合はインストールして、このワークスペースで開きます。",
-      "docs": "Hermes ドキュメント",
-      "docsShort": "Docs",
       "start": "Hermes を開始",
       "install": "インストール",
-      "newSession": "新しい Hermes セッション"
+      "newSession": "新しい Hermes セッション",
+      "connect": "Hermes Agent に接続",
+      "ready": "準備完了",
+      "installRunning": "Pixcode API で Hermes をインストールしています...",
+      "installDone": "Hermes がインストールされ、Pixcode MCP が設定されました。",
+      "installError": "Hermes のインストールに失敗しました。",
+      "installReady": "Hermes をインストールできます。",
+      "installWaiting": "Hermes インストールログを待機中...",
+      "retryInstall": "インストールを再試行",
+      "installFailed": "Hermes のインストールに失敗しました。",
+      "installStreamLost": "Hermes インストールストリームが早期に閉じました。インストールはまだ実行中の可能性があります。"
     }
   }
 }

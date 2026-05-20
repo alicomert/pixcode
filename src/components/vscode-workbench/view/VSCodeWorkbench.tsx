@@ -778,6 +778,9 @@ function VSCodeWorkbench({
     () => openEditorTabs.find((tab) => tab.path === activeEditorPath) ?? openEditorTabs[0] ?? null,
     [activeEditorPath, openEditorTabs],
   );
+  const isHermesBottomTerminalActive = isBottomTerminalOpen && (
+    bottomTerminalMode === 'hermes' || bottomTerminalMode === 'hermes-install'
+  );
 
   const activityButtons = useMemo(
     () => [
@@ -1312,6 +1315,7 @@ function VSCodeWorkbench({
         project={selectedProject}
         session={selectedSession}
         hermesCliLaunch={hermesCliLaunch}
+        suspendAutoConnect={isHermesBottomTerminalActive && !hermesCliLaunch}
         onSessionSelect={sidebarProps.onSessionSelect}
         t={t}
       />
@@ -1372,6 +1376,11 @@ function VSCodeWorkbench({
                 onClick={() => selectActivityPanel(item.id, item.tab)}
               />
             ))}
+            <HermesActivityButton
+              label={t('vscodeWorkbench.hermes.connect', { defaultValue: 'Connect Hermes Agent' })}
+              active={isHermesBottomTerminalActive}
+              onClick={openHermesAgent}
+            />
           </div>
 
           <div className="flex flex-col items-center gap-1 border-t border-border py-2">
@@ -2320,6 +2329,12 @@ function HermesInstallLogPanel({
   const running = installJob.state === 'running';
   const done = installJob.state === 'done';
   const error = installJob.state === 'error';
+  const installLogRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    if (!installLogRef.current) return;
+    installLogRef.current.scrollTop = installLogRef.current.scrollHeight;
+  }, [installJob.error, installJob.log, installJob.state]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-gray-950">
@@ -2362,7 +2377,7 @@ function HermesInstallLogPanel({
           {installJob.error}
         </div>
       )}
-      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-5 text-gray-200">
+      <pre ref={installLogRef} className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-5 text-gray-200">
         {installJob.log || t('vscodeWorkbench.hermes.installWaiting', { defaultValue: 'Waiting for Hermes install logs...' })}
       </pre>
     </div>
@@ -2626,12 +2641,14 @@ function WorkbenchCliPanel({
   project,
   session,
   hermesCliLaunch,
+  suspendAutoConnect,
   onSessionSelect,
   t,
 }: {
   project: Project | null;
   session: ProjectSession | null;
   hermesCliLaunch: HermesTerminalLaunchEvent | null;
+  suspendAutoConnect: boolean;
   onSessionSelect: (session: ProjectSession) => void;
   t: TFunction<'common'>;
 }) {
@@ -2665,7 +2682,7 @@ function WorkbenchCliPanel({
   const sessionForShell = terminalSession?.__provider === selectedProvider ? terminalSession : null;
   const activeHistorySessionId = terminalSession?.id ?? session?.id ?? null;
   const canStartSelectedProvider = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
-  const canAutoConnect = Boolean(isTerminalOpen && terminalMode === 'provider' && canStartSelectedProvider);
+  const canAutoConnect = Boolean(!suspendAutoConnect && isTerminalOpen && terminalMode === 'provider' && canStartSelectedProvider);
   const projectCliStateKey = useMemo(() => getProjectCliStateKey(project), [project]);
   const lastRestoredProjectKeyRef = useRef<string | null>(null);
   const lastHermesCliLaunchIdRef = useRef(0);
@@ -3483,6 +3500,32 @@ function ActivityButton({
     >
       {active && <span className="absolute left-0 h-5 w-0.5 rounded-r bg-primary" />}
       <Icon className="h-5 w-5" />
+    </button>
+  );
+}
+
+function HermesActivityButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        'relative flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+        active && 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-300',
+      )}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    >
+      {active && <span className="absolute left-0 h-5 w-0.5 rounded-r bg-emerald-500" />}
+      <span className="font-mono text-base font-semibold leading-none">H</span>
     </button>
   );
 }

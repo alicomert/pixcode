@@ -856,11 +856,19 @@
       "title": "Hermes Agent",
       "installTitle": "Установить Hermes Agent",
       "description": "Проектный терминал агента. Устанавливает Hermes, если он отсутствует, затем открывает его в этом workspace.",
-      "docs": "Документация Hermes",
-      "docsShort": "Docs",
       "start": "Запустить Hermes",
       "install": "Установить",
-      "newSession": "Новая сессия Hermes"
+      "newSession": "Новая сессия Hermes",
+      "connect": "Подключить Hermes Agent",
+      "ready": "Готово",
+      "installRunning": "Hermes устанавливается через API Pixcode...",
+      "installDone": "Hermes установлен, Pixcode MCP настроен.",
+      "installError": "Установка Hermes не удалась.",
+      "installReady": "Готово к установке Hermes.",
+      "installWaiting": "Ожидание логов установки Hermes...",
+      "retryInstall": "Повторить установку",
+      "installFailed": "Установка Hermes не удалась.",
+      "installStreamLost": "Поток установки Hermes закрылся раньше времени. Установка может еще выполняться."
     }
   }
 }

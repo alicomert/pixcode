@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.3](https://github.com/alicomert/pixcode/compare/v1.49.2...v1.49.3) (2026-05-20)
+
+Pixcode 1.49.3 hardens Hermes Agent launch, install status, and settings visibility.
+
+### Fixes
+
+* **hermes:** verify Hermes command candidates before launching so stale PATH shims no longer start the wrong command or open the launcher script as text.
+* **hermes:** repair POSIX and Windows Hermes command shims after install/status checks, including a Windows `hermes.cmd` launcher.
+* **workbench:** keep Hermes install logs auto-scrolled, add a dedicated `H` activity button under Terminal, and pause right-panel CLI auto-connect while Hermes opens in the bottom terminal.
+* **settings:** move Hermes Agent out of the Agents picker into a dedicated Settings page with install, repair, start, refresh, and status controls.
+
+### Tests
+
+* verify Hermes API install smoke, VS Code workbench smoke, Hermes status parsing, backend syntax, typecheck, lint, production build, and shell `hermes --version` after shim repair.
+
 ## [1.49.2](https://github.com/alicomert/pixcode/compare/v1.49.1...v1.49.2) (2026-05-20)
 
 Pixcode 1.49.2 moves Hermes install and repair into a backend API job so installs no longer depend on terminal command paste behavior.

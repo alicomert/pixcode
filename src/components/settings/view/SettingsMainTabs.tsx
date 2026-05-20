@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { SettingsMainTab } from '../types/types';
 
-import { Bug, GitBranch, Info, Key, Puzzle } from '@/lib/icons';
+import { Bug, GitBranch, Info, Key, Puzzle, Workflow } from '@/lib/icons';
 
 type SettingsMainTabsProps = {
   activeTab: SettingsMainTab;
@@ -18,6 +18,7 @@ type MainTabConfig = {
 
 const TAB_CONFIG: MainTabConfig[] = [
   { id: 'agents', labelKey: 'mainTabs.agents' },
+  { id: 'hermes', labelKey: 'mainTabs.hermes', icon: Workflow },
   { id: 'appearance', labelKey: 'mainTabs.appearance' },
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },
   { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },

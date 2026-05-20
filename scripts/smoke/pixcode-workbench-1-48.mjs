@@ -13,6 +13,7 @@ const settingsSidebar = read('src/components/settings/view/SettingsSidebar.tsx')
 const settingsMainTabs = read('src/components/settings/view/SettingsMainTabs.tsx');
 const settingsTypes = read('src/components/settings/types/types.ts');
 const settingsController = read('src/components/settings/hooks/useSettingsController.ts');
+const settings = read('src/components/settings/view/Settings.tsx');
 const app = read('src/App.tsx');
 const serverIndex = read('server/index.js');
 const hermesRoutes = read('server/modules/orchestration/hermes/hermes.routes.ts');
@@ -109,9 +110,12 @@ assert.match(read('scripts/smoke/hermes-api-install.mjs'), /hermes API install s
 assert.match(serverIndex, /forceNewSession/, 'Shell backend should support explicit fresh-session launches from the workbench.');
 assert.match(serverIndex, /killProviderPtySessions/, 'Shell backend should terminate old provider PTYs when a fresh CLI session is requested.');
 
-assert.match(settingsTypes, /'hermes'/, 'Settings Agents should support Hermes Agent as a first-class agent.');
-assert.match(agentSettings, /'hermes'/, 'Settings Agents should list Hermes Agent.');
+assert.match(settingsTypes, /'hermes'/, 'Settings should support Hermes Agent as a first-class tab.');
+assert.match(settingsSidebar, /id: 'hermes'/, 'Settings sidebar should show Hermes Agent as its own page instead of hiding it at the end of Agents.');
+assert.match(settings, /<HermesSettingsTab/, 'Settings should render the dedicated Hermes Agent page.');
+assert.doesNotMatch(agentSettings, /'hermes'/, 'Settings Agents picker should not bury Hermes Agent at the end of the provider list.');
 assert.match(workbench, /hermesInstallStatus/, 'Workbench should hide Hermes install actions when Hermes is already installed.');
+assert.match(workbench, /HermesActivityButton/, 'Workbench activity rail should include a dedicated Hermes launcher button.');
 assert.match(shellConnection, /cursor-tools-settings/, 'Cursor shell launches should read Cursor permission settings, not Claude settings.');
 assert.match(shellConnection, /permissionMode/, 'Shell websocket init should send provider permission mode to the backend.');
 assert.match(serverIndex, /--dangerously-bypass-approvals-and-sandbox/, 'Codex terminal bypass mode should use the Codex CLI bypass flag.');

@@ -111,6 +111,7 @@
   "mainTabs": {
     "label": "Настройки",
     "agents": "Агенты",
+    "hermes": "Hermes Agent",
     "appearance": "Внешний вид",
     "git": "Git",
     "apiTokens": "API и токены",
@@ -606,5 +607,19 @@
       "title": "Kak podklyuchayutsya polzovateli",
       "description": "Sozdaite polzovatelya v Admin system, naznachte rol proekta v Control Room i otdajte Access URL. Globalnye prava admina dlya naznachennogo proekta ne nuzhny."
     }
+  },
+  "hermes": {
+    "title": "Hermes Agent",
+    "description": "Управляйте Hermes Agent как проектным терминалом под контролем Pixcode с MCP-доступом к проектам, статусу провайдеров и видимым CLI-запускам.",
+    "statusTitle": "Статус установки",
+    "statusFailed": "Не удалось проверить Hermes Agent.",
+    "ready": "Готово",
+    "notInstalled": "Не установлен",
+    "start": "Запустить Hermes",
+    "install": "Установить",
+    "repair": "Исправить команду",
+    "refresh": "Обновить",
+    "pixcodeControlTitle": "Управление Pixcode",
+    "pixcodeControlDescription": "Pixcode настраивает MCP-сервер Hermes перед запуском, поэтому Hermes может просматривать workspace и открывать терминалы провайдеров внутри интерфейса Pixcode."
   }
 }
