@@ -19,6 +19,7 @@ import Sidebar from '../../sidebar/view/Sidebar';
 import type { SidebarProps } from '../../sidebar/types/types';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import type { WorkspaceType } from '../../project-creation-wizard/types';
+import { DarkModeToggle } from '../../../shared/view/ui';
 import { cn } from '../../../lib/utils';
 import { authenticatedFetch } from '../../../utils/api';
 import type { AppTab, LLMProvider, Project, ProjectSession } from '../../../types/app';
@@ -43,7 +44,9 @@ import {
   Github,
   History,
   Loader2,
+  Maximize2,
   MessageSquare,
+  Minimize2,
   Monitor,
   MoreHorizontal,
   PanelLeftClose,
@@ -65,7 +68,7 @@ type VSCodeWorkbenchProps = MainContentProps & {
 
 type ActivityPanel = 'explorer' | 'projects' | 'sourceControl' | 'terminal';
 
-type ResizeTarget = 'left' | 'right';
+type ResizeTarget = 'left' | 'right' | 'bottom';
 
 type WorkbenchWorkspaceTab = {
   id: string;
@@ -94,7 +97,18 @@ type ProviderInstallState = {
   error: string | null;
 };
 
-type WorkbenchCliTerminalMode = 'provider' | 'hermes' | 'hermes-install';
+type WorkbenchCliTerminalMode = 'provider';
+
+type WorkbenchBottomTerminalMode = 'shell' | 'hermes' | 'hermes-install';
+
+type HermesTerminalLaunchEvent = {
+  id: number;
+  provider: LLMProvider;
+  projectPath: string | null;
+  prompt: string | null;
+  source: string;
+  createdAt: string;
+};
 
 type WorkbenchCliProjectState = {
   provider: LLMProvider;
@@ -116,6 +130,11 @@ const LEFT_DEFAULT_WIDTH = 340;
 const RIGHT_MIN_WIDTH = 320;
 const RIGHT_MAX_WIDTH = 680;
 const RIGHT_DEFAULT_WIDTH = 420;
+const RIGHT_RESIZE_STEP = 80;
+const BOTTOM_TERMINAL_MIN_HEIGHT = 150;
+const BOTTOM_TERMINAL_MAX_HEIGHT = 560;
+const BOTTOM_TERMINAL_DEFAULT_HEIGHT = 256;
+const BOTTOM_TERMINAL_MINIMIZED_HEIGHT = 34;
 const WORKBENCH_WORKSPACE_TABS_STORAGE_KEY = 'pixcode.workbench.workspaceTabs.v1';
 const WORKBENCH_CLI_STATE_STORAGE_KEY = 'pixcode.workbench.cliState.v1';
 const WORKBENCH_EDITOR_STATE_STORAGE_KEY = 'pixcode.workbench.editorState.v1';
@@ -123,10 +142,9 @@ const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
 const CLI_PROVIDER_IDS: LLMProvider[] = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
 const MAX_PERSISTED_EDITOR_TABS = 30;
 const HERMES_AGENT_DOCS_URL = 'https://hermes-agent.nousresearch.com/docs/';
-const HERMES_AGENT_INSTALL_COMMAND_POSIX = 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash';
-const HERMES_AGENT_INSTALL_COMMAND_WINDOWS = 'iex (irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1)';
-const HERMES_AGENT_START_COMMAND_POSIX = `if ! command -v hermes >/dev/null 2>&1; then ${HERMES_AGENT_INSTALL_COMMAND_POSIX}; fi; hermes`;
-const HERMES_AGENT_START_COMMAND_WINDOWS = `if (-not (Get-Command hermes -ErrorAction SilentlyContinue)) { ${HERMES_AGENT_INSTALL_COMMAND_WINDOWS} }; hermes`;
+const HERMES_AGENT_START_COMMAND = 'pixcode:hermes:start';
+const HERMES_AGENT_INSTALL_COMMAND = 'pixcode:hermes:install';
+const HERMES_TERMINAL_LAUNCH_POLL_MS = 2000;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -143,22 +161,6 @@ function isCenterSystemTab(activeTab: AppTab) {
 function activityForTab(activeTab: AppTab): ActivityPanel {
   if (activeTab === 'git' || activeTab === 'changes') return 'sourceControl';
   return 'explorer';
-}
-
-function getHermesAgentInstallCommand() {
-  if (typeof navigator !== 'undefined' && /win/i.test(navigator.platform || '')) {
-    return HERMES_AGENT_INSTALL_COMMAND_WINDOWS;
-  }
-
-  return HERMES_AGENT_INSTALL_COMMAND_POSIX;
-}
-
-function getHermesAgentStartCommand() {
-  if (typeof navigator !== 'undefined' && /win/i.test(navigator.platform || '')) {
-    return HERMES_AGENT_START_COMMAND_WINDOWS;
-  }
-
-  return HERMES_AGENT_START_COMMAND_POSIX;
 }
 
 function getProjectPath(project: Project) {
@@ -399,7 +401,11 @@ function VSCodeWorkbench({
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [isBottomTerminalOpen, setIsBottomTerminalOpen] = useState(false);
-  const [hermesLaunchToken, setHermesLaunchToken] = useState(0);
+  const [bottomTerminalMode, setBottomTerminalMode] = useState<WorkbenchBottomTerminalMode>('shell');
+  const [bottomTerminalRunId, setBottomTerminalRunId] = useState(0);
+  const [bottomTerminalHeight, setBottomTerminalHeight] = useState(BOTTOM_TERMINAL_DEFAULT_HEIGHT);
+  const [isBottomTerminalMinimized, setIsBottomTerminalMinimized] = useState(false);
+  const [hermesCliLaunch, setHermesCliLaunch] = useState<HermesTerminalLaunchEvent | null>(null);
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>('projects');
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
   const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
@@ -408,7 +414,10 @@ function VSCodeWorkbench({
   const [editorTabContextMenu, setEditorTabContextMenu] = useState<EditorTabContextMenu>(null);
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkbenchWorkspaceTab[]>(readWorkspaceTabs);
   const [workspaceTabContextMenu, setWorkspaceTabContextMenu] = useState<WorkspaceTabContextMenu>(null);
+  const [pendingHermesProjectPath, setPendingHermesProjectPath] = useState<string | null>(null);
   const editorTabStripRef = useRef<HTMLDivElement>(null);
+  const hasPrimedHermesTerminalLaunchesRef = useRef(false);
+  const lastHermesTerminalLaunchIdRef = useRef(0);
   const editorStateProjectKey = useMemo(() => getProjectEditorStateKey(selectedProject), [selectedProject]);
   const isRestoringEditorStateRef = useRef(false);
   const lastRestoredEditorProjectKeyRef = useRef<string | null>(null);
@@ -596,6 +605,26 @@ function VSCodeWorkbench({
     });
   }, []);
 
+  const openBottomTerminal = useCallback((mode: WorkbenchBottomTerminalMode) => {
+    setBottomTerminalMode(mode);
+    setIsBottomTerminalOpen(true);
+    setIsBottomTerminalMinimized(false);
+    setBottomTerminalRunId((current) => current + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingHermesProjectPath || !selectedProject) {
+      return;
+    }
+
+    if (getProjectPath(selectedProject) !== pendingHermesProjectPath) {
+      return;
+    }
+
+    setPendingHermesProjectPath(null);
+    openBottomTerminal('hermes');
+  }, [openBottomTerminal, pendingHermesProjectPath, selectedProject]);
+
   const activeEditorFile = useMemo(
     () => openEditorTabs.find((tab) => tab.path === activeEditorPath) ?? openEditorTabs[0] ?? null,
     [activeEditorPath, openEditorTabs],
@@ -669,6 +698,11 @@ function VSCodeWorkbench({
         return;
       }
 
+      if (resizeTarget === 'bottom') {
+        setBottomTerminalHeight(clamp(rect.bottom - event.clientY, BOTTOM_TERMINAL_MIN_HEIGHT, BOTTOM_TERMINAL_MAX_HEIGHT));
+        return;
+      }
+
       setRightPaneWidth(clamp(rect.right - event.clientX, RIGHT_MIN_WIDTH, RIGHT_MAX_WIDTH));
     };
 
@@ -677,7 +711,7 @@ function VSCodeWorkbench({
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', stopResize, { once: true });
     window.addEventListener('pointercancel', stopResize, { once: true });
-    document.body.style.cursor = 'col-resize';
+    document.body.style.cursor = resizeTarget === 'bottom' ? 'ns-resize' : 'col-resize';
     document.body.style.userSelect = 'none';
 
     return () => {
@@ -691,11 +725,18 @@ function VSCodeWorkbench({
 
   const selectActivityPanel = useCallback((panel: ActivityPanel, tab: AppTab) => {
     if (panel === 'terminal') {
-      setIsBottomTerminalOpen((previous) => !previous);
       if (!selectedProject) {
         setActivityPanel('projects');
         setActiveTab('chat');
         return;
+      }
+
+      if (isBottomTerminalOpen && bottomTerminalMode === 'shell' && isBottomTerminalMinimized) {
+        setIsBottomTerminalMinimized(false);
+      } else if (isBottomTerminalOpen && bottomTerminalMode === 'shell') {
+        setIsBottomTerminalOpen(false);
+      } else {
+        openBottomTerminal('shell');
       }
 
       if (activeTab === 'shell') {
@@ -714,11 +755,43 @@ function VSCodeWorkbench({
     if (tab !== 'chat' || !isCenterSystemTab(activeTab)) {
       setActiveTab(tab);
     }
-  }, [activeTab, selectedProject, setActiveTab]);
+  }, [activeTab, bottomTerminalMode, isBottomTerminalMinimized, isBottomTerminalOpen, openBottomTerminal, selectedProject, setActiveTab]);
 
   const openHermesAgent = useCallback(() => {
-    setIsRightCollapsed(false);
-    setHermesLaunchToken((current) => current + 1);
+    if (!selectedProject) {
+      const fallbackProject = sidebarProps.projects[0];
+      if (fallbackProject) {
+        setPendingHermesProjectPath(getProjectPath(fallbackProject));
+        sidebarProps.onProjectSelect(fallbackProject);
+        setActivityPanel('explorer');
+        setActiveTab('files');
+        return;
+      }
+
+      setActivityPanel('projects');
+      setActiveTab('chat');
+      return;
+    }
+
+    openBottomTerminal('hermes');
+  }, [openBottomTerminal, selectedProject, setActiveTab, sidebarProps]);
+
+  const installHermesAgent = useCallback(() => {
+    if (!selectedProject) {
+      setActivityPanel('projects');
+      setActiveTab('chat');
+      return;
+    }
+
+    openBottomTerminal('hermes-install');
+  }, [openBottomTerminal, selectedProject, setActiveTab]);
+
+  const shrinkCliPanel = useCallback(() => {
+    setRightPaneWidth((current) => clamp(current - RIGHT_RESIZE_STEP, RIGHT_MIN_WIDTH, RIGHT_MAX_WIDTH));
+  }, []);
+
+  const expandCliPanel = useCallback(() => {
+    setRightPaneWidth((current) => clamp(current + RIGHT_RESIZE_STEP, RIGHT_MIN_WIDTH, RIGHT_MAX_WIDTH));
   }, []);
 
   const openSystemTab = useCallback((tab: AppTab) => {
@@ -788,6 +861,59 @@ function VSCodeWorkbench({
     )));
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const pollHermesTerminalLaunches = async () => {
+      try {
+        const response = await authenticatedFetch(`/api/orchestration/hermes/terminal-launches?after=${lastHermesTerminalLaunchIdRef.current}`, {
+          cache: 'no-store',
+        });
+        if (!response.ok) return;
+
+        const body = (await response.json()) as { events?: HermesTerminalLaunchEvent[] };
+        const events = Array.isArray(body.events) ? body.events : [];
+        if (cancelled) return;
+        if (events.length === 0) {
+          hasPrimedHermesTerminalLaunchesRef.current = true;
+          return;
+        }
+
+        const latest = events[events.length - 1];
+        lastHermesTerminalLaunchIdRef.current = Math.max(
+          lastHermesTerminalLaunchIdRef.current,
+          ...events.map((event) => event.id),
+        );
+        if (!hasPrimedHermesTerminalLaunchesRef.current) {
+          hasPrimedHermesTerminalLaunchesRef.current = true;
+          return;
+        }
+
+        const requestedProject = latest.projectPath
+          ? sidebarProps.projects.find((project) => getProjectPath(project).replace(/\\/g, '/') === latest.projectPath?.replace(/\\/g, '/'))
+          : selectedProject;
+        if (requestedProject && requestedProject !== selectedProject) {
+          handleWorkbenchProjectSelect(requestedProject);
+        }
+
+        setIsRightCollapsed(false);
+        setHermesCliLaunch(latest);
+      } catch {
+        // Hermes control polling is best-effort; normal workbench use should not be interrupted.
+      }
+    };
+
+    void pollHermesTerminalLaunches();
+    const timer = window.setInterval(() => {
+      void pollHermesTerminalLaunches();
+    }, HERMES_TERMINAL_LAUNCH_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [handleWorkbenchProjectSelect, selectedProject, sidebarProps.projects]);
+
   const renderLeftPanel = () => {
     if (activityPanel === 'projects') {
       return (
@@ -851,7 +977,7 @@ function VSCodeWorkbench({
           onCloneProject={() => openProjectWizard('new')}
           onQuickStartSession={onQuickStartSession}
           onOpenHermesAgent={openHermesAgent}
-          onOpenControlRoom={() => setActiveTab('controlRoom')}
+          onShowSettings={onShowSettings}
           t={t}
         />
       );
@@ -1022,7 +1148,7 @@ function VSCodeWorkbench({
       <WorkbenchCliPanel
         project={selectedProject}
         session={selectedSession}
-        hermesLaunchToken={hermesLaunchToken}
+        hermesCliLaunch={hermesCliLaunch}
         onSessionSelect={sidebarProps.onSessionSelect}
         t={t}
       />
@@ -1155,7 +1281,16 @@ function VSCodeWorkbench({
             {isBottomTerminalOpen && (
               <WorkbenchBottomTerminal
                 project={selectedProject}
+                mode={bottomTerminalMode}
+                runId={bottomTerminalRunId}
+                height={bottomTerminalHeight}
+                isMinimized={isBottomTerminalMinimized}
                 isActive
+                onResizeStart={(event) => startResize('bottom', event)}
+                onMinimize={() => setIsBottomTerminalMinimized(true)}
+                onRestore={() => setIsBottomTerminalMinimized(false)}
+                onStartHermes={openHermesAgent}
+                onInstallHermes={installHermesAgent}
                 onClose={() => setIsBottomTerminalOpen(false)}
                 t={t}
               />
@@ -1182,15 +1317,35 @@ function VSCodeWorkbench({
                     {t('vscodeWorkbench.panels.cli')}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  onClick={() => setIsRightCollapsed(true)}
-                  aria-label={t('vscodeWorkbench.cli.hidePanel', { defaultValue: 'Hide CLI panel' })}
-                  title={t('vscodeWorkbench.cli.hidePanel', { defaultValue: 'Hide CLI panel' })}
-                >
-                  <PanelLeftOpen className="h-4 w-4" />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={shrinkCliPanel}
+                    aria-label={t('vscodeWorkbench.cli.shrinkPanel', { defaultValue: 'Shrink CLI panel' })}
+                    title={t('vscodeWorkbench.cli.shrinkPanel', { defaultValue: 'Shrink CLI panel' })}
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={expandCliPanel}
+                    aria-label={t('vscodeWorkbench.cli.expandPanel', { defaultValue: 'Expand CLI panel' })}
+                    title={t('vscodeWorkbench.cli.expandPanel', { defaultValue: 'Expand CLI panel' })}
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => setIsRightCollapsed(true)}
+                    aria-label={t('vscodeWorkbench.cli.hidePanel', { defaultValue: 'Hide CLI panel' })}
+                    title={t('vscodeWorkbench.cli.hidePanel', { defaultValue: 'Hide CLI panel' })}
+                  >
+                    <PanelLeftOpen className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
                 {renderRightPanel()}
@@ -1832,50 +1987,150 @@ function EditorTabContextMenu({
 
 function WorkbenchBottomTerminal({
   project,
+  mode,
+  runId,
+  height,
+  isMinimized,
   isActive,
+  onResizeStart,
+  onMinimize,
+  onRestore,
+  onStartHermes,
+  onInstallHermes,
   onClose,
   t,
 }: {
   project: Project | null;
+  mode: WorkbenchBottomTerminalMode;
+  runId: number;
+  height: number;
+  isMinimized: boolean;
   isActive: boolean;
+  onResizeStart: (event: React.PointerEvent<HTMLButtonElement>) => void;
+  onMinimize: () => void;
+  onRestore: () => void;
+  onStartHermes: () => void;
+  onInstallHermes: () => void;
   onClose: () => void;
   t: TFunction<'common'>;
 }) {
+  const isHermes = mode === 'hermes' || mode === 'hermes-install';
+  const title = mode === 'hermes-install'
+    ? t('vscodeWorkbench.hermes.installTitle', { defaultValue: 'Install Hermes Agent' })
+    : mode === 'hermes'
+      ? t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })
+      : t('vscodeWorkbench.terminal.title', { defaultValue: 'Terminal' });
+  const command = mode === 'hermes-install'
+    ? HERMES_AGENT_INSTALL_COMMAND
+    : mode === 'hermes'
+      ? HERMES_AGENT_START_COMMAND
+      : null;
+
   return (
-    <section className="h-64 shrink-0 overflow-hidden bg-gray-950 text-gray-100">
+    <section
+      className="relative shrink-0 overflow-hidden bg-gray-950 text-gray-100"
+      style={{ height: isMinimized ? BOTTOM_TERMINAL_MINIMIZED_HEIGHT : height }}
+    >
+      {!isMinimized && (
+        <button
+          type="button"
+          className="absolute inset-x-0 top-0 z-10 h-1 cursor-ns-resize bg-transparent hover:bg-blue-500/40"
+          onPointerDown={onResizeStart}
+          aria-label={t('vscodeWorkbench.terminal.resize', { defaultValue: 'Resize terminal' })}
+          title={t('vscodeWorkbench.terminal.resize', { defaultValue: 'Resize terminal' })}
+        />
+      )}
       <div className="flex h-8 items-center justify-between border-b border-gray-800 bg-gray-900 px-3">
         <div className="flex min-w-0 items-center gap-2">
-          <Terminal className="h-3.5 w-3.5 text-blue-300" />
+          {isHermes
+            ? <Workflow className="h-3.5 w-3.5 text-emerald-300" />
+            : <Terminal className="h-3.5 w-3.5 text-blue-300" />}
           <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-300">
-            {t('vscodeWorkbench.terminal.title', { defaultValue: 'Terminal' })}
+            {title}
           </span>
           <span className="truncate font-mono text-[10px] text-gray-500">
             {project ? getProjectPath(project) : t('vscodeWorkbench.noProject')}
           </span>
         </div>
-        <button
-          type="button"
-          className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
-          onClick={onClose}
-          aria-label={t('vscodeWorkbench.terminal.close', { defaultValue: 'Close terminal' })}
-          title={t('vscodeWorkbench.terminal.close', { defaultValue: 'Close terminal' })}
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          {isHermes && (
+            <>
+              <a
+                href={HERMES_AGENT_DOCS_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded px-2 py-1 text-[10px] font-semibold text-gray-300 hover:bg-gray-800 hover:text-gray-100"
+              >
+                {t('vscodeWorkbench.hermes.docsShort', { defaultValue: 'Docs' })}
+              </a>
+              <button
+                type="button"
+                className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+                onClick={onInstallHermes}
+                aria-label={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
+                title={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+                onClick={onStartHermes}
+                aria-label={t('vscodeWorkbench.hermes.newSession', { defaultValue: 'New Hermes session' })}
+                title={t('vscodeWorkbench.hermes.newSession', { defaultValue: 'New Hermes session' })}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+          {isMinimized ? (
+            <button
+              type="button"
+              className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+              onClick={onRestore}
+              aria-label={t('vscodeWorkbench.terminal.restore', { defaultValue: 'Restore terminal' })}
+              title={t('vscodeWorkbench.terminal.restore', { defaultValue: 'Restore terminal' })}
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+              onClick={onMinimize}
+              aria-label={t('vscodeWorkbench.terminal.minimize', { defaultValue: 'Minimize terminal' })}
+              title={t('vscodeWorkbench.terminal.minimize', { defaultValue: 'Minimize terminal' })}
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+            onClick={onClose}
+            aria-label={t('vscodeWorkbench.terminal.close', { defaultValue: 'Close terminal' })}
+            title={t('vscodeWorkbench.terminal.close', { defaultValue: 'Close terminal' })}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
-      <div className="h-[calc(100%-2rem)] min-h-0">
-        <StandaloneShell
-          key={`plain-terminal-${project?.name || 'none'}`}
-          project={project}
-          session={null}
-          isPlainShell
-          forceNewSession
-          showHeader={false}
-          autoConnect={Boolean(project)}
-          isActive={isActive}
-          title={t('vscodeWorkbench.terminal.title', { defaultValue: 'Terminal' })}
-        />
-      </div>
+      {!isMinimized && (
+        <div className="h-[calc(100%-2rem)] min-h-0">
+          <StandaloneShell
+            key={`bottom-terminal-${mode}-${project?.name || 'none'}-${runId}`}
+            project={project}
+            session={null}
+            command={command}
+            isPlainShell
+            forceNewSession
+            showHeader={false}
+            autoConnect={Boolean(project)}
+            isActive={isActive}
+            title={title}
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -1906,7 +2161,7 @@ function WorkbenchProjectLanding({
   onCloneProject,
   onQuickStartSession,
   onOpenHermesAgent,
-  onOpenControlRoom,
+  onShowSettings,
   t,
 }: {
   projects: Project[];
@@ -1916,129 +2171,188 @@ function WorkbenchProjectLanding({
   onCloneProject: () => void;
   onQuickStartSession?: () => void | Promise<void>;
   onOpenHermesAgent: () => void;
-  onOpenControlRoom: () => void;
+  onShowSettings: () => void;
   t: TFunction<'common'>;
 }) {
+  const recentProjects = projects.slice(0, 6);
+
   return (
-    <div className="h-full overflow-auto bg-background p-6">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              {t('vscodeWorkbench.projects.startTitle', { defaultValue: 'Start a Pixcode workspace' })}
+    <div className="h-full overflow-auto bg-background">
+      <div className="mx-auto grid max-w-6xl gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section className="min-w-0">
+          <div className="mb-6">
+            <div className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Pixcode
+            </div>
+            <h2 className="mt-2 text-2xl font-semibold text-foreground">
+              {t('vscodeWorkbench.welcome.title', { defaultValue: 'Hoş geldin' })}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('vscodeWorkbench.projects.startDescription', {
-                defaultValue: 'Pick a folder and Pixcode will bind the explorer, terminal, and chat history to that workspace.',
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              {t('vscodeWorkbench.welcome.description', {
+                defaultValue: 'Bir proje aç, GitHub’dan klonla veya Hermes’i alt terminalde başlat.',
               })}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+
+          <div className="grid gap-2 sm:grid-cols-3">
             <button
               type="button"
               onClick={onOpenProject}
-              className="inline-flex items-center gap-2 rounded border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
+              className="group flex min-h-24 flex-col items-start justify-between rounded-md border border-border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-muted/30"
             >
-              <FolderOpen className="h-3.5 w-3.5" />
-              {t('vscodeWorkbench.projects.openProject', { defaultValue: 'Open Project' })}
+              <FolderOpen className="h-5 w-5 text-blue-400" />
+              <span className="mt-4 text-sm font-semibold text-foreground">
+                {t('vscodeWorkbench.welcome.openProject', { defaultValue: 'Proje Aç' })}
+              </span>
+              <span className="mt-1 text-xs leading-5 text-muted-foreground">
+                {t('vscodeWorkbench.welcome.openProjectDescription', { defaultValue: 'Yerel klasörü workspace olarak bağla.' })}
+              </span>
             </button>
+
             <button
               type="button"
               onClick={onCloneProject}
-              className="inline-flex items-center gap-2 rounded border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
+              className="group flex min-h-24 flex-col items-start justify-between rounded-md border border-border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-muted/30"
             >
-              <Github className="h-3.5 w-3.5" />
-              {t('vscodeWorkbench.projects.cloneFromGithub', { defaultValue: 'Clone' })}
+              <Github className="h-5 w-5 text-foreground" />
+              <span className="mt-4 text-sm font-semibold text-foreground">
+                {t('vscodeWorkbench.welcome.cloneProject', { defaultValue: 'Klonla' })}
+              </span>
+              <span className="mt-1 text-xs leading-5 text-muted-foreground">
+                {t('vscodeWorkbench.welcome.cloneProjectDescription', { defaultValue: 'GitHub reposunu seçtiğin klasöre çek.' })}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenHermesAgent}
+              className="group flex min-h-24 flex-col items-start justify-between rounded-md border border-emerald-700/70 bg-emerald-950/20 p-4 text-left transition hover:border-emerald-400/70 hover:bg-emerald-950/30"
+            >
+              <Workflow className="h-5 w-5 text-emerald-300" />
+              <span className="mt-4 text-sm font-semibold text-foreground">
+                {t('vscodeWorkbench.welcome.startHermes', { defaultValue: 'Hermes’i Başlat' })}
+              </span>
+              <span className="mt-1 text-xs leading-5 text-muted-foreground">
+                {t('vscodeWorkbench.welcome.startHermesDescription', { defaultValue: 'Aktif projede agent terminalini aç.' })}
+              </span>
             </button>
           </div>
-        </div>
 
-        {projects.length > 0 ? (
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => (
-              <div
-                key={project.name}
-                role="button"
-                tabIndex={0}
-                className="cursor-pointer rounded-md border border-border bg-card/40 p-3 text-left transition hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                onClick={() => onProjectSelect(project)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onProjectSelect(project);
-                  }
-                }}
-                title={getProjectPath(project)}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-foreground">
-                      {project.displayName || project.name}
-                    </div>
-                    <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
-                      {formatProjectPath(project)}
-                    </div>
-                  </div>
-                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    {formatFileCount(project.fileCount, t)}
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="rounded bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
-                    {t('vscodeWorkbench.projects.workHere', { defaultValue: 'Work in this folder' })}
-                  </span>
-                  <span
+          <div className="mt-7">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('vscodeWorkbench.welcome.recentProjects', { defaultValue: 'Son projeler' })}
+              </h3>
+              {onQuickStartSession && (
+                <button
+                  type="button"
+                  onClick={() => { void onQuickStartSession(); }}
+                  className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  {t('vscodeWorkbench.welcome.newChat', { defaultValue: 'Yeni sohbet' })}
+                </button>
+              )}
+            </div>
+
+            {recentProjects.length > 0 ? (
+              <div className="grid gap-2 xl:grid-cols-2">
+                {recentProjects.map((project) => (
+                  <div
+                    key={project.name}
                     role="button"
                     tabIndex={0}
-                    className="rounded border border-border px-2 py-1 text-[11px] text-foreground"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onProjectSelect(project);
-                      onNewSession(project);
-                    }}
+                    className="cursor-pointer rounded-md border border-border bg-card/60 p-3 text-left transition hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    onClick={() => onProjectSelect(project)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
-                        event.stopPropagation();
                         onProjectSelect(project);
-                        onNewSession(project);
                       }
                     }}
+                    title={getProjectPath(project)}
                   >
-                    {t('vscodeWorkbench.projects.startChat', { defaultValue: 'Chat' })}
-                  </span>
-                </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">
+                          {project.displayName || project.name}
+                        </div>
+                        <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                          {formatProjectPath(project)}
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                        {formatFileCount(project.fileCount, t)}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="rounded bg-primary/10 px-2 py-1 text-[11px] font-medium text-primary">
+                        {t('vscodeWorkbench.projects.workHere', { defaultValue: 'Work in this folder' })}
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="rounded border border-border px-2 py-1 text-[11px] text-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onProjectSelect(project);
+                          onNewSession(project);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onProjectSelect(project);
+                            onNewSession(project);
+                          }
+                        }}
+                      >
+                        {t('vscodeWorkbench.projects.startChat', { defaultValue: 'Chat' })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <div className="rounded-md border border-dashed border-border p-8 text-center">
+                <Folder className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                <div className="text-sm font-medium text-foreground">
+                  {t('vscodeWorkbench.projects.emptyTitle', { defaultValue: 'No project directories yet' })}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {t('vscodeWorkbench.projects.emptyDescription', {
+                    defaultValue: 'Open a local folder or clone a repository to start.',
+                  })}
+                </p>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="rounded-md border border-dashed border-border p-8 text-center">
-            <Folder className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <div className="text-sm font-medium text-foreground">
-              {t('vscodeWorkbench.projects.emptyTitle', { defaultValue: 'No project directories yet' })}
+        </section>
+
+        <aside className="h-fit rounded-md border border-border bg-card/70 p-4">
+          <div className="mb-4">
+            <div className="text-sm font-semibold text-foreground">
+              {t('vscodeWorkbench.welcome.appearanceTitle', { defaultValue: 'Görünüm' })}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {t('vscodeWorkbench.projects.emptyDescription', {
-                defaultValue: 'Open a local folder or clone a repository to start.',
-              })}
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {t('vscodeWorkbench.welcome.appearanceDescription', { defaultValue: 'Pixcode koyu modla başlar; gerekirse açık moda geçebilirsin.' })}
             </p>
           </div>
-        )}
-
-        <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <button type="button" onClick={() => { void onQuickStartSession?.(); }} className="rounded border border-border p-3 text-left text-xs hover:bg-muted">
-            <MessageSquare className="mb-2 h-4 w-4" />
-            {t('mainContent.landing.startChat')}
+          <div className="flex items-center justify-between gap-3 rounded border border-border bg-background px-3 py-2">
+            <span className="text-xs font-medium text-foreground">
+              {t('vscodeWorkbench.welcome.darkMode', { defaultValue: 'Koyu mod' })}
+            </span>
+            <DarkModeToggle ariaLabel={t('vscodeWorkbench.welcome.themeToggle', { defaultValue: 'Tema modunu değiştir' })} />
+          </div>
+          <button
+            type="button"
+            onClick={onShowSettings}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-muted"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            {t('vscodeWorkbench.welcome.themeSettings', { defaultValue: 'Tema ayarları' })}
           </button>
-          <button type="button" onClick={onOpenHermesAgent} className="rounded border border-border p-3 text-left text-xs hover:bg-muted">
-            <Workflow className="mb-2 h-4 w-4" />
-            {t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })}
-          </button>
-          <button type="button" onClick={onOpenControlRoom} className="rounded border border-border p-3 text-left text-xs hover:bg-muted">
-            <Sparkles className="mb-2 h-4 w-4" />
-            {t('mainContent.openControlRoom', { defaultValue: 'Open Control Room' })}
-          </button>
-        </div>
+        </aside>
       </div>
     </div>
   );
@@ -2077,13 +2391,13 @@ function getProjectCliSessions(project: Project | null): ProjectSession[] {
 function WorkbenchCliPanel({
   project,
   session,
-  hermesLaunchToken,
+  hermesCliLaunch,
   onSessionSelect,
   t,
 }: {
   project: Project | null;
   session: ProjectSession | null;
-  hermesLaunchToken: number;
+  hermesCliLaunch: HermesTerminalLaunchEvent | null;
   onSessionSelect: (session: ProjectSession) => void;
   t: TFunction<'common'>;
 }) {
@@ -2120,7 +2434,7 @@ function WorkbenchCliPanel({
   const canAutoConnect = Boolean(isTerminalOpen && terminalMode === 'provider' && canStartSelectedProvider);
   const projectCliStateKey = useMemo(() => getProjectCliStateKey(project), [project]);
   const lastRestoredProjectKeyRef = useRef<string | null>(null);
-  const lastHermesLaunchTokenRef = useRef(0);
+  const lastHermesCliLaunchIdRef = useRef(0);
 
   useEffect(() => {
     const providers = cliProviders.map((provider) => provider.id);
@@ -2335,40 +2649,34 @@ function WorkbenchCliPanel({
     startTerminal({ forceNewSession: pendingFreshSession });
   }, [pendingFreshSession, startTerminal]);
 
-  const startHermesAgent = useCallback(() => {
-    if (!project) return;
-    setTerminalMode('hermes');
-    setTerminalSession(null);
-    setShowHistory(false);
-    setPendingFreshSession(false);
-    setIsTerminalOpen(true);
-    setTerminalLaunch((current) => ({
-      runId: current.runId + 1,
-      forceNewSession: true,
-    }));
-  }, [project]);
-
-  const startHermesInstall = useCallback(() => {
-    if (!project) return;
-    setTerminalMode('hermes-install');
-    setTerminalSession(null);
-    setShowHistory(false);
-    setPendingFreshSession(false);
-    setIsTerminalOpen(true);
-    setTerminalLaunch((current) => ({
-      runId: current.runId + 1,
-      forceNewSession: true,
-    }));
-  }, [project]);
-
   useEffect(() => {
-    if (!hermesLaunchToken || lastHermesLaunchTokenRef.current === hermesLaunchToken) {
+    if (!hermesCliLaunch || lastHermesCliLaunchIdRef.current === hermesCliLaunch.id) {
       return;
     }
 
-    lastHermesLaunchTokenRef.current = hermesLaunchToken;
-    startHermesAgent();
-  }, [hermesLaunchToken, startHermesAgent]);
+    lastHermesCliLaunchIdRef.current = hermesCliLaunch.id;
+    const provider = hermesCliLaunch.provider;
+    if (!CLI_PROVIDER_IDS.includes(provider)) {
+      return;
+    }
+
+    setTerminalMode('provider');
+    setSelectedProvider(provider);
+    window.localStorage.setItem('selected-provider', provider);
+    setTerminalSession(null);
+    setShowHistory(false);
+    setPendingFreshSession(false);
+    setIsTerminalOpen(true);
+    setTerminalLaunch((current) => ({
+      runId: current.runId + 1,
+      forceNewSession: true,
+    }));
+    persistCliState({
+      provider,
+      isTerminalOpen: true,
+      sessionId: null,
+    });
+  }, [hermesCliLaunch, persistCliState]);
 
   const openNewCliSessionPicker = useCallback(() => {
     terminateCurrentCliSession(selectedProvider);
@@ -2416,43 +2724,6 @@ function WorkbenchCliPanel({
       sessionId: nextSession.id,
     });
   }, [onSessionSelect, persistCliState]);
-
-  if (isTerminalOpen && (terminalMode === 'hermes' || terminalMode === 'hermes-install')) {
-    const command = terminalMode === 'hermes-install'
-      ? getHermesAgentInstallCommand()
-      : getHermesAgentStartCommand();
-    const title = terminalMode === 'hermes-install'
-      ? t('vscodeWorkbench.hermes.installTitle', { defaultValue: 'Install Hermes Agent' })
-      : t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' });
-
-    return (
-      <div className="relative flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
-        <WorkbenchHermesPanelToolbar
-          project={project}
-          mode={terminalMode}
-          onStart={startHermesAgent}
-          onInstall={startHermesInstall}
-          onClose={closeTerminal}
-          t={t}
-        />
-        <div className="min-h-0 flex-1">
-          <StandaloneShell
-            key={`${terminalMode}-${project?.name || 'none'}-${terminalLaunch.runId}`}
-            project={project}
-            session={null}
-            command={command}
-            isPlainShell
-            forceNewSession={terminalLaunch.forceNewSession}
-            showHeader
-            autoConnect={Boolean(project)}
-            isActive
-            onClose={closeTerminal}
-            title={title}
-          />
-        </div>
-      </div>
-    );
-  }
 
   if (isTerminalOpen) {
     return (
@@ -2531,51 +2802,6 @@ function WorkbenchCliPanel({
               aria-label={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
             >
               <History className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-        <div className="mb-2 rounded border border-emerald-700/60 bg-emerald-950/30 p-2">
-          <div className="flex items-start gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-emerald-500/15 text-emerald-200">
-              <Workflow className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[11px] font-semibold text-emerald-100">
-                {t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })}
-              </div>
-              <div className="mt-0.5 text-[10px] leading-snug text-emerald-200/75">
-                {t('vscodeWorkbench.hermes.description', {
-                  defaultValue: 'Project-scoped agent terminal. Installs Hermes when missing, then opens it in this workspace.',
-                })}
-              </div>
-              <a
-                href={HERMES_AGENT_DOCS_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-flex text-[10px] text-emerald-200 underline-offset-2 hover:underline"
-              >
-                {t('vscodeWorkbench.hermes.docs', { defaultValue: 'Hermes docs' })}
-              </a>
-            </div>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              disabled={!project}
-              onClick={startHermesAgent}
-              className="flex h-8 items-center justify-center gap-1.5 rounded bg-emerald-600 px-2 text-[11px] font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-500"
-            >
-              <Terminal className="h-3.5 w-3.5" />
-              {t('vscodeWorkbench.hermes.start', { defaultValue: 'Start Hermes' })}
-            </button>
-            <button
-              type="button"
-              disabled={!project}
-              onClick={startHermesInstall}
-              className="flex h-8 items-center justify-center gap-1.5 rounded border border-emerald-700 px-2 text-[11px] font-semibold text-emerald-100 hover:bg-emerald-900/60 disabled:cursor-not-allowed disabled:border-gray-800 disabled:text-gray-500"
-            >
-              <Download className="h-3.5 w-3.5" />
-              {t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
             </button>
           </div>
         </div>
@@ -2714,80 +2940,6 @@ function WorkbenchCliPanel({
             provider: PROVIDER_DISPLAY_NAMES[selectedProvider] ?? selectedProvider,
             defaultValue: 'Start {{provider}}',
           })}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function WorkbenchHermesPanelToolbar({
-  project,
-  mode,
-  onStart,
-  onInstall,
-  onClose,
-  t,
-}: {
-  project: Project | null;
-  mode: WorkbenchCliTerminalMode;
-  onStart: () => void;
-  onInstall: () => void;
-  onClose: () => void;
-  t: TFunction<'common'>;
-}) {
-  return (
-    <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-gray-800 bg-gray-900/95 px-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <Workflow className="h-4 w-4 shrink-0 text-emerald-300" />
-        <div className="min-w-0">
-          <div className="truncate text-[11px] font-semibold text-gray-100">
-            {mode === 'hermes-install'
-              ? t('vscodeWorkbench.hermes.installTitle', { defaultValue: 'Install Hermes Agent' })
-              : t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })}
-          </div>
-          <div className="truncate text-[10px] text-gray-500">
-            {project ? getProjectPath(project) : t('vscodeWorkbench.noProject')}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-1">
-        <a
-          href={HERMES_AGENT_DOCS_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded border border-gray-700 px-2 py-1 text-[10px] font-semibold text-gray-200 hover:bg-gray-800"
-        >
-          {t('vscodeWorkbench.hermes.docsShort', { defaultValue: 'Docs' })}
-        </a>
-        <button
-          type="button"
-          className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
-          disabled={!project}
-          onClick={onInstall}
-          title={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
-          aria-label={t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
-        >
-          <Download className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
-          disabled={!project}
-          onClick={onStart}
-          title={t('vscodeWorkbench.hermes.newSession', { defaultValue: 'New Hermes session' })}
-          aria-label={t('vscodeWorkbench.hermes.newSession', { defaultValue: 'New Hermes session' })}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800"
-          onClick={onClose}
-          title={t('vscodeWorkbench.cli.close', { defaultValue: 'Close terminal' })}
-          aria-label={t('vscodeWorkbench.cli.close', { defaultValue: 'Close terminal' })}
-        >
-          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

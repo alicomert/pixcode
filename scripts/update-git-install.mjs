@@ -7,6 +7,28 @@ const repoRoot = process.cwd();
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const stashMessage = `pixcode-auto-update-${timestamp}`;
 const backupBranch = `pixcode-backup-before-update-${timestamp}`;
+const dependencyManifestFiles = new Set([
+  'package.json',
+  'package-lock.json',
+  'npm-shrinkwrap.json',
+]);
+const buildInputFiles = new Set([
+  'index.html',
+  'tsconfig.json',
+  'vite.config.js',
+  'vite.config.ts',
+  'tailwind.config.js',
+  'tailwind.config.ts',
+  'postcss.config.js',
+  'postcss.config.cjs',
+  'server/tsconfig.json',
+]);
+const buildInputPrefixes = [
+  'src/',
+  'server/',
+  'shared/',
+  'public/',
+];
 
 function log(message) {
   process.stdout.write(`${message}\n`);
@@ -63,6 +85,113 @@ async function getOutput(command, args, options = {}) {
   return result.stdout.trim();
 }
 
+function normalizeGitPath(filePath) {
+  return filePath.replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function readJson(relativePath) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function dependencySignature(packageJson) {
+  if (!packageJson || typeof packageJson !== 'object') return null;
+
+  return JSON.stringify({
+    dependencies: packageJson.dependencies || {},
+    devDependencies: packageJson.devDependencies || {},
+    optionalDependencies: packageJson.optionalDependencies || {},
+    peerDependencies: packageJson.peerDependencies || {},
+    bundledDependencies: packageJson.bundledDependencies || packageJson.bundleDependencies || [],
+  });
+}
+
+function lockfileSignature(lockfile) {
+  if (!lockfile || typeof lockfile !== 'object') return null;
+
+  const normalizedPackages = {};
+  if (lockfile.packages && typeof lockfile.packages === 'object') {
+    for (const [packagePath, packageInfo] of Object.entries(lockfile.packages)) {
+      if (!packageInfo || typeof packageInfo !== 'object') {
+        normalizedPackages[packagePath] = packageInfo;
+        continue;
+      }
+
+      if (packagePath === '') {
+        const {
+          version: _version,
+          ...rootPackageInfo
+        } = packageInfo;
+        normalizedPackages[packagePath] = rootPackageInfo;
+      } else {
+        normalizedPackages[packagePath] = packageInfo;
+      }
+    }
+  }
+
+  return JSON.stringify({
+    dependencies: lockfile.dependencies || {},
+    packages: normalizedPackages,
+  });
+}
+
+function shouldRunNpmInstall(changedFiles, previousPackageJson, nextPackageJson, previousLockfile, nextLockfile) {
+  const changedManifest = changedFiles.some((filePath) => dependencyManifestFiles.has(filePath));
+  if (!changedManifest) return false;
+
+  if (!previousPackageJson || !nextPackageJson) return true;
+
+  if (dependencySignature(previousPackageJson) !== dependencySignature(nextPackageJson)) {
+    return true;
+  }
+
+  if (changedFiles.some((filePath) => filePath === 'package-lock.json' || filePath === 'npm-shrinkwrap.json')) {
+    return lockfileSignature(previousLockfile) !== lockfileSignature(nextLockfile);
+  }
+
+  return false;
+}
+
+function shouldRunBuild(changedFiles, previousPackageJson, nextPackageJson, installNeeded) {
+  if (!nextPackageJson?.scripts?.build) return false;
+  if (installNeeded) return true;
+
+  if (previousPackageJson?.scripts?.build !== nextPackageJson.scripts.build) {
+    return true;
+  }
+
+  return changedFiles.some((filePath) => (
+    buildInputFiles.has(filePath)
+    || buildInputPrefixes.some((prefix) => filePath.startsWith(prefix))
+  ));
+}
+
+async function getChangedFiles(fromRef, toRef) {
+  const output = await getOutput('git', ['diff', '--name-only', fromRef, toRef]);
+  return output
+    .split('\n')
+    .map((filePath) => normalizeGitPath(filePath.trim()))
+    .filter(Boolean);
+}
+
+function logChangedFiles(changedFiles) {
+  if (changedFiles.length === 0) {
+    log('Changed files: none.');
+    return;
+  }
+
+  log(`Changed files: ${changedFiles.length}.`);
+  for (const filePath of changedFiles.slice(0, 25)) {
+    log(`  - ${filePath}`);
+  }
+  if (changedFiles.length > 25) {
+    log(`  ... and ${changedFiles.length - 25} more`);
+  }
+}
+
 async function main() {
   if (!fs.existsSync(path.join(repoRoot, '.git'))) {
     throw new Error(`Git metadata not found in ${repoRoot}`);
@@ -95,9 +224,20 @@ async function main() {
   }
 
   const checkoutMain = await run('git', ['checkout', 'main'], { allowFailure: true, collectOutput: true });
+  let changedFiles = [];
+  let previousPackageJson = null;
+  let previousLockfile = null;
+
   if (checkoutMain.code !== 0) {
     log('Local main branch checkout failed; recreating main from origin/main.');
     await run('git', ['checkout', '-B', 'main', 'origin/main']);
+    changedFiles = ['package.json', 'src/__unknown__'];
+    log('Changed files could not be compared because local main was recreated; running safe reconciliation.');
+  } else {
+    previousPackageJson = readJson('package.json');
+    previousLockfile = readJson('package-lock.json') || readJson('npm-shrinkwrap.json');
+    changedFiles = await getChangedFiles('HEAD', 'origin/main');
+    logChangedFiles(changedFiles);
   }
 
   const isAncestor = await run('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/main'], {
@@ -118,13 +258,31 @@ async function main() {
   const packageVersion = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8')).version;
   log(`Repository updated to Pixcode ${packageVersion}.`);
 
-  await run('npm', ['install', '--no-audit', '--no-fund']);
-  const updatedPackageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-  if (updatedPackageJson.scripts?.build) {
+  const updatedPackageJson = readJson('package.json');
+  const updatedLockfile = readJson('package-lock.json') || readJson('npm-shrinkwrap.json');
+  const installNeeded = shouldRunNpmInstall(
+    changedFiles,
+    previousPackageJson,
+    updatedPackageJson,
+    previousLockfile,
+    updatedLockfile,
+  );
+  const buildNeeded = shouldRunBuild(changedFiles, previousPackageJson, updatedPackageJson, installNeeded);
+
+  if (installNeeded) {
+    log('Installing dependencies because package manifests changed.');
+    await run('npm', ['install', '--no-audit', '--no-fund']);
+  } else {
+    log('Dependencies unchanged; skipping npm install.');
+  }
+
+  if (buildNeeded) {
     log('Building Pixcode source install.');
     await run('npm', ['run', 'build']);
   } else {
-    log('No build script found; skipping build.');
+    log(updatedPackageJson?.scripts?.build
+      ? 'Build inputs unchanged; skipping build.'
+      : 'No build script found; skipping build.');
   }
   log('Pixcode git install update completed.');
 }

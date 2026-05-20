@@ -18,6 +18,7 @@ const serverIndex = read('server/index.js');
 const hermesRoutes = read('server/modules/orchestration/hermes/hermes.routes.ts');
 const shellTerminal = read('src/components/shell/hooks/useShellTerminal.ts');
 const gitPanelHeader = read('src/components/git-panel/view/GitPanelHeader.tsx');
+const themeContext = read('src/contexts/ThemeContext.jsx');
 
 assert.match(
   preferenceHook,
@@ -52,13 +53,25 @@ assert.match(workbench, /onClose=\{closeTerminal\}/, 'Closing the workbench term
 assert.match(workbench, /WorkbenchCliPanelToolbar/, 'CLI terminal should keep history and new-session actions visible.');
 assert.match(workbench, /WORKBENCH_CLI_STATE_STORAGE_KEY/, 'CLI terminal should remember per-project open state across workspace switches.');
 assert.match(workbench, /function WorkbenchBottomTerminal/, 'Terminal activity should render as a bottom plain-shell panel.');
+assert.match(workbench, /BOTTOM_TERMINAL_MIN_HEIGHT/, 'Bottom terminal should support height resizing.');
+assert.match(workbench, /isBottomTerminalMinimized/, 'Bottom terminal should support minimizing without closing.');
 assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selected project folder without starting the selected AI CLI.');
-assert.match(workbench, /startHermesAgent/, 'Right CLI panel should launch Hermes Agent in the active project.');
+assert.match(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should launch from the bottom terminal through a server-side sentinel.');
+assert.doesNotMatch(workbench, /Project-scoped agent terminal\. Installs Hermes when missing/, 'Right CLI panel should not show the old Hermes card.');
+assert.match(workbench, /shrinkCliPanel/, 'Right CLI panel should expose a shrink action.');
+assert.match(workbench, /expandCliPanel/, 'Right CLI panel should expose an expand action.');
+assert.match(workbench, /vscodeWorkbench\.welcome\.openProject/, 'Workbench welcome should expose a simple Open Project action.');
+assert.match(workbench, /vscodeWorkbench\.welcome\.cloneProject/, 'Workbench welcome should expose a simple Clone action.');
+assert.match(workbench, /vscodeWorkbench\.welcome\.startHermes/, 'Workbench welcome should expose a Hermes start action.');
+assert.match(workbench, /DarkModeToggle/, 'Workbench welcome should expose a dark-mode toggle.');
+assert.match(themeContext, /return true;/, 'Pixcode should default new installs to dark mode.');
 assert.match(workbench, /openNewCliSessionPicker/, 'CLI terminal plus should return to provider selection before starting a fresh session.');
 assert.match(workbench, /terminateCurrentCliSession\(selectedProvider\)/, 'CLI terminal plus should terminate the existing provider PTY before showing selection.');
 assert.match(workbench, /forceNewSession=\{terminalLaunch\.forceNewSession\}/, 'Fresh CLI sessions should bypass the cached default PTY.');
 assert.match(serverIndex, /\/api\/shell\/sessions\/terminate/, 'Backend should expose an authenticated endpoint to terminate cached provider PTYs immediately.');
 assert.match(serverIndex, /isPlainShell && !initialCommand/, 'Backend should spawn an interactive plain shell when no terminal command is provided.');
+assert.match(serverIndex, /pixcode:hermes:start/, 'Backend should expand Hermes terminal sentinels on the server host.');
+assert.doesNotMatch(serverIndex, /iex \(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)/, 'Windows Hermes install should avoid the old inline iex pattern.');
 assert.doesNotMatch(shellTerminal, /new WebglAddon\(\)/, 'Workbench terminal should use the stable xterm renderer.');
 assert.match(workbench, /setActivityPanel\('explorer'\)/, 'Selecting a project should return the side panel to Explorer.');
 assert.match(gitPanelHeader, /compact/, 'Workbench Source Control should have compact icon-only controls.');
@@ -80,6 +93,7 @@ assert.doesNotMatch(workbench, /tabs\.orchestration/, 'Workbench menus should no
 assert.match(serverIndex, /app\.use\('\/hermes', createHermesTaskRouter\(\)\)/, 'Internal task router should be mounted behind Hermes.');
 assert.doesNotMatch(serverIndex, /app\.use\('\/a2a'/, 'Server should not expose the old A2A route.');
 assert.match(hermesRoutes, /createHermesRouter/, 'Hermes should have a dedicated orchestration API router.');
+assert.match(hermesRoutes, /terminal-launches/, 'Hermes MCP should be able to request visible Pixcode CLI terminal launches.');
 assert.match(serverIndex, /forceNewSession/, 'Shell backend should support explicit fresh-session launches from the workbench.');
 assert.match(serverIndex, /killProviderPtySessions/, 'Shell backend should terminate old provider PTYs when a fresh CLI session is requested.');
 

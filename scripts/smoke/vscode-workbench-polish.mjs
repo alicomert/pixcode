@@ -51,6 +51,15 @@ assert.match(
   'Workbench center should show a project landing page instead of a blank editor when no project is selected.',
 );
 
+for (const token of [
+  'vscodeWorkbench.welcome.openProject',
+  'vscodeWorkbench.welcome.cloneProject',
+  'vscodeWorkbench.welcome.startHermes',
+  'DarkModeToggle',
+]) {
+  assert.match(workbench, new RegExp(token.replaceAll('.', '\\.')), `Workbench welcome should include ${token}.`);
+}
+
 assert.match(
   workbench,
   /function WorkbenchCliPanel/,
@@ -244,6 +253,10 @@ assert.match(
   'Terminal activity should open a VS Code-style bottom terminal instead of the provider CLI picker.',
 );
 
+for (const token of ['BOTTOM_TERMINAL_MIN_HEIGHT', 'isBottomTerminalMinimized', 'shrinkCliPanel', 'expandCliPanel']) {
+  assert.match(workbench, new RegExp(token), `Workbench should include ${token}.`);
+}
+
 assert.match(
   workbench,
   /isPlainShell/,
@@ -252,8 +265,14 @@ assert.match(
 
 assert.match(
   workbench,
-  /startHermesAgent/,
-  'Right CLI panel should offer Hermes Agent as a project-scoped control agent.',
+  /HERMES_AGENT_START_COMMAND/,
+  'Hermes Agent should launch through the bottom terminal with a server-side command sentinel.',
+);
+
+assert.doesNotMatch(
+  workbench,
+  /Project-scoped agent terminal\. Installs Hermes when missing/,
+  'Right CLI picker should not show the old Hermes install card.',
 );
 
 assert.match(

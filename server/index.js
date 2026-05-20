@@ -32,6 +32,10 @@ const SERVER_VERSION = (() => {
         return '0.0.0';
     }
 })();
+const HERMES_SHELL_COMMANDS = new Set([
+    'pixcode:hermes:start',
+    'pixcode:hermes:install',
+]);
 const DAEMON_COMMAND_CONTEXT = {
     appRoot: APP_ROOT,
     cliEntry: path.join(APP_ROOT, 'server', 'cli.js'),
@@ -105,7 +109,7 @@ import {
 } from './services/provider-credentials.js';
 import { primeCliBinPath } from './services/install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, sessionNamesDb, applyCustomSessionNames } from './database/db.js';
+import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, apiKeysDb } from './database/db.js';
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
@@ -321,6 +325,71 @@ function killProviderPtySessions(projectPath, provider) {
     }
 
     return killed;
+}
+
+function shellQuotePosix(value) {
+    return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function shellQuotePowerShell(value) {
+    return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function resolvePublicBaseUrl(request) {
+    const headers = request?.headers || {};
+    const forwardedProto = String(headers['x-forwarded-proto'] || '').split(',')[0].trim();
+    const proto = forwardedProto || (request?.socket?.encrypted ? 'https' : 'http');
+    const host = headers['x-forwarded-host'] || headers.host || `127.0.0.1:${process.env.SERVER_PORT || process.env.PORT || '3001'}`;
+    return `${proto}://${String(host).split(',')[0].trim()}`;
+}
+
+function getOrCreateHermesApiKey(userId) {
+    if (!userId) return null;
+
+    const existing = apiKeysDb
+        .getApiKeys(userId)
+        .find((key) => key.key_name === 'Hermes Agent MCP' && key.is_active);
+    if (existing?.api_key) {
+        return existing.api_key;
+    }
+
+    return apiKeysDb.createApiKey(userId, 'Hermes Agent MCP', [
+        'hermes:mcp',
+        'projects:read',
+        'providers:read',
+        'terminal:launch',
+    ]).apiKey;
+}
+
+function buildHermesShellCommand(kind, env) {
+    const configureScript = path.join(APP_ROOT, 'scripts', 'hermes', 'configure-pixcode-mcp.mjs');
+    const isWindows = os.platform() === 'win32';
+    const quote = isWindows ? shellQuotePowerShell : shellQuotePosix;
+    const configure = `node ${quote(configureScript)}`;
+
+    if (isWindows) {
+        const setEnv = [
+            `$env:PIXCODE_BASE_URL=${quote(env.PIXCODE_BASE_URL)}`,
+            `$env:PIXCODE_API_KEY=${quote(env.PIXCODE_API_KEY)}`,
+            `$env:PIXCODE_APP_ROOT=${quote(env.PIXCODE_APP_ROOT)}`,
+        ].join('; ');
+        const install = '& ([scriptblock]::Create((irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1))) -SkipSetup -Branch main';
+        if (kind === 'pixcode:hermes:install') {
+            return `${setEnv}; ${install}; ${configure}`;
+        }
+        return `${setEnv}; ${configure}; if (-not (Get-Command hermes -ErrorAction SilentlyContinue)) { ${install} }; hermes chat --toolsets "hermes-cli,mcp-pixcode"`;
+    }
+
+    const setEnv = [
+        `PIXCODE_BASE_URL=${quote(env.PIXCODE_BASE_URL)}`,
+        `PIXCODE_API_KEY=${quote(env.PIXCODE_API_KEY)}`,
+        `PIXCODE_APP_ROOT=${quote(env.PIXCODE_APP_ROOT)}`,
+    ].join(' ');
+    const install = 'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash';
+    if (kind === 'pixcode:hermes:install') {
+        return `${setEnv} sh -lc ${quote(`${install} && node ${shellQuotePosix(configureScript)}`)}`;
+    }
+    return `${setEnv} sh -lc ${quote(`node ${shellQuotePosix(configureScript)} && if ! command -v hermes >/dev/null 2>&1; then ${install}; fi; hermes chat --toolsets "hermes-cli,mcp-pixcode"`)}`;
 }
 
 // Single WebSocket server that handles both paths
@@ -1851,7 +1920,7 @@ wss.on('connection', (ws, request) => {
     const pathname = urlObj.pathname;
 
     if (pathname === '/shell') {
-        handleShellConnection(ws);
+        handleShellConnection(ws, request);
     } else if (pathname === '/ws') {
         handleChatConnection(ws, request);
     } else if (pathname.startsWith('/plugin-ws/')) {
@@ -2060,7 +2129,7 @@ function handleChatConnection(ws, request) {
 }
 
 // Handle shell WebSocket connections
-function handleShellConnection(ws) {
+function handleShellConnection(ws, request) {
     console.log('🐚 Shell client connected');
     let shellProcess = null;
     let ptySessionKey = null;
@@ -2090,7 +2159,20 @@ function handleShellConnection(ws) {
                 const sessionId = data.sessionId;
                 const hasSession = data.hasSession;
                 const provider = data.provider || 'claude';
-                const initialCommand = data.initialCommand;
+                let initialCommand = data.initialCommand;
+                const hermesCommand = HERMES_SHELL_COMMANDS.has(initialCommand) ? initialCommand : null;
+                if (hermesCommand) {
+                    const apiKey = getOrCreateHermesApiKey(request?.user?.id);
+                    if (!apiKey) {
+                        ws.send(JSON.stringify({ type: 'error', message: 'Hermes MCP could not create a Pixcode API key for this user.' }));
+                        return;
+                    }
+                    initialCommand = buildHermesShellCommand(hermesCommand, {
+                        PIXCODE_BASE_URL: resolvePublicBaseUrl(request),
+                        PIXCODE_API_KEY: apiKey,
+                        PIXCODE_APP_ROOT: APP_ROOT,
+                    });
+                }
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
                 const forceNewSession = Boolean(data.forceNewSession);
                 urlDetectionBuffer = '';
@@ -2173,7 +2255,7 @@ function handleShellConnection(ws) {
                 console.log('📋 Session info:', hasSession ? `Resume session ${sessionId}` : (isPlainShell ? 'Plain shell mode' : 'New session'));
                 console.log('🤖 Provider:', isPlainShell ? 'plain-shell' : provider);
                 if (initialCommand) {
-                    console.log('⚡ Initial command:', initialCommand);
+                    console.log('⚡ Initial command:', hermesCommand ? hermesCommand : initialCommand);
                 }
 
                 // First send a welcome message
@@ -2318,7 +2400,7 @@ function handleShellConnection(ws) {
                         }
                     }
 
-                    console.log('🔧 Executing shell command:', shellCommand || 'interactive shell');
+                    console.log('🔧 Executing shell command:', hermesCommand ? hermesCommand : (shellCommand || 'interactive shell'));
 
                     // Use appropriate shell based on platform
                     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
