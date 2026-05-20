@@ -2,6 +2,20 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.2](https://github.com/alicomert/pixcode/compare/v1.49.1...v1.49.2) (2026-05-20)
+
+Pixcode 1.49.2 moves Hermes install and repair into a backend API job so installs no longer depend on terminal command paste behavior.
+
+### Fixes
+
+* **hermes:** add `POST /api/orchestration/hermes/install` with EventSource log streaming, cancellation, install-status reuse, and Pixcode MCP configuration after install.
+* **hermes:** make the VS Code workbench install/start buttons use the Hermes API job and show install logs in the bottom panel instead of launching a shell install command.
+* **hermes:** download the official installer in backend code, retry with the system download tool when Node fetch fails, skip interactive setup/browser downloads on POSIX installs, and verify `hermes --version` before reporting success.
+
+### Tests
+
+* verify the dedicated Hermes API install smoke, workbench smoke, backend syntax, typecheck, lint, production build, and an isolated `/tmp` Hermes install through the new backend job path.
+
 ## [1.49.1](https://github.com/alicomert/pixcode/compare/v1.49.0...v1.49.1) (2026-05-20)
 
 Pixcode 1.49.1 fixes Hermes installation, Hermes settings visibility, and AI CLI bypass-permission launch flags.
