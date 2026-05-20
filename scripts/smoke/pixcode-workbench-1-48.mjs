@@ -37,6 +37,13 @@ assert.match(workbench, /WorkbenchWorkspaceTabs|WORKBENCH_WORKSPACE_TABS_STORAGE
 assert.match(workbench, /WorkspaceTabContextMenu/, 'Workbench workspace tabs should use right-click actions.');
 assert.doesNotMatch(workbench, /\.\.\.currentTabs\.filter\(\(tab\) => tab\.id !== tabId\)/, 'Workspace selection should not reorder tabs.');
 assert.match(workbench, /openEditorTabs|activeEditorPath/, 'Workbench editor should keep a Monaco-style tab set.');
+assert.match(workbench, /WORKBENCH_EDITOR_STATE_STORAGE_KEY/, 'Workbench editor should persist open tabs per workspace.');
+assert.match(workbench, /readWorkbenchEditorState/, 'Workbench editor should restore open tabs when switching back to a workspace.');
+assert.doesNotMatch(
+  workbench,
+  /useEffect\(\(\) => \{\s*setOpenEditorTabs\(\[\]\);\s*setActiveEditorPath\(null\);\s*setSplitEditorFile\(null\);[\s\S]*?\}, \[selectedProject\?\.name\]\);/,
+  'Workbench editor must not clear every open tab when the selected workspace changes.',
+);
 assert.doesNotMatch(workbench, /<ChatInterface/, 'Right workbench panel should not render the chat composer.');
 assert.match(workbench, /WorkbenchCliPanel/, 'Right workbench panel should render the CLI terminal panel.');
 assert.match(workbench, /setIsTerminalOpen\(true\)/, 'CLI picker should give way to a full-height terminal after the user starts a provider.');

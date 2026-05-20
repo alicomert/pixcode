@@ -128,6 +128,18 @@ assert.match(
 
 assert.match(
   workbench,
+  /WORKBENCH_EDITOR_STATE_STORAGE_KEY/,
+  'Editor tabs should keep separate persisted state for each workspace.',
+);
+
+assert.doesNotMatch(
+  workbench,
+  /useEffect\(\(\) => \{\s*setOpenEditorTabs\(\[\]\);\s*setActiveEditorPath\(null\);\s*setSplitEditorFile\(null\);[\s\S]*?\}, \[selectedProject\?\.name\]\);/,
+  'Editor tabs should not be wiped by the selected-project change effect.',
+);
+
+assert.match(
+  workbench,
   /handleEditorTabContextMenu/,
   'Editor tabs should expose a right-click context menu.',
 );

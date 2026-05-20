@@ -102,6 +102,13 @@ type WorkbenchCliProjectState = {
   updatedAt: number;
 };
 
+type WorkbenchEditorProjectState = {
+  tabs: CodeEditorFile[];
+  activePath: string | null;
+  splitPath: string | null;
+  updatedAt: number;
+};
+
 const LEFT_MIN_WIDTH = 260;
 const LEFT_MAX_WIDTH = 520;
 const LEFT_DEFAULT_WIDTH = 340;
@@ -110,8 +117,10 @@ const RIGHT_MAX_WIDTH = 680;
 const RIGHT_DEFAULT_WIDTH = 420;
 const WORKBENCH_WORKSPACE_TABS_STORAGE_KEY = 'pixcode.workbench.workspaceTabs.v1';
 const WORKBENCH_CLI_STATE_STORAGE_KEY = 'pixcode.workbench.cliState.v1';
+const WORKBENCH_EDITOR_STATE_STORAGE_KEY = 'pixcode.workbench.editorState.v1';
 const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
 const CLI_PROVIDER_IDS: LLMProvider[] = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
+const MAX_PERSISTED_EDITOR_TABS = 30;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -168,8 +177,18 @@ function getProjectCliStateKey(project: Project | null) {
   return project ? getProjectPath(project).replace(/\\/g, '/') : null;
 }
 
+function getProjectEditorStateKey(project: Project | null) {
+  return project ? getProjectPath(project).replace(/\\/g, '/') : null;
+}
+
 function isCliProvider(value: unknown): value is LLMProvider {
   return typeof value === 'string' && CLI_PROVIDER_IDS.includes(value as LLMProvider);
+}
+
+function isCodeEditorFile(value: unknown): value is CodeEditorFile {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const file = value as Partial<CodeEditorFile>;
+  return typeof file.name === 'string' && typeof file.path === 'string';
 }
 
 function readWorkspaceTabs(): WorkbenchWorkspaceTab[] {
@@ -244,6 +263,60 @@ function writeWorkbenchCliState(projectKey: string | null, state: WorkbenchCliPr
   }
 }
 
+function readWorkbenchEditorStates(): Record<string, WorkbenchEditorProjectState> {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(WORKBENCH_EDITOR_STATE_STORAGE_KEY) ?? '{}') as Record<string, WorkbenchEditorProjectState>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function readWorkbenchEditorState(projectKey: string | null): WorkbenchEditorProjectState | null {
+  if (!projectKey) return null;
+
+  const state = readWorkbenchEditorStates()[projectKey];
+  if (!state || !Array.isArray(state.tabs)) return null;
+
+  const tabs = state.tabs.filter(isCodeEditorFile).slice(0, MAX_PERSISTED_EDITOR_TABS);
+  const activePath = typeof state.activePath === 'string' && tabs.some((tab) => tab.path === state.activePath)
+    ? state.activePath
+    : tabs[0]?.path ?? null;
+  const splitPath = typeof state.splitPath === 'string' && tabs.some((tab) => tab.path === state.splitPath)
+    ? state.splitPath
+    : null;
+
+  return {
+    tabs,
+    activePath,
+    splitPath,
+    updatedAt: typeof state.updatedAt === 'number' ? state.updatedAt : Date.now(),
+  };
+}
+
+function writeWorkbenchEditorState(projectKey: string | null, state: WorkbenchEditorProjectState) {
+  if (!projectKey || typeof window === 'undefined') return;
+
+  try {
+    const currentStates = readWorkbenchEditorStates();
+    window.localStorage.setItem(
+      WORKBENCH_EDITOR_STATE_STORAGE_KEY,
+      JSON.stringify({
+        ...currentStates,
+        [projectKey]: {
+          ...state,
+          tabs: state.tabs.slice(0, MAX_PERSISTED_EDITOR_TABS),
+        },
+      }),
+    );
+  } catch {
+    // The editor still opens files normally; workspace tab restore is only a convenience.
+  }
+}
+
 function createWorkspaceTab(project: Project, label: string): WorkbenchWorkspaceTab {
   return {
     id: getWorkspaceTabId(project),
@@ -314,6 +387,9 @@ function VSCodeWorkbench({
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkbenchWorkspaceTab[]>(readWorkspaceTabs);
   const [workspaceTabContextMenu, setWorkspaceTabContextMenu] = useState<WorkspaceTabContextMenu>(null);
   const editorTabStripRef = useRef<HTMLDivElement>(null);
+  const editorStateProjectKey = useMemo(() => getProjectEditorStateKey(selectedProject), [selectedProject]);
+  const isRestoringEditorStateRef = useRef(false);
+  const lastRestoredEditorProjectKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isCenterSystemTab(activeTab)) {
@@ -328,11 +404,49 @@ function VSCodeWorkbench({
   }, [activeTab, activityPanel]);
 
   useEffect(() => {
-    setOpenEditorTabs([]);
-    setActiveEditorPath(null);
+    if (lastRestoredEditorProjectKeyRef.current === editorStateProjectKey) {
+      return;
+    }
+
+    lastRestoredEditorProjectKeyRef.current = editorStateProjectKey;
+    isRestoringEditorStateRef.current = true;
     setSplitEditorFile(null);
     setEditorTabContextMenu(null);
-  }, [selectedProject?.name]);
+
+    const savedState = readWorkbenchEditorState(editorStateProjectKey);
+    const restoredTabs = savedState?.tabs ?? [];
+
+    setOpenEditorTabs(restoredTabs);
+    setActiveEditorPath(savedState?.activePath ?? restoredTabs[0]?.path ?? null);
+    setSplitEditorFile(savedState?.splitPath
+      ? restoredTabs.find((tab) => tab.path === savedState.splitPath) ?? null
+      : null);
+  }, [editorStateProjectKey]);
+
+  useEffect(() => {
+    if (isRestoringEditorStateRef.current) {
+      isRestoringEditorStateRef.current = false;
+      return;
+    }
+
+    if (!editorStateProjectKey) {
+      return;
+    }
+
+    const activePath = activeEditorPath && openEditorTabs.some((tab) => tab.path === activeEditorPath)
+      ? activeEditorPath
+      : openEditorTabs[0]?.path ?? null;
+    const splitPath = splitEditorFile && openEditorTabs.some((tab) => tab.path === splitEditorFile.path)
+      ? splitEditorFile.path
+      : null;
+
+    writeWorkbenchEditorState(editorStateProjectKey, {
+      tabs: openEditorTabs,
+      activePath,
+      splitPath,
+      updatedAt: Date.now(),
+    });
+  }, [activeEditorPath, editorStateProjectKey, openEditorTabs, splitEditorFile]);
 
   useEffect(() => {
     if (!selectedProject) {
