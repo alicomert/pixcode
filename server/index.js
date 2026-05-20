@@ -285,7 +285,43 @@ const server = http.createServer(app);
 const ptySessionsMap = new Map();
 const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
+const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
 import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAutoOpenUrlFromOutput } from './utils/url-detection.js';
+
+function terminatePtySession(sessionKey, session, reason) {
+    if (!session) return false;
+
+    console.log(`🧹 Terminating PTY session (${reason}):`, sessionKey);
+    if (session.timeoutId) {
+        clearTimeout(session.timeoutId);
+    }
+
+    try {
+        if (session.pty && session.pty.kill) {
+            session.pty.kill();
+        }
+    } catch (error) {
+        console.warn('Failed to kill PTY session:', error.message);
+    }
+
+    ptySessionsMap.delete(sessionKey);
+    return true;
+}
+
+function killProviderPtySessions(projectPath, provider) {
+    let killed = 0;
+    for (const [sessionKey, session] of ptySessionsMap.entries()) {
+        if (
+            session?.projectPath === projectPath &&
+            session?.provider === provider &&
+            !session?.isPlainShell
+        ) {
+            killed += terminatePtySession(sessionKey, session, 'fresh provider session') ? 1 : 0;
+        }
+    }
+
+    return killed;
+}
 
 // Single WebSocket server that handles both paths
 const wss = new WebSocketServer({
@@ -357,6 +393,18 @@ app.get('/health', (req, res) => {
 
 // Optional API key validation (if configured)
 app.use('/api', validateApiKey);
+
+app.post('/api/shell/sessions/terminate', authenticateToken, (req, res) => {
+    const provider = req.body?.provider || 'claude';
+    const projectPath = req.body?.projectPath || os.homedir();
+
+    if (!SHELL_CLI_PROVIDERS.has(provider)) {
+        return res.status(400).json({ error: 'Unsupported provider' });
+    }
+
+    const killedSessions = killProviderPtySessions(projectPath, provider);
+    res.json({ success: true, killedSessions });
+});
 
 // Authentication routes (public)
 app.use('/api/auth', authRoutes);
@@ -2044,6 +2092,7 @@ function handleShellConnection(ws) {
                 const provider = data.provider || 'claude';
                 const initialCommand = data.initialCommand;
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
+                const forceNewSession = Boolean(data.forceNewSession && !isPlainShell);
                 urlDetectionBuffer = '';
                 announcedAuthUrls.clear();
 
@@ -2077,14 +2126,16 @@ function handleShellConnection(ws) {
                 if (isLoginCommand) {
                     const oldSession = ptySessionsMap.get(ptySessionKey);
                     if (oldSession) {
-                        console.log('🧹 Cleaning up existing login session:', ptySessionKey);
-                        if (oldSession.timeoutId) clearTimeout(oldSession.timeoutId);
-                        if (oldSession.pty && oldSession.pty.kill) oldSession.pty.kill();
-                        ptySessionsMap.delete(ptySessionKey);
+                        terminatePtySession(ptySessionKey, oldSession, 'fresh login');
+                    }
+                } else if (forceNewSession) {
+                    const killedSessions = killProviderPtySessions(projectPath, provider);
+                    if (killedSessions > 0) {
+                        console.log(`🧹 Fresh ${provider} session requested; terminated ${killedSessions} cached PTY session(s).`);
                     }
                 }
 
-                const existingSession = isLoginCommand ? null : ptySessionsMap.get(ptySessionKey);
+                const existingSession = (isLoginCommand || forceNewSession) ? null : ptySessionsMap.get(ptySessionKey);
                 if (existingSession) {
                     console.log('♻️  Reconnecting to existing PTY session:', ptySessionKey);
                     shellProcess = existingSession.pty;
@@ -2292,7 +2343,9 @@ function handleShellConnection(ws) {
                         buffer: [],
                         timeoutId: null,
                         projectPath,
-                        sessionId
+                        sessionId,
+                        provider,
+                        isPlainShell
                     });
 
                     // Handle data output

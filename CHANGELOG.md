@@ -2,6 +2,21 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.48.4](https://github.com/alicomert/pixcode/compare/v1.48.3...v1.48.4) (2026-05-20)
+
+Pixcode 1.48.4 fixes the VS Code workbench workspace add button and makes the right CLI panel preserve and reset sessions correctly.
+
+### Fixes
+
+* **workspace-tabs:** restyle the add-workspace button as a centered tab-bar control instead of an off-center bare icon.
+* **cli:** persist the open terminal, selected provider, and selected history session per project so switching workspaces returns to the same CLI view automatically.
+* **cli:** make the terminal toolbar plus button return to the CLI picker before starting a fresh session.
+* **shell:** send an explicit fresh-session flag to the backend and terminate cached provider PTYs so “new CLI session” does not reconnect the previous terminal.
+
+### Tests
+
+* extend workbench smoke coverage for the redesigned workspace add button, per-project CLI state restore, fresh-session picker flow, and backend PTY replacement.
+
 ## [1.48.3](https://github.com/alicomert/pixcode/compare/v1.48.2...v1.48.3) (2026-05-20)
 
 Pixcode 1.48.3 tightens the VS Code workbench workspace tabs, Projects panel, Source Control side panel, and OpenCode terminal rendering.

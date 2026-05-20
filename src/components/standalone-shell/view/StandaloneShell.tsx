@@ -13,6 +13,7 @@ type StandaloneShellProps = {
   isPlainShell?: boolean | null;
   isActive?: boolean;
   autoConnect?: boolean;
+  forceNewSession?: boolean;
   onComplete?: ((exitCode: number) => void) | null;
   onClose?: (() => void) | null;
   title?: string | null;
@@ -36,6 +37,7 @@ export default function StandaloneShell({
   showHeader = true,
   compact = false,
   minimal = false,
+  forceNewSession = false,
 }: StandaloneShellProps) {
   const [isCompleted, setIsCompleted] = useState(false);
 
@@ -72,6 +74,7 @@ export default function StandaloneShell({
           onProcessComplete={handleProcessComplete}
           minimal={minimal}
           autoConnect={minimal ? true : autoConnect}
+          forceNewSession={forceNewSession}
           onClose={onClose}
         />
       </div>

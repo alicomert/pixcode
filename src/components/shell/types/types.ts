@@ -16,6 +16,7 @@ export type ShellInitMessage = {
   rows: number;
   initialCommand: string | null | undefined;
   isPlainShell: boolean;
+  forceNewSession: boolean;
 };
 
 export type ShellResizeMessage = {
@@ -44,6 +45,7 @@ export type UseShellRuntimeOptions = {
   isPlainShell: boolean;
   minimal: boolean;
   autoConnect: boolean;
+  forceNewSession: boolean;
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
   onOutputRef?: MutableRefObject<(() => void) | null>;

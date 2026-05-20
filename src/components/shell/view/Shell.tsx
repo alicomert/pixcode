@@ -32,6 +32,7 @@ type ShellProps = {
   onProcessComplete?: ((exitCode: number) => void) | null;
   minimal?: boolean;
   autoConnect?: boolean;
+  forceNewSession?: boolean;
   isActive?: boolean;
   onClose?: (() => void) | null;
 };
@@ -44,6 +45,7 @@ export default function Shell({
   onProcessComplete = null,
   minimal = false,
   autoConnect = false,
+  forceNewSession = false,
   isActive = true,
   onClose = null,
 }: ShellProps) {
@@ -73,6 +75,7 @@ export default function Shell({
     isPlainShell,
     minimal,
     autoConnect,
+    forceNewSession,
     isRestarting,
     onProcessComplete,
     onOutputRef,

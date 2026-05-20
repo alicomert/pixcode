@@ -19,6 +19,7 @@ type UseShellConnectionOptions = {
   selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>;
   initialCommandRef: MutableRefObject<string | null | undefined>;
   isPlainShellRef: MutableRefObject<boolean>;
+  forceNewSessionRef: MutableRefObject<boolean>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
@@ -44,6 +45,7 @@ export function useShellConnection({
   selectedSessionRef,
   initialCommandRef,
   isPlainShellRef,
+  forceNewSessionRef,
   onProcessCompleteRef,
   isInitialized,
   autoConnect,
@@ -157,6 +159,7 @@ export function useShellConnection({
               rows: currentTerminal.rows,
               initialCommand: initialCommandRef.current,
               isPlainShell: isPlainShellRef.current,
+              forceNewSession: !isPlainShellRef.current && forceNewSessionRef.current,
             });
           }, TERMINAL_INIT_DELAY_MS);
         };
@@ -187,6 +190,7 @@ export function useShellConnection({
     [
       clearTerminalScreen,
       fitAddonRef,
+      forceNewSessionRef,
       handleSocketMessage,
       initialCommandRef,
       isConnected,

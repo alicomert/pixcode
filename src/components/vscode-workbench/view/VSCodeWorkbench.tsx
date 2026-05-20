@@ -95,6 +95,13 @@ type ProviderInstallState = {
   error: string | null;
 };
 
+type WorkbenchCliProjectState = {
+  provider: LLMProvider;
+  isTerminalOpen: boolean;
+  sessionId: string | null;
+  updatedAt: number;
+};
+
 const LEFT_MIN_WIDTH = 260;
 const LEFT_MAX_WIDTH = 520;
 const LEFT_DEFAULT_WIDTH = 340;
@@ -102,7 +109,9 @@ const RIGHT_MIN_WIDTH = 320;
 const RIGHT_MAX_WIDTH = 680;
 const RIGHT_DEFAULT_WIDTH = 420;
 const WORKBENCH_WORKSPACE_TABS_STORAGE_KEY = 'pixcode.workbench.workspaceTabs.v1';
+const WORKBENCH_CLI_STATE_STORAGE_KEY = 'pixcode.workbench.cliState.v1';
 const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
+const CLI_PROVIDER_IDS: LLMProvider[] = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -155,6 +164,14 @@ function getWorkspaceTabId(project: Project) {
   return (project.fullPath || project.path || project.name).replace(/\\/g, '/');
 }
 
+function getProjectCliStateKey(project: Project | null) {
+  return project ? getProjectPath(project).replace(/\\/g, '/') : null;
+}
+
+function isCliProvider(value: unknown): value is LLMProvider {
+  return typeof value === 'string' && CLI_PROVIDER_IDS.includes(value as LLMProvider);
+}
+
 function readWorkspaceTabs(): WorkbenchWorkspaceTab[] {
   if (typeof window === 'undefined') return [];
 
@@ -181,6 +198,49 @@ function writeWorkspaceTabs(tabs: WorkbenchWorkspaceTab[]) {
   } catch {
     // Workspace tabs are a convenience layer. If storage is unavailable, the
     // selected project still works normally.
+  }
+}
+
+function readWorkbenchCliStates(): Record<string, WorkbenchCliProjectState> {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(WORKBENCH_CLI_STATE_STORAGE_KEY) ?? '{}') as Record<string, WorkbenchCliProjectState>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function readWorkbenchCliState(projectKey: string | null): WorkbenchCliProjectState | null {
+  if (!projectKey) return null;
+
+  const state = readWorkbenchCliStates()[projectKey];
+  if (!state || !isCliProvider(state.provider)) return null;
+
+  return {
+    provider: state.provider,
+    isTerminalOpen: Boolean(state.isTerminalOpen),
+    sessionId: typeof state.sessionId === 'string' ? state.sessionId : null,
+    updatedAt: typeof state.updatedAt === 'number' ? state.updatedAt : Date.now(),
+  };
+}
+
+function writeWorkbenchCliState(projectKey: string | null, state: WorkbenchCliProjectState) {
+  if (!projectKey || typeof window === 'undefined') return;
+
+  try {
+    const currentStates = readWorkbenchCliStates();
+    window.localStorage.setItem(
+      WORKBENCH_CLI_STATE_STORAGE_KEY,
+      JSON.stringify({
+        ...currentStates,
+        [projectKey]: state,
+      }),
+    );
+  } catch {
+    // The CLI panel still works without persistence; it just falls back to the picker.
   }
 }
 
@@ -1340,11 +1400,11 @@ function WorkbenchWorkspaceTabs({
         <button
           type="button"
           onClick={onAdd}
-          className="flex h-7 w-8 shrink-0 self-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="flex h-8 w-10 shrink-0 items-center justify-center border-r border-border bg-muted/10 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
           aria-label={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
           title={t('vscodeWorkbench.workspace.add', { defaultValue: 'Add workspace' })}
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
       {contextMenu && contextMenuEntry && (
@@ -1724,14 +1784,10 @@ function WorkbenchProjectLanding({
   );
 }
 
-const cliProviders: Array<{ id: LLMProvider; label: string }> = [
-  { id: 'claude', label: 'Claude' },
-  { id: 'codex', label: 'Codex' },
-  { id: 'cursor', label: 'Cursor' },
-  { id: 'gemini', label: 'Gemini' },
-  { id: 'qwen', label: 'Qwen Code' },
-  { id: 'opencode', label: 'OpenCode' },
-];
+const cliProviders: Array<{ id: LLMProvider; label: string }> = CLI_PROVIDER_IDS.map((id) => ({
+  id,
+  label: PROVIDER_DISPLAY_NAMES[id] ?? id,
+}));
 
 function tagProjectSessions(
   sessions: ProjectSession[] | undefined,
@@ -1777,7 +1833,11 @@ function WorkbenchCliPanel({
   const [showHistory, setShowHistory] = useState(false);
   const [terminalSession, setTerminalSession] = useState<ProjectSession | null>(null);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [terminalRunId, setTerminalRunId] = useState(0);
+  const [pendingFreshSession, setPendingFreshSession] = useState(false);
+  const [terminalLaunch, setTerminalLaunch] = useState({
+    runId: 0,
+    forceNewSession: false,
+  });
   const [installState, setInstallState] = useState<ProviderInstallState>({
     provider: null,
     state: 'idle',
@@ -1795,6 +1855,8 @@ function WorkbenchCliPanel({
   const activeHistorySessionId = terminalSession?.id ?? session?.id ?? null;
   const canStartSelectedProvider = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
   const canAutoConnect = Boolean(isTerminalOpen && canStartSelectedProvider);
+  const projectCliStateKey = useMemo(() => getProjectCliStateKey(project), [project]);
+  const lastRestoredProjectKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const providers = cliProviders.map((provider) => provider.id);
@@ -1802,16 +1864,61 @@ function WorkbenchCliPanel({
   }, [refreshProviderAuthStatuses]);
 
   useEffect(() => {
-    setIsTerminalOpen(false);
+    if (lastRestoredProjectKeyRef.current === projectCliStateKey) {
+      return;
+    }
+
+    lastRestoredProjectKeyRef.current = projectCliStateKey;
     setShowHistory(false);
-    setTerminalSession(null);
-  }, [project?.name]);
+    setPendingFreshSession(false);
+
+    const savedState = readWorkbenchCliState(projectCliStateKey);
+    if (!savedState) {
+      setIsTerminalOpen(false);
+      setTerminalSession(null);
+      return;
+    }
+
+    setSelectedProvider(savedState.provider);
+    window.localStorage.setItem('selected-provider', savedState.provider);
+    setTerminalSession(savedState.sessionId
+      ? projectSessions.find((item) => item.id === savedState.sessionId && item.__provider === savedState.provider) ?? null
+      : null);
+    setIsTerminalOpen(savedState.isTerminalOpen);
+    if (savedState.isTerminalOpen) {
+      setTerminalLaunch((current) => ({
+        runId: current.runId + 1,
+        forceNewSession: false,
+      }));
+    }
+  }, [projectCliStateKey, projectSessions]);
 
   useEffect(() => {
     return () => {
       try { installEventSourceRef.current?.close(); } catch { /* noop */ }
     };
   }, []);
+
+  const persistCliState = useCallback((nextState: Omit<WorkbenchCliProjectState, 'updatedAt'>) => {
+    writeWorkbenchCliState(projectCliStateKey, {
+      ...nextState,
+      updatedAt: Date.now(),
+    });
+  }, [projectCliStateKey]);
+
+  const terminateCurrentCliSession = useCallback((provider: LLMProvider) => {
+    if (!project) return;
+
+    void authenticatedFetch('/api/shell/sessions/terminate', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectPath: project.fullPath || project.path || '',
+        provider,
+      }),
+    }).catch(() => {
+      // Starting the next session still asks the backend to kill stale PTYs.
+    });
+  }, [project]);
 
   const selectProvider = useCallback((provider: LLMProvider) => {
     const status = providerAuthStatus[provider];
@@ -1821,7 +1928,12 @@ function WorkbenchCliPanel({
 
     setSelectedProvider(provider);
     window.localStorage.setItem('selected-provider', provider);
-  }, [providerAuthStatus]);
+    persistCliState({
+      provider,
+      isTerminalOpen,
+      sessionId: terminalSession?.id ?? null,
+    });
+  }, [isTerminalOpen, persistCliState, providerAuthStatus, terminalSession?.id]);
 
   const startProviderInstall = useCallback(async (provider: LLMProvider) => {
     setInstallState({
@@ -1933,19 +2045,52 @@ function WorkbenchCliPanel({
     }
   }, [refreshProviderAuthStatuses, t]);
 
-  const startTerminal = useCallback(() => {
+  const startTerminal = useCallback(({ forceNewSession = false }: { forceNewSession?: boolean } = {}) => {
     if (!project) return;
     if (!canStartSelectedProvider) return;
     setTerminalSession(null);
     setShowHistory(false);
+    setPendingFreshSession(false);
     window.localStorage.setItem('selected-provider', selectedProvider);
     setIsTerminalOpen(true);
-    setTerminalRunId((current) => current + 1);
-  }, [canStartSelectedProvider, project, selectedProvider]);
+    setTerminalLaunch((current) => ({
+      runId: current.runId + 1,
+      forceNewSession,
+    }));
+    persistCliState({
+      provider: selectedProvider,
+      isTerminalOpen: true,
+      sessionId: null,
+    });
+  }, [canStartSelectedProvider, persistCliState, project, selectedProvider]);
 
-  const startNewCliSession = useCallback(() => {
-    startTerminal();
-  }, [startTerminal]);
+  const startSelectedCliSession = useCallback(() => {
+    startTerminal({ forceNewSession: pendingFreshSession });
+  }, [pendingFreshSession, startTerminal]);
+
+  const openNewCliSessionPicker = useCallback(() => {
+    terminateCurrentCliSession(selectedProvider);
+    setTerminalSession(null);
+    setShowHistory(false);
+    setIsTerminalOpen(false);
+    setPendingFreshSession(true);
+    persistCliState({
+      provider: selectedProvider,
+      isTerminalOpen: false,
+      sessionId: null,
+    });
+  }, [persistCliState, selectedProvider, terminateCurrentCliSession]);
+
+  const closeTerminal = useCallback(() => {
+    setShowHistory(false);
+    setIsTerminalOpen(false);
+    setPendingFreshSession(false);
+    persistCliState({
+      provider: selectedProvider,
+      isTerminalOpen: false,
+      sessionId: terminalSession?.id ?? null,
+    });
+  }, [persistCliState, selectedProvider, terminalSession?.id]);
 
   const handleHistorySessionSelect = useCallback((nextSession: ProjectSession) => {
     const provider = nextSession.__provider ?? 'claude';
@@ -1954,9 +2099,18 @@ function WorkbenchCliPanel({
     setTerminalSession(nextSession);
     onSessionSelect(nextSession);
     setShowHistory(false);
+    setPendingFreshSession(false);
     setIsTerminalOpen(true);
-    setTerminalRunId((current) => current + 1);
-  }, [onSessionSelect]);
+    setTerminalLaunch((current) => ({
+      runId: current.runId + 1,
+      forceNewSession: false,
+    }));
+    persistCliState({
+      provider,
+      isTerminalOpen: true,
+      sessionId: nextSession.id,
+    });
+  }, [onSessionSelect, persistCliState]);
 
   if (isTerminalOpen) {
     return (
@@ -1969,7 +2123,7 @@ function WorkbenchCliPanel({
           historyOpen={showHistory}
           canStart={canStartSelectedProvider}
           onToggleHistory={() => setShowHistory((previous) => !previous)}
-          onNewSession={startNewCliSession}
+          onNewSession={openNewCliSessionPicker}
           t={t}
         />
 
@@ -1986,13 +2140,14 @@ function WorkbenchCliPanel({
 
         <div className="min-h-0 flex-1">
           <StandaloneShell
-            key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalRunId}`}
+            key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalLaunch.runId}`}
             project={project}
             session={sessionForShell}
+            forceNewSession={terminalLaunch.forceNewSession}
             showHeader
             autoConnect={canAutoConnect}
             isActive
-            onClose={() => setIsTerminalOpen(false)}
+            onClose={closeTerminal}
           />
         </div>
       </div>
@@ -2016,7 +2171,7 @@ function WorkbenchCliPanel({
               type="button"
               className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
               disabled={!canStartSelectedProvider}
-              onClick={startNewCliSession}
+              onClick={startSelectedCliSession}
               title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
               aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
             >
@@ -2164,7 +2319,7 @@ function WorkbenchCliPanel({
         <button
           type="button"
           disabled={!canStartSelectedProvider}
-          onClick={startNewCliSession}
+          onClick={startSelectedCliSession}
           className="mt-2 flex h-10 w-full items-center justify-center gap-2 rounded bg-blue-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-500"
         >
           <Terminal className="h-4 w-4" />

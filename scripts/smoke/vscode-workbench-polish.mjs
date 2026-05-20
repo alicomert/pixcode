@@ -98,8 +98,14 @@ for (const token of ['closeOtherWorkspaces', 'closeAllWorkspaces']) {
 
 assert.match(
   workspaceTabsSource,
-  /self-center/,
-  'Workspace add button should be vertically centered in the tab strip.',
+  /items-center justify-center/,
+  'Workspace add button should center its plus icon instead of rendering an off-center bare icon.',
+);
+
+assert.match(
+  workspaceTabsSource,
+  /border-r border-border/,
+  'Workspace add button should read as part of the tab strip instead of a floating bare button.',
 );
 
 assert.match(
@@ -156,8 +162,8 @@ assert.match(
 
 assert.match(
   workbench,
-  /onClose=\{\(\) => setIsTerminalOpen\(false\)\}/,
-  'Right CLI terminal close button should return to the picker instead of leaving a dead reconnect overlay.',
+  /onClose=\{closeTerminal\}/,
+  'Right CLI terminal close button should return to the picker through the persisted close flow.',
 );
 
 assert.match(
@@ -174,8 +180,26 @@ assert.match(
 
 assert.match(
   workbench,
-  /startNewCliSession/,
-  'Right CLI panel should expose a one-click new CLI session action.',
+  /WORKBENCH_CLI_STATE_STORAGE_KEY/,
+  'Right CLI panel should persist per-project terminal state when switching workspaces.',
+);
+
+assert.match(
+  workbench,
+  /openNewCliSessionPicker/,
+  'Right CLI panel toolbar plus should stop the current terminal view and return to CLI selection.',
+);
+
+assert.match(
+  workbench,
+  /terminateCurrentCliSession\(selectedProvider\)/,
+  'Right CLI panel toolbar plus should explicitly terminate the current provider PTY before showing the picker.',
+);
+
+assert.match(
+  workbench,
+  /forceNewSession=\{terminalLaunch\.forceNewSession\}/,
+  'Right CLI panel should mark explicitly started new sessions so the backend does not reconnect the old PTY.',
 );
 
 assert.match(
@@ -186,8 +210,8 @@ assert.match(
 
 assert.match(
   workbench,
-  /onNewSession=\{startNewCliSession\}/,
-  'Right CLI terminal toolbar should wire the plus button to a new CLI session.',
+  /onNewSession=\{openNewCliSessionPicker\}/,
+  'Right CLI terminal toolbar should wire the plus button to the new-session picker flow.',
 );
 
 assert.doesNotMatch(
