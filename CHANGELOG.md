@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.48.5](https://github.com/alicomert/pixcode/compare/v1.48.4...v1.48.5) (2026-05-20)
+
+Pixcode 1.48.5 adds a project-scoped terminal/Hermes pass to the VS Code workbench.
+
+### New Features
+
+* **workbench:** add scroll controls to the workspace tab strip and a fixed end-of-strip toggle to fully hide or show the right CLI panel.
+* **terminal:** move the Terminal activity to a VS Code-style bottom panel that opens a plain shell in the active project instead of auto-starting the selected AI CLI.
+* **hermes:** add a right-panel Hermes Agent launcher with project-scoped start/install actions and official docs access.
+
+### Fixes
+
+* **shell:** spawn an interactive plain shell when no initial command is supplied, while still allowing explicit Hermes/install commands to run in the project directory.
+* **orchestration:** remove the old workbench orchestration entry points so Hermes is the personal agent control surface.
+* **i18n:** add the new workspace, CLI panel, terminal, and Hermes copy across all supported locales.
+
+### Tests
+
+* extend workbench smoke coverage for workspace overflow controls, right CLI collapse, bottom plain-shell terminal behavior, Hermes launch, and old orchestration removal.
+
 ## [1.48.4](https://github.com/alicomert/pixcode/compare/v1.48.3...v1.48.4) (2026-05-20)
 
 Pixcode 1.48.4 fixes the VS Code workbench workspace add button and makes the right CLI panel preserve and reset sessions correctly.
