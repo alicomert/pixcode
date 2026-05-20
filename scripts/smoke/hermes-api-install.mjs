@@ -29,7 +29,10 @@ assert.match(hermesInstallJobs, /formatHermesVersionOutput/, 'Hermes install sta
 assert.match(hermesInstallJobs, /repairHermesCommandLaunchers/, 'Hermes installer should repair stale or text launcher shims after install/status checks.');
 assert.match(hermesInstallJobs, /hermes\.cmd/, 'Windows Hermes repair should create or prefer a hermes.cmd shim so typing hermes does not open the Python launcher as text.');
 assert.match(hermesInstallJobs, /isUsableHermesCommand/, 'Hermes status should verify candidates before treating them as installed.');
+assert.match(hermesInstallJobs, /export function buildHermesPathEnv/, 'Hermes should expose a PATH-only shell env helper so normal project terminals can run hermes after repair.');
 assert.match(serverIndex, /Test-HermesCommand/, 'Hermes terminal start should verify a resolved command before running it.');
+assert.match(serverIndex, /buildHermesPathEnv\(process\.env/, 'Shell PTYs should inherit Hermes bin directories so typing hermes in Pixcode terminal works on Windows.');
+assert.match(serverIndex, /env: shellEnv/, 'Shell PTYs should use the augmented shell environment instead of raw process.env.');
 assert.doesNotMatch(serverIndex, /if command -v hermes >\/dev\/null 2>&1; then command -v hermes; return 0; fi;/, 'POSIX Hermes start must not accept a stale PATH shim without testing it.');
 assert.match(workbench, /HermesActivityButton/, 'Workbench activity rail should expose a dedicated Hermes H button under Terminal.');
 assert.match(workbench, /installLogRef/, 'Hermes install log panel should keep a scroll ref.');

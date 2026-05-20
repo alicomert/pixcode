@@ -80,13 +80,18 @@ function knownHermesBinDirs(env = process.env) {
     ];
 }
 
-function buildHermesEnv(baseEnv = process.env, extras = {}) {
+export function buildHermesPathEnv(baseEnv = process.env, extras = {}) {
     const env = mergePathEntries(buildCliSpawnEnv(baseEnv), knownHermesBinDirs(baseEnv));
     for (const [key, value] of Object.entries(extras)) {
         if (typeof value === 'string' && value.length > 0) {
             env[key] = value;
         }
     }
+    return env;
+}
+
+function buildHermesEnv(baseEnv = process.env, extras = {}) {
+    const env = buildHermesPathEnv(baseEnv, extras);
     delete env.PYTHONPATH;
     delete env.PYTHONHOME;
     return env;
@@ -264,7 +269,7 @@ export function repairHermesCommandLaunchers(command, env = process.env, appendL
 }
 
 export function primeHermesPath(env = process.env) {
-    const next = buildHermesEnv(env);
+    const next = buildHermesPathEnv(env);
     env.PATH = next.PATH;
     if ('Path' in env || next.Path) env.Path = next.Path || next.PATH;
 }

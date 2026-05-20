@@ -2,6 +2,16 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.4](https://github.com/alicomert/pixcode/compare/v1.49.3...v1.49.4) (2026-05-20)
+
+Pixcode 1.49.4 fixes the Windows Hermes terminal PATH gap found after 1.49.3.
+
+### Fixes
+
+* **hermes:** add Hermes install directories to every Pixcode shell PTY environment so `hermes` works inside the project terminal after the backend has repaired the launcher.
+* **hermes:** prime Hermes PATH entries at server boot without clearing project Python environment variables.
+* **workbench:** tighten the Hermes activity button monogram while keeping the dedicated `H` launcher under Terminal.
+
 ## [1.49.3](https://github.com/alicomert/pixcode/compare/v1.49.2...v1.49.3) (2026-05-20)
 
 Pixcode 1.49.3 hardens Hermes Agent launch, install status, and settings visibility.

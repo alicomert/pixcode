@@ -108,6 +108,7 @@ import {
     applyAllStoredCredentialsToEnv,
 } from './services/provider-credentials.js';
 import { primeCliBinPath } from './services/install-jobs.js';
+import { buildHermesPathEnv, primeHermesPath } from './services/hermes-install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, apiKeysDb } from './database/db.js';
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
@@ -2541,18 +2542,18 @@ function handleShellConnection(ws, request) {
                     const termCols = data.cols || 80;
                     const termRows = data.rows || 24;
                     console.log('📐 Using terminal dimensions:', termCols, 'x', termRows);
+                    const shellEnv = buildHermesPathEnv(process.env, {
+                        TERM: 'xterm-256color',
+                        COLORTERM: 'truecolor',
+                        FORCE_COLOR: '3',
+                    });
 
                     shellProcess = pty.spawn(shell, shellArgs, {
                         name: 'xterm-256color',
                         cols: termCols,
                         rows: termRows,
                         cwd: resolvedProjectPath,
-                        env: {
-                            ...process.env,
-                            TERM: 'xterm-256color',
-                            COLORTERM: 'truecolor',
-                            FORCE_COLOR: '3'
-                        }
+                        env: shellEnv,
                     });
 
                     console.log('🟢 Shell process started with PTY, PID:', shellProcess.pid);
@@ -3384,6 +3385,15 @@ async function startServer() {
             primeCliBinPath();
         } catch (err) {
             console.warn('[install-jobs] Failed to prime CLI bin path:', err?.message || err);
+        }
+
+        // Prime Hermes' known install locations separately so the project
+        // terminal can resolve `hermes` even when Windows has not refreshed the
+        // user's PATH for the current Pixcode process.
+        try {
+            primeHermesPath();
+        } catch (err) {
+            console.warn('[install-jobs] Failed to prime Hermes bin path:', err?.message || err);
         }
 
         // Restore any previously-configured Telegram bot. This is best-effort:

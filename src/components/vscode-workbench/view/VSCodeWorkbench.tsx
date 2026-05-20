@@ -3525,7 +3525,9 @@ function HermesActivityButton({
       onClick={onClick}
     >
       {active && <span className="absolute left-0 h-5 w-0.5 rounded-r bg-emerald-500" />}
-      <span className="font-mono text-base font-semibold leading-none">H</span>
+      <span className="border-current/35 bg-current/10 flex h-5 w-5 items-center justify-center rounded border font-mono text-[12px] font-bold leading-none">
+        H
+      </span>
     </button>
   );
 }
