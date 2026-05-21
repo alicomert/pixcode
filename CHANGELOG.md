@@ -2,6 +2,27 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.1](https://github.com/alicomert/pixcode/compare/v1.50.0...v1.50.1) (2026-05-21)
+
+Pixcode 1.50.1 fixes Hermes-triggered Codex tasks getting typed into the visible terminal without being submitted.
+
+### Fixes
+
+* **shell:** send Hermes-triggered Codex startup input with a line feed submit sequence, while leaving the existing carriage-return flow for the other provider TUIs.
+* **workbench:** stop pre-appending a submit character before provider-aware startup input normalization, so `/init` and longer Hermes prompts are sent through one consistent path.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `scripts/smoke/vscode-workbench-layout.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+
 ## [1.50.0](https://github.com/alicomert/pixcode/compare/v1.49.11...v1.50.0) (2026-05-21)
 
 Pixcode 1.50.0 makes Hermes a visible work controller for full provider-CLI tasks and gives Hermes launches a real bypass path.
