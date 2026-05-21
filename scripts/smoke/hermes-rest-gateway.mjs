@@ -19,6 +19,8 @@ assert.match(service, /transport:\s*'responses'/, 'Hermes REST responses should 
 assert.match(service, /resolveHermesGatewayHome/, 'Hermes REST gateway should run from a Pixcode-managed Hermes profile.');
 assert.match(service, /seedHermesGatewayHome/, 'Hermes REST gateway should seed the managed profile from the user Hermes profile.');
 assert.match(service, /PIXCODE_HERMES_GATEWAY_HOME/, 'Hermes REST gateway profile path should be overrideable for tests and advanced installs.');
+assert.match(service, /PIXCODE_MANAGED_HERMES_ENV_PREFIXES/, 'Managed Hermes gateway profile should strip messaging platform env vars.');
+assert.match(service, /copyHermesProfileEnv/, 'Managed Hermes gateway profile should copy a sanitized .env instead of raw platform credentials.');
 assert.match(service, /gatewayArgs[\s\S]+\['gateway', 'run', '--replace'\]/, 'Pixcode can use replace mode safely inside its managed Hermes gateway profile.');
 assert.match(service, /gatewayExitMessage/, 'Hermes gateway failures should include recent stderr/stdout instead of only exit code 1.');
 assert.match(service, /API_SERVER_ENABLED:\s*'true'/, 'Hermes gateway env should enable the API server.');

@@ -19,6 +19,27 @@ const FETCH_TIMEOUT_MS = 5000;
 const RUN_TIMEOUT_MS = 120000;
 const RUN_POLL_INTERVAL_MS = 1000;
 const LOG_LIMIT = 800;
+const PIXCODE_MANAGED_HERMES_ENV_PREFIXES = [
+    'API_SERVER_',
+    'BLUEBUBBLES_',
+    'DINGTALK_',
+    'DISCORD_',
+    'EMAIL_',
+    'FEISHU_',
+    'MATTERMOST_',
+    'MATRIX_',
+    'MSGRAPH_',
+    'QQ_',
+    'SIGNAL_',
+    'SLACK_',
+    'SMS_',
+    'TELEGRAM_',
+    'TWILIO_',
+    'WECOM_',
+    'WEIXIN_',
+    'WHATSAPP_',
+    'YUANBAO_',
+];
 
 const gateways = new Map();
 
@@ -91,6 +112,28 @@ function copyHermesProfileFile(sourceHome, targetHome, fileName, options = {}) {
     return true;
 }
 
+function shouldStripManagedGatewayEnvLine(line) {
+    const match = String(line || '').match(/^\s*(?:export\s+)?([A-Z0-9_]+)\s*=/);
+    if (!match) return false;
+    return PIXCODE_MANAGED_HERMES_ENV_PREFIXES.some((prefix) => match[1].startsWith(prefix));
+}
+
+function copyHermesProfileEnv(sourceHome, targetHome) {
+    const source = path.join(sourceHome, '.env');
+    const target = path.join(targetHome, '.env');
+    if (!fs.existsSync(source)) return false;
+
+    const sourceText = fs.readFileSync(source, 'utf8');
+    const sanitized = sourceText
+        .split(/\r?\n/)
+        .filter((line) => !shouldStripManagedGatewayEnvLine(line))
+        .join('\n')
+        .replace(/\s*$/, '\n');
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, sanitized);
+    return true;
+}
+
 function seedHermesGatewayHome({ sourceHome, targetHome, gateway }) {
     fs.mkdirSync(targetHome, { recursive: true });
     if (path.resolve(sourceHome) === path.resolve(targetHome)) {
@@ -104,7 +147,10 @@ function seedHermesGatewayHome({ sourceHome, targetHome, gateway }) {
             copied.push(file);
         }
     }
-    for (const file of ['.env', 'auth.json']) {
+    if (copyHermesProfileEnv(sourceHome, targetHome)) {
+        copied.push('.env (without messaging platform credentials)');
+    }
+    for (const file of ['auth.json']) {
         if (copyHermesProfileFile(sourceHome, targetHome, file, { overwrite: true })) {
             copied.push(file);
         }

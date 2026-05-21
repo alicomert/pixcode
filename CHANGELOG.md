@@ -2,6 +2,29 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.11](https://github.com/alicomert/pixcode/compare/v1.49.10...v1.49.11) (2026-05-21)
+
+Pixcode 1.49.11 stabilizes the Hermes terminal integration, keeps REST gateway control isolated from the user's normal Hermes gateway, and restores terminal copy/paste shortcuts.
+
+### Fixes
+
+* **hermes:** run the Pixcode-managed REST gateway from an isolated Hermes profile and strip messaging-platform credentials from its copied `.env` so `--replace` no longer kills or races the user's default/global Hermes gateway.
+* **hermes:** configure Pixcode MCP before launching the real `hermes` terminal, enable the MCP toolset for the CLI, and reuse existing gateways without killing them after transient probe failures.
+* **hermes:** teach Pixcode MCP to configure provider MCP settings before launching installed CLIs and to block launch requests for providers that are not installed.
+* **shell:** wait for provider TUIs such as Codex to become ready before sending Hermes-triggered startup input, avoiding prompts being written too early.
+* **terminal:** support browser and xterm copy/paste flows for `Ctrl+C`, `Ctrl+V`, `Ctrl+Shift+C`, and `Ctrl+Shift+V` while preserving `Ctrl+C` interrupt when no text is selected.
+
+### Verification
+
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/hermes-gateway-persistence.mjs`
+* `scripts/smoke/hermes-rest-gateway.mjs`
+* `scripts/smoke/hermes-rest-chat-api.mjs`
+* `scripts/smoke/hermes-rest-chat-live.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `npm run typecheck`
+* `npm run build`
+
 ## [1.49.10](https://github.com/alicomert/pixcode/compare/v1.49.9...v1.49.10) (2026-05-21)
 
 Pixcode 1.49.10 makes Hermes use the real REST gateway path with terminal-style output and blocks smoke-test launchers from being treated as installed Hermes.
