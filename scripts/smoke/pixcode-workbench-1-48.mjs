@@ -67,7 +67,7 @@ assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selecte
 assert.doesNotMatch(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should not launch from the bottom terminal through a server-side sentinel.');
 assert.doesNotMatch(workbench, /HermesApiChatPanel|HermesTerminalTranscript/, 'Hermes Agent should use the real PTY terminal UI, not a custom REST chat transcript.');
 assert.doesNotMatch(workbench, /REST POST \/|transport=|response=|gateway=http/, 'Hermes terminal UI must not expose REST debug internals to the user.');
-assert.match(workbench, /command="hermes"/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI in a PTY.');
+assert.match(workbench, /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI in a bypass-enabled PTY.');
 assert.match(workbench, /Pixcode MCP Live/, 'Hermes terminal should show a user-facing Pixcode MCP live badge.');
 assert.doesNotMatch(workbench, /ml-auto border-blue-500\/40 bg-blue-500\/10/, 'Hermes REST panel must not use right-aligned chat bubbles.');
 assert.match(workbench, /terminal-launches\/stream/, 'Hermes CLI launch requests should arrive through an EventSource stream.');
@@ -88,7 +88,7 @@ assert.doesNotMatch(workbench, /suspendAutoConnect/, 'Right CLI provider starts 
 assert.match(serverIndex, /\/api\/shell\/sessions\/terminate/, 'Backend should expose an authenticated endpoint to terminate cached provider PTYs immediately.');
 assert.match(serverIndex, /isPlainShell && !initialCommand/, 'Backend should spawn an interactive plain shell when no terminal command is provided.');
 assert.doesNotMatch(serverIndex, /pixcode:hermes:start/, 'Backend should not need a Hermes terminal sentinel for the workbench Hermes panel.');
-assert.doesNotMatch(serverIndex, /hermesCommand/, 'Provider shell starts should not reference the removed Hermes sentinel variable.');
+assert.match(serverIndex, /buildHermesCliCommand/, 'Backend should configure Pixcode MCP before launching the resolved Hermes command.');
 assert.match(serverIndex, /configure-pixcode-mcp\.mjs/, 'Hermes PTY launches should configure Pixcode MCP before starting the CLI.');
 assert.match(serverIndex, /resolveHermesMcpBaseUrl/, 'Hermes MCP should use the local Pixcode API base URL from the host process.');
 assert.doesNotMatch(hermesInstallJobs, /iex \(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)/, 'Windows Hermes install should avoid the old inline iex pattern.');

@@ -133,6 +133,21 @@ assert.match(
   'Shell websocket init should read launch-scoped permission overrides.',
 );
 assert.match(
+  shellConnection,
+  /normalizeStartupInput\(input: string, provider: LLMProvider\)/,
+  'Startup input normalization should be provider-aware.',
+);
+assert.match(
+  shellConnection,
+  /provider === 'codex' \? '\\n' : '\\r'/,
+  'Codex startup input should submit with LF because CR can leave /init typed but unsubmitted in Codex TUI.',
+);
+assert.doesNotMatch(
+  workbench,
+  /hermesCliLaunch\.startupInput \? `\$\{hermesCliLaunch\.startupInput\}\\r` : null/,
+  'Workbench should not pre-append CR before provider-aware startup input normalization.',
+);
+assert.match(
   shellView,
   /permissionOverride/,
   'Shell view should accept launch-scoped permission overrides.',

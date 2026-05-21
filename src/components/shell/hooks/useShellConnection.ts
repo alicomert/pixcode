@@ -158,8 +158,10 @@ function resolveShellPermissionOptions(
   };
 }
 
-function normalizeStartupInput(input: string) {
-  return /[\r\n]$/.test(input) ? input : `${input}\r`;
+function normalizeStartupInput(input: string, provider: LLMProvider) {
+  const trimmedInput = input.replace(/(?:\r\n|\r|\n)+$/u, '');
+  const submitSequence = provider === 'codex' ? '\n' : '\r';
+  return `${trimmedInput}${submitSequence}`;
 }
 
 function resolveRuntimeProvider(
@@ -245,14 +247,15 @@ export function useShellConnection({
         return;
       }
 
+      const provider = resolveRuntimeProvider(selectedSessionRef);
       sendSocketMessage(socket, {
         type: 'input',
-        data: normalizeStartupInput(startupInput),
+        data: normalizeStartupInput(startupInput, provider),
       });
       startupInputSentRef.current = true;
       startupInputRef.current = null;
     }, delayMs);
-  }, [isPlainShellRef, startupInputRef, wsRef]);
+  }, [isPlainShellRef, selectedSessionRef, startupInputRef, wsRef]);
 
   const maybeSendStartupInput = useCallback((output: string) => {
     if (!startupInputRef.current || startupInputSentRef.current || isPlainShellRef.current) {

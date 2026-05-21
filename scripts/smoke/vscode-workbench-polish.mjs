@@ -294,10 +294,16 @@ assert.doesNotMatch(
   'Hermes Agent should not launch through the bottom terminal with a server-side command sentinel.',
 );
 
-assert.match(
+assert.doesNotMatch(
   workbench,
   /HermesApiChatPanel/,
-  'Hermes Agent should use the REST chat panel in the bottom area.',
+  'Hermes Agent should use the real PTY terminal UI instead of the removed REST chat panel.',
+);
+
+assert.match(
+  workbench,
+  /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/,
+  'Hermes Agent should launch the Hermes CLI directly in bypass mode.',
 );
 
 assert.doesNotMatch(

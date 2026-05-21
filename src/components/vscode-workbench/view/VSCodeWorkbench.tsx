@@ -3005,7 +3005,7 @@ function WorkbenchCliPanel({
 
     setTerminalMode('provider');
     setSelectedProvider(provider);
-    setTerminalStartupInput(hermesCliLaunch.startupInput ? `${hermesCliLaunch.startupInput}\r` : null);
+    setTerminalStartupInput(hermesCliLaunch.startupInput || null);
     setTerminalPermissionOverride(launchPermissionMode || launchBypass ? {
       permissionMode: launchPermissionMode,
       skipPermissions: launchBypass,
