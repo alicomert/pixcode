@@ -314,8 +314,8 @@ assert.match(
 
 assert.match(
   workbench,
-  /HERMES_HISTORY_COMMAND = 'hermes sessions'/,
-  'Hermes Agent should expose native Hermes session history from the bottom terminal.',
+  /HERMES_HISTORY_COMMAND = 'hermes sessions browse'/,
+  'Hermes Agent should expose the native interactive Hermes session browser from the bottom terminal.',
 );
 
 assert.doesNotMatch(

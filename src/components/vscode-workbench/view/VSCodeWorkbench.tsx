@@ -110,7 +110,7 @@ type WorkbenchBottomTerminalOptions = {
 };
 
 const HERMES_DEFAULT_COMMAND = 'hermes --yolo';
-const HERMES_HISTORY_COMMAND = 'hermes sessions';
+const HERMES_HISTORY_COMMAND = 'hermes sessions browse';
 
 type PendingHermesLaunch = {
   projectPath: string;
@@ -161,6 +161,14 @@ type WorkbenchEditorProjectState = {
   updatedAt: number;
 };
 
+type WorkbenchHermesProjectState = {
+  isOpen: boolean;
+  isMinimized: boolean;
+  command: string | null;
+  title: string | null;
+  updatedAt: number;
+};
+
 const LEFT_MIN_WIDTH = 260;
 const LEFT_MAX_WIDTH = 520;
 const LEFT_DEFAULT_WIDTH = 340;
@@ -175,6 +183,7 @@ const BOTTOM_TERMINAL_MINIMIZED_HEIGHT = 34;
 const WORKBENCH_WORKSPACE_TABS_STORAGE_KEY = 'pixcode.workbench.workspaceTabs.v1';
 const WORKBENCH_CLI_STATE_STORAGE_KEY = 'pixcode.workbench.cliState.v1';
 const WORKBENCH_EDITOR_STATE_STORAGE_KEY = 'pixcode.workbench.editorState.v1';
+const WORKBENCH_HERMES_STATE_STORAGE_KEY = 'pixcode.workbench.hermesState.v1';
 const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
 const CLI_PROVIDER_IDS: LLMProvider[] = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
 const MAX_PERSISTED_EDITOR_TABS = 30;
@@ -372,6 +381,51 @@ function writeWorkbenchEditorState(projectKey: string | null, state: WorkbenchEd
   }
 }
 
+function readWorkbenchHermesStates(): Record<string, WorkbenchHermesProjectState> {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(WORKBENCH_HERMES_STATE_STORAGE_KEY) ?? '{}') as Record<string, WorkbenchHermesProjectState>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function readWorkbenchHermesState(projectKey: string | null): WorkbenchHermesProjectState | null {
+  if (!projectKey) return null;
+
+  const state = readWorkbenchHermesStates()[projectKey];
+  if (!state || typeof state !== 'object') return null;
+
+  return {
+    isOpen: Boolean(state.isOpen),
+    isMinimized: Boolean(state.isMinimized),
+    command: typeof state.command === 'string' && state.command.trim() ? state.command : HERMES_DEFAULT_COMMAND,
+    title: typeof state.title === 'string' && state.title.trim() ? state.title : null,
+    updatedAt: typeof state.updatedAt === 'number' ? state.updatedAt : Date.now(),
+  };
+}
+
+function writeWorkbenchHermesState(projectKey: string | null, state: WorkbenchHermesProjectState) {
+  if (!projectKey || typeof window === 'undefined') return;
+
+  try {
+    const currentStates = readWorkbenchHermesStates();
+    window.localStorage.setItem(
+      WORKBENCH_HERMES_STATE_STORAGE_KEY,
+      JSON.stringify({
+        ...currentStates,
+        [projectKey]: state,
+      }),
+    );
+  } catch {
+    // Hermes still runs through the backend PTY cache; persistence only controls
+    // which project terminal the workbench restores when switching workspaces.
+  }
+}
+
 function createWorkspaceTab(project: Project, label: string): WorkbenchWorkspaceTab {
   return {
     id: getWorkspaceTabId(project),
@@ -465,8 +519,10 @@ function VSCodeWorkbench({
   const hasPrimedHermesTerminalLaunchesRef = useRef(false);
   const lastHermesTerminalLaunchIdRef = useRef(0);
   const editorStateProjectKey = useMemo(() => getProjectEditorStateKey(selectedProject), [selectedProject]);
+  const selectedProjectStateKey = useMemo(() => getProjectCliStateKey(selectedProject), [selectedProject]);
   const isRestoringEditorStateRef = useRef(false);
   const lastRestoredEditorProjectKeyRef = useRef<string | null>(null);
+  const lastRestoredHermesProjectKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isCenterSystemTab(activeTab)) {
@@ -653,14 +709,25 @@ function VSCodeWorkbench({
 
   const openBottomTerminal = useCallback((mode: WorkbenchBottomTerminalMode, options: WorkbenchBottomTerminalOptions = {}) => {
     const nextProject = options.project ?? selectedProject ?? null;
+    const nextCommand = mode === 'hermes' ? (options.command || HERMES_DEFAULT_COMMAND) : null;
+    const nextTitle = mode === 'hermes' ? (options.title || null) : null;
     setBottomTerminalMode(mode);
     setBottomTerminalForceNewSession(Boolean(options.forceNewSession));
-    setBottomTerminalCommand(mode === 'hermes' ? (options.command || HERMES_DEFAULT_COMMAND) : null);
-    setBottomTerminalTitle(mode === 'hermes' ? (options.title || null) : null);
+    setBottomTerminalCommand(nextCommand);
+    setBottomTerminalTitle(nextTitle);
     setBottomTerminalProject(nextProject);
     setIsBottomTerminalOpen(true);
     setIsBottomTerminalMinimized(false);
     setBottomTerminalRunId((current) => current + 1);
+    if (mode === 'hermes') {
+      writeWorkbenchHermesState(getProjectCliStateKey(nextProject), {
+        isOpen: true,
+        isMinimized: false,
+        command: nextCommand,
+        title: nextTitle,
+        updatedAt: Date.now(),
+      });
+    }
   }, [selectedProject]);
 
   const refreshHermesInstallStatus = useCallback(async () => {
@@ -789,6 +856,31 @@ function VSCodeWorkbench({
   useEffect(() => {
     void refreshHermesInstallStatus();
   }, [refreshHermesInstallStatus]);
+
+  useEffect(() => {
+    if (lastRestoredHermesProjectKeyRef.current === selectedProjectStateKey) {
+      return;
+    }
+
+    lastRestoredHermesProjectKeyRef.current = selectedProjectStateKey;
+    const savedState = readWorkbenchHermesState(selectedProjectStateKey);
+    if (!savedState?.isOpen) {
+      if (bottomTerminalMode === 'hermes') {
+        setIsBottomTerminalOpen(false);
+        setBottomTerminalProject(selectedProject ?? null);
+      }
+      return;
+    }
+
+    setBottomTerminalMode('hermes');
+    setBottomTerminalForceNewSession(false);
+    setBottomTerminalCommand(savedState.command || HERMES_DEFAULT_COMMAND);
+    setBottomTerminalTitle(savedState.title);
+    setBottomTerminalProject(selectedProject ?? null);
+    setIsBottomTerminalOpen(true);
+    setIsBottomTerminalMinimized(savedState.isMinimized);
+    setBottomTerminalRunId((current) => current + 1);
+  }, [bottomTerminalMode, selectedProject, selectedProjectStateKey]);
 
   useEffect(() => {
     if (!pendingHermesLaunch || !selectedProject) {
@@ -1004,9 +1096,44 @@ function VSCodeWorkbench({
   }, [startHermesApiInstall]);
 
   const closeBottomTerminal = useCallback(() => {
+    if (bottomTerminalMode === 'hermes') {
+      writeWorkbenchHermesState(getProjectCliStateKey(bottomTerminalProject), {
+        isOpen: false,
+        isMinimized: false,
+        command: bottomTerminalCommand || HERMES_DEFAULT_COMMAND,
+        title: bottomTerminalTitle,
+        updatedAt: Date.now(),
+      });
+    }
     setIsBottomTerminalOpen(false);
     setBottomTerminalProject(null);
-  }, []);
+  }, [bottomTerminalCommand, bottomTerminalMode, bottomTerminalProject, bottomTerminalTitle]);
+
+  const minimizeBottomTerminal = useCallback(() => {
+    setIsBottomTerminalMinimized(true);
+    if (bottomTerminalMode === 'hermes') {
+      writeWorkbenchHermesState(getProjectCliStateKey(bottomTerminalProject), {
+        isOpen: true,
+        isMinimized: true,
+        command: bottomTerminalCommand || HERMES_DEFAULT_COMMAND,
+        title: bottomTerminalTitle,
+        updatedAt: Date.now(),
+      });
+    }
+  }, [bottomTerminalCommand, bottomTerminalMode, bottomTerminalProject, bottomTerminalTitle]);
+
+  const restoreBottomTerminal = useCallback(() => {
+    setIsBottomTerminalMinimized(false);
+    if (bottomTerminalMode === 'hermes') {
+      writeWorkbenchHermesState(getProjectCliStateKey(bottomTerminalProject), {
+        isOpen: true,
+        isMinimized: false,
+        command: bottomTerminalCommand || HERMES_DEFAULT_COMMAND,
+        title: bottomTerminalTitle,
+        updatedAt: Date.now(),
+      });
+    }
+  }, [bottomTerminalCommand, bottomTerminalMode, bottomTerminalProject, bottomTerminalTitle]);
 
   useEffect(() => {
     const handleHermesTerminalRequest = (event: Event) => {
@@ -1549,8 +1676,8 @@ function VSCodeWorkbench({
                 isMinimized={isBottomTerminalMinimized}
                 isActive
                 onResizeStart={(event) => startResize('bottom', event)}
-                onMinimize={() => setIsBottomTerminalMinimized(true)}
-                onRestore={() => setIsBottomTerminalMinimized(false)}
+                onMinimize={minimizeBottomTerminal}
+                onRestore={restoreBottomTerminal}
                 onStartHermes={startNewHermesSession}
                 onOpenHistory={openHermesHistory}
                 onInstallHermes={installHermesAgent}

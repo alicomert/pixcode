@@ -66,12 +66,15 @@ assert.match(workbench, /isBottomTerminalMinimized/, 'Bottom terminal should sup
 assert.match(workbench, /bottomTerminalProject/, 'Bottom terminal should stay bound to the project it was opened for.');
 assert.match(workbench, /setBottomTerminalProject/, 'Opening a bottom terminal should capture its project instead of following workspace selection changes.');
 assert.match(workbench, /terminalProject = bottomTerminalProject \?\? selectedProject/, 'Workbench should render bottom terminals against their captured project binding.');
+assert.match(workbench, /WORKBENCH_HERMES_STATE_STORAGE_KEY/, 'Hermes bottom terminal open state should be stored per workspace.');
+assert.match(workbench, /readWorkbenchHermesState/, 'Workspace switches should restore the Hermes terminal state for that project.');
+assert.match(workbench, /writeWorkbenchHermesState/, 'Opening, minimizing, and closing Hermes should persist per-project state.');
 assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selected project folder without starting the selected AI CLI.');
 assert.doesNotMatch(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should not launch from the bottom terminal through a server-side sentinel.');
 assert.doesNotMatch(workbench, /HermesApiChatPanel|HermesTerminalTranscript/, 'Hermes Agent should use the real PTY terminal UI, not a custom REST chat transcript.');
 assert.doesNotMatch(workbench, /REST POST \/|transport=|response=|gateway=http/, 'Hermes terminal UI must not expose REST debug internals to the user.');
 assert.match(workbench, /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI in a bypass-enabled PTY.');
-assert.match(workbench, /HERMES_HISTORY_COMMAND = 'hermes sessions'/, 'Hermes terminal should expose the native Hermes sessions/history command.');
+assert.match(workbench, /HERMES_HISTORY_COMMAND = 'hermes sessions browse'/, 'Hermes terminal history should open the native interactive session picker.');
 assert.match(workbench, /onOpenHistory=\{openHermesHistory\}/, 'Hermes terminal header should wire its history button to the native Hermes sessions command.');
 assert.match(workbench, /Pixcode MCP Live/, 'Hermes terminal should show a user-facing Pixcode MCP live badge.');
 assert.doesNotMatch(workbench, /ml-auto border-blue-500\/40 bg-blue-500\/10/, 'Hermes REST panel must not use right-aligned chat bubbles.');
@@ -137,6 +140,7 @@ assert.match(shellTerminal, /handleTerminalPaste/, 'Terminal should support brow
 assert.match(shellTerminal, /handleCopyPasteShortcut/, 'Terminal should normalize Ctrl/Cmd copy and paste shortcuts.');
 assert.match(shellTerminal, /event\.shiftKey/, 'Terminal should support Ctrl+Shift+C/V style shortcuts.');
 assert.match(shellTerminal, /copyTerminalSelection/, 'Terminal should copy selected terminal text through shortcuts.');
+assert.match(read('src/components/shell/view/Shell.tsx'), /sendInput\(`\$\{opt\.number\}\\r`\)/, 'CLI prompt option buttons should submit the selected option with Enter, not leave the choice typed.');
 assert.match(serverIndex, /forceNewSession/, 'Shell backend should support explicit fresh-session launches from the workbench.');
 assert.match(serverIndex, /killProviderPtySessions/, 'Shell backend should terminate old provider PTYs when a fresh CLI session is requested.');
 

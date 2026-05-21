@@ -329,7 +329,7 @@ export default function Shell({
                   type="button"
                   key={opt.number}
                   onClick={() => {
-                    sendInput(opt.number);
+                    sendInput(`${opt.number}\r`);
                     setCliPromptOptions(null);
                   }}
                   className="max-w-36 truncate rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"

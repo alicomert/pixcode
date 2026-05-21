@@ -127,7 +127,7 @@ const HERMES_SETTINGS_COMMANDS: HermesSettingsCommand[] = [
   },
   {
     id: 'sessions',
-    command: 'hermes sessions',
+    command: 'hermes sessions browse',
     titleKey: 'hermes.commands.sessions.title',
     titleDefault: 'Sessions',
     descriptionKey: 'hermes.commands.sessions.description',

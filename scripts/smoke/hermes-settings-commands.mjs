@@ -27,6 +27,7 @@ assert.match(settingsTab, /command:\s*'hermes model'/, 'Hermes settings should e
 assert.match(settingsTab, /command:\s*'hermes auth'/, 'Hermes settings should expose the credential manager.');
 assert.match(settingsTab, /command:\s*'hermes setup tools'/, 'Hermes settings should expose tool setup.');
 assert.match(settingsTab, /command:\s*'hermes doctor'/, 'Hermes settings should expose diagnostics.');
+assert.match(settingsTab, /command:\s*'hermes sessions browse'/, 'Hermes settings should open the interactive sessions browser, not the sessions usage screen.');
 assert.match(
   settingsTab,
   /pixcode:hermes-terminal[\s\S]+command[\s\S]+title/,
@@ -139,13 +140,33 @@ assert.match(
 );
 assert.match(
   shellConnection,
-  /provider === 'codex' \? '\\n' : '\\r'/,
-  'Codex startup input should submit with LF because CR can leave /init typed but unsubmitted in Codex TUI.',
+  /provider === 'codex'[\s\S]+startupInputRef\.current/,
+  'Codex startup input should be handled at process launch instead of typed into an already-open TUI.',
+);
+assert.match(
+  shellConnection,
+  /startupInput:\s*handlesStartupInputInCommand \? startupInputForCommand : null/,
+  'Shell websocket init should send Codex startup input to the backend command builder.',
 );
 assert.doesNotMatch(
   workbench,
   /hermesCliLaunch\.startupInput \? `\$\{hermesCliLaunch\.startupInput\}\\r` : null/,
   'Workbench should not pre-append CR before provider-aware startup input normalization.',
+);
+assert.match(
+  shellTypes,
+  /startupInput\?: string \| null/,
+  'Shell init messages should carry launch-time startup input for providers that accept an initial prompt.',
+);
+assert.match(
+  serverIndex,
+  /const startupInput = typeof data\.startupInput === 'string'/,
+  'Shell backend should read launch-time startup input from the websocket init payload.',
+);
+assert.match(
+  serverIndex,
+  /provider === 'codex'[\s\S]+startupInput[\s\S]+quoteShellArgForPlatform\(startupInput\)/,
+  'Codex provider terminals should start with the requested prompt as a CLI argument so banners/update notices cannot swallow Enter.',
 );
 assert.match(
   shellView,

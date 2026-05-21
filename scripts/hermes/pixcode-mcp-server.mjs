@@ -35,7 +35,7 @@ const tools = [
   },
   {
     name: 'pixcode_open_cli_terminal',
-    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and can type startup input into that terminal. For multi-step, piece-by-piece, or long-running work, put the full user instruction in startupInput so the provider CLI does the work visibly inside Pixcode.',
+    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and submit startup input there. Do not run a parallel Hermes codex/claude/proc command for the same request. For multi-step, piece-by-piece, or long-running work, put the full user instruction in startupInput so the provider CLI does the work visibly inside Pixcode. If the user asks for the provider output, set waitForOutputMs or call pixcode_read_cli_terminal after launch.',
     inputSchema: {
       type: 'object',
       properties: {

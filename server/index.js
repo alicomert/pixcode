@@ -405,6 +405,10 @@ function quotePowerShellArg(value) {
     return `"${String(value).replace(/`/g, '``').replace(/\$/g, '`$').replace(/"/g, '`"')}"`;
 }
 
+function quoteShellArgForPlatform(value) {
+    return os.platform() === 'win32' ? quotePowerShellArg(value) : quoteBashArg(value);
+}
+
 const HERMES_CLI_COMMAND_PATTERN = /^hermes(?:\s+[A-Za-z0-9._:/=@+-]+)*\s*$/;
 
 function isHermesCliCommand(command) {
@@ -2261,6 +2265,9 @@ function handleShellConnection(ws, request) {
                 const hasSession = data.hasSession;
                 const provider = data.provider || 'claude';
                 const initialCommand = data.initialCommand;
+                const startupInput = typeof data.startupInput === 'string' && data.startupInput.trim()
+                    ? data.startupInput.trim()
+                    : null;
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
                 const isHermesCliLaunch = isPlainShell && isHermesCliCommand(initialCommand);
                 const forceNewSession = Boolean(data.forceNewSession);
@@ -2418,6 +2425,8 @@ function handleShellConnection(ws, request) {
                             } else {
                                 shellCommand = `${command} resume "${sessionId}" || ${command}`;
                             }
+                        } else if (startupInput) {
+                            shellCommand = `${command} ${quoteShellArgForPlatform(startupInput)}`;
                         } else {
                             shellCommand = command;
                         }

@@ -160,8 +160,8 @@ function resolveShellPermissionOptions(
 
 function normalizeStartupInput(input: string, provider: LLMProvider) {
   const trimmedInput = input.replace(/(?:\r\n|\r|\n)+$/u, '');
-  const submitSequence = provider === 'codex' ? '\n' : '\r';
-  return `${trimmedInput}${submitSequence}`;
+  void provider;
+  return `${trimmedInput}\r`;
 }
 
 function resolveRuntimeProvider(
@@ -368,6 +368,10 @@ export function useShellConnection({
               ? 'plain-shell'
               : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude') as LLMProvider;
             const permissionOptions = resolveShellPermissionOptions(provider, permissionOverrideRef.current);
+            const startupInputForCommand = typeof startupInputRef.current === 'string' && startupInputRef.current.trim()
+              ? startupInputRef.current.trim()
+              : null;
+            const handlesStartupInputInCommand = provider === 'codex' && Boolean(startupInputForCommand) && !isPlainShellRef.current;
             clearStartupInputTimer();
             startupInputSentRef.current = false;
             startupInputBufferRef.current = '';
@@ -383,11 +387,15 @@ export function useShellConnection({
               initialCommand: initialCommandRef.current,
               isPlainShell: isPlainShellRef.current,
               forceNewSession: forceNewSessionRef.current,
+              startupInput: handlesStartupInputInCommand ? startupInputForCommand : null,
               permissionMode: permissionOptions.permissionMode,
               skipPermissions: permissionOptions.skipPermissions,
             });
 
-            if (startupInputRef.current && !isPlainShellRef.current) {
+            if (handlesStartupInputInCommand) {
+              startupInputSentRef.current = true;
+              startupInputRef.current = null;
+            } else if (startupInputRef.current && !isPlainShellRef.current) {
               scheduleStartupInput(STARTUP_INPUT_FALLBACK_DELAY_MS);
             }
           }, TERMINAL_INIT_DELAY_MS);

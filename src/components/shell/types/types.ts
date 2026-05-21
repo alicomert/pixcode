@@ -17,6 +17,7 @@ export type ShellInitMessage = {
   initialCommand: string | null | undefined;
   isPlainShell: boolean;
   forceNewSession: boolean;
+  startupInput?: string | null;
   permissionMode?: string;
   skipPermissions?: boolean;
 };
