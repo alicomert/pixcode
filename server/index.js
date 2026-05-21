@@ -32,10 +32,6 @@ const SERVER_VERSION = (() => {
         return '0.0.0';
     }
 })();
-const HERMES_SHELL_COMMANDS = new Set([
-    'pixcode:hermes:start',
-    'pixcode:hermes:install',
-]);
 const DAEMON_COMMAND_CONTEXT = {
     appRoot: APP_ROOT,
     cliEntry: path.join(APP_ROOT, 'server', 'cli.js'),
@@ -328,14 +324,6 @@ function killProviderPtySessions(projectPath, provider) {
     return killed;
 }
 
-function shellQuotePosix(value) {
-    return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-function shellQuotePowerShell(value) {
-    return `'${String(value).replace(/'/g, "''")}'`;
-}
-
 function normalizeShellPermissionMode(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -419,104 +407,6 @@ function getOrCreateHermesApiKey(userId) {
         'providers:read',
         'terminal:launch',
     ]).apiKey;
-}
-
-function buildHermesShellCommand(kind, env) {
-    const configureScript = path.join(APP_ROOT, 'scripts', 'hermes', 'configure-pixcode-mcp.mjs');
-    const isWindows = os.platform() === 'win32';
-    const quote = isWindows ? shellQuotePowerShell : shellQuotePosix;
-
-    if (isWindows) {
-        const setEnv = [
-            `$env:PIXCODE_BASE_URL=${quote(env.PIXCODE_BASE_URL)}`,
-            `$env:PIXCODE_API_KEY=${quote(env.PIXCODE_API_KEY)}`,
-            `$env:PIXCODE_APP_ROOT=${quote(env.PIXCODE_APP_ROOT)}`,
-        ].join('; ');
-        const resolveHermesCommand = [
-            'function Test-HermesCommand($candidate) {',
-            'if (-not $candidate) { return $false; }',
-            'try {',
-            '& $candidate --version *> $null;',
-            'return $LASTEXITCODE -eq 0;',
-            '} catch { return $false; }',
-            '}',
-            'function Resolve-HermesCommand {',
-            '$candidates = @(',
-            '$env:HERMES_CLI_PATH,',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\bin\\hermes.cmd"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\bin\\hermes.bat"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\bin\\hermes.exe"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\venv\\Scripts\\hermes.cmd"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\venv\\Scripts\\hermes.bat"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\venv\\Scripts\\hermes.exe"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\.venv\\Scripts\\hermes.cmd"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\.venv\\Scripts\\hermes.bat"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\.venv\\Scripts\\hermes.exe"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\hermes.cmd"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\hermes.bat"),',
-            '(Join-Path $env:LOCALAPPDATA "hermes\\hermes-agent\\hermes.exe")',
-            ');',
-            'foreach ($candidate in $candidates) { if ($candidate -and (Test-Path $candidate) -and (Test-HermesCommand $candidate)) { return $candidate; } }',
-            '$cmd = Get-Command hermes -ErrorAction SilentlyContinue;',
-            'if ($cmd -and (Test-HermesCommand $cmd.Source)) { return $cmd.Source; }',
-            'return $null;',
-            '}',
-        ].join(' ');
-        const configure = [
-            'function Invoke-PixcodeHermesConfigure {',
-            `& node ${quote(configureScript)};`,
-            'if ($LASTEXITCODE -ne 0) { Write-Warning "Pixcode MCP configure failed; starting Hermes anyway."; $global:LASTEXITCODE = 0; }',
-            '}',
-        ].join(' ');
-        const installHermesIfMissing = [
-            'function Install-HermesIfMissing {',
-            '$script:HermesCmd = Resolve-HermesCommand;',
-            'if ($script:HermesCmd) { & $script:HermesCmd --version *> $null; return; }',
-            '$installer = Join-Path $env:TEMP "pixcode-hermes-install.ps1";',
-            'Invoke-WebRequest -Uri "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1" -UseBasicParsing -OutFile $installer;',
-            '& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installer -SkipSetup -Branch main;',
-            'if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE; }',
-            '$env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";" + [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + $env:Path;',
-            '$script:HermesCmd = Resolve-HermesCommand;',
-            'if (-not $script:HermesCmd) { throw "Hermes installed, but the hermes command could not be found. Restart Pixcode or add Hermes to PATH."; }',
-            '}',
-        ].join(' ');
-        if (kind === 'pixcode:hermes:install') {
-            return `${setEnv}; ${resolveHermesCommand}; ${configure}; ${installHermesIfMissing}; Install-HermesIfMissing; Invoke-PixcodeHermesConfigure`;
-        }
-        return `${setEnv}; ${resolveHermesCommand}; ${configure}; ${installHermesIfMissing}; Install-HermesIfMissing; Write-Host "Hermes Agent is starting..."; Invoke-PixcodeHermesConfigure; & $script:HermesCmd chat`;
-    }
-
-    const setEnv = [
-        `PIXCODE_BASE_URL=${quote(env.PIXCODE_BASE_URL)}`,
-        `PIXCODE_API_KEY=${quote(env.PIXCODE_API_KEY)}`,
-        `PIXCODE_APP_ROOT=${quote(env.PIXCODE_APP_ROOT)}`,
-    ].join(' ');
-    const resolveHermesCommand = [
-        'testHermesCommand() {',
-        '[ -n "$1" ] && [ -x "$1" ] && "$1" --version >/dev/null 2>&1;',
-        '}',
-        'resolveHermesCommand() {',
-        'for candidate in "${HERMES_CLI_PATH:-}" "$HOME/.local/bin/hermes" "$HOME/.hermes/hermes-agent/venv/bin/hermes" "$HOME/.hermes/hermes-agent/.venv/bin/hermes" "/usr/local/bin/hermes" "/usr/local/lib/hermes-agent/venv/bin/hermes"; do',
-        'if testHermesCommand "$candidate"; then printf "%s\\n" "$candidate"; return 0; fi;',
-        'done;',
-        'candidate="$(command -v hermes 2>/dev/null || true)";',
-        'if testHermesCommand "$candidate"; then printf "%s\\n" "$candidate"; return 0; fi;',
-        'return 1;',
-        '}',
-    ].join(' ');
-    const installHermesIfMissing = [
-        'installHermesIfMissing() {',
-        'HERMES_CMD="$(resolveHermesCommand 2>/dev/null || true)";',
-        'if [ -n "$HERMES_CMD" ]; then "$HERMES_CMD" --version >/dev/null 2>&1 || true; return 0; fi;',
-        'echo "Hermes is not installed. Use Pixcode Settings > Hermes Agent > Install or repair, then start again." >&2;',
-        'exit 127;',
-        '}',
-    ].join(' ');
-    if (kind === 'pixcode:hermes:install') {
-        return `${setEnv} sh -lc ${quote(`${resolveHermesCommand} ${installHermesIfMissing} installHermesIfMissing && { node ${shellQuotePosix(configureScript)} || echo "Pixcode MCP configure failed; continuing."; }`)}`;
-    }
-    return `${setEnv} sh -lc ${quote(`${resolveHermesCommand} ${installHermesIfMissing} installHermesIfMissing && printf "Hermes Agent is starting...\\n" && { node ${shellQuotePosix(configureScript)} || echo "Pixcode MCP configure failed; starting Hermes anyway."; } && exec "$HERMES_CMD" chat`)}`;
 }
 
 // Single WebSocket server that handles both paths
@@ -2290,21 +2180,7 @@ function handleShellConnection(ws, request) {
                 const sessionId = data.sessionId;
                 const hasSession = data.hasSession;
                 const provider = data.provider || 'claude';
-                let initialCommand = data.initialCommand;
-                const hermesCommand = HERMES_SHELL_COMMANDS.has(initialCommand) ? initialCommand : null;
-                const isHermesShellSession = Boolean(hermesCommand);
-                if (hermesCommand) {
-                    const apiKey = getOrCreateHermesApiKey(request?.user?.id);
-                    if (!apiKey) {
-                        ws.send(JSON.stringify({ type: 'error', message: 'Hermes MCP could not create a Pixcode API key for this user.' }));
-                        return;
-                    }
-                    initialCommand = buildHermesShellCommand(hermesCommand, {
-                        PIXCODE_BASE_URL: resolvePublicBaseUrl(request),
-                        PIXCODE_API_KEY: apiKey,
-                        PIXCODE_APP_ROOT: APP_ROOT,
-                    });
-                }
+                const initialCommand = data.initialCommand;
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
                 const forceNewSession = Boolean(data.forceNewSession);
                 const shellPermissionMode = normalizeShellPermissionMode(data.permissionMode);
@@ -2329,7 +2205,7 @@ function handleShellConnection(ws, request) {
 
                 // Include command hash in session key so different commands get separate sessions
                 const commandSuffix = isPlainShell && initialCommand
-                    ? (isHermesShellSession ? '_hermes' : `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`)
+                    ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
                     : '';
                 // Include provider in the key so a fresh "new session" in OpenCode
                 // doesn't reattach to a cached Claude PTY for the same project (or
@@ -2574,7 +2450,7 @@ function handleShellConnection(ws, request) {
                         sessionId,
                         provider,
                         isPlainShell,
-                        keepAliveUntilExit: isHermesShellSession,
+                        keepAliveUntilExit: false,
                     });
 
                     // Handle data output

@@ -2,6 +2,30 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.8](https://github.com/alicomert/pixcode/compare/v1.49.7...v1.49.8) (2026-05-21)
+
+Pixcode 1.49.8 replaces the brittle Hermes terminal launch path with a REST-backed chat flow and stops the workbench from polling empty launch events every few seconds.
+
+### Fixes
+
+* **hermes:** replace the bottom Hermes shell sentinel with a REST chat panel that starts the managed Hermes gateway and sends prompts through `/api/orchestration/hermes/gateway/chat`.
+* **hermes:** add a server-side gateway run helper that submits `/v1/runs`, polls run status, and returns the final Hermes message/error to the UI.
+* **hermes:** stream MCP terminal-launch requests to the workbench over SSE at `/api/orchestration/hermes/terminal-launches/stream` instead of repeated `?after=0` polling.
+* **shell:** remove the old Hermes-specific shell sentinel expansion so the normal terminal stays a plain project shell.
+
+### Verification
+
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/hermes-api-install.mjs`
+* `scripts/smoke/hermes-rest-gateway.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `scripts/smoke/hermes-rest-live.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+* `npm pack --dry-run --ignore-scripts --json --cache /tmp/npm-cache`
+
 ## [1.49.7](https://github.com/alicomert/pixcode/compare/v1.49.6...v1.49.7) (2026-05-21)
 
 Pixcode 1.49.7 fixes the Hermes and right-side CLI terminal regressions found in the live VS Code-style workbench.

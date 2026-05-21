@@ -288,10 +288,16 @@ assert.match(
   'Workbench bottom terminal should run a plain shell in the selected project directory.',
 );
 
-assert.match(
+assert.doesNotMatch(
   workbench,
   /HERMES_AGENT_START_COMMAND/,
-  'Hermes Agent should launch through the bottom terminal with a server-side command sentinel.',
+  'Hermes Agent should not launch through the bottom terminal with a server-side command sentinel.',
+);
+
+assert.match(
+  workbench,
+  /HermesApiChatPanel/,
+  'Hermes Agent should use the REST chat panel in the bottom area.',
 );
 
 assert.doesNotMatch(

@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { EventEmitter } from 'node:events';
 
 import express, { type Request, type Response, type Router } from 'express';
 
@@ -15,11 +16,13 @@ import {
   ensureHermesGateway,
   getHermesGatewayStatus,
   probeHermesGateway,
+  runHermesGatewayPrompt,
   stopHermesGateway,
 } from '@/services/hermes-gateway.js';
 
 const HERMES_TERMINAL_LAUNCH_LIMIT = 100;
 const HERMES_TERMINAL_LAUNCH_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
+const HERMES_TERMINAL_LAUNCH_STREAM_HEARTBEAT_MS = 25000;
 
 type HermesTerminalLaunchEvent = {
   id: number;
@@ -45,6 +48,8 @@ type PixcodeRequest = Request & {
 
 let nextHermesTerminalLaunchId = 1;
 const hermesTerminalLaunches: HermesTerminalLaunchEvent[] = [];
+const hermesTerminalLaunchEmitter = new EventEmitter();
+hermesTerminalLaunchEmitter.setMaxListeners(200);
 
 function writeSse(res: Response, event: string, payload: unknown) {
   res.write(`event: ${event}\n`);
@@ -53,6 +58,19 @@ function writeSse(res: Response, event: string, payload: unknown) {
 
 function readUserId(req: PixcodeRequest) {
   return req.user?.id ?? req.user?.userId ?? null;
+}
+
+function readAfterId(req: Request) {
+  const after = Number.parseInt(typeof req.query.after === 'string' ? req.query.after : '0', 10);
+  return Number.isFinite(after) ? after : 0;
+}
+
+function rememberHermesTerminalLaunch(event: HermesTerminalLaunchEvent) {
+  hermesTerminalLaunches.push(event);
+  if (hermesTerminalLaunches.length > HERMES_TERMINAL_LAUNCH_LIMIT) {
+    hermesTerminalLaunches.splice(0, hermesTerminalLaunches.length - HERMES_TERMINAL_LAUNCH_LIMIT);
+  }
+  hermesTerminalLaunchEmitter.emit('terminal-launch', event);
 }
 
 export function createHermesRouter(options: HermesRouterOptions = {}): Router {
@@ -165,6 +183,66 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       res.status(500).json({
         error: {
           code: 'HERMES_GATEWAY_PROBE_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.post('/gateway/chat', async (req: PixcodeRequest, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const projectPath = typeof body.projectPath === 'string' && body.projectPath.trim()
+      ? body.projectPath.trim()
+      : undefined;
+    const input = typeof body.input === 'string' ? body.input.trim() : '';
+    const sessionId = typeof body.sessionId === 'string' && body.sessionId.trim()
+      ? body.sessionId.trim()
+      : undefined;
+
+    if (!input) {
+      res.status(400).json({
+        error: {
+          code: 'HERMES_PROMPT_REQUIRED',
+          message: 'Hermes prompt is required.',
+        },
+      });
+      return;
+    }
+
+    const apiKey = options.createHermesApiKey?.(readUserId(req)) ?? null;
+    if (!apiKey) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_API_KEY_UNAVAILABLE',
+          message: 'Pixcode could not create a Hermes MCP API key for this user.',
+        },
+      });
+      return;
+    }
+
+    try {
+      const gateway = await ensureHermesGateway({
+        appRoot: options.appRoot ?? process.cwd(),
+        pixcodeApiKey: apiKey,
+        pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+        projectPath,
+      });
+      const run = await runHermesGatewayPrompt(projectPath, {
+        input,
+        sessionId,
+      });
+
+      res.status(run.ok ? 200 : 502).json({
+        ok: run.ok,
+        gateway,
+        run,
+        message: run.message,
+        error: run.error ?? null,
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_GATEWAY_CHAT_FAILED',
           message: error instanceof Error ? error.message : String(error),
         },
       });
@@ -297,11 +375,58 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
   });
 
   router.get('/terminal-launches', (req, res) => {
-    const after = Number.parseInt(typeof req.query.after === 'string' ? req.query.after : '0', 10);
-    const afterId = Number.isFinite(after) ? after : 0;
+    const afterId = readAfterId(req);
     res.json({
       events: hermesTerminalLaunches.filter((event) => event.id > afterId),
     });
+  });
+
+  router.get('/terminal-launches/stream', (req, res) => {
+    const afterId = readAfterId(req);
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+    try {
+      (res.socket as NodeJS.Socket & { setNoDelay?: (on: boolean) => void })?.setNoDelay?.(true);
+    } catch { /* noop */ }
+
+    let closed = false;
+    const safeWrite = (event: string, payload: unknown) => {
+      if (closed) return;
+      try { writeSse(res, event, payload); } catch { /* socket gone */ }
+    };
+
+    try { res.write(': start\n\n'); } catch { /* noop */ }
+    const replayed = hermesTerminalLaunches.filter((event) => event.id > afterId);
+    for (const event of replayed) {
+      safeWrite('terminal-launch', event);
+    }
+    safeWrite('ready', {
+      latestId: hermesTerminalLaunches[hermesTerminalLaunches.length - 1]?.id ?? afterId,
+      replayed: replayed.length,
+    });
+
+    const heartbeat = setInterval(() => {
+      if (closed) return;
+      try { res.write(': ping\n\n'); } catch { /* noop */ }
+    }, HERMES_TERMINAL_LAUNCH_STREAM_HEARTBEAT_MS);
+
+    const onTerminalLaunch = (event: HermesTerminalLaunchEvent) => {
+      safeWrite('terminal-launch', event);
+    };
+    hermesTerminalLaunchEmitter.on('terminal-launch', onTerminalLaunch);
+
+    const cleanup = () => {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      hermesTerminalLaunchEmitter.off('terminal-launch', onTerminalLaunch);
+    };
+
+    req.on('close', cleanup);
   });
 
   router.post('/terminal-launches', (req, res) => {
@@ -328,10 +453,7 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       createdAt: new Date().toISOString(),
     };
     nextHermesTerminalLaunchId += 1;
-    hermesTerminalLaunches.push(event);
-    if (hermesTerminalLaunches.length > HERMES_TERMINAL_LAUNCH_LIMIT) {
-      hermesTerminalLaunches.splice(0, hermesTerminalLaunches.length - HERMES_TERMINAL_LAUNCH_LIMIT);
-    }
+    rememberHermesTerminalLaunch(event);
 
     res.status(201).json({ event });
   });

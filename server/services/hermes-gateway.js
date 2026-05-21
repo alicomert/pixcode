@@ -15,6 +15,8 @@ const DEFAULT_PORT = 8642;
 const PORT_SCAN_LIMIT = 80;
 const STARTUP_TIMEOUT_MS = 30000;
 const FETCH_TIMEOUT_MS = 5000;
+const RUN_TIMEOUT_MS = 120000;
+const RUN_POLL_INTERVAL_MS = 1000;
 const LOG_LIMIT = 800;
 
 const gateways = new Map();
@@ -45,6 +47,10 @@ function gatewayBaseUrl(host, port) {
 
 function makeApiServerKey() {
     return `pixcode-hermes-${randomBytes(24).toString('hex')}`;
+}
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function buildHermesGatewayEnv(baseEnv = process.env, options = {}) {
@@ -122,6 +128,62 @@ async function callGateway(gateway, endpoint, options = {}) {
             ...(options.headers || {}),
         },
     });
+}
+
+function extractRunId(body) {
+    if (!body || typeof body !== 'object') return null;
+    return body.run_id || body.runId || body.id || body.run?.id || null;
+}
+
+function extractRunStatus(body) {
+    if (!body || typeof body !== 'object') return null;
+    return body.status || body.state || body.run?.status || body.run?.state || null;
+}
+
+function extractTextFromValue(value) {
+    if (typeof value === 'string') return value;
+    if (!value) return null;
+
+    if (Array.isArray(value)) {
+        return value
+            .map(extractTextFromValue)
+            .filter(Boolean)
+            .join('\n')
+            .trim() || null;
+    }
+
+    if (typeof value === 'object') {
+        for (const key of ['text', 'content', 'message', 'output', 'response', 'result', 'final']) {
+            const text = extractTextFromValue(value[key]);
+            if (text) return text;
+        }
+    }
+
+    return null;
+}
+
+function extractRunOutput(body) {
+    if (!body || typeof body !== 'object') return null;
+
+    for (const key of ['output_text', 'output', 'response', 'result', 'message', 'messages', 'events', 'final']) {
+        const text = extractTextFromValue(body[key]);
+        if (text) return text;
+    }
+
+    return null;
+}
+
+function makeRunRequest(options) {
+    const input = String(options.input || '').trim();
+    return {
+        session_id: options.sessionId || `pixcode-hermes-chat-${Date.now()}-${randomBytes(4).toString('hex')}`,
+        input,
+        instructions: options.instructions || [
+            'You are Hermes Agent running inside Pixcode.',
+            'Use Pixcode MCP tools when they help inspect projects, launch CLIs, or perform workspace actions.',
+            'Keep answers concise and include concrete next steps when work is blocked.',
+        ].join(' '),
+    };
 }
 
 async function waitForGatewayReady(gateway) {
@@ -380,6 +442,81 @@ export async function probeHermesGateway(projectPath, options = {}) {
     };
     gateway.lastProbe = result;
     return result;
+}
+
+export async function runHermesGatewayPrompt(projectPath, options = {}) {
+    const gateway = projectPath
+        ? gateways.get(normalizeProjectPath(projectPath))
+        : Array.from(gateways.values()).find(isGatewayRunning);
+
+    if (!isGatewayRunning(gateway)) {
+        throw new Error('Hermes gateway is not running.');
+    }
+
+    const input = String(options.input || '').trim();
+    if (!input) {
+        throw new Error('Hermes prompt is required.');
+    }
+
+    const request = makeRunRequest({ ...options, input });
+    const create = await callGateway(gateway, '/v1/runs', {
+        method: 'POST',
+        body: JSON.stringify(request),
+        timeoutMs: options.createTimeoutMs || 15000,
+    });
+
+    if (!create.ok) {
+        throw new Error(`Hermes /v1/runs failed with HTTP ${create.status}: ${JSON.stringify(create.body)}`);
+    }
+
+    const runId = extractRunId(create.body);
+    const initialStatus = extractRunStatus(create.body);
+    if (!runId) {
+        return {
+            ok: true,
+            projectPath: gateway.projectPath,
+            baseUrl: gateway.baseUrl,
+            sessionId: request.session_id,
+            runId: null,
+            status: initialStatus || 'completed',
+            message: extractRunOutput(create.body),
+            raw: create.body,
+        };
+    }
+
+    const terminalStatuses = new Set(['completed', 'failed', 'cancelled', 'canceled']);
+    const started = Date.now();
+    let latest = create.body;
+    let status = initialStatus || 'queued';
+
+    while (!terminalStatuses.has(String(status)) && Date.now() - started < (options.timeoutMs || RUN_TIMEOUT_MS)) {
+        await sleep(options.pollIntervalMs || RUN_POLL_INTERVAL_MS);
+        const poll = await callGateway(gateway, `/v1/runs/${encodeURIComponent(runId)}`, {
+            timeoutMs: options.pollTimeoutMs || 15000,
+        });
+        if (!poll.ok) {
+            throw new Error(`Hermes /v1/runs/${runId} failed with HTTP ${poll.status}: ${JSON.stringify(poll.body)}`);
+        }
+        latest = poll.body;
+        status = extractRunStatus(latest) || status;
+    }
+
+    if (!terminalStatuses.has(String(status))) {
+        throw new Error(`Hermes run did not finish within ${Math.round((options.timeoutMs || RUN_TIMEOUT_MS) / 1000)}s: ${runId}`);
+    }
+
+    const message = extractRunOutput(latest);
+    return {
+        ok: status === 'completed',
+        projectPath: gateway.projectPath,
+        baseUrl: gateway.baseUrl,
+        sessionId: request.session_id,
+        runId,
+        status,
+        message,
+        error: status === 'completed' ? null : extractTextFromValue(latest?.error) || message || 'Hermes run failed.',
+        raw: latest,
+    };
 }
 
 export function stopHermesGateway(projectPath) {

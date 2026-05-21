@@ -53,6 +53,7 @@ import {
   PanelLeftOpen,
   Plus,
   RefreshCw,
+  SendHorizonalIcon,
   Server,
   Settings,
   Sparkles,
@@ -125,6 +126,14 @@ type HermesInstallJobState = {
   startAfterInstall: boolean;
 };
 
+type HermesChatMessage = {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  pending?: boolean;
+  error?: boolean;
+};
+
 type WorkbenchCliProjectState = {
   provider: LLMProvider;
   isTerminalOpen: boolean;
@@ -156,8 +165,6 @@ const WORKBENCH_EDITOR_STATE_STORAGE_KEY = 'pixcode.workbench.editorState.v1';
 const DEFAULT_WORKSPACE_TAB_LIMIT = 10;
 const CLI_PROVIDER_IDS: LLMProvider[] = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
 const MAX_PERSISTED_EDITOR_TABS = 30;
-const HERMES_AGENT_START_COMMAND = 'pixcode:hermes:start';
-const HERMES_TERMINAL_LAUNCH_POLL_MS = 2000;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -218,6 +225,34 @@ function getProjectEditorStateKey(project: Project | null) {
 
 function isCliProvider(value: unknown): value is LLMProvider {
   return typeof value === 'string' && CLI_PROVIDER_IDS.includes(value as LLMProvider);
+}
+
+function createHermesChatId(prefix = 'msg') {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createHermesSessionId(project: Project | null) {
+  const projectPart = project ? getProjectPath(project).replace(/[^a-zA-Z0-9_-]+/g, '-').slice(-48) : 'no-project';
+  return `pixcode-hermes-${projectPart}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function extractHermesChatResponse(body: unknown) {
+  const root = asRecord(body);
+  const run = asRecord(root?.run);
+  const error = asRecord(root?.error);
+
+  if (typeof root?.message === 'string' && root.message.trim()) return root.message.trim();
+  if (typeof run?.message === 'string' && run.message.trim()) return run.message.trim();
+  if (typeof run?.error === 'string' && run.error.trim()) return run.error.trim();
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
+  if (typeof root?.error === 'string' && root.error.trim()) return root.error.trim();
+  return '';
 }
 
 function isCodeEditorFile(value: unknown): value is CodeEditorFile {
@@ -1039,30 +1074,22 @@ function VSCodeWorkbench({
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    const token = window.localStorage.getItem('auth-token') || '';
+    const streamUrl = `/api/orchestration/hermes/terminal-launches/stream?after=${lastHermesTerminalLaunchIdRef.current}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+    const stream = new EventSource(streamUrl);
 
-    const pollHermesTerminalLaunches = async () => {
+    const handleTerminalLaunch = (event: MessageEvent) => {
       try {
-        const response = await authenticatedFetch(`/api/orchestration/hermes/terminal-launches?after=${lastHermesTerminalLaunchIdRef.current}`, {
-          cache: 'no-store',
-        });
-        if (!response.ok) return;
-
-        const body = (await response.json()) as { events?: HermesTerminalLaunchEvent[] };
-        const events = Array.isArray(body.events) ? body.events : [];
-        if (cancelled) return;
-        if (events.length === 0) {
-          hasPrimedHermesTerminalLaunchesRef.current = true;
+        const latest = JSON.parse(event.data) as HermesTerminalLaunchEvent;
+        if (!latest || typeof latest.id !== 'number' || latest.id <= lastHermesTerminalLaunchIdRef.current) {
           return;
         }
 
-        const latest = events[events.length - 1];
         lastHermesTerminalLaunchIdRef.current = Math.max(
           lastHermesTerminalLaunchIdRef.current,
-          ...events.map((event) => event.id),
+          latest.id,
         );
         if (!hasPrimedHermesTerminalLaunchesRef.current) {
-          hasPrimedHermesTerminalLaunchesRef.current = true;
           return;
         }
 
@@ -1076,18 +1103,30 @@ function VSCodeWorkbench({
         setIsRightCollapsed(false);
         setHermesCliLaunch(latest);
       } catch {
-        // Hermes control polling is best-effort; normal workbench use should not be interrupted.
+        // Hermes control streaming is best-effort; normal workbench use should not be interrupted.
       }
     };
 
-    void pollHermesTerminalLaunches();
-    const timer = window.setInterval(() => {
-      void pollHermesTerminalLaunches();
-    }, HERMES_TERMINAL_LAUNCH_POLL_MS);
+    const handleReady = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as { latestId?: number };
+        if (typeof payload.latestId === 'number') {
+          lastHermesTerminalLaunchIdRef.current = Math.max(lastHermesTerminalLaunchIdRef.current, payload.latestId);
+        }
+      } catch {
+        // Ignore malformed stream frames.
+      } finally {
+        hasPrimedHermesTerminalLaunchesRef.current = true;
+      }
+    };
+
+    stream.addEventListener('terminal-launch', handleTerminalLaunch);
+    stream.addEventListener('ready', handleReady);
 
     return () => {
-      cancelled = true;
-      window.clearInterval(timer);
+      stream.removeEventListener('terminal-launch', handleTerminalLaunch);
+      stream.removeEventListener('ready', handleReady);
+      stream.close();
     };
   }, [handleWorkbenchProjectSelect, selectedProject, sidebarProps.projects]);
 
@@ -2212,9 +2251,6 @@ function WorkbenchBottomTerminal({
     : mode === 'hermes'
       ? t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })
       : t('vscodeWorkbench.terminal.title', { defaultValue: 'Terminal' });
-  const command = mode === 'hermes'
-      ? HERMES_AGENT_START_COMMAND
-      : null;
 
   return (
     <section
@@ -2308,14 +2344,21 @@ function WorkbenchBottomTerminal({
         <div className="h-[calc(100%-2rem)] min-h-0">
           {mode === 'hermes-install' ? (
             <HermesInstallLogPanel installJob={hermesInstallJob} onRetry={onInstallHermes} onStart={onStartHermes} t={t} />
+          ) : mode === 'hermes' ? (
+            <HermesApiChatPanel
+              key={`hermes-chat-${project?.name || 'none'}-${runId}`}
+              project={project}
+              runId={runId}
+              isActive={isActive}
+              t={t}
+            />
           ) : (
             <StandaloneShell
               key={`bottom-terminal-${mode}-${project?.name || 'none'}-${runId}`}
               project={project}
               session={null}
-              command={command}
               isPlainShell
-              forceNewSession={mode === 'hermes' ? forceNewSession : false}
+              forceNewSession={forceNewSession}
               showHeader={false}
               autoConnect={Boolean(project)}
               isActive={isActive}
@@ -2393,6 +2436,243 @@ function HermesInstallLogPanel({
       <pre ref={installLogRef} className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-5 text-gray-200">
         {installJob.log || t('vscodeWorkbench.hermes.installWaiting', { defaultValue: 'Waiting for Hermes install logs...' })}
       </pre>
+    </div>
+  );
+}
+
+function HermesApiChatPanel({
+  project,
+  runId,
+  isActive,
+  t,
+}: {
+  project: Project | null;
+  runId: number;
+  isActive: boolean;
+  t: TFunction<'common'>;
+}) {
+  const projectPath = project ? getProjectPath(project) : '';
+  const [messages, setMessages] = useState<HermesChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [sessionId, setSessionId] = useState(() => createHermesSessionId(project));
+  const [gatewayState, setGatewayState] = useState<'idle' | 'starting' | 'ready' | 'error'>('idle');
+  const [gatewayError, setGatewayError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMessages([]);
+    setInput('');
+    setSessionId(createHermesSessionId(project));
+    setGatewayState('idle');
+    setGatewayError(null);
+    setIsSending(false);
+  }, [projectPath, project, runId]);
+
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [gatewayError, gatewayState, messages]);
+
+  const startGateway = useCallback(async () => {
+    if (!project) return;
+
+    setGatewayState('starting');
+    setGatewayError(null);
+    try {
+      const response = await authenticatedFetch('/api/orchestration/hermes/gateway/start', {
+        method: 'POST',
+        body: JSON.stringify({ projectPath }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(extractHermesChatResponse(body) || `HTTP ${response.status}`);
+      }
+      setGatewayState('ready');
+    } catch (error) {
+      setGatewayState('error');
+      setGatewayError(error instanceof Error ? error.message : t('vscodeWorkbench.hermes.gatewayStartFailed', {
+        defaultValue: 'Hermes gateway could not start.',
+      }));
+    }
+  }, [project, projectPath, t]);
+
+  useEffect(() => {
+    if (!isActive || !project || gatewayState !== 'idle') return;
+    void startGateway();
+  }, [gatewayState, isActive, project, startGateway]);
+
+  const sendMessage = useCallback(async () => {
+    const prompt = input.trim();
+    if (!prompt || !project || isSending) return;
+
+    const userMessage: HermesChatMessage = {
+      id: createHermesChatId('user'),
+      role: 'user',
+      content: prompt,
+    };
+    const assistantId = createHermesChatId('assistant');
+    const pendingMessage: HermesChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: t('vscodeWorkbench.hermes.thinking', { defaultValue: 'Hermes is working through the REST gateway...' }),
+      pending: true,
+    };
+
+    setInput('');
+    setMessages((current) => [...current, userMessage, pendingMessage]);
+    setIsSending(true);
+    setGatewayError(null);
+
+    try {
+      if (gatewayState !== 'ready') {
+        await startGateway();
+      }
+
+      const response = await authenticatedFetch('/api/orchestration/hermes/gateway/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectPath,
+          input: prompt,
+          sessionId,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      const text = extractHermesChatResponse(body) || t('vscodeWorkbench.hermes.emptyResponse', {
+        defaultValue: 'Hermes completed the run but did not return text.',
+      });
+
+      if (!response.ok) {
+        throw new Error(text);
+      }
+
+      setMessages((current) => current.map((message) => (
+        message.id === assistantId
+          ? { ...message, content: text, pending: false, error: false }
+          : message
+      )));
+      setGatewayState('ready');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('vscodeWorkbench.hermes.chatFailed', {
+        defaultValue: 'Hermes request failed.',
+      });
+      setMessages((current) => current.map((item) => (
+        item.id === assistantId
+          ? { ...item, content: message, pending: false, error: true }
+          : item
+      )));
+      setGatewayError(message);
+    } finally {
+      setIsSending(false);
+    }
+  }, [gatewayState, input, isSending, project, projectPath, sessionId, startGateway, t]);
+
+  if (!project) {
+    return (
+      <div className="flex h-full items-center justify-center bg-gray-950 p-4 text-center text-xs text-gray-400">
+        {t('vscodeWorkbench.hermes.pickProject', { defaultValue: 'Open a project to start Hermes Agent.' })}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
+        {messages.length === 0 ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="max-w-lg text-center">
+              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded bg-emerald-500/15 text-sm font-semibold text-emerald-200">
+                H
+              </div>
+              <div className="mt-3 text-sm font-semibold text-gray-100">
+                {t('vscodeWorkbench.hermes.chatTitle', { defaultValue: 'Hermes Agent REST chat' })}
+              </div>
+              <p className="mt-2 text-xs leading-5 text-gray-400">
+                {t('vscodeWorkbench.hermes.chatDescription', {
+                  defaultValue: 'Ask Hermes to inspect this project, run Pixcode MCP tools, or launch a CLI through the visible right panel.',
+                })}
+              </p>
+            </div>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              className={cn(
+                'max-w-[88%] rounded-md border px-3 py-2 text-xs leading-5',
+                message.role === 'user'
+                  ? 'ml-auto border-blue-500/40 bg-blue-500/10 text-blue-50'
+                  : message.error
+                    ? 'border-red-500/40 bg-red-950/40 text-red-100'
+                    : 'border-gray-800 bg-gray-900 text-gray-100',
+              )}
+            >
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                {message.role === 'user'
+                  ? t('vscodeWorkbench.hermes.you', { defaultValue: 'You' })
+                  : t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })}
+              </div>
+              <div className="whitespace-pre-wrap break-words">
+                {message.pending && <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin text-emerald-300" />}
+                {message.content}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-gray-800 bg-gray-900/90 p-2">
+        <div className="mb-2 flex items-center justify-between gap-2 text-[10px] text-gray-500">
+          <span className="truncate font-mono">{projectPath}</span>
+          <span className={cn(
+            'shrink-0 rounded px-1.5 py-0.5 font-medium',
+            gatewayState === 'ready' && 'bg-emerald-500/15 text-emerald-200',
+            gatewayState === 'starting' && 'bg-blue-500/15 text-blue-200',
+            gatewayState === 'error' && 'bg-red-500/15 text-red-200',
+            gatewayState === 'idle' && 'bg-gray-800 text-gray-400',
+          )}
+          >
+            {gatewayState === 'ready'
+              ? t('vscodeWorkbench.hermes.gatewayReady', { defaultValue: 'REST ready' })
+              : gatewayState === 'starting'
+                ? t('vscodeWorkbench.hermes.gatewayStarting', { defaultValue: 'Starting REST...' })
+                : gatewayState === 'error'
+                  ? t('vscodeWorkbench.hermes.gatewayError', { defaultValue: 'REST error' })
+                  : t('vscodeWorkbench.hermes.gatewayIdle', { defaultValue: 'REST idle' })}
+          </span>
+        </div>
+        {gatewayError && (
+          <div className="mb-2 rounded border border-red-900/60 bg-red-950/40 px-2 py-1.5 text-[11px] text-red-100">
+            {gatewayError}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <textarea
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                void sendMessage();
+              }
+            }}
+            rows={2}
+            className="min-h-12 flex-1 resize-none rounded border border-gray-700 bg-gray-950 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-600 focus:border-emerald-500"
+            placeholder={t('vscodeWorkbench.hermes.chatPlaceholder', { defaultValue: 'Ask Hermes to work in this project...' })}
+            disabled={isSending}
+          />
+          <button
+            type="button"
+            className="flex w-10 shrink-0 items-center justify-center rounded bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-500"
+            onClick={() => { void sendMessage(); }}
+            disabled={!input.trim() || isSending}
+            aria-label={t('vscodeWorkbench.hermes.send', { defaultValue: 'Send to Hermes' })}
+            title={t('vscodeWorkbench.hermes.send', { defaultValue: 'Send to Hermes' })}
+          >
+            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonalIcon className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
