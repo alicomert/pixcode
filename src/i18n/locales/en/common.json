@@ -982,6 +982,7 @@
       "start": "Start Hermes",
       "install": "Install",
       "newSession": "New Hermes session",
+      "history": "Hermes history",
       "connect": "Connect Hermes Agent",
       "ready": "Ready",
       "installRunning": "Installing Hermes through Pixcode API...",

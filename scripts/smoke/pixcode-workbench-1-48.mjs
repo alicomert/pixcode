@@ -63,11 +63,16 @@ assert.match(workbench, /WORKBENCH_CLI_STATE_STORAGE_KEY/, 'CLI terminal should 
 assert.match(workbench, /function WorkbenchBottomTerminal/, 'Terminal activity should render as a bottom plain-shell panel.');
 assert.match(workbench, /BOTTOM_TERMINAL_MIN_HEIGHT/, 'Bottom terminal should support height resizing.');
 assert.match(workbench, /isBottomTerminalMinimized/, 'Bottom terminal should support minimizing without closing.');
+assert.match(workbench, /bottomTerminalProject/, 'Bottom terminal should stay bound to the project it was opened for.');
+assert.match(workbench, /setBottomTerminalProject/, 'Opening a bottom terminal should capture its project instead of following workspace selection changes.');
+assert.match(workbench, /terminalProject = bottomTerminalProject \?\? selectedProject/, 'Workbench should render bottom terminals against their captured project binding.');
 assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selected project folder without starting the selected AI CLI.');
 assert.doesNotMatch(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should not launch from the bottom terminal through a server-side sentinel.');
 assert.doesNotMatch(workbench, /HermesApiChatPanel|HermesTerminalTranscript/, 'Hermes Agent should use the real PTY terminal UI, not a custom REST chat transcript.');
 assert.doesNotMatch(workbench, /REST POST \/|transport=|response=|gateway=http/, 'Hermes terminal UI must not expose REST debug internals to the user.');
 assert.match(workbench, /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI in a bypass-enabled PTY.');
+assert.match(workbench, /HERMES_HISTORY_COMMAND = 'hermes sessions'/, 'Hermes terminal should expose the native Hermes sessions/history command.');
+assert.match(workbench, /onOpenHistory=\{openHermesHistory\}/, 'Hermes terminal header should wire its history button to the native Hermes sessions command.');
 assert.match(workbench, /Pixcode MCP Live/, 'Hermes terminal should show a user-facing Pixcode MCP live badge.');
 assert.doesNotMatch(workbench, /ml-auto border-blue-500\/40 bg-blue-500\/10/, 'Hermes REST panel must not use right-aligned chat bubbles.');
 assert.match(workbench, /terminal-launches\/stream/, 'Hermes CLI launch requests should arrive through an EventSource stream.');

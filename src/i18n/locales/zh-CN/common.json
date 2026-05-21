@@ -889,6 +889,7 @@
       "start": "启动 Hermes",
       "install": "安装",
       "newSession": "新建 Hermes 会话",
+      "history": "Hermes 历史记录",
       "connect": "连接 Hermes Agent",
       "ready": "就绪",
       "installRunning": "正在通过 Pixcode API 安装 Hermes...",

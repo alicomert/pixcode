@@ -889,6 +889,7 @@
       "start": "Hermes を開始",
       "install": "インストール",
       "newSession": "新しい Hermes セッション",
+      "history": "Hermes 履歴",
       "connect": "Hermes Agent に接続",
       "ready": "準備完了",
       "installRunning": "Pixcode API で Hermes をインストールしています...",

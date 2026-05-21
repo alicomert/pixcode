@@ -859,6 +859,7 @@
       "start": "Запустить Hermes",
       "install": "Установить",
       "newSession": "Новая сессия Hermes",
+      "history": "История Hermes",
       "connect": "Подключить Hermes Agent",
       "ready": "Готово",
       "installRunning": "Hermes устанавливается через API Pixcode...",

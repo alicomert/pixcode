@@ -982,6 +982,7 @@
       "start": "Hermes baslat",
       "install": "Kur",
       "newSession": "Yeni Hermes oturumu",
+      "history": "Hermes gecmisi",
       "connect": "Hermes Agent bagla",
       "ready": "Hazir",
       "installRunning": "Hermes Pixcode API ile kuruluyor...",

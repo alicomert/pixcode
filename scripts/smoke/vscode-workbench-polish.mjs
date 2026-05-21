@@ -284,6 +284,12 @@ for (const token of ['BOTTOM_TERMINAL_MIN_HEIGHT', 'isBottomTerminalMinimized', 
 
 assert.match(
   workbench,
+  /bottomTerminalProject/,
+  'Bottom terminal should keep its original project while workspace tabs change.',
+);
+
+assert.match(
+  workbench,
   /isPlainShell/,
   'Workbench bottom terminal should run a plain shell in the selected project directory.',
 );
@@ -304,6 +310,12 @@ assert.match(
   workbench,
   /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/,
   'Hermes Agent should launch the Hermes CLI directly in bypass mode.',
+);
+
+assert.match(
+  workbench,
+  /HERMES_HISTORY_COMMAND = 'hermes sessions'/,
+  'Hermes Agent should expose native Hermes session history from the bottom terminal.',
 );
 
 assert.doesNotMatch(
