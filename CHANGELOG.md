@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.2](https://github.com/alicomert/pixcode/compare/v1.50.1...v1.50.2) (2026-05-21)
+
+Pixcode 1.50.2 stabilizes the Hermes bottom terminal when switching workspaces.
+
+### Fixes
+
+* **workbench:** bind the bottom terminal to the project it was opened for instead of following every workspace selection change, so Hermes keeps running in the background and reconnects like the other CLI terminals.
+* **hermes:** add a bottom-terminal history action that opens the native `hermes sessions` view in the project terminal.
+* **i18n:** add the Hermes history label across all bundled common locales.
+
+### Verification
+
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `scripts/smoke/vscode-workbench-layout.mjs`
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+
 ## [1.50.1](https://github.com/alicomert/pixcode/compare/v1.50.0...v1.50.1) (2026-05-21)
 
 Pixcode 1.50.1 fixes Hermes-triggered Codex tasks getting typed into the visible terminal without being submitted.
