@@ -12,6 +12,7 @@ const POSIX_INSTALLER_URL = 'https://raw.githubusercontent.com/NousResearch/herm
 const WINDOWS_INSTALLER_URL = 'https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1';
 const FINISHED_TTL_MS = 10 * 60 * 1000;
 const HARD_TIMEOUT_MS = 20 * 60 * 1000;
+const HERMES_VERSION_TIMEOUT_MS = 20 * 1000;
 const jobs = new Map();
 
 function pathSeparator() {
@@ -125,13 +126,22 @@ function pushHermesCommandFiles(candidates, dir) {
     }
 }
 
+function hermesVersionTimeoutMs(env = process.env) {
+    const configured = Number(env.HERMES_VERSION_TIMEOUT_MS);
+    if (Number.isFinite(configured) && configured >= 1000) {
+        return configured;
+    }
+
+    return HERMES_VERSION_TIMEOUT_MS;
+}
+
 function runHermesVersion(candidate, env) {
     try {
         const result = spawn.sync(candidate, ['--version'], {
             encoding: 'utf8',
             env,
             stdio: ['ignore', 'pipe', 'pipe'],
-            timeout: 5000,
+            timeout: hermesVersionTimeoutMs(env),
             windowsHide: true,
         });
         if (result.error || result.status !== 0) {

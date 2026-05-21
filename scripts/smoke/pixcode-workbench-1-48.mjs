@@ -65,10 +65,10 @@ assert.match(workbench, /BOTTOM_TERMINAL_MIN_HEIGHT/, 'Bottom terminal should su
 assert.match(workbench, /isBottomTerminalMinimized/, 'Bottom terminal should support minimizing without closing.');
 assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selected project folder without starting the selected AI CLI.');
 assert.doesNotMatch(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should not launch from the bottom terminal through a server-side sentinel.');
-assert.match(workbench, /HermesApiChatPanel/, 'Hermes Agent should render a REST-backed chat panel in the bottom area.');
-assert.match(workbench, /\/api\/orchestration\/hermes\/gateway\/chat/, 'Hermes chat panel should send prompts through the Pixcode gateway chat API.');
-assert.match(workbench, /HermesTerminalTranscript/, 'Hermes REST panel should render as a terminal transcript, not chat bubbles.');
-assert.match(workbench, /REST POST \//, 'Hermes terminal transcript should show the REST endpoint used for each reply.');
+assert.doesNotMatch(workbench, /HermesApiChatPanel|HermesTerminalTranscript/, 'Hermes Agent should use the real PTY terminal UI, not a custom REST chat transcript.');
+assert.doesNotMatch(workbench, /REST POST \/|transport=|response=|gateway=http/, 'Hermes terminal UI must not expose REST debug internals to the user.');
+assert.match(workbench, /command="hermes"/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI in a PTY.');
+assert.match(workbench, /Pixcode MCP Live/, 'Hermes terminal should show a user-facing Pixcode MCP live badge.');
 assert.doesNotMatch(workbench, /ml-auto border-blue-500\/40 bg-blue-500\/10/, 'Hermes REST panel must not use right-aligned chat bubbles.');
 assert.match(workbench, /terminal-launches\/stream/, 'Hermes CLI launch requests should arrive through an EventSource stream.');
 assert.doesNotMatch(workbench, /HERMES_TERMINAL_LAUNCH_POLL_MS|setInterval\([\s\S]*terminal-launches/, 'Hermes CLI launch requests should not be polled every few seconds.');
@@ -89,6 +89,8 @@ assert.match(serverIndex, /\/api\/shell\/sessions\/terminate/, 'Backend should e
 assert.match(serverIndex, /isPlainShell && !initialCommand/, 'Backend should spawn an interactive plain shell when no terminal command is provided.');
 assert.doesNotMatch(serverIndex, /pixcode:hermes:start/, 'Backend should not need a Hermes terminal sentinel for the workbench Hermes panel.');
 assert.doesNotMatch(serverIndex, /hermesCommand/, 'Provider shell starts should not reference the removed Hermes sentinel variable.');
+assert.match(serverIndex, /configure-pixcode-mcp\.mjs/, 'Hermes PTY launches should configure Pixcode MCP before starting the CLI.');
+assert.match(serverIndex, /resolveHermesMcpBaseUrl/, 'Hermes MCP should use the local Pixcode API base URL from the host process.');
 assert.doesNotMatch(hermesInstallJobs, /iex \(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)/, 'Windows Hermes install should avoid the old inline iex pattern.');
 assert.doesNotMatch(hermesInstallJobs, /scriptblock\]::Create\(\(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)\)/, 'Windows Hermes install should avoid scriptblock Invoke-RestMethod eval patterns.');
 assert.match(hermesInstallJobs, /downloadHermesInstaller/, 'Windows Hermes install should download the installer through backend API code before running it.');
@@ -118,12 +120,18 @@ assert.match(hermesRoutes, /createHermesRouter/, 'Hermes should have a dedicated
 assert.match(hermesRoutes, /terminal-launches/, 'Hermes MCP should be able to request visible Pixcode CLI terminal launches.');
 assert.match(hermesRoutes, /terminal-launches\/stream/, 'Hermes MCP terminal launch requests should stream to the workbench over SSE.');
 assert.match(hermesRoutes, /hermesTerminalLaunchEmitter/, 'Hermes terminal launch stream should broadcast new events instead of relying on polling.');
-assert.match(hermesRoutes, /router\.post\('\/gateway\/chat'/, 'Hermes should expose a REST chat endpoint for the bottom panel.');
+assert.match(hermesRoutes, /router\.post\('\/gateway\/chat'/, 'Hermes should still expose a REST chat endpoint for health checks and integrations.');
 assert.match(hermesRoutes, /install-status/, 'Hermes settings and terminal UI should have an install-status endpoint.');
 assert.match(hermesRoutes, /router\.post\('\/install'/, 'Hermes should install through the backend API instead of terminal command paste.');
 assert.match(read('scripts/smoke/hermes-api-install.mjs'), /hermes API install smoke passed/, 'Hermes API install behavior should have a focused smoke test.');
 assert.match(workbench, /terminalStartupInput/, 'Hermes terminal launch prompts should be passed into the selected CLI.');
 assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /startupInputRef/, 'Shell connections should support one-shot startup input for Hermes-triggered CLI work.');
+assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /isCliReadyForStartupInput/, 'Hermes-triggered CLI input should wait until the provider TUI is ready.');
+assert.doesNotMatch(read('src/components/shell/hooks/useShellConnection.ts'), /TERMINAL_INIT_DELAY_MS \* 3/, 'Hermes-triggered CLI input should not be sent on a blind fixed delay.');
+assert.match(shellTerminal, /handleTerminalPaste/, 'Terminal should support browser paste events.');
+assert.match(shellTerminal, /handleCopyPasteShortcut/, 'Terminal should normalize Ctrl/Cmd copy and paste shortcuts.');
+assert.match(shellTerminal, /event\.shiftKey/, 'Terminal should support Ctrl+Shift+C/V style shortcuts.');
+assert.match(shellTerminal, /copyTerminalSelection/, 'Terminal should copy selected terminal text through shortcuts.');
 assert.match(serverIndex, /forceNewSession/, 'Shell backend should support explicit fresh-session launches from the workbench.');
 assert.match(serverIndex, /killProviderPtySessions/, 'Shell backend should terminate old provider PTYs when a fresh CLI session is requested.');
 

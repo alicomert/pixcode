@@ -60,6 +60,13 @@ function readUserId(req: PixcodeRequest) {
   return req.user?.id ?? req.user?.userId ?? null;
 }
 
+function resolveHermesMcpBaseUrl() {
+  const configured = process.env.PIXCODE_INTERNAL_BASE_URL || process.env.PIXCODE_HERMES_BASE_URL;
+  if (configured) return configured.replace(/\/$/, '');
+
+  return `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`;
+}
+
 function readAfterId(req: Request) {
   const after = Number.parseInt(typeof req.query.after === 'string' ? req.query.after : '0', 10);
   return Number.isFinite(after) ? after : 0;
@@ -137,7 +144,7 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       const gateway = await ensureHermesGateway({
         appRoot: options.appRoot ?? process.cwd(),
         pixcodeApiKey: apiKey,
-        pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+        pixcodeBaseUrl: resolveHermesMcpBaseUrl(),
         projectPath: typeof body.projectPath === 'string' ? body.projectPath : undefined,
       });
       res.status(202).json(gateway);
@@ -172,7 +179,7 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
         await ensureHermesGateway({
           appRoot: options.appRoot ?? process.cwd(),
           pixcodeApiKey: apiKey,
-          pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+          pixcodeBaseUrl: resolveHermesMcpBaseUrl(),
           projectPath: projectPath ?? undefined,
         });
       }
@@ -224,8 +231,9 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       const gateway = await ensureHermesGateway({
         appRoot: options.appRoot ?? process.cwd(),
         pixcodeApiKey: apiKey,
-        pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+        pixcodeBaseUrl: resolveHermesMcpBaseUrl(),
         projectPath,
+        probeExisting: false,
       });
       const run = await runHermesGatewayPrompt(projectPath, {
         input,
@@ -272,7 +280,7 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       appRoot: options.appRoot ?? process.cwd(),
       force: Boolean(body.force),
       pixcodeApiKey: apiKey,
-      pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+      pixcodeBaseUrl: resolveHermesMcpBaseUrl(),
       skipBrowser: body.skipBrowser !== false,
     });
 

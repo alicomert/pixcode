@@ -39,6 +39,7 @@ const apiServerToolsetBlock = [
   '    - hermes-api-server',
   '    - pixcode',
 ].join('\n');
+const cliToolsets = ['hermes-cli', 'mcp-pixcode'];
 
 function findRootKeyEnd(lines, startIndex) {
   for (let index = startIndex + 1; index < lines.length; index += 1) {
@@ -106,9 +107,43 @@ function upsertPixcodeApiServerToolset(rawConfig) {
   return `${lines.join('\n').replace(/\s*$/, '')}\n`;
 }
 
+function readRootListValues(lines, startIndex, endIndex) {
+  const values = [];
+  for (let index = startIndex + 1; index < endIndex; index += 1) {
+    const match = lines[index].match(/^\s*-\s*([^#\s][^#]*?)(?:\s+#.*)?$/);
+    if (match) values.push(match[1].trim().replace(/^['"]|['"]$/g, ''));
+  }
+  return values;
+}
+
+function upsertRootListValues(rawConfig, key, values) {
+  const lines = rawConfig.split(/\r?\n/);
+  const keyPattern = new RegExp(`^${key}:\\s*(?:#.*)?$`);
+  const keyIndex = lines.findIndex((line) => keyPattern.test(line));
+
+  if (keyIndex === -1) {
+    const prefix = rawConfig.trim() ? `${rawConfig.replace(/\s*$/, '')}\n\n` : '';
+    return `${prefix}${key}:\n${values.map((value) => `- ${value}`).join('\n')}\n`;
+  }
+
+  const keyEnd = findRootKeyEnd(lines, keyIndex);
+  const existing = new Set(readRootListValues(lines, keyIndex, keyEnd));
+  const missing = values.filter((value) => !existing.has(value));
+  if (missing.length === 0) {
+    return `${lines.join('\n').replace(/\s*$/, '')}\n`;
+  }
+
+  lines.splice(keyEnd, 0, ...missing.map((value) => `- ${value}`));
+  return `${lines.join('\n').replace(/\s*$/, '')}\n`;
+}
+
 fs.mkdirSync(hermesHome, { recursive: true });
 const previous = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
-const next = upsertPixcodeApiServerToolset(upsertPixcodeMcpConfig(previous));
+const next = upsertRootListValues(
+  upsertPixcodeApiServerToolset(upsertPixcodeMcpConfig(previous)),
+  'toolsets',
+  cliToolsets,
+);
 
 if (previous !== next) {
   fs.writeFileSync(configPath, next);

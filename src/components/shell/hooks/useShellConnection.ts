@@ -11,6 +11,9 @@ const ANSI_ESCAPE_REGEX =
   /(?:\u001B\[[0-?]*[ -/]*[@-~]|\u009B[0-?]*[ -/]*[@-~]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)|\u009D[^\u0007\u009C]*(?:\u0007|\u009C)|\u001B[PX^_][^\u001B]*\u001B\\|[\u0090\u0098\u009E\u009F][^\u009C]*\u009C|\u001B[@-Z\\-_])/g;
 const PROCESS_EXIT_REGEX = /Process exited with code (\d+)/;
 const GLOBAL_PERMISSION_MODE_KEY = 'permissionMode-global';
+const STARTUP_INPUT_BUFFER_LIMIT = 12000;
+const STARTUP_INPUT_READY_DELAY_MS = 1400;
+const STARTUP_INPUT_FALLBACK_DELAY_MS = 6500;
 
 type ShellPermissionOptions = {
   permissionMode: string;
@@ -132,6 +135,47 @@ function readProviderShellPermissionOptions(provider: LLMProvider | 'plain-shell
   return { permissionMode: globalMode, skipPermissions: globalBypass };
 }
 
+function normalizeStartupInput(input: string) {
+  return /[\r\n]$/.test(input) ? input : `${input}\r`;
+}
+
+function resolveRuntimeProvider(
+  selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>,
+): LLMProvider {
+  return (selectedSessionRef.current?.__provider || window.localStorage.getItem('selected-provider') || 'claude') as LLMProvider;
+}
+
+function isCliReadyForStartupInput(provider: LLMProvider, outputBuffer: string) {
+  const clean = outputBuffer.replace(ANSI_ESCAPE_REGEX, '').toLowerCase();
+  if (!clean.trim()) return false;
+
+  if (provider === 'codex') {
+    return /openai codex|directory:\s|tip:\s+use \/init|model:\s/.test(clean);
+  }
+
+  if (provider === 'claude') {
+    return /claude code|welcome to claude|cwd:\s|try ['"]?\/init/.test(clean);
+  }
+
+  if (provider === 'gemini') {
+    return /gemini|type a message|ctrl\+/.test(clean);
+  }
+
+  if (provider === 'qwen') {
+    return /qwen code|qwen|type a message/.test(clean);
+  }
+
+  if (provider === 'opencode') {
+    return /opencode|model:\s|session/.test(clean);
+  }
+
+  if (provider === 'cursor') {
+    return /cursor|agent|model:\s/.test(clean);
+  }
+
+  return clean.length > 0;
+}
+
 export function useShellConnection({
   wsRef,
   terminalRef,
@@ -154,6 +198,53 @@ export function useShellConnection({
   const [isConnecting, setIsConnecting] = useState(false);
   const connectingRef = useRef(false);
   const manualDisconnectRef = useRef(false);
+  const startupInputSentRef = useRef(false);
+  const startupInputBufferRef = useRef('');
+  const startupInputTimerRef = useRef<number | null>(null);
+
+  const clearStartupInputTimer = useCallback(() => {
+    if (!startupInputTimerRef.current) return;
+    window.clearTimeout(startupInputTimerRef.current);
+    startupInputTimerRef.current = null;
+  }, []);
+
+  const scheduleStartupInput = useCallback((delayMs: number) => {
+    if (startupInputSentRef.current || startupInputTimerRef.current || isPlainShellRef.current) {
+      return;
+    }
+
+    startupInputTimerRef.current = window.setTimeout(() => {
+      startupInputTimerRef.current = null;
+      const startupInput = startupInputRef.current;
+      const socket = wsRef.current;
+      if (!startupInput || startupInputSentRef.current || isPlainShellRef.current || socket?.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      sendSocketMessage(socket, {
+        type: 'input',
+        data: normalizeStartupInput(startupInput),
+      });
+      startupInputSentRef.current = true;
+      startupInputRef.current = null;
+    }, delayMs);
+  }, [isPlainShellRef, startupInputRef, wsRef]);
+
+  const maybeSendStartupInput = useCallback((output: string) => {
+    if (!startupInputRef.current || startupInputSentRef.current || isPlainShellRef.current) {
+      return;
+    }
+
+    startupInputBufferRef.current = `${startupInputBufferRef.current}${output}`.slice(-STARTUP_INPUT_BUFFER_LIMIT);
+    const provider = resolveRuntimeProvider(selectedSessionRef);
+    if (isCliReadyForStartupInput(provider, startupInputBufferRef.current)) {
+      clearStartupInputTimer();
+      scheduleStartupInput(STARTUP_INPUT_READY_DELAY_MS);
+      return;
+    }
+
+    scheduleStartupInput(STARTUP_INPUT_FALLBACK_DELAY_MS);
+  }, [clearStartupInputTimer, isPlainShellRef, scheduleStartupInput, selectedSessionRef, startupInputRef]);
 
   const handleProcessCompletion = useCallback(
     (output: string) => {
@@ -192,6 +283,7 @@ export function useShellConnection({
       if (message.type === 'output') {
         const output = typeof message.data === 'string' ? message.data : '';
         handleProcessCompletion(output);
+        maybeSendStartupInput(output);
         const terminal = terminalRef.current;
         terminal?.write(output, () => {
           terminal.refresh(0, Math.max(0, terminal.rows - 1));
@@ -207,7 +299,7 @@ export function useShellConnection({
         }
       }
     },
-    [handleProcessCompletion, onOutputRef, setAuthUrl, terminalRef],
+    [handleProcessCompletion, maybeSendStartupInput, onOutputRef, setAuthUrl, terminalRef],
   );
 
   const connectWebSocket = useCallback(
@@ -249,6 +341,9 @@ export function useShellConnection({
               ? 'plain-shell'
               : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude') as LLMProvider;
             const permissionOptions = readProviderShellPermissionOptions(provider);
+            clearStartupInputTimer();
+            startupInputSentRef.current = false;
+            startupInputBufferRef.current = '';
 
             sendSocketMessage(socket, {
               type: 'init',
@@ -265,11 +360,8 @@ export function useShellConnection({
               skipPermissions: permissionOptions.skipPermissions,
             });
 
-            const startupInput = startupInputRef.current;
-            if (startupInput && !isPlainShellRef.current) {
-              window.setTimeout(() => {
-                sendSocketMessage(socket, { type: 'input', data: startupInput });
-              }, TERMINAL_INIT_DELAY_MS * 3);
+            if (startupInputRef.current && !isPlainShellRef.current) {
+              scheduleStartupInput(STARTUP_INPUT_FALLBACK_DELAY_MS);
             }
           }, TERMINAL_INIT_DELAY_MS);
         };
@@ -306,6 +398,8 @@ export function useShellConnection({
       isConnected,
       isConnecting,
       isPlainShellRef,
+      clearStartupInputTimer,
+      scheduleStartupInput,
       selectedProjectRef,
       selectedSessionRef,
       setAuthUrl,
@@ -331,12 +425,13 @@ export function useShellConnection({
       manualDisconnectRef.current = true;
     }
     closeSocket();
+    clearStartupInputTimer();
     clearTerminalScreen();
     setIsConnected(false);
     setIsConnecting(false);
     connectingRef.current = false;
     setAuthUrl('');
-  }, [clearTerminalScreen, closeSocket, setAuthUrl]);
+  }, [clearStartupInputTimer, clearTerminalScreen, closeSocket, setAuthUrl]);
 
   useEffect(() => {
     if (!autoConnect || manualDisconnectRef.current || !isInitialized || isConnecting || isConnected) {

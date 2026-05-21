@@ -1,8 +1,12 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
 
 const baseUrl = (process.env.PIXCODE_BASE_URL || '').replace(/\/$/, '');
 const apiKey = process.env.PIXCODE_API_KEY || '';
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const mcpServerPath = path.join(appRoot, 'scripts', 'hermes', 'pixcode-mcp-server.mjs');
 
 const tools = [
   {
@@ -133,6 +137,30 @@ async function pixcodeFetch(endpoint, options = {}) {
   return body;
 }
 
+async function readProviderStatus(provider) {
+  const body = await pixcodeFetch(`/api/providers/${encodeURIComponent(provider)}/auth/status?refresh=1`);
+  return body?.data ?? body;
+}
+
+async function ensureProviderPixcodeMcp(provider, projectPath) {
+  const body = await pixcodeFetch(`/api/providers/${encodeURIComponent(provider)}/mcp/servers`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: 'pixcode',
+      transport: 'stdio',
+      scope: 'project',
+      workspacePath: projectPath || process.cwd(),
+      command: process.execPath,
+      args: [mcpServerPath],
+      env: {
+        PIXCODE_BASE_URL: baseUrl,
+        PIXCODE_API_KEY: apiKey,
+      },
+    }),
+  });
+  return body?.data?.server ?? body?.server ?? body;
+}
+
 async function callTool(name, args = {}) {
   if (name === 'pixcode_list_projects') {
     const projects = await pixcodeFetch('/api/projects');
@@ -147,20 +175,50 @@ async function callTool(name, args = {}) {
 
   if (name === 'pixcode_get_provider_status') {
     const provider = String(args.provider || '');
-    const body = await pixcodeFetch(`/api/providers/${encodeURIComponent(provider)}/auth/status?refresh=1`);
-    return textResult(JSON.stringify(body?.data ?? body, null, 2));
+    const status = await readProviderStatus(provider);
+    return textResult(JSON.stringify(status, null, 2));
   }
 
   if (name === 'pixcode_open_cli_terminal') {
+    const provider = String(args.provider || '');
+    const projectPath = typeof args.projectPath === 'string' && args.projectPath.trim()
+      ? args.projectPath.trim()
+      : null;
+    const status = await readProviderStatus(provider);
+    if (status?.installed === false) {
+      return textResult(JSON.stringify({
+        launched: false,
+        provider,
+        reason: 'not_installed',
+        message: `${provider} CLI is not installed. Install it in Pixcode before launching a terminal.`,
+        status,
+      }, null, 2));
+    }
+
+    let mcpConfigured = false;
+    let mcpError = null;
+    try {
+      await ensureProviderPixcodeMcp(provider, projectPath);
+      mcpConfigured = true;
+    } catch (error) {
+      mcpError = error instanceof Error ? error.message : String(error);
+    }
+
     const body = await pixcodeFetch('/api/orchestration/hermes/terminal-launches', {
       method: 'POST',
       body: JSON.stringify({
-        provider: args.provider,
-        projectPath: args.projectPath || null,
+        provider,
+        projectPath,
         prompt: args.prompt || null,
       }),
     });
-    return textResult(JSON.stringify(body?.event ?? body, null, 2));
+    return textResult(JSON.stringify({
+      launched: true,
+      pixcodeMcpConfigured: mcpConfigured,
+      pixcodeMcpError: mcpError,
+      event: body?.event ?? body,
+      status,
+    }, null, 2));
   }
 
   if (name === 'pixcode_get_hermes_gateway_status') {

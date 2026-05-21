@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const apiKey = 'px_smoke_key';
 const seen = [];
+const providerMcpUpserts = [];
+const terminalLaunches = [];
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
@@ -50,6 +52,19 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/providers/qwen/auth/status') {
+    res.end(JSON.stringify({ data: { provider: 'qwen', installed: false, authenticated: false, error: 'Qwen Code CLI is not installed' } }));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/providers/codex/mcp/servers') {
+    const body = await readJson(req);
+    providerMcpUpserts.push(body);
+    res.statusCode = 201;
+    res.end(JSON.stringify({ data: { server: { provider: 'codex', name: body.name, scope: body.scope, transport: body.transport } } }));
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/orchestration/hermes/gateway/status') {
     res.end(JSON.stringify({ running: true, baseUrl: 'http://127.0.0.1:8642', projectPath: '/root/pixcode' }));
     return;
@@ -71,6 +86,7 @@ const server = createServer(async (req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/api/orchestration/hermes/terminal-launches') {
     const body = await readJson(req);
+    terminalLaunches.push(body);
     res.statusCode = 201;
     res.end(JSON.stringify({
       event: {
@@ -170,6 +186,17 @@ try {
     arguments: { provider: 'codex', projectPath: '/root/pixcode', prompt: 'smoke' },
   });
   assert.match(launch.content[0].text, /hermes-mcp/, 'terminal launch should roundtrip through Pixcode API');
+  assert.match(launch.content[0].text, /"pixcodeMcpConfigured": true/, 'terminal launch should configure Pixcode MCP for the selected provider first');
+  assert.equal(providerMcpUpserts.length, 1, 'Codex launch should upsert a project-scoped Pixcode MCP server');
+  assert.equal(providerMcpUpserts[0].name, 'pixcode', 'Provider MCP server should be named pixcode');
+
+  const blockedLaunch = await callMcp(child, 'tools/call', {
+    name: 'pixcode_open_cli_terminal',
+    arguments: { provider: 'qwen', projectPath: '/root/pixcode', prompt: 'smoke' },
+  });
+  assert.match(blockedLaunch.content[0].text, /"launched": false/, 'uninstalled providers should not create terminal launches');
+  assert.match(blockedLaunch.content[0].text, /"reason": "not_installed"/, 'uninstalled provider response should explain the block');
+  assert.equal(terminalLaunches.length, 1, 'Only the installed Codex provider should be launched');
 
   assert(seen.every((entry) => entry.auth === `Bearer ${apiKey}`), 'all MCP calls should use the Pixcode bearer key');
   console.log('hermes MCP Pixcode roundtrip smoke passed');

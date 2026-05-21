@@ -1,4 +1,5 @@
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -9,11 +10,14 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const projectPath = path.resolve(process.argv[2] || repoRoot);
+const hermesHome = process.env.PIXCODE_HERMES_LIVE_HOME
+  || path.join(os.tmpdir(), `pixcode-hermes-live-${process.getuid?.() ?? 'user'}`);
 
 try {
   const gateway = await ensureHermesGateway({
     appRoot: repoRoot,
     projectPath,
+    hermesHome,
     pixcodeBaseUrl: 'http://127.0.0.1:9',
     pixcodeApiKey: 'px_live_chat_smoke_key',
     port: Number(process.env.PIXCODE_HERMES_LIVE_CHAT_PORT || 18652),

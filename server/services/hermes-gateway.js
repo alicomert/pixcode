@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -51,6 +52,71 @@ function makeApiServerKey() {
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveSourceHermesHome(env = process.env) {
+    if (env.HERMES_HOME?.trim()) {
+        return path.resolve(env.HERMES_HOME);
+    }
+
+    const defaultHome = path.join(os.homedir(), '.hermes');
+    try {
+        const activeProfile = fs.readFileSync(path.join(defaultHome, 'active_profile'), 'utf8').trim();
+        if (activeProfile && activeProfile !== 'default' && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(activeProfile)) {
+            return path.join(defaultHome, 'profiles', activeProfile);
+        }
+    } catch {
+        // Default Hermes profile is fine when no sticky active profile exists.
+    }
+
+    return defaultHome;
+}
+
+function resolveHermesGatewayHome(env = process.env, options = {}) {
+    const configured = options.hermesHome || env.PIXCODE_HERMES_GATEWAY_HOME;
+    if (configured) {
+        return path.resolve(configured);
+    }
+
+    return path.join(os.homedir(), '.hermes', 'profiles', 'pixcode');
+}
+
+function copyHermesProfileFile(sourceHome, targetHome, fileName, options = {}) {
+    const source = path.join(sourceHome, fileName);
+    const target = path.join(targetHome, fileName);
+    if (!fs.existsSync(source)) return false;
+    if (!options.overwrite && fs.existsSync(target)) return false;
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+    return true;
+}
+
+function seedHermesGatewayHome({ sourceHome, targetHome, gateway }) {
+    fs.mkdirSync(targetHome, { recursive: true });
+    if (path.resolve(sourceHome) === path.resolve(targetHome)) {
+        appendGatewayLog(gateway, 'meta', `Using Hermes gateway profile at ${targetHome}\n`);
+        return;
+    }
+
+    const copied = [];
+    for (const file of ['config.yaml', 'SOUL.md']) {
+        if (copyHermesProfileFile(sourceHome, targetHome, file, { overwrite: false })) {
+            copied.push(file);
+        }
+    }
+    for (const file of ['.env', 'auth.json']) {
+        if (copyHermesProfileFile(sourceHome, targetHome, file, { overwrite: true })) {
+            copied.push(file);
+        }
+    }
+
+    appendGatewayLog(
+        gateway,
+        'meta',
+        copied.length > 0
+            ? `Seeded Pixcode Hermes gateway profile from ${sourceHome}: ${copied.join(', ')}\n`
+            : `Using Pixcode Hermes gateway profile at ${targetHome}\n`,
+    );
 }
 
 export function buildHermesGatewayEnv(baseEnv = process.env, options = {}) {
@@ -345,6 +411,7 @@ function snapshotGateway(gateway) {
             running: false,
             projectPath: null,
             baseUrl: null,
+            hermesHome: null,
             host: null,
             port: null,
             pid: null,
@@ -362,6 +429,7 @@ function snapshotGateway(gateway) {
         running: isGatewayRunning(gateway),
         projectPath: gateway.projectPath,
         baseUrl: gateway.baseUrl,
+        hermesHome: gateway.hermesHome,
         host: gateway.host,
         port: gateway.port,
         pid: gateway.child?.pid ?? null,
@@ -391,16 +459,24 @@ export async function ensureHermesGateway(options = {}) {
     const projectPath = normalizeProjectPath(options.projectPath);
     const existing = gateways.get(projectPath);
     if (isGatewayRunning(existing)) {
+        if (options.probeExisting !== true) {
+            return {
+                ...snapshotGateway(existing),
+                probe: existing.lastProbe,
+            };
+        }
+
         const probe = await probeHermesGateway(projectPath, { requireRunning: true }).catch((error) => ({
             ok: false,
             error: error instanceof Error ? error.message : String(error),
         }));
-        if (probe.ok) {
+        if (probe.ok || options.replaceUnhealthy !== true) {
             return {
                 ...snapshotGateway(existing),
                 probe,
             };
         }
+
         stopHermesGateway(projectPath);
     }
 
@@ -408,12 +484,15 @@ export async function ensureHermesGateway(options = {}) {
     const port = await findAvailablePort(Number(options.port || process.env.HERMES_API_SERVER_PORT || DEFAULT_PORT), host);
     const apiServerKey = options.apiServerKey || makeApiServerKey();
     const appRoot = options.appRoot || process.cwd();
+    const sourceHermesHome = options.sourceHermesHome || resolveSourceHermesHome(process.env);
+    const hermesHome = resolveHermesGatewayHome(process.env, options);
     const env = buildHermesGatewayEnv(process.env, {
         ...options,
         host,
         port,
         apiServerKey,
         appRoot,
+        hermesHome,
     });
     const installStatus = readHermesInstallStatus(env, {
         allowSmokeHermes: options.allowSmokeHermes === true,
@@ -429,6 +508,7 @@ export async function ensureHermesGateway(options = {}) {
         host,
         port,
         baseUrl: gatewayBaseUrl(host, port),
+        hermesHome,
         apiServerKey,
         command: installStatus.command,
         child: null,
@@ -442,6 +522,7 @@ export async function ensureHermesGateway(options = {}) {
     };
     gateways.set(projectPath, gateway);
 
+    seedHermesGatewayHome({ sourceHome: sourceHermesHome, targetHome: hermesHome, gateway });
     await configurePixcodeMcp({ appRoot, env, gateway });
 
     const gatewayArgs = options.gatewayArgs || ['gateway', 'run', '--replace'];

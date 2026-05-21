@@ -390,6 +390,34 @@ function resolvePublicBaseUrl(request) {
     return `${proto}://${String(host).split(',')[0].trim()}`;
 }
 
+function resolveHermesMcpBaseUrl() {
+    const configured = process.env.PIXCODE_INTERNAL_BASE_URL || process.env.PIXCODE_HERMES_BASE_URL;
+    if (configured) return configured.replace(/\/$/, '');
+
+    return `http://127.0.0.1:${process.env.SERVER_PORT || process.env.PORT || '3001'}`;
+}
+
+function quoteBashArg(value) {
+    return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+function quotePowerShellArg(value) {
+    return `"${String(value).replace(/`/g, '``').replace(/\$/g, '`$').replace(/"/g, '`"')}"`;
+}
+
+function isHermesCliCommand(command) {
+    return typeof command === 'string' && command.trim() === 'hermes';
+}
+
+function buildHermesCliCommand(command) {
+    const configureScript = path.join(APP_ROOT, 'scripts', 'hermes', 'configure-pixcode-mcp.mjs');
+    if (os.platform() === 'win32') {
+        return `& ${quotePowerShellArg(process.execPath)} ${quotePowerShellArg(configureScript)} *> $null; ${command}`;
+    }
+
+    return `${quoteBashArg(process.execPath)} ${quoteBashArg(configureScript)} >/dev/null 2>&1; exec ${command}`;
+}
+
 function getOrCreateHermesApiKey(userId) {
     if (!userId) return null;
 
@@ -2182,10 +2210,14 @@ function handleShellConnection(ws, request) {
                 const provider = data.provider || 'claude';
                 const initialCommand = data.initialCommand;
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
+                const isHermesCliLaunch = isPlainShell && isHermesCliCommand(initialCommand);
                 const forceNewSession = Boolean(data.forceNewSession);
                 const shellPermissionMode = normalizeShellPermissionMode(data.permissionMode);
                 const shellSkipPermissions = Boolean(data.skipPermissions);
                 const shellPermissionFlags = buildProviderShellPermissionFlags(provider, shellPermissionMode, shellSkipPermissions);
+                const hermesApiKey = isHermesCliLaunch
+                    ? getOrCreateHermesApiKey(request.user?.id ?? request.user?.userId ?? null)
+                    : null;
                 urlDetectionBuffer = '';
                 announcedAuthUrls.clear();
 
@@ -2314,7 +2346,9 @@ function handleShellConnection(ws, request) {
                     let shellCommand;
                     if (isPlainShell) {
                         // Plain shell mode without an initial command must stay interactive.
-                        shellCommand = initialCommand || null;
+                        shellCommand = isHermesCliLaunch
+                            ? buildHermesCliCommand(initialCommand)
+                            : initialCommand || null;
                     } else if (provider === 'cursor') {
                         const command = buildProviderShellCommand('cursor-agent', shellPermissionFlags);
                         if (hasSession && sessionId) {
@@ -2429,6 +2463,11 @@ function handleShellConnection(ws, request) {
                         TERM: 'xterm-256color',
                         COLORTERM: 'truecolor',
                         FORCE_COLOR: '3',
+                        ...(isHermesCliLaunch ? {
+                            PIXCODE_BASE_URL: resolveHermesMcpBaseUrl(),
+                            PIXCODE_API_KEY: hermesApiKey || '',
+                            PIXCODE_APP_ROOT: APP_ROOT,
+                        } : {}),
                     });
 
                     shellProcess = pty.spawn(shell, shellArgs, {

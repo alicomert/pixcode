@@ -96,7 +96,20 @@ export function useShellTerminal({
       nextTerminal.loadAddon(new WebLinksAddon());
     }
 
-    nextTerminal.open(terminalContainerRef.current);
+    const terminalContainer = terminalContainerRef.current;
+    nextTerminal.open(terminalContainer);
+
+    const sendClipboardTextToTerminal = (text: string) => {
+      if (!text) {
+        return false;
+      }
+
+      sendSocketMessage(wsRef.current, {
+        type: 'input',
+        data: text,
+      });
+      return true;
+    };
 
     const copyTerminalSelection = async () => {
       const selection = nextTerminal.getSelection();
@@ -118,6 +131,7 @@ export function useShellTerminal({
       }
 
       event.preventDefault();
+      event.stopPropagation();
 
       if (event.clipboardData) {
         event.clipboardData.setData('text/plain', selection);
@@ -127,7 +141,65 @@ export function useShellTerminal({
       void copyTextToClipboard(selection);
     };
 
-    terminalContainerRef.current.addEventListener('copy', handleTerminalCopy);
+    const handleTerminalPaste = (event: ClipboardEvent) => {
+      const pastedText = event.clipboardData?.getData('text/plain') || '';
+      if (!pastedText) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      sendClipboardTextToTerminal(pastedText);
+    };
+
+    const pasteFromNavigatorClipboard = async () => {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
+        return false;
+      }
+
+      try {
+        return sendClipboardTextToTerminal(await navigator.clipboard.readText());
+      } catch {
+        return false;
+      }
+    };
+
+    const handleCopyPasteShortcut = (event: KeyboardEvent) => {
+      if (event.type !== 'keydown' || event.altKey || (!event.ctrlKey && !event.metaKey)) {
+        return false;
+      }
+
+      const key = event.key?.toLowerCase();
+      if (key === 'c') {
+        if (!nextTerminal.hasSelection()) {
+          if (event.shiftKey) {
+            event.preventDefault();
+            event.stopPropagation();
+            return true;
+          }
+
+          return false;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        void copyTerminalSelection();
+        return true;
+      }
+
+      if (key === 'v') {
+        event.preventDefault();
+        event.stopPropagation();
+        void pasteFromNavigatorClipboard();
+        return true;
+      }
+
+      return false;
+    };
+
+    terminalContainer.addEventListener('copy', handleTerminalCopy);
+    terminalContainer.addEventListener('paste', handleTerminalPaste);
+    terminalContainer.addEventListener('keydown', handleCopyPasteShortcut, true);
 
     nextTerminal.attachCustomKeyEventHandler((event) => {
       const activeAuthUrl = isCodexLoginCommand(initialCommandRef.current)
@@ -150,39 +222,7 @@ export function useShellTerminal({
         return false;
       }
 
-      if (
-        event.type === 'keydown' &&
-        (event.ctrlKey || event.metaKey) &&
-        event.key?.toLowerCase() === 'c' &&
-        nextTerminal.hasSelection()
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        void copyTerminalSelection();
-        return false;
-      }
-
-      if (
-        event.type === 'keydown' &&
-        (event.ctrlKey || event.metaKey) &&
-        event.key?.toLowerCase() === 'v'
-      ) {
-        // Block native paste so data is only injected after clipboard-read resolves.
-        event.preventDefault();
-        event.stopPropagation();
-
-        if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
-          navigator.clipboard
-            .readText()
-            .then((text) => {
-              sendSocketMessage(wsRef.current, {
-                type: 'input',
-                data: text,
-              });
-            })
-            .catch(() => {});
-        }
-
+      if (handleCopyPasteShortcut(event)) {
         return false;
       }
 
@@ -234,11 +274,12 @@ export function useShellTerminal({
       }, TERMINAL_RESIZE_DELAY_MS);
     });
 
-    const terminalContainer = terminalContainerRef.current;
     resizeObserver.observe(terminalContainer);
 
     return () => {
       terminalContainer.removeEventListener('copy', handleTerminalCopy);
+      terminalContainer.removeEventListener('paste', handleTerminalPaste);
+      terminalContainer.removeEventListener('keydown', handleCopyPasteShortcut, true);
       resizeObserver.disconnect();
       if (resizeTimeoutRef.current !== null) {
         window.clearTimeout(resizeTimeoutRef.current);
