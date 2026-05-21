@@ -14,11 +14,14 @@ assert.match(service, /export async function probeHermesGateway/, 'Pixcode shoul
 assert.match(service, /export async function runHermesGatewayPrompt/, 'Pixcode should submit Hermes prompts through the managed REST gateway.');
 assert.match(service, /export function stopHermesGateway/, 'Pixcode should be able to stop a managed Hermes gateway process.');
 assert.match(service, /\/v1\/chat\/completions/, 'Hermes UI chat should use the documented OpenAI-compatible chat completions endpoint first.');
+assert.match(service, /\/v1\/responses/, 'Hermes UI chat should use the stateful OpenAI-compatible responses endpoint before legacy chat fallback.');
+assert.match(service, /transport:\s*'responses'/, 'Hermes REST responses should report their transport for terminal proof output.');
+assert.match(service, /gatewayArgs[\s\S]+\['gateway', 'run', '--replace'\]/, 'Pixcode should start Hermes gateway in replace mode so an existing gateway does not crash REST chat.');
 assert.match(service, /gatewayExitMessage/, 'Hermes gateway failures should include recent stderr/stdout instead of only exit code 1.');
 assert.match(service, /API_SERVER_ENABLED:\s*'true'/, 'Hermes gateway env should enable the API server.');
 assert.match(service, /API_SERVER_KEY/, 'Hermes gateway env should set a bearer key.');
 assert.match(service, /API_SERVER_PORT/, 'Hermes gateway env should choose a REST port.');
-assert.match(service, /spawn\(installStatus\.command,\s*\['gateway'\]/, 'Pixcode should start Hermes with `hermes gateway` for REST control.');
+assert.match(service, /spawn\(installStatus\.command,\s*gatewayArgs/, 'Pixcode should start Hermes with explicit gateway args for REST control.');
 assert.match(service, /\/health/, 'Gateway probe should call Hermes health.');
 assert.match(service, /\/v1\/capabilities/, 'Gateway probe should verify Hermes capabilities.');
 assert.match(service, /\/v1\/models/, 'Gateway probe should verify OpenAI-compatible model discovery.');

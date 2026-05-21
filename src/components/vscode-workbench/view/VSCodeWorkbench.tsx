@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
@@ -130,8 +130,19 @@ type HermesChatMessage = {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
+  detailLines?: string[];
   pending?: boolean;
   error?: boolean;
+};
+
+type HermesRestDetails = {
+  endpoint: string;
+  transport: string;
+  status: string;
+  httpStatus: string;
+  baseUrl: string;
+  responseId: string;
+  runId: string;
 };
 
 type WorkbenchCliProjectState = {
@@ -253,6 +264,35 @@ function extractHermesChatResponse(body: unknown) {
   if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
   if (typeof root?.error === 'string' && root.error.trim()) return root.error.trim();
   return '';
+}
+
+function extractHermesRestDetails(body: unknown, fallbackHttpStatus?: number): HermesRestDetails {
+  const root = asRecord(body);
+  const run = asRecord(root?.run);
+  const gateway = asRecord(root?.gateway);
+  return {
+    endpoint: typeof run?.endpoint === 'string' ? run.endpoint : '/v1/responses',
+    transport: typeof run?.transport === 'string' ? run.transport : 'responses',
+    status: typeof run?.status === 'string' ? run.status : (root?.ok === true ? 'completed' : 'unknown'),
+    httpStatus: String(
+      typeof run?.httpStatus === 'number'
+        ? run.httpStatus
+        : fallbackHttpStatus ?? 'unknown',
+    ),
+    baseUrl: typeof gateway?.baseUrl === 'string' ? gateway.baseUrl : '',
+    responseId: typeof run?.responseId === 'string' ? run.responseId : '',
+    runId: typeof run?.runId === 'string' ? run.runId : '',
+  };
+}
+
+function formatHermesRestProof(details: HermesRestDetails) {
+  return [
+    `REST POST ${details.endpoint} -> HTTP ${details.httpStatus}`,
+    `transport=${details.transport} status=${details.status}`,
+    details.responseId ? `response=${details.responseId}` : '',
+    details.runId ? `run=${details.runId}` : '',
+    details.baseUrl ? `gateway=${details.baseUrl}` : '',
+  ].filter(Boolean);
 }
 
 function isCodeEditorFile(value: unknown): value is CodeEditorFile {
@@ -2516,6 +2556,7 @@ function HermesApiChatPanel({
       id: assistantId,
       role: 'assistant',
       content: t('vscodeWorkbench.hermes.thinking', { defaultValue: 'Hermes is working through the REST gateway...' }),
+      detailLines: ['REST POST /v1/responses -> pending'],
       pending: true,
     };
 
@@ -2541,6 +2582,8 @@ function HermesApiChatPanel({
       const text = extractHermesChatResponse(body) || t('vscodeWorkbench.hermes.emptyResponse', {
         defaultValue: 'Hermes completed the run but did not return text.',
       });
+      const details = extractHermesRestDetails(body, response.status);
+      const detailLines = formatHermesRestProof(details);
 
       if (!response.ok) {
         throw new Error(text);
@@ -2548,7 +2591,7 @@ function HermesApiChatPanel({
 
       setMessages((current) => current.map((message) => (
         message.id === assistantId
-          ? { ...message, content: text, pending: false, error: false }
+          ? { ...message, content: text, detailLines, pending: false, error: false }
           : message
       )));
       setGatewayState('ready');
@@ -2577,49 +2620,12 @@ function HermesApiChatPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
-        {messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="max-w-lg text-center">
-              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded bg-emerald-500/15 text-sm font-semibold text-emerald-200">
-                H
-              </div>
-              <div className="mt-3 text-sm font-semibold text-gray-100">
-                {t('vscodeWorkbench.hermes.chatTitle', { defaultValue: 'Hermes Agent REST chat' })}
-              </div>
-              <p className="mt-2 text-xs leading-5 text-gray-400">
-                {t('vscodeWorkbench.hermes.chatDescription', {
-                  defaultValue: 'Ask Hermes to inspect this project, run Pixcode MCP tools, or launch a CLI through the visible right panel.',
-                })}
-              </p>
-            </div>
-          </div>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                'max-w-[88%] rounded-md border px-3 py-2 text-xs leading-5',
-                message.role === 'user'
-                  ? 'ml-auto border-blue-500/40 bg-blue-500/10 text-blue-50'
-                  : message.error
-                    ? 'border-red-500/40 bg-red-950/40 text-red-100'
-                    : 'border-gray-800 bg-gray-900 text-gray-100',
-              )}
-            >
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                {message.role === 'user'
-                  ? t('vscodeWorkbench.hermes.you', { defaultValue: 'You' })
-                  : t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })}
-              </div>
-              <div className="whitespace-pre-wrap break-words">
-                {message.pending && <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin text-emerald-300" />}
-                {message.content}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <HermesTerminalTranscript
+        messages={messages}
+        projectPath={projectPath}
+        scrollRef={scrollRef}
+        t={t}
+      />
 
       <div className="shrink-0 border-t border-gray-800 bg-gray-900/90 p-2">
         <div className="mb-2 flex items-center justify-between gap-2 text-[10px] text-gray-500">
@@ -2647,20 +2653,23 @@ function HermesApiChatPanel({
           </div>
         )}
         <div className="flex gap-2">
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                void sendMessage();
-              }
-            }}
-            rows={2}
-            className="min-h-12 flex-1 resize-none rounded border border-gray-700 bg-gray-950 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-600 focus:border-emerald-500"
-            placeholder={t('vscodeWorkbench.hermes.chatPlaceholder', { defaultValue: 'Ask Hermes to work in this project...' })}
-            disabled={isSending}
-          />
+          <div className="flex min-h-12 flex-1 overflow-hidden rounded border border-gray-700 bg-gray-950 focus-within:border-emerald-500">
+            <div className="select-none px-2 py-2 font-mono text-xs text-emerald-300">{'>'}</div>
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void sendMessage();
+                }
+              }}
+              rows={2}
+              className="min-h-12 flex-1 resize-none bg-transparent px-1 py-2 font-mono text-xs text-gray-100 outline-none placeholder:text-gray-600"
+              placeholder={t('vscodeWorkbench.hermes.chatPlaceholder', { defaultValue: 'Ask Hermes to work in this project...' })}
+              disabled={isSending}
+            />
+          </div>
           <button
             type="button"
             className="flex w-10 shrink-0 items-center justify-center rounded bg-emerald-600 text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-500"
@@ -2672,6 +2681,66 @@ function HermesApiChatPanel({
             {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonalIcon className="h-4 w-4" />}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function HermesTerminalTranscript({
+  messages,
+  projectPath,
+  scrollRef,
+  t,
+}: {
+  messages: HermesChatMessage[];
+  projectPath: string;
+  scrollRef: RefObject<HTMLDivElement>;
+  t: TFunction<'common'>;
+}) {
+  return (
+    <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto bg-gray-950 p-3 font-mono text-[12px] leading-5 text-gray-100">
+      <div className="space-y-2">
+        {messages.length === 0 && (
+          <div className="space-y-1 text-gray-500">
+            <div className="text-emerald-300">Hermes Agent REST terminal</div>
+            <div>{`workspace: ${projectPath}`}</div>
+            <div>REST POST /v1/responses - ready when the gateway starts</div>
+            <div>{t('vscodeWorkbench.hermes.chatDescription', {
+              defaultValue: 'Ask Hermes to inspect this project, run Pixcode MCP tools, or launch a CLI through the visible right panel.',
+            })}
+            </div>
+          </div>
+        )}
+        {messages.map((message) => (
+          <div key={message.id} className={cn('whitespace-pre-wrap break-words', message.error && 'text-red-200')}>
+            {message.role === 'user' ? (
+              <div>
+                <span className="text-emerald-300">pixcode@hermes</span>
+                <span className="text-gray-500">:</span>
+                <span className="text-blue-300">{projectPath}</span>
+                <span className="text-gray-500">$ </span>
+                <span className="text-gray-100">{message.content}</span>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {(message.detailLines?.length ? message.detailLines : ['REST POST /v1/responses -> complete']).map((line) => (
+                  <div key={line} className={message.error ? 'text-red-300' : 'text-emerald-300'}>
+                    {message.pending && line.includes('pending') && <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin" />}
+                    {line}
+                  </div>
+                ))}
+                <div className={message.error ? 'text-red-100' : 'text-gray-100'}>
+                  <span className={message.error ? 'text-red-300' : 'text-cyan-300'}>Hermes Agent</span>
+                  <span className="text-gray-500">: </span>
+                  {message.pending && !message.detailLines?.some((line) => line.includes('pending')) && (
+                    <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin text-emerald-300" />
+                  )}
+                  {message.content}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

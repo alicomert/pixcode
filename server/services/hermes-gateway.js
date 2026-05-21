@@ -173,6 +173,29 @@ function extractRunOutput(body) {
     return null;
 }
 
+function extractResponsesOutput(body) {
+    if (!body || typeof body !== 'object') return null;
+
+    const output = Array.isArray(body.output) ? body.output : [];
+    for (const item of output) {
+        if (!item || typeof item !== 'object') continue;
+        if (item.type === 'message' || item.role === 'assistant') {
+            const text = extractTextFromValue(item.content);
+            if (text) return text;
+        }
+        const text = extractTextFromValue(item.output_text)
+            || extractTextFromValue(item.text)
+            || extractTextFromValue(item.message)
+            || extractTextFromValue(item.output);
+        if (text) return text;
+    }
+
+    return extractTextFromValue(body.output_text)
+        || extractTextFromValue(body.message)
+        || extractTextFromValue(body.response)
+        || null;
+}
+
 function extractChatCompletionOutput(body) {
     if (!body || typeof body !== 'object') return null;
     const choices = Array.isArray(body.choices) ? body.choices : [];
@@ -241,6 +264,21 @@ function makeChatCompletionRequest(options) {
         model: options.model || 'hermes-agent',
         messages,
         stream: false,
+    };
+}
+
+function makeResponsesRequest(options) {
+    const input = String(options.input || '').trim();
+    return {
+        model: options.model || 'hermes-agent',
+        input,
+        instructions: options.instructions || [
+            'You are Hermes Agent running inside Pixcode.',
+            'Use Pixcode MCP tools when they help inspect projects, launch CLIs, or perform workspace actions.',
+            'Keep answers concise and include concrete next steps when work is blocked.',
+        ].join(' '),
+        conversation: options.sessionId || undefined,
+        store: true,
     };
 }
 
@@ -377,7 +415,10 @@ export async function ensureHermesGateway(options = {}) {
         apiServerKey,
         appRoot,
     });
-    const installStatus = readHermesInstallStatus(env);
+    const installStatus = readHermesInstallStatus(env, {
+        allowSmokeHermes: options.allowSmokeHermes === true,
+        repairLaunchers: options.repairLaunchers !== false,
+    });
     if (!installStatus.installed || !installStatus.command) {
         throw new Error(installStatus.error || 'Hermes Agent CLI is not installed.');
     }
@@ -403,14 +444,15 @@ export async function ensureHermesGateway(options = {}) {
 
     await configurePixcodeMcp({ appRoot, env, gateway });
 
-    const child = spawn(installStatus.command, ['gateway'], {
+    const gatewayArgs = options.gatewayArgs || ['gateway', 'run', '--replace'];
+    const child = spawn(installStatus.command, gatewayArgs, {
         cwd: projectPath,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
     });
     gateway.child = child;
-    appendGatewayLog(gateway, 'meta', `$ ${installStatus.command} gateway\n`);
+    appendGatewayLog(gateway, 'meta', `$ ${installStatus.command} ${gatewayArgs.join(' ')}\n`);
 
     child.stdout?.on('data', (buf) => appendGatewayLog(gateway, 'stdout', buf.toString()));
     child.stderr?.on('data', (buf) => appendGatewayLog(gateway, 'stderr', buf.toString()));
@@ -516,6 +558,46 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
         throw new Error('Hermes prompt is required.');
     }
 
+    const responsesRequest = makeResponsesRequest({ ...options, input });
+    const responseRun = await callGateway(gateway, '/v1/responses', {
+        method: 'POST',
+        body: JSON.stringify(responsesRequest),
+        timeoutMs: options.responsesTimeoutMs || options.timeoutMs || RUN_TIMEOUT_MS,
+    }).catch((error) => {
+        if (!isGatewayRunning(gateway)) {
+            throw new Error(gatewayExitMessage(gateway));
+        }
+        throw error;
+    });
+
+    if (!isGatewayRunning(gateway)) {
+        throw new Error(gatewayExitMessage(gateway));
+    }
+
+    if (responseRun.ok) {
+        const status = extractRunStatus(responseRun.body) || 'completed';
+        const message = extractResponsesOutput(responseRun.body);
+        return {
+            ok: status === 'completed' || status === 'succeeded',
+            projectPath: gateway.projectPath,
+            baseUrl: gateway.baseUrl,
+            sessionId: options.sessionId || responsesRequest.conversation || null,
+            runId: null,
+            responseId: responseRun.body?.id || null,
+            status,
+            message,
+            error: (status === 'completed' || status === 'succeeded') ? null : extractTextFromValue(responseRun.body?.error) || message || 'Hermes response failed.',
+            raw: responseRun.body,
+            transport: 'responses',
+            endpoint: '/v1/responses',
+            httpStatus: responseRun.status,
+        };
+    }
+
+    if (responseRun.status && responseRun.status !== 404 && responseRun.status !== 405) {
+        throw new Error(`Hermes /v1/responses failed with HTTP ${responseRun.status}: ${JSON.stringify(responseRun.body)}`);
+    }
+
     const chatRequest = makeChatCompletionRequest({ ...options, input });
     const chat = await callGateway(gateway, '/v1/chat/completions', {
         method: 'POST',
@@ -544,6 +626,8 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
             message,
             raw: chat.body,
             transport: 'chat.completions',
+            endpoint: '/v1/chat/completions',
+            httpStatus: chat.status,
         };
     }
 
@@ -584,6 +668,8 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
             message: extractRunOutput(create.body),
             raw: create.body,
             transport: 'runs',
+            endpoint: '/v1/runs',
+            httpStatus: create.status,
         };
     }
 
@@ -623,6 +709,8 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
         error: status === 'completed' ? null : extractTextFromValue(latest?.error) || message || 'Hermes run failed.',
         raw: latest,
         transport: 'runs',
+        endpoint: '/v1/runs',
+        httpStatus: create.status,
     };
 }
 

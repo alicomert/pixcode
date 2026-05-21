@@ -2,6 +2,29 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.10](https://github.com/alicomert/pixcode/compare/v1.49.9...v1.49.10) (2026-05-21)
+
+Pixcode 1.49.10 makes Hermes use the real REST gateway path with terminal-style output and blocks smoke-test launchers from being treated as installed Hermes.
+
+### Fixes
+
+* **hermes:** reject `Hermes Agent v0.0.0 smoke` launchers and avoid persisting temporary `HERMES_CLI_PATH` commands into user PATH shims.
+* **hermes:** start the gateway with `hermes gateway run --replace` so an existing Hermes gateway no longer crashes Pixcode REST chat with code 1.
+* **hermes:** send prompts through `/v1/responses` first, report the REST endpoint/status/transport back to the UI, then fall back to `/v1/chat/completions` and `/v1/runs`.
+* **workbench:** replace the Hermes bubble chat surface with a terminal-style REST transcript that shows the command prompt, endpoint, HTTP status, transport, and Hermes output.
+
+### Verification
+
+* `scripts/smoke/hermes-smoke-launcher-guard.mjs`
+* `scripts/smoke/hermes-rest-chat-api.mjs`
+* `scripts/smoke/hermes-rest-chat-live.mjs`
+* `scripts/smoke/hermes-rest-live.mjs`
+* `scripts/smoke/hermes-api-install.mjs`
+* `scripts/smoke/hermes-rest-gateway.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `node --input-type=module --eval "...selam..."`
+* `npm run typecheck`
+
 ## [1.49.9](https://github.com/alicomert/pixcode/compare/v1.49.8...v1.49.9) (2026-05-21)
 
 Pixcode 1.49.9 fixes the Hermes REST chat path and the Codex terminal crash introduced while removing the old Hermes shell sentinel.

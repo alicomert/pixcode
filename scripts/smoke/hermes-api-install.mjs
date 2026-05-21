@@ -29,6 +29,8 @@ assert.match(hermesInstallJobs, /formatHermesVersionOutput/, 'Hermes install sta
 assert.match(hermesInstallJobs, /repairHermesCommandLaunchers/, 'Hermes installer should repair stale or text launcher shims after install/status checks.');
 assert.match(hermesInstallJobs, /hermes\.cmd/, 'Windows Hermes repair should create or prefer a hermes.cmd shim so typing hermes does not open the Python launcher as text.');
 assert.match(hermesInstallJobs, /isUsableHermesCommand/, 'Hermes status should verify candidates before treating them as installed.');
+assert.match(hermesInstallJobs, /isHermesSmokeCommandOutput/, 'Hermes status must reject smoke-test launchers before treating Hermes as installed.');
+assert.match(hermesInstallJobs, /shouldRepairHermesLauncher/, 'Hermes status must not persist temporary HERMES_CLI_PATH launchers into user PATH shims.');
 assert.match(hermesInstallJobs, /export function buildHermesPathEnv/, 'Hermes should expose a PATH-only shell env helper so normal project terminals can run hermes after repair.');
 assert.match(hermesInstallJobs, /isWindowsEpermSpawnError/, 'Hermes install should recognize Windows spawn EPERM as a launcher failure.');
 assert.match(hermesInstallJobs, /windowsCmdFallbackCommand/, 'Hermes install should retry Windows PowerShell installer launches through cmd.exe without requiring elevation.');

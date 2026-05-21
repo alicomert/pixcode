@@ -144,8 +144,40 @@ function runHermesVersion(candidate, env) {
     }
 }
 
-export function isUsableHermesCommand(candidate, env = process.env) {
-    return runHermesVersion(candidate, buildHermesEnv(env)).ok;
+function isHermesSmokeCommandOutput(output) {
+    return /Hermes Agent v0\.0\.0\s+smoke/i.test(String(output || ''))
+        || /pixcode-hermes-(?:chat-api|smoke)/i.test(String(output || ''));
+}
+
+function isExplicitHermesCliPath(candidate, env = process.env) {
+    if (!candidate || !env.HERMES_CLI_PATH || !path.isAbsolute(candidate)) return false;
+    try {
+        return path.resolve(candidate) === path.resolve(env.HERMES_CLI_PATH);
+    } catch {
+        return false;
+    }
+}
+
+function isTemporaryHermesLauncher(candidate) {
+    if (!candidate || !path.isAbsolute(candidate)) return false;
+    const normalized = path.resolve(candidate);
+    const tempRoot = path.resolve(os.tmpdir());
+    return normalized === tempRoot || normalized.startsWith(`${tempRoot}${path.sep}`);
+}
+
+function shouldRepairHermesLauncher(command, env = process.env, options = {}) {
+    if (options.repairLaunchers === false) return false;
+    if (!command || command === 'hermes') return false;
+    if (isExplicitHermesCliPath(command, env)) return false;
+    if (isTemporaryHermesLauncher(command)) return false;
+    return true;
+}
+
+export function isUsableHermesCommand(candidate, env = process.env, options = {}) {
+    const result = runHermesVersion(candidate, buildHermesEnv(env));
+    if (!result.ok) return false;
+    if (!options.allowSmokeHermes && isHermesSmokeCommandOutput(result.output)) return false;
+    return true;
 }
 
 function isHermesPythonLauncher(candidate) {
@@ -313,8 +345,9 @@ export function hermesCommandCandidates(env = process.env) {
     return [...new Set(candidates.filter(Boolean))];
 }
 
-export function readHermesInstallStatus(env = process.env) {
+export function readHermesInstallStatus(env = process.env, options = {}) {
     const hermesEnv = buildHermesEnv(env);
+    const rejected = [];
 
     for (const candidate of hermesCommandCandidates(hermesEnv)) {
         const isBareCommand = candidate === 'hermes';
@@ -324,8 +357,16 @@ export function readHermesInstallStatus(env = process.env) {
 
         const result = runHermesVersion(candidate, hermesEnv);
         if (result.ok) {
-            repairHermesCommandLaunchers(candidate, hermesEnv);
             const version = formatHermesVersionOutput(result.output);
+            if (!options.allowSmokeHermes && isHermesSmokeCommandOutput(result.output)) {
+                rejected.push(`${candidate} (${version || 'smoke-test Hermes launcher'})`);
+                continue;
+            }
+
+            if (shouldRepairHermesLauncher(candidate, hermesEnv, options)) {
+                repairHermesCommandLaunchers(candidate, hermesEnv);
+            }
+
             return {
                 installed: true,
                 command: candidate,
@@ -339,7 +380,9 @@ export function readHermesInstallStatus(env = process.env) {
         installed: false,
         command: null,
         version: null,
-        error: 'Hermes Agent CLI is not installed or is not on PATH.',
+        error: rejected.length > 0
+            ? `Only smoke-test Hermes launchers were found and rejected: ${rejected.join(', ')}. Install or repair Hermes Agent.`
+            : 'Hermes Agent CLI is not installed or is not on PATH.',
     };
 }
 

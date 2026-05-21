@@ -67,6 +67,9 @@ assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selecte
 assert.doesNotMatch(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should not launch from the bottom terminal through a server-side sentinel.');
 assert.match(workbench, /HermesApiChatPanel/, 'Hermes Agent should render a REST-backed chat panel in the bottom area.');
 assert.match(workbench, /\/api\/orchestration\/hermes\/gateway\/chat/, 'Hermes chat panel should send prompts through the Pixcode gateway chat API.');
+assert.match(workbench, /HermesTerminalTranscript/, 'Hermes REST panel should render as a terminal transcript, not chat bubbles.');
+assert.match(workbench, /REST POST \//, 'Hermes terminal transcript should show the REST endpoint used for each reply.');
+assert.doesNotMatch(workbench, /ml-auto border-blue-500\/40 bg-blue-500\/10/, 'Hermes REST panel must not use right-aligned chat bubbles.');
 assert.match(workbench, /terminal-launches\/stream/, 'Hermes CLI launch requests should arrive through an EventSource stream.');
 assert.doesNotMatch(workbench, /HERMES_TERMINAL_LAUNCH_POLL_MS|setInterval\([\s\S]*terminal-launches/, 'Hermes CLI launch requests should not be polled every few seconds.');
 assert.doesNotMatch(workbench, /Project-scoped agent terminal\. Installs Hermes when missing/, 'Right CLI panel should not show the old Hermes card.');

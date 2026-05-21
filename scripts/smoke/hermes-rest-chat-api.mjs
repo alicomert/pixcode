@@ -69,6 +69,26 @@ const server = http.createServer(async (req, res) => {
     }));
     return;
   }
+  if (req.method === 'POST' && url.pathname === '/v1/responses') {
+    let body = '';
+    for await (const chunk of req) body += chunk.toString();
+    const parsed = body ? JSON.parse(body) : {};
+    res.end(JSON.stringify({
+      id: 'resp-smoke',
+      object: 'response',
+      status: 'completed',
+      model: parsed.model || 'hermes-agent',
+      output: [{
+        type: 'message',
+        role: 'assistant',
+        content: [{
+          type: 'output_text',
+          text: \`pixcode-hermes-rest-ok via \${parsed.model}\`,
+        }],
+      }],
+    }));
+    return;
+  }
   res.statusCode = 404;
   res.end(JSON.stringify({ error: url.pathname }));
 });
@@ -85,6 +105,8 @@ try {
     pixcodeBaseUrl: 'http://127.0.0.1:9',
     pixcodeApiKey: 'px_chat_api_smoke_key',
     port: 18752,
+    allowSmokeHermes: true,
+    repairLaunchers: false,
   });
   if (!gateway.running || !gateway.probe?.ok) {
     throw new Error(`Fake Hermes gateway did not start cleanly: ${JSON.stringify(gateway)}`);
@@ -94,8 +116,8 @@ try {
     input: 'selam',
     timeoutMs: 10000,
   });
-  if (!run.ok || run.transport !== 'chat.completions' || !String(run.message || '').includes('pixcode-hermes-chat-ok')) {
-    throw new Error(`Hermes REST chat did not use chat completions: ${JSON.stringify(run)}`);
+  if (!run.ok || run.transport !== 'responses' || !String(run.message || '').includes('pixcode-hermes-rest-ok')) {
+    throw new Error(`Hermes REST chat did not use responses: ${JSON.stringify(run)}`);
   }
 
   console.log(JSON.stringify({
