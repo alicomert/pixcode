@@ -484,7 +484,7 @@ function buildHermesShellCommand(kind, env) {
         if (kind === 'pixcode:hermes:install') {
             return `${setEnv}; ${resolveHermesCommand}; ${configure}; ${installHermesIfMissing}; Install-HermesIfMissing; Invoke-PixcodeHermesConfigure`;
         }
-        return `${setEnv}; ${resolveHermesCommand}; ${configure}; ${installHermesIfMissing}; Install-HermesIfMissing; Invoke-PixcodeHermesConfigure; & $script:HermesCmd`;
+        return `${setEnv}; ${resolveHermesCommand}; ${configure}; ${installHermesIfMissing}; Install-HermesIfMissing; Write-Host "Hermes Agent is starting..."; Invoke-PixcodeHermesConfigure; & $script:HermesCmd chat`;
     }
 
     const setEnv = [
@@ -516,7 +516,7 @@ function buildHermesShellCommand(kind, env) {
     if (kind === 'pixcode:hermes:install') {
         return `${setEnv} sh -lc ${quote(`${resolveHermesCommand} ${installHermesIfMissing} installHermesIfMissing && { node ${shellQuotePosix(configureScript)} || echo "Pixcode MCP configure failed; continuing."; }`)}`;
     }
-    return `${setEnv} sh -lc ${quote(`${resolveHermesCommand} ${installHermesIfMissing} installHermesIfMissing && { node ${shellQuotePosix(configureScript)} || echo "Pixcode MCP configure failed; starting Hermes anyway."; } && "$HERMES_CMD"`)}`;
+    return `${setEnv} sh -lc ${quote(`${resolveHermesCommand} ${installHermesIfMissing} installHermesIfMissing && printf "Hermes Agent is starting...\\n" && { node ${shellQuotePosix(configureScript)} || echo "Pixcode MCP configure failed; starting Hermes anyway."; } && exec "$HERMES_CMD" chat`)}`;
 }
 
 // Single WebSocket server that handles both paths

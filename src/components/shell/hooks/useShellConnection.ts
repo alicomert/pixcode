@@ -260,7 +260,7 @@ export function useShellConnection({
               rows: currentTerminal.rows,
               initialCommand: initialCommandRef.current,
               isPlainShell: isPlainShellRef.current,
-              forceNewSession: !isPlainShellRef.current && forceNewSessionRef.current,
+              forceNewSession: forceNewSessionRef.current,
               permissionMode: permissionOptions.permissionMode,
               skipPermissions: permissionOptions.skipPermissions,
             });

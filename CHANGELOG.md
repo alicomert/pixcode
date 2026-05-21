@@ -2,6 +2,25 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.7](https://github.com/alicomert/pixcode/compare/v1.49.6...v1.49.7) (2026-05-21)
+
+Pixcode 1.49.7 fixes the Hermes and right-side CLI terminal regressions found in the live VS Code-style workbench.
+
+### Fixes
+
+* **hermes:** start the explicit interactive `hermes chat` entrypoint and print an immediate startup line so the bottom terminal no longer looks dead while Hermes initializes.
+* **hermes:** make the Hermes new-session action request a fresh backend PTY instead of reconnecting to a stale blank session.
+* **cli:** remove the Hermes-related auto-connect suspension that made Codex/Gemini/Qwen/OpenCode starts fall back to the two-step "Continue in shell" overlay.
+* **cli:** restore a persistent close button in the right CLI terminal toolbar so users can return to the CLI picker without relying on the inner shell header.
+
+### Verification
+
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/hermes-api-install.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `npm run typecheck`
+* `npm run lint`
+
 ## [1.49.6](https://github.com/alicomert/pixcode/compare/v1.49.5...v1.49.6) (2026-05-21)
 
 Pixcode 1.49.6 makes Hermes testable and usable through a managed REST gateway instead of trusting terminal-only launch behavior.

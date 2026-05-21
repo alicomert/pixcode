@@ -416,6 +416,7 @@ function VSCodeWorkbench({
   const [isBottomTerminalOpen, setIsBottomTerminalOpen] = useState(false);
   const [bottomTerminalMode, setBottomTerminalMode] = useState<WorkbenchBottomTerminalMode>('shell');
   const [bottomTerminalRunId, setBottomTerminalRunId] = useState(0);
+  const [bottomTerminalForceNewSession, setBottomTerminalForceNewSession] = useState(false);
   const [bottomTerminalHeight, setBottomTerminalHeight] = useState(BOTTOM_TERMINAL_DEFAULT_HEIGHT);
   const [isBottomTerminalMinimized, setIsBottomTerminalMinimized] = useState(false);
   const [hermesCliLaunch, setHermesCliLaunch] = useState<HermesTerminalLaunchEvent | null>(null);
@@ -627,8 +628,9 @@ function VSCodeWorkbench({
     });
   }, []);
 
-  const openBottomTerminal = useCallback((mode: WorkbenchBottomTerminalMode) => {
+  const openBottomTerminal = useCallback((mode: WorkbenchBottomTerminalMode, options: { forceNewSession?: boolean } = {}) => {
     setBottomTerminalMode(mode);
+    setBottomTerminalForceNewSession(Boolean(options.forceNewSession));
     setIsBottomTerminalOpen(true);
     setIsBottomTerminalMinimized(false);
     setBottomTerminalRunId((current) => current + 1);
@@ -932,6 +934,15 @@ function VSCodeWorkbench({
 
     openBottomTerminal('hermes');
   }, [hermesInstallStatus?.installed, openBottomTerminal, selectedProject, setActiveTab, sidebarProps, startHermesApiInstall]);
+
+  const startNewHermesSession = useCallback(() => {
+    if (hermesInstallStatus?.installed !== true) {
+      void startHermesApiInstall({ startAfterInstall: true });
+      return;
+    }
+
+    openBottomTerminal('hermes', { forceNewSession: true });
+  }, [hermesInstallStatus?.installed, openBottomTerminal, startHermesApiInstall]);
 
   const installHermesAgent = useCallback(() => {
     void startHermesApiInstall({ force: true });
@@ -1315,7 +1326,6 @@ function VSCodeWorkbench({
         project={selectedProject}
         session={selectedSession}
         hermesCliLaunch={hermesCliLaunch}
-        suspendAutoConnect={isHermesBottomTerminalActive && !hermesCliLaunch}
         onSessionSelect={sidebarProps.onSessionSelect}
         t={t}
       />
@@ -1457,13 +1467,14 @@ function VSCodeWorkbench({
                 hermesInstallStatus={hermesInstallStatus}
                 hermesInstallJob={hermesInstallJob}
                 runId={bottomTerminalRunId}
+                forceNewSession={bottomTerminalForceNewSession}
                 height={bottomTerminalHeight}
                 isMinimized={isBottomTerminalMinimized}
                 isActive
                 onResizeStart={(event) => startResize('bottom', event)}
                 onMinimize={() => setIsBottomTerminalMinimized(true)}
                 onRestore={() => setIsBottomTerminalMinimized(false)}
-                onStartHermes={openHermesAgent}
+                onStartHermes={startNewHermesSession}
                 onInstallHermes={installHermesAgent}
                 onClose={() => setIsBottomTerminalOpen(false)}
                 t={t}
@@ -2165,6 +2176,7 @@ function WorkbenchBottomTerminal({
   hermesInstallStatus,
   hermesInstallJob,
   runId,
+  forceNewSession,
   height,
   isMinimized,
   isActive,
@@ -2181,6 +2193,7 @@ function WorkbenchBottomTerminal({
   hermesInstallStatus: HermesInstallStatus | null;
   hermesInstallJob: HermesInstallJobState;
   runId: number;
+  forceNewSession: boolean;
   height: number;
   isMinimized: boolean;
   isActive: boolean;
@@ -2302,7 +2315,7 @@ function WorkbenchBottomTerminal({
               session={null}
               command={command}
               isPlainShell
-              forceNewSession={false}
+              forceNewSession={mode === 'hermes' ? forceNewSession : false}
               showHeader={false}
               autoConnect={Boolean(project)}
               isActive={isActive}
@@ -2650,14 +2663,12 @@ function WorkbenchCliPanel({
   project,
   session,
   hermesCliLaunch,
-  suspendAutoConnect,
   onSessionSelect,
   t,
 }: {
   project: Project | null;
   session: ProjectSession | null;
   hermesCliLaunch: HermesTerminalLaunchEvent | null;
-  suspendAutoConnect: boolean;
   onSessionSelect: (session: ProjectSession) => void;
   t: TFunction<'common'>;
 }) {
@@ -2692,7 +2703,7 @@ function WorkbenchCliPanel({
   const sessionForShell = terminalSession?.__provider === selectedProvider ? terminalSession : null;
   const activeHistorySessionId = terminalSession?.id ?? session?.id ?? null;
   const canStartSelectedProvider = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
-  const canAutoConnect = Boolean(!suspendAutoConnect && isTerminalOpen && terminalMode === 'provider' && canStartSelectedProvider);
+  const canAutoConnect = Boolean(isTerminalOpen && terminalMode === 'provider' && canStartSelectedProvider);
   const projectCliStateKey = useMemo(() => getProjectCliStateKey(project), [project]);
   const lastRestoredProjectKeyRef = useRef<string | null>(null);
   const lastHermesCliLaunchIdRef = useRef(0);
@@ -3003,6 +3014,7 @@ function WorkbenchCliPanel({
           canStart={canStartSelectedProvider}
           onToggleHistory={() => setShowHistory((previous) => !previous)}
           onNewSession={openNewCliSessionPicker}
+          onCloseTerminal={closeTerminal}
           t={t}
         />
 
@@ -3222,6 +3234,7 @@ function WorkbenchCliPanelToolbar({
   canStart,
   onToggleHistory,
   onNewSession,
+  onCloseTerminal,
   t,
 }: {
   project: Project | null;
@@ -3232,6 +3245,7 @@ function WorkbenchCliPanelToolbar({
   canStart: boolean;
   onToggleHistory: () => void;
   onNewSession: () => void;
+  onCloseTerminal: () => void;
   t: TFunction<'common'>;
 }) {
   return (
@@ -3278,6 +3292,15 @@ function WorkbenchCliPanelToolbar({
           aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
         >
           <Plus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800"
+          onClick={onCloseTerminal}
+          title={t('vscodeWorkbench.cli.closeTerminal', { defaultValue: 'Close CLI terminal' })}
+          aria-label={t('vscodeWorkbench.cli.closeTerminal', { defaultValue: 'Close CLI terminal' })}
+        >
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

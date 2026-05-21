@@ -56,6 +56,8 @@ assert.match(workbench, /WorkbenchCliPanel/, 'Right workbench panel should rende
 assert.match(workbench, /setIsTerminalOpen\(true\)/, 'CLI picker should give way to a full-height terminal after the user starts a provider.');
 assert.match(workbench, /onClose=\{closeTerminal\}/, 'Closing the workbench terminal should return to the CLI picker.');
 assert.match(workbench, /WorkbenchCliPanelToolbar/, 'CLI terminal should keep history and new-session actions visible.');
+assert.match(workbench, /onCloseTerminal=\{closeTerminal\}/, 'CLI terminal toolbar should keep a close button that returns to provider selection.');
+assert.match(workbench, /vscodeWorkbench\.cli\.closeTerminal/, 'CLI terminal close action should have a dedicated accessible label.');
 assert.match(workbench, /WORKBENCH_CLI_STATE_STORAGE_KEY/, 'CLI terminal should remember per-project open state across workspace switches.');
 assert.match(workbench, /function WorkbenchBottomTerminal/, 'Terminal activity should render as a bottom plain-shell panel.');
 assert.match(workbench, /BOTTOM_TERMINAL_MIN_HEIGHT/, 'Bottom terminal should support height resizing.');
@@ -74,9 +76,13 @@ assert.match(themeContext, /return true;/, 'Pixcode should default new installs 
 assert.match(workbench, /openNewCliSessionPicker/, 'CLI terminal plus should return to provider selection before starting a fresh session.');
 assert.match(workbench, /terminateCurrentCliSession\(selectedProvider\)/, 'CLI terminal plus should terminate the existing provider PTY before showing selection.');
 assert.match(workbench, /forceNewSession=\{terminalLaunch\.forceNewSession\}/, 'Fresh CLI sessions should bypass the cached default PTY.');
+assert.doesNotMatch(workbench, /suspendAutoConnect/, 'Right CLI provider starts should auto-connect directly instead of showing the shell continue overlay.');
 assert.match(serverIndex, /\/api\/shell\/sessions\/terminate/, 'Backend should expose an authenticated endpoint to terminate cached provider PTYs immediately.');
 assert.match(serverIndex, /isPlainShell && !initialCommand/, 'Backend should spawn an interactive plain shell when no terminal command is provided.');
 assert.match(serverIndex, /pixcode:hermes:start/, 'Backend should expand Hermes terminal sentinels on the server host.');
+assert.match(serverIndex, /Hermes Agent is starting/, 'Hermes terminal should show an immediate startup line before the interactive app draws.');
+assert.match(serverIndex, /"\$HERMES_CMD" chat/, 'POSIX Hermes terminal should start the interactive chat command explicitly.');
+assert.match(serverIndex, /& \$script:HermesCmd chat/, 'Windows Hermes terminal should start the interactive chat command explicitly.');
 assert.doesNotMatch(serverIndex, /iex \(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)/, 'Windows Hermes install should avoid the old inline iex pattern.');
 assert.doesNotMatch(serverIndex, /scriptblock\]::Create\(\(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)\)/, 'Windows Hermes install should avoid scriptblock Invoke-RestMethod eval patterns.');
 assert.match(serverIndex, /Invoke-WebRequest[\s\S]+install\.ps1[\s\S]+-OutFile/, 'Windows Hermes install should download the installer to a file before running it.');
