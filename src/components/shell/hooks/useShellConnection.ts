@@ -5,6 +5,7 @@ import type { Terminal } from '@xterm/xterm';
 
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import { TERMINAL_INIT_DELAY_MS } from '../constants/constants';
+import type { ShellPermissionOverride } from '../types/types';
 import { getShellWebSocketUrl, parseShellMessage, sendSocketMessage } from '../utils/socket';
 
 const ANSI_ESCAPE_REGEX =
@@ -30,6 +31,7 @@ type UseShellConnectionOptions = {
   isPlainShellRef: MutableRefObject<boolean>;
   forceNewSessionRef: MutableRefObject<boolean>;
   startupInputRef: MutableRefObject<string | null | undefined>;
+  permissionOverrideRef: MutableRefObject<ShellPermissionOverride | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
@@ -135,6 +137,27 @@ function readProviderShellPermissionOptions(provider: LLMProvider | 'plain-shell
   return { permissionMode: globalMode, skipPermissions: globalBypass };
 }
 
+function resolveShellPermissionOptions(
+  provider: LLMProvider | 'plain-shell',
+  override: ShellPermissionOverride | null | undefined,
+): ShellPermissionOptions {
+  const configured = readProviderShellPermissionOptions(provider);
+  if (!override) {
+    return configured;
+  }
+
+  const requestedMode = typeof override.permissionMode === 'string' && override.permissionMode.trim()
+    ? override.permissionMode.trim()
+    : '';
+  const permissionMode = requestedMode || (override.skipPermissions ? 'bypassPermissions' : configured.permissionMode);
+  const permissionImpliesBypass = permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo';
+
+  return {
+    permissionMode,
+    skipPermissions: Boolean(override.skipPermissions) || configured.skipPermissions || permissionImpliesBypass,
+  };
+}
+
 function normalizeStartupInput(input: string) {
   return /[\r\n]$/.test(input) ? input : `${input}\r`;
 }
@@ -186,6 +209,7 @@ export function useShellConnection({
   isPlainShellRef,
   forceNewSessionRef,
   startupInputRef,
+  permissionOverrideRef,
   onProcessCompleteRef,
   isInitialized,
   autoConnect,
@@ -340,7 +364,7 @@ export function useShellConnection({
             const provider = isPlainShellRef.current
               ? 'plain-shell'
               : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude') as LLMProvider;
-            const permissionOptions = readProviderShellPermissionOptions(provider);
+            const permissionOptions = resolveShellPermissionOptions(provider, permissionOverrideRef.current);
             clearStartupInputTimer();
             startupInputSentRef.current = false;
             startupInputBufferRef.current = '';
@@ -398,6 +422,7 @@ export function useShellConnection({
       isConnected,
       isConnecting,
       isPlainShellRef,
+      permissionOverrideRef,
       clearStartupInputTimer,
       scheduleStartupInput,
       selectedProjectRef,

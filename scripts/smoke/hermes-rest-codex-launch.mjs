@@ -71,6 +71,10 @@ const server = createServer(async (req, res) => {
       provider: body.provider,
       projectPath: body.projectPath,
       prompt: body.prompt,
+      startupInput: body.startupInput,
+      permissionMode: body.permissionMode,
+      skipPermissions: Boolean(body.skipPermissions),
+      bypassPermissions: Boolean(body.bypassPermissions),
       source: 'hermes-mcp',
       createdAt: new Date().toISOString(),
     };
@@ -149,7 +153,7 @@ try {
   });
   assert.equal(gateway.running, true, 'Hermes REST gateway should be running before /v1/runs');
 
-  const codexPrompt = 'Pixcode Hermes REST smoke: create HERMES_CODEX_REST_SMOKE.txt with the text "Hermes launched Codex through Pixcode MCP".';
+  const codexTask = 'Pixcode Hermes REST smoke: create HERMES_CODEX_REST_SMOKE.txt with the text "Hermes launched Codex through Pixcode MCP", then report the changed file path.';
   const { response, body } = await gatewayFetch(gateway.baseUrl, '/v1/runs', {
     method: 'POST',
     body: JSON.stringify({
@@ -157,10 +161,10 @@ try {
       instructions: [
         'You are testing Pixcode integration.',
         'Use the MCP tool named mcp_pixcode_pixcode_open_cli_terminal exactly once.',
-        'Call it with provider="codex", the supplied projectPath, and the supplied prompt.',
+        'Call it with provider="codex", the supplied projectPath, startupInput equal to the supplied task, prompt="Pixcode Hermes REST smoke visible Codex task", and bypassPermissions=true.',
         'After the tool call, answer with "codex launch requested".',
       ].join(' '),
-      input: `Call mcp_pixcode_pixcode_open_cli_terminal with provider codex, projectPath ${JSON.stringify(projectPath)}, and prompt ${JSON.stringify(codexPrompt)}.`,
+      input: `Call mcp_pixcode_pixcode_open_cli_terminal with provider codex, projectPath ${JSON.stringify(projectPath)}, startupInput ${JSON.stringify(codexTask)}, prompt "Pixcode Hermes REST smoke visible Codex task", and bypassPermissions true.`,
     }),
   });
   if (!response.ok || !body?.run_id) {
@@ -172,8 +176,11 @@ try {
     throw new Error(`Hermes /v1/runs failed: ${status.error || JSON.stringify(status)}`);
   }
 
-  const launch = terminalLaunches.find((event) => event.provider === 'codex' && event.prompt === codexPrompt);
+  const launch = terminalLaunches.find((event) => event.provider === 'codex' && event.startupInput === codexTask);
   assert(launch, `Hermes run completed but did not request Codex launch. Launches: ${JSON.stringify(terminalLaunches)}`);
+  assert.equal(launch.bypassPermissions, true, 'Hermes Codex launch should request provider permission bypass.');
+  assert.equal(launch.skipPermissions, true, 'Hermes Codex launch should carry skipPermissions for providers that use skip flags.');
+  assert.equal(launch.permissionMode, 'bypassPermissions', 'Hermes Codex launch should use bypassPermissions mode.');
   console.log(JSON.stringify({
     ok: true,
     runId: body.run_id,

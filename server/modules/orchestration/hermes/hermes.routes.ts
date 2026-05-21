@@ -30,6 +30,9 @@ type HermesTerminalLaunchEvent = {
   projectPath: string | null;
   prompt: string | null;
   startupInput: string | null;
+  permissionMode: string | null;
+  skipPermissions: boolean;
+  bypassPermissions: boolean;
   source: string;
   createdAt: string;
 };
@@ -83,6 +86,10 @@ function rememberHermesTerminalLaunch(event: HermesTerminalLaunchEvent) {
 
 function readTrimmedString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function readBoolean(value: unknown) {
+  return value === true || value === 'true' || value === '1';
 }
 
 function isLegacyPromptLikelyStartupInput(prompt: string | null) {
@@ -466,6 +473,10 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
     const prompt = readTrimmedString(body.prompt ?? body.reason);
     const requestedStartupInput = readTrimmedString(body.startupInput ?? body.input);
     const startupInput = requestedStartupInput ?? (isLegacyPromptLikelyStartupInput(prompt) ? prompt : null);
+    const bypassPermissions = readBoolean(body.bypassPermissions);
+    const skipPermissions = readBoolean(body.skipPermissions) || bypassPermissions;
+    const requestedPermissionMode = readTrimmedString(body.permissionMode);
+    const permissionMode = requestedPermissionMode ?? (skipPermissions ? 'bypassPermissions' : null);
 
     const event: HermesTerminalLaunchEvent = {
       id: nextHermesTerminalLaunchId,
@@ -473,6 +484,9 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       projectPath,
       prompt,
       startupInput,
+      permissionMode,
+      skipPermissions,
+      bypassPermissions,
       source: 'hermes-mcp',
       createdAt: new Date().toISOString(),
     };

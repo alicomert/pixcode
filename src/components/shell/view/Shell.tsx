@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import '@xterm/xterm/css/xterm.css';
 import { PROVIDER_DISPLAY_NAMES } from '../../provider-auth/types';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
+import type { ShellPermissionOverride } from '../types/types';
 import {
   PROMPT_BUFFER_SCAN_LINES,
   PROMPT_DEBOUNCE_MS,
@@ -34,6 +35,7 @@ type ShellProps = {
   autoConnect?: boolean;
   forceNewSession?: boolean;
   startupInput?: string | null;
+  permissionOverride?: ShellPermissionOverride | null;
   isActive?: boolean;
   onClose?: (() => void) | null;
 };
@@ -48,6 +50,7 @@ export default function Shell({
   autoConnect = false,
   forceNewSession = false,
   startupInput = null,
+  permissionOverride = null,
   isActive = true,
   onClose = null,
 }: ShellProps) {
@@ -79,6 +82,7 @@ export default function Shell({
     autoConnect,
     forceNewSession,
     startupInput,
+    permissionOverride,
     isRestarting,
     onProcessComplete,
     onOutputRef,

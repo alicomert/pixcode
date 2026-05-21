@@ -17,6 +17,7 @@ import {
 import RemoteConsole from '../../remote-console/RemoteConsole';
 import Sidebar from '../../sidebar/view/Sidebar';
 import type { SidebarProps } from '../../sidebar/types/types';
+import type { ShellPermissionOverride } from '../../shell/types/types';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import type { WorkspaceType } from '../../project-creation-wizard/types';
 import { DarkModeToggle } from '../../../shared/view/ui';
@@ -107,6 +108,8 @@ type WorkbenchBottomTerminalOptions = {
   title?: string | null;
 };
 
+const HERMES_DEFAULT_COMMAND = 'hermes --yolo';
+
 type PendingHermesLaunch = {
   projectPath: string;
   command?: string | null;
@@ -120,6 +123,9 @@ type HermesTerminalLaunchEvent = {
   projectPath: string | null;
   prompt: string | null;
   startupInput: string | null;
+  permissionMode?: string | null;
+  skipPermissions?: boolean;
+  bypassPermissions?: boolean;
   source: string;
   createdAt: string;
 };
@@ -645,7 +651,7 @@ function VSCodeWorkbench({
   const openBottomTerminal = useCallback((mode: WorkbenchBottomTerminalMode, options: WorkbenchBottomTerminalOptions = {}) => {
     setBottomTerminalMode(mode);
     setBottomTerminalForceNewSession(Boolean(options.forceNewSession));
-    setBottomTerminalCommand(mode === 'hermes' ? (options.command || 'hermes') : null);
+    setBottomTerminalCommand(mode === 'hermes' ? (options.command || HERMES_DEFAULT_COMMAND) : null);
     setBottomTerminalTitle(mode === 'hermes' ? (options.title || null) : null);
     setIsBottomTerminalOpen(true);
     setIsBottomTerminalMinimized(false);
@@ -966,7 +972,7 @@ function VSCodeWorkbench({
       return;
     }
 
-    openBottomTerminal('hermes', { command: 'hermes', forceNewSession: true });
+    openBottomTerminal('hermes', { command: HERMES_DEFAULT_COMMAND, forceNewSession: true });
   }, [hermesInstallStatus?.installed, openBottomTerminal, startHermesApiInstall]);
 
   const installHermesAgent = useCallback(() => {
@@ -992,7 +998,7 @@ function VSCodeWorkbench({
         return;
       }
 
-      openHermesAgent({ command: 'hermes' });
+      openHermesAgent({ command: HERMES_DEFAULT_COMMAND });
     };
 
     window.addEventListener('pixcode:hermes-terminal', handleHermesTerminalRequest);
@@ -2277,7 +2283,7 @@ function WorkbenchBottomTerminal({
       <div className="flex h-8 items-center justify-between border-b border-gray-800 bg-gray-900 px-3">
         <div className="flex min-w-0 items-center gap-2">
           {isHermes
-            ? <Workflow className="h-3.5 w-3.5 text-emerald-300" />
+            ? <HermesLogo className="h-4 w-4" />
             : <Terminal className="h-3.5 w-3.5 text-blue-300" />}
           <span className="truncate text-[11px] font-semibold uppercase tracking-wide text-gray-300">
             {title}
@@ -2551,7 +2557,7 @@ function WorkbenchProjectLanding({
               onClick={onOpenHermesAgent}
               className="group flex min-h-24 flex-col items-start justify-between rounded-md border border-emerald-700/70 bg-emerald-950/20 p-4 text-left transition hover:border-emerald-400/70 hover:bg-emerald-950/30"
             >
-              <Workflow className="h-5 w-5 text-emerald-300" />
+              <HermesLogo className="h-5 w-5" />
               <span className="mt-4 text-sm font-semibold text-foreground">
                 {t('vscodeWorkbench.welcome.startHermes', { defaultValue: 'Hermes’i Başlat' })}
               </span>
@@ -2739,6 +2745,7 @@ function WorkbenchCliPanel({
   const [pendingFreshSession, setPendingFreshSession] = useState(false);
   const [terminalMode, setTerminalMode] = useState<WorkbenchCliTerminalMode>('provider');
   const [terminalStartupInput, setTerminalStartupInput] = useState<string | null>(null);
+  const [terminalPermissionOverride, setTerminalPermissionOverride] = useState<ShellPermissionOverride | null>(null);
   const [terminalLaunch, setTerminalLaunch] = useState({
     runId: 0,
     forceNewSession: false,
@@ -2778,6 +2785,7 @@ function WorkbenchCliPanel({
     setShowHistory(false);
     setPendingFreshSession(false);
     setTerminalMode('provider');
+    setTerminalPermissionOverride(null);
 
     const savedState = readWorkbenchCliState(projectCliStateKey);
     if (!savedState) {
@@ -2834,6 +2842,7 @@ function WorkbenchCliPanel({
     }
 
     setTerminalMode('provider');
+    setTerminalPermissionOverride(null);
     setSelectedProvider(provider);
     window.localStorage.setItem('selected-provider', provider);
     persistCliState({
@@ -2958,6 +2967,7 @@ function WorkbenchCliPanel({
     if (!canStartSelectedProvider) return;
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalPermissionOverride(null);
     setTerminalSession(null);
     setShowHistory(false);
     setPendingFreshSession(false);
@@ -2988,10 +2998,18 @@ function WorkbenchCliPanel({
     if (!CLI_PROVIDER_IDS.includes(provider)) {
       return;
     }
+    const launchBypass = hermesCliLaunch.bypassPermissions === true || hermesCliLaunch.skipPermissions === true;
+    const launchPermissionMode = typeof hermesCliLaunch.permissionMode === 'string' && hermesCliLaunch.permissionMode.trim()
+      ? hermesCliLaunch.permissionMode.trim()
+      : (launchBypass ? 'bypassPermissions' : null);
 
     setTerminalMode('provider');
     setSelectedProvider(provider);
     setTerminalStartupInput(hermesCliLaunch.startupInput ? `${hermesCliLaunch.startupInput}\r` : null);
+    setTerminalPermissionOverride(launchPermissionMode || launchBypass ? {
+      permissionMode: launchPermissionMode,
+      skipPermissions: launchBypass,
+    } : null);
     window.localStorage.setItem('selected-provider', provider);
     setTerminalSession(null);
     setShowHistory(false);
@@ -3012,6 +3030,7 @@ function WorkbenchCliPanel({
     terminateCurrentCliSession(selectedProvider);
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalPermissionOverride(null);
     setTerminalSession(null);
     setShowHistory(false);
     setIsTerminalOpen(false);
@@ -3026,6 +3045,7 @@ function WorkbenchCliPanel({
   const closeTerminal = useCallback(() => {
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalPermissionOverride(null);
     setShowHistory(false);
     setIsTerminalOpen(false);
     setPendingFreshSession(false);
@@ -3040,6 +3060,7 @@ function WorkbenchCliPanel({
     const provider = nextSession.__provider ?? 'claude';
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalPermissionOverride(null);
     setSelectedProvider(provider);
     window.localStorage.setItem('selected-provider', provider);
     setTerminalSession(nextSession);
@@ -3092,6 +3113,7 @@ function WorkbenchCliPanel({
             session={sessionForShell}
             forceNewSession={terminalLaunch.forceNewSession}
             startupInput={terminalStartupInput}
+            permissionOverride={terminalPermissionOverride}
             showHeader
             autoConnect={canAutoConnect}
             isActive
@@ -3620,10 +3642,19 @@ function HermesActivityButton({
       onClick={onClick}
     >
       {active && <span className="absolute left-0 h-5 w-0.5 rounded-r bg-emerald-500" />}
-      <span className="border-current/35 bg-current/10 flex h-5 w-5 items-center justify-center rounded border font-mono text-[12px] font-bold leading-none">
-        H
-      </span>
+      <HermesLogo className="h-5 w-5" />
     </button>
+  );
+}
+
+function HermesLogo({ className = '' }: { className?: string }) {
+  return (
+    <img
+      src="/hermes-agent.png"
+      alt=""
+      aria-hidden="true"
+      className={cn('rounded object-contain', className)}
+    />
   );
 }
 

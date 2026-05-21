@@ -10,6 +10,12 @@ const settingsTab = read('src/components/settings/view/tabs/HermesSettingsTab.ts
 const settingsModal = read('src/components/settings/view/Settings.tsx');
 const workbench = read('src/components/vscode-workbench/view/VSCodeWorkbench.tsx');
 const serverIndex = read('server/index.js');
+const shellTypes = read('src/components/shell/types/types.ts');
+const shellRuntime = read('src/components/shell/hooks/useShellRuntime.ts');
+const shellConnection = read('src/components/shell/hooks/useShellConnection.ts');
+const shellView = read('src/components/shell/view/Shell.tsx');
+const standaloneShell = read('src/components/standalone-shell/view/StandaloneShell.tsx');
+const hermesRoutes = read('server/modules/orchestration/hermes/hermes.routes.ts');
 const pixcodeMcpServer = read('scripts/hermes/pixcode-mcp-server.mjs');
 
 assert.match(
@@ -47,6 +53,11 @@ assert.match(
   'Hermes bottom terminal should launch the requested Hermes command, not only bare hermes.',
 );
 assert.match(
+  workbench,
+  /HERMES_DEFAULT_COMMAND\s*=\s*'hermes --yolo'/,
+  'Hermes terminal should default to --yolo so Hermes approval prompts do not stop visible work.',
+);
+assert.match(
   serverIndex,
   /HERMES_CLI_COMMAND_PATTERN/,
   'Backend should recognize safe Hermes subcommands for Pixcode MCP setup.',
@@ -68,6 +79,11 @@ assert.match(
 );
 assert.match(
   pixcodeMcpServer,
+  /multi-step|piece-by-piece|long-running/i,
+  'Pixcode MCP should tell Hermes to send arbitrary multi-step work as visible provider terminal input.',
+);
+assert.match(
+  pixcodeMcpServer,
   /startup input typed into the provider CLI/,
   'Pixcode MCP should describe prompt as real terminal input, not audit text.',
 );
@@ -82,9 +98,64 @@ assert.match(
   'Pixcode MCP should keep prompt as audit text so Hermes does not type explanations into Codex.',
 );
 assert.match(
-  read('server/modules/orchestration/hermes/hermes.routes.ts'),
+  hermesRoutes,
   /startupInput/,
   'Hermes terminal launch events should carry startupInput separately from prompt.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /bypassPermissions/,
+  'Pixcode MCP should let Hermes request provider permission bypass for visible work.',
+);
+assert.match(
+  hermesRoutes,
+  /bypassPermissions|skipPermissions/,
+  'Hermes terminal launch events should carry permission bypass state.',
+);
+assert.match(
+  hermesRoutes,
+  /permissionMode/,
+  'Hermes terminal launch events should carry provider permission mode.',
+);
+assert.match(
+  shellTypes,
+  /ShellPermissionOverride/,
+  'Shell types should expose a launch-scoped permission override contract.',
+);
+assert.match(
+  shellRuntime,
+  /permissionOverride/,
+  'Shell runtime should keep launch-scoped permission overrides in refs.',
+);
+assert.match(
+  shellConnection,
+  /permissionOverrideRef/,
+  'Shell websocket init should read launch-scoped permission overrides.',
+);
+assert.match(
+  shellView,
+  /permissionOverride/,
+  'Shell view should accept launch-scoped permission overrides.',
+);
+assert.match(
+  standaloneShell,
+  /permissionOverride/,
+  'Standalone shell should pass launch-scoped permission overrides through to Shell.',
+);
+assert.match(
+  workbench,
+  /terminalPermissionOverride/,
+  'Workbench should apply Hermes launch permission bypass to the provider shell.',
+);
+assert.match(
+  settingsTab,
+  /hermes-agent\.png/,
+  'Hermes settings should use the Hermes logo asset instead of an H glyph.',
+);
+assert.match(
+  workbench,
+  /hermes-agent\.png/,
+  'Workbench Hermes launch surfaces should use the Hermes logo asset instead of an H glyph.',
 );
 assert.match(
   serverIndex,

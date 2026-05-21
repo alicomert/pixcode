@@ -309,8 +309,8 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-          <span className="font-mono text-lg font-semibold leading-none">H</span>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-500/10">
+          <img src="/hermes-agent.png" alt="" aria-hidden="true" className="h-8 w-8 rounded object-contain" />
         </div>
         <div className="min-w-0">
           <h3 className="text-lg font-semibold text-foreground">
@@ -516,7 +516,7 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
 
       <section className="rounded-lg border border-border bg-muted/20 p-4">
         <div className="flex items-start gap-3">
-          <Workflow className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+          <img src="/hermes-agent.png" alt="" aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 rounded object-contain" />
           <div className="min-w-0">
             <div className="text-sm font-semibold text-foreground">
               {t('hermes.pixcodeControlTitle', { defaultValue: 'Pixcode control' })}

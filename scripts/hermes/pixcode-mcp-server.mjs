@@ -35,7 +35,7 @@ const tools = [
   },
   {
     name: 'pixcode_open_cli_terminal',
-    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and can type startup input into that terminal.',
+    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and can type startup input into that terminal. For multi-step, piece-by-piece, or long-running work, put the full user instruction in startupInput so the provider CLI does the work visibly inside Pixcode.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -53,7 +53,16 @@ const tools = [
         },
         startupInput: {
           type: 'string',
-          description: 'Exact startup input typed into the provider CLI after the TUI is ready. Use this for commands like /init, hello prompts, or the exact text the user asked to send.',
+          description: 'Exact startup input typed into the provider CLI after the TUI is ready. Use this for commands like /init, hello prompts, or full multi-step task instructions the user asked to run visibly.',
+        },
+        bypassPermissions: {
+          type: 'boolean',
+          description: 'When true, Pixcode starts the provider CLI with its strongest no-approval/bypass flags where supported. Defaults to true for Hermes-launched visible task work.',
+        },
+        permissionMode: {
+          type: 'string',
+          enum: ['default', 'bypassPermissions', 'acceptEdits', 'yolo', 'auto_edit', 'plan'],
+          description: 'Optional provider permission mode. Omit to use bypassPermissions when bypassPermissions is not false.',
         },
         waitForOutputMs: {
           type: 'number',
@@ -258,15 +267,24 @@ async function callTool(name, args = {}) {
       mcpError = error instanceof Error ? error.message : String(error);
     }
 
+    const startupInput = typeof args.startupInput === 'string' && args.startupInput.trim()
+      ? args.startupInput
+      : (isLegacyPromptLikelyStartupInput(args.prompt) ? args.prompt.trim() : null);
+    const bypassPermissions = args.bypassPermissions === false ? false : true;
+    const permissionMode = typeof args.permissionMode === 'string' && args.permissionMode.trim()
+      ? args.permissionMode.trim()
+      : (bypassPermissions ? 'bypassPermissions' : null);
+
     const body = await pixcodeFetch('/api/orchestration/hermes/terminal-launches', {
       method: 'POST',
       body: JSON.stringify({
         provider,
         projectPath,
         prompt: args.prompt || null,
-        startupInput: typeof args.startupInput === 'string' && args.startupInput.trim()
-          ? args.startupInput.trim()
-          : (isLegacyPromptLikelyStartupInput(args.prompt) ? args.prompt.trim() : null),
+        startupInput,
+        bypassPermissions,
+        skipPermissions: bypassPermissions,
+        permissionMode,
       }),
     });
     let terminalOutput = null;
@@ -287,6 +305,7 @@ async function callTool(name, args = {}) {
       pixcodeMcpConfigured: mcpConfigured,
       pixcodeMcpError: mcpError,
       event: body?.event ?? body,
+      permissionBypass: bypassPermissions,
       status,
       terminalOutput,
     }, null, 2));

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import type { Project, ProjectSession } from '../../../types/app';
+import type { ShellPermissionOverride } from '../../shell/types/types';
 import Shell from '../../shell/view/Shell';
 
 import StandaloneShellEmptyState from './subcomponents/StandaloneShellEmptyState';
@@ -15,6 +16,7 @@ type StandaloneShellProps = {
   autoConnect?: boolean;
   forceNewSession?: boolean;
   startupInput?: string | null;
+  permissionOverride?: ShellPermissionOverride | null;
   onComplete?: ((exitCode: number) => void) | null;
   onClose?: (() => void) | null;
   title?: string | null;
@@ -40,6 +42,7 @@ export default function StandaloneShell({
   minimal = false,
   forceNewSession = false,
   startupInput = null,
+  permissionOverride = null,
 }: StandaloneShellProps) {
   const [isCompleted, setIsCompleted] = useState(false);
 
@@ -78,6 +81,7 @@ export default function StandaloneShell({
           autoConnect={minimal ? true : autoConnect}
           forceNewSession={forceNewSession}
           startupInput={startupInput}
+          permissionOverride={permissionOverride}
           onClose={onClose}
         />
       </div>

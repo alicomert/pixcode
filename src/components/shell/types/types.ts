@@ -21,6 +21,11 @@ export type ShellInitMessage = {
   skipPermissions?: boolean;
 };
 
+export type ShellPermissionOverride = {
+  permissionMode?: string | null;
+  skipPermissions?: boolean;
+};
+
 export type ShellResizeMessage = {
   type: 'resize';
   cols: number;
@@ -49,6 +54,7 @@ export type UseShellRuntimeOptions = {
   autoConnect: boolean;
   forceNewSession: boolean;
   startupInput: string | null | undefined;
+  permissionOverride?: ShellPermissionOverride | null;
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
   onOutputRef?: MutableRefObject<(() => void) | null>;
@@ -65,6 +71,7 @@ export type ShellSharedRefs = {
   isPlainShellRef: MutableRefObject<boolean>;
   forceNewSessionRef: MutableRefObject<boolean>;
   startupInputRef: MutableRefObject<string | null | undefined>;
+  permissionOverrideRef: MutableRefObject<ShellPermissionOverride | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
 };
 
