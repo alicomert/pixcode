@@ -2,6 +2,31 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.3](https://github.com/alicomert/pixcode/compare/v1.50.2...v1.50.3) (2026-05-21)
+
+Pixcode 1.50.3 fixes Hermes-driven visible Codex launches and makes Hermes terminal state workspace-scoped again.
+
+### Fixes
+
+* **hermes:** pass Hermes-triggered Codex startup prompts to the Codex CLI as the initial prompt argument instead of typing into the already-open TUI, so update banners or startup screens cannot leave `/init` or longer tasks sitting unsubmitted.
+* **workbench:** persist Hermes bottom-terminal open/minimized state per workspace, so switching workspaces reconnects to that workspace's own Hermes PTY instead of keeping the previous project's Hermes terminal on screen.
+* **hermes:** open native history with `hermes sessions browse` instead of the parent `hermes sessions` usage screen.
+* **shell:** submit detected CLI prompt option buttons with Enter, so model/setup/update pickers do not leave a bare number typed into the terminal.
+* **mcp:** steer Hermes to use Pixcode MCP launch/readback for visible provider work instead of launching a hidden parallel Codex process for the same request.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `scripts/smoke/vscode-workbench-layout.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+* `git diff --check`
+
 ## [1.50.2](https://github.com/alicomert/pixcode/compare/v1.50.1...v1.50.2) (2026-05-21)
 
 Pixcode 1.50.2 stabilizes the Hermes bottom terminal when switching workspaces.
