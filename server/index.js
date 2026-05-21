@@ -98,6 +98,7 @@ import {
 } from './modules/orchestration/index.js';
 import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
+import { restoreRequestedTunnel } from './services/external-access.js';
 import { restoreBotFromConfig } from './services/telegram/bot.js';
 import { ensurePortOpen } from './utils/port-access.js';
 import {
@@ -285,6 +286,7 @@ const server = http.createServer(app);
 
 const ptySessionsMap = new Map();
 const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
+const COMPLETED_PTY_SESSION_TTL = 5 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
 import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAutoOpenUrlFromOutput } from './utils/url-detection.js';
@@ -393,6 +395,43 @@ function detectProviderTerminalState(provider, output) {
         isBusy: false,
         terminalStateReason: 'no_known_marker',
     };
+}
+
+function resolveProviderTerminalState(session, provider, output) {
+    if (session?.lifecycleState === 'completed' || session?.lifecycleState === 'failed' || session?.lifecycleState === 'exited') {
+        const exitCode = typeof session.exitCode === 'number' ? session.exitCode : null;
+        const terminalFailed = exitCode !== null ? exitCode !== 0 : Boolean(session.exitSignal);
+        return {
+            terminalState: terminalFailed ? 'failed' : 'completed',
+            lifecycleState: session.lifecycleState,
+            isBusy: false,
+            terminalFailed,
+            exitCode,
+            exitSignal: session.exitSignal || null,
+            completedAt: session.completedAt || null,
+            terminalStateReason: terminalFailed ? 'pty_failed' : 'pty_completed',
+        };
+    }
+
+    const detected = detectProviderTerminalState(provider, output);
+    return {
+        ...detected,
+        lifecycleState: session?.lifecycleState || 'running',
+        terminalFailed: false,
+        exitCode: null,
+        exitSignal: null,
+        completedAt: null,
+    };
+}
+
+function appendPtySessionBuffer(session, data) {
+    if (!session) return;
+    if (session.buffer.length < 5000) {
+        session.buffer.push(data);
+    } else {
+        session.buffer.shift();
+        session.buffer.push(data);
+    }
 }
 
 function normalizeShellPermissionMode(value) {
@@ -642,7 +681,7 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => 
 
     const rawOutput = matchedSession.buffer.join('').slice(-maxChars);
     const output = stripAnsiSequences(rawOutput);
-    const terminalState = detectProviderTerminalState(provider, output);
+    const terminalState = resolveProviderTerminalState(matchedSession, provider, output);
     res.json({
         active: true,
         provider,
@@ -2410,29 +2449,33 @@ function handleShellConnection(ws, request) {
 
                 const existingSession = (isLoginCommand || forceNewSession) ? null : ptySessionsMap.get(ptySessionKey);
                 if (existingSession) {
-                    console.log('♻️  Reconnecting to existing PTY session:', ptySessionKey);
-                    shellProcess = existingSession.pty;
+                    if (!existingSession.pty || existingSession.lifecycleState === 'completed' || existingSession.lifecycleState === 'failed') {
+                        ptySessionsMap.delete(ptySessionKey);
+                    } else {
+                        console.log('♻️  Reconnecting to existing PTY session:', ptySessionKey);
+                        shellProcess = existingSession.pty;
 
-                    clearTimeout(existingSession.timeoutId);
+                        clearTimeout(existingSession.timeoutId);
 
-                    ws.send(JSON.stringify({
-                        type: 'output',
-                        data: `\x1b[36m[Reconnected to existing session]\x1b[0m\r\n`
-                    }));
+                        ws.send(JSON.stringify({
+                            type: 'output',
+                            data: `\x1b[36m[Reconnected to existing session]\x1b[0m\r\n`
+                        }));
 
-                    if (existingSession.buffer && existingSession.buffer.length > 0) {
-                        console.log(`📜 Sending ${existingSession.buffer.length} buffered messages`);
-                        existingSession.buffer.forEach(bufferedData => {
-                            ws.send(JSON.stringify({
-                                type: 'output',
-                                data: bufferedData
-                            }));
-                        });
+                        if (existingSession.buffer && existingSession.buffer.length > 0) {
+                            console.log(`📜 Sending ${existingSession.buffer.length} buffered messages`);
+                            existingSession.buffer.forEach(bufferedData => {
+                                ws.send(JSON.stringify({
+                                    type: 'output',
+                                    data: bufferedData
+                                }));
+                            });
+                        }
+
+                        existingSession.ws = ws;
+
+                        return;
                     }
-
-                    existingSession.ws = ws;
-
-                    return;
                 }
 
                 console.log('[INFO] Starting shell in:', projectPath);
@@ -2633,6 +2676,10 @@ function handleShellConnection(ws, request) {
                         hermesLaunchId,
                         provider,
                         isPlainShell,
+                        lifecycleState: 'running',
+                        exitCode: null,
+                        exitSignal: null,
+                        completedAt: null,
                         keepAliveUntilExit: false,
                         updatedAt: Date.now(),
                     });
@@ -2643,12 +2690,7 @@ function handleShellConnection(ws, request) {
                         if (!session) return;
                         session.updatedAt = Date.now();
 
-                        if (session.buffer.length < 5000) {
-                            session.buffer.push(data);
-                        } else {
-                            session.buffer.shift();
-                            session.buffer.push(data);
-                        }
+                        appendPtySessionBuffer(session, data);
 
                         if (session.ws && session.ws.readyState === WebSocket.OPEN) {
                             let outputData = data;
@@ -2707,16 +2749,36 @@ function handleShellConnection(ws, request) {
                     shellProcess.onExit((exitCode) => {
                         console.log('🔚 Shell process exited with code:', exitCode.exitCode, 'signal:', exitCode.signal);
                         const session = ptySessionsMap.get(ptySessionKey);
+                        const exitMessage = `\r\n\x1b[33mProcess exited with code ${exitCode.exitCode}${exitCode.signal ? ` (${exitCode.signal})` : ''}\x1b[0m\r\n`;
+                        if (session) {
+                            session.lifecycleState = exitCode.exitCode === 0 && !exitCode.signal ? 'completed' : 'failed';
+                            session.exitCode = typeof exitCode.exitCode === 'number' ? exitCode.exitCode : null;
+                            session.exitSignal = exitCode.signal || null;
+                            session.completedAt = new Date().toISOString();
+                            session.updatedAt = Date.now();
+                            session.pty = null;
+                            appendPtySessionBuffer(session, exitMessage);
+                        }
                         if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
                             session.ws.send(JSON.stringify({
                                 type: 'output',
-                                data: `\r\n\x1b[33mProcess exited with code ${exitCode.exitCode}${exitCode.signal ? ` (${exitCode.signal})` : ''}\x1b[0m\r\n`
+                                data: exitMessage
                             }));
                         }
                         if (session && session.timeoutId) {
                             clearTimeout(session.timeoutId);
                         }
-                        ptySessionsMap.delete(ptySessionKey);
+                        if (session) {
+                            session.ws = null;
+                            session.timeoutId = setTimeout(() => {
+                                const current = ptySessionsMap.get(ptySessionKey);
+                                if (current && current.lifecycleState !== 'running') {
+                                    ptySessionsMap.delete(ptySessionKey);
+                                }
+                            }, COMPLETED_PTY_SESSION_TTL);
+                        } else {
+                            ptySessionsMap.delete(ptySessionKey);
+                        }
                         shellProcess = null;
                     });
 
@@ -3512,6 +3574,10 @@ async function startServer() {
             } catch (err) {
                 console.log(`${c.dim('[INFO]')} Port-access helper failed: ${err?.message || err}`);
             }
+
+            restoreRequestedTunnel({ port: Number(SERVER_PORT) }).catch((err) => {
+                console.warn('[external-access] tunnel restore failed:', err?.message || err);
+            });
 
             console.log(`${c.tip('[TIP]')}  Run "pixcode status" for full configuration details`);
             console.log('');

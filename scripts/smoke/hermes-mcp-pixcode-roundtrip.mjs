@@ -127,6 +127,13 @@ const server = createServer(async (req, res) => {
         provider: 'codex',
         projectPath: '/root/pixcode',
         terminalState: 'idle',
+        output: 'OpenAI Codex\n› /init\n\n• Ran npm test\n\n› Implement {feature}\n',
+      },
+      {
+        active: true,
+        provider: 'codex',
+        projectPath: '/root/pixcode',
+        terminalState: 'idle',
         output: 'Baseline check passed: npm test reports 195 passing, 0 failing.\n\n› Use /skills to list available skills\n',
       },
     ];
@@ -155,7 +162,7 @@ function callMcp(child, method, params = undefined) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error(`MCP call timed out: ${method}`));
-    }, 5000);
+    }, 10000);
     const onLine = (line) => {
       if (!line.trim()) return;
       const message = JSON.parse(line);
@@ -232,11 +239,11 @@ try {
       projectPath: '/root/pixcode',
       prompt: 'read final output',
       startupInput: '/init',
-      waitForOutputMs: 3000,
+      waitForOutputMs: 7000,
     },
   });
   assert(
-    providerOutputReads.length >= 3,
+    providerOutputReads.length >= 5,
     `readback should keep polling until the provider terminal is idle, reads=${providerOutputReads.length}`,
   );
   assert.match(

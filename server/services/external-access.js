@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 /**
  * External-access service.
@@ -31,14 +34,60 @@ export const getUpnpState = () => UPNP_UNAVAILABLE;
 // stops the previous one to avoid dangling child processes.
 // ============================================================================
 
+export const TUNNEL_PERSISTENCE_PATH = process.env.PIXCODE_TUNNEL_STATE_PATH
+  || path.join(os.homedir(), '.pixcode', 'external-access.json');
+
 let tunnelProc = null;
+let suppressNextTunnelRestore = false;
+let restoreTimer = null;
+let restoreInFlight = null;
 let tunnelState = {
   running: false,
   binary: null, // 'cloudflared' | 'ngrok'
   url: null,
   error: null,
   installHint: null,
+  desired: false,
+  restoring: false,
   log: [],
+};
+
+const DEFAULT_TUNNEL_PREFERENCE = Object.freeze({
+  desired: false,
+  port: null,
+  provider: null,
+  lastUrl: null,
+  lastStartedAt: null,
+  lastStoppedAt: null,
+  updatedAt: null,
+});
+
+const readTunnelPreference = async () => {
+  try {
+    const raw = await fs.readFile(TUNNEL_PERSISTENCE_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_TUNNEL_PREFERENCE,
+      ...(parsed && typeof parsed === 'object' ? parsed : {}),
+    };
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('[external-access] Failed to read tunnel preference:', error?.message || error);
+    }
+    return { ...DEFAULT_TUNNEL_PREFERENCE };
+  }
+};
+
+export const persistTunnelPreference = async (patch) => {
+  const current = await readTunnelPreference();
+  const next = {
+    ...current,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  await fs.mkdir(path.dirname(TUNNEL_PERSISTENCE_PATH), { recursive: true });
+  await fs.writeFile(TUNNEL_PERSISTENCE_PATH, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  return next;
 };
 
 const appendLog = (line) => {
@@ -94,17 +143,34 @@ const extractUrl = (binary, text) => {
   return null;
 };
 
-export const startTunnel = async ({ port }) => {
+export const startTunnel = async ({ port, persistPreference = false, restoring = false } = {}) => {
   if (tunnelProc) {
-    // Already running — tell the caller to stop it first rather than silently
-    // replacing, which would orphan the old child and lie about state.
-    throw new Error('Tunnel already running; stop it first');
+    if (persistPreference) {
+      await persistTunnelPreference({
+        desired: true,
+        port,
+        provider: tunnelState.binary,
+        lastUrl: tunnelState.url,
+      });
+      tunnelState = { ...tunnelState, desired: true, restoring: false };
+    }
+    return tunnelState;
   }
+  suppressNextTunnelRestore = false;
 
   const binary = await detectBinary();
   if (!binary) {
     const installHint = createTunnelInstallHint();
-    tunnelState = { running: false, binary: null, url: null, error: 'No tunnel binary found', installHint, log: [] };
+    tunnelState = {
+      running: false,
+      binary: null,
+      url: null,
+      error: 'No tunnel binary found',
+      installHint,
+      desired: Boolean(persistPreference || restoring),
+      restoring,
+      log: [],
+    };
     const err = new Error('No tunnel binary found (tried cloudflared, ngrok)');
     err.code = 'ENOENT_TUNNEL';
     err.installHint = installHint;
@@ -114,7 +180,16 @@ export const startTunnel = async ({ port }) => {
   const args = buildTunnelArgs(binary, port);
   const child = spawn(binary, args, { stdio: ['ignore', 'pipe', 'pipe'] });
   tunnelProc = child;
-  tunnelState = { running: true, binary, url: null, error: null, installHint: null, log: [] };
+  tunnelState = {
+    running: true,
+    binary,
+    url: null,
+    error: null,
+    installHint: null,
+    desired: Boolean(persistPreference || restoring),
+    restoring,
+    log: [],
+  };
 
   const handleChunk = (chunk) => {
     const text = chunk.toString();
@@ -135,8 +210,26 @@ export const startTunnel = async ({ port }) => {
       url: null,
       error: code === 0 ? null : `Tunnel exited with code ${code}`,
       installHint: null,
+      desired: tunnelState.desired,
+      restoring: false,
       log: tunnelState.log,
     };
+
+    if (suppressNextTunnelRestore) {
+      suppressNextTunnelRestore = false;
+      return;
+    }
+
+    void readTunnelPreference().then((preference) => {
+      if (!preference.desired) return;
+      if (restoreTimer) clearTimeout(restoreTimer);
+      restoreTimer = setTimeout(() => {
+        restoreTimer = null;
+        restoreRequestedTunnel({ port: Number(preference.port || port) || port }).catch((error) => {
+          console.warn('[external-access] Tunnel restore failed after exit:', error?.message || error);
+        });
+      }, 3000);
+    });
   });
 
   // Wait up to 15s for the public URL to appear in the log. We don't block
@@ -144,7 +237,19 @@ export const startTunnel = async ({ port }) => {
   // a clear failure instead of a spinner that never resolves.
   const start = Date.now();
   while (Date.now() - start < 15000) {
-    if (tunnelState.url) return tunnelState;
+    if (tunnelState.url) {
+      if (persistPreference || restoring) {
+        await persistTunnelPreference({
+          desired: true,
+          port,
+          provider: binary,
+          lastUrl: tunnelState.url,
+          lastStartedAt: new Date().toISOString(),
+        });
+        tunnelState = { ...tunnelState, desired: true, restoring: false };
+      }
+      return tunnelState;
+    }
     if (!tunnelProc) break; // process died early
      
     await new Promise((r) => setTimeout(r, 250));
@@ -152,18 +257,40 @@ export const startTunnel = async ({ port }) => {
 
   if (!tunnelState.url) {
     // If we never captured a URL, kill the child so we don't leak it.
+    suppressNextTunnelRestore = true;
     try { child.kill(); } catch { /* ignore */ }
     tunnelProc = null;
-    tunnelState = { ...tunnelState, running: false, error: 'Tunnel did not report a public URL', installHint: null };
+    tunnelState = { ...tunnelState, running: false, error: 'Tunnel did not report a public URL', installHint: null, restoring: false };
     throw new Error(tunnelState.error);
   }
 
   return tunnelState;
 };
 
-export const stopTunnel = async () => {
+export const stopTunnel = async ({ persistPreference = true } = {}) => {
+  suppressNextTunnelRestore = Boolean(tunnelProc);
+  if (restoreTimer) {
+    clearTimeout(restoreTimer);
+    restoreTimer = null;
+  }
+  if (persistPreference) {
+    await persistTunnelPreference({
+      desired: false,
+      lastStoppedAt: new Date().toISOString(),
+    });
+  }
   if (!tunnelProc) {
-    tunnelState = { running: false, binary: null, url: null, error: null, installHint: null, log: [] };
+    suppressNextTunnelRestore = false;
+    tunnelState = {
+      running: false,
+      binary: null,
+      url: null,
+      error: null,
+      installHint: null,
+      desired: false,
+      restoring: false,
+      log: [],
+    };
     return tunnelState;
   }
   try {
@@ -172,8 +299,69 @@ export const stopTunnel = async () => {
     // already dead
   }
   tunnelProc = null;
-  tunnelState = { running: false, binary: null, url: null, error: null, installHint: null, log: [] };
+  tunnelState = {
+    running: false,
+    binary: null,
+    url: null,
+    error: null,
+    installHint: null,
+    desired: false,
+    restoring: false,
+    log: [],
+  };
   return tunnelState;
+};
+
+export const restoreRequestedTunnel = async ({ port } = {}) => {
+  if (restoreInFlight) return restoreInFlight;
+
+  restoreInFlight = (async () => {
+    const preference = await readTunnelPreference();
+    if (!preference.desired) {
+      tunnelState = { ...tunnelState, desired: false, restoring: false };
+      return tunnelState;
+    }
+    if (tunnelProc) {
+      tunnelState = { ...tunnelState, desired: true, restoring: false };
+      return tunnelState;
+    }
+
+    const restorePort = Number(port || preference.port);
+    if (!Number.isFinite(restorePort) || restorePort <= 0) {
+      tunnelState = {
+        ...tunnelState,
+        running: false,
+        desired: true,
+        restoring: false,
+        error: 'Tunnel restore skipped: no valid server port',
+      };
+      return tunnelState;
+    }
+
+    try {
+      return await startTunnel({
+        port: restorePort,
+        persistPreference: true,
+        restoring: true,
+      });
+    } catch (error) {
+      tunnelState = {
+        ...tunnelState,
+        running: false,
+        desired: true,
+        restoring: false,
+        error: `Tunnel restore failed: ${error?.message || error}`,
+        installHint: error?.installHint || tunnelState.installHint || null,
+      };
+      return tunnelState;
+    }
+  })();
+
+  try {
+    return await restoreInFlight;
+  } finally {
+    restoreInFlight = null;
+  }
 };
 
 export const getTunnelState = () => tunnelState;

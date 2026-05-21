@@ -96,7 +96,7 @@ router.delete('/upnp', (_req, res) => {
 router.post('/tunnel', async (req, res) => {
   const port = resolveServerPort();
   try {
-    const state = await startTunnel({ port });
+    const state = await startTunnel({ port, persistPreference: true });
     res.json({ success: true, tunnel: state });
   } catch (error) {
     console.error('Tunnel start failed:', error);
@@ -114,7 +114,7 @@ router.post('/tunnel', async (req, res) => {
 
 router.delete('/tunnel', async (req, res) => {
   try {
-    const state = await stopTunnel();
+    const state = await stopTunnel({ persistPreference: true });
     res.json({ success: true, tunnel: state });
   } catch (error) {
     console.error('Tunnel stop failed:', error);

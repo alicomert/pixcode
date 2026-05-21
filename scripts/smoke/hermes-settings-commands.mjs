@@ -100,6 +100,26 @@ assert.match(
 );
 assert.match(
   serverIndex,
+  /lifecycleState/,
+  'Provider output API should expose provider-agnostic PTY lifecycle state instead of relying only on terminal text regex.',
+);
+assert.match(
+  serverIndex,
+  /terminalFailed/,
+  'Provider output API should expose non-zero visible terminal exits as failures for Hermes readback.',
+);
+assert.match(
+  serverIndex,
+  /existingSession[\s\S]+existingSession\.pty/,
+  'Completed visible terminal records should not be reattached as live PTYs.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /terminalFailed/,
+  'Pixcode MCP should tell Hermes when the visible provider terminal failed.',
+);
+assert.match(
+  serverIndex,
   /const hermesLaunchId = Number\.isFinite\(Number\(data\.hermesLaunchId\)\)/,
   'Shell backend should persist Hermes terminal launch ids on PTY sessions.',
 );
@@ -112,6 +132,16 @@ assert.match(
   pixcodeMcpServer,
   /terminalState is busy|terminalState.+busy|terminal to become idle/i,
   'Pixcode MCP should not summarize the first busy terminal frame as final output.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /READBACK_IDLE_STABLE_MS/,
+  'Pixcode MCP should require a stable idle readback before reporting provider output as final.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /readbackStable/,
+  'Pixcode MCP should mark whether a visible provider readback was stable before Hermes summarizes it.',
 );
 assert.match(
   pixcodeMcpServer,

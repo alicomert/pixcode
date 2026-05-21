@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.5](https://github.com/alicomert/pixcode/compare/v1.50.4...v1.50.5) (2026-05-21)
+
+Pixcode 1.50.5 hardens Hermes-visible CLI work and keeps user-started tunnels alive across app updates.
+
+### Fixes
+
+* **hermes:** keep completed/failed visible provider PTY records long enough for Pixcode MCP readback, expose provider-agnostic lifecycle fields, and report non-zero visible terminal exits as failures instead of stale output.
+* **hermes:** require stable idle readback before summarizing visible provider output, so Hermes does not answer while Codex/Claude/Gemini/Qwen/OpenCode is still printing follow-up results.
+* **access:** persist the user's tunnel-start intent and restore cloudflared/ngrok on server restart after updates until the user explicitly stops the tunnel.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/tunnel-persistence.mjs`
+* `scripts/smoke/mobile-tunnel-guidance.mjs`
+* `node --check server/index.js`
+* `node --check server/services/external-access.js`
+* `node --check scripts/hermes/pixcode-mcp-server.mjs`
+
 ## [1.50.4](https://github.com/alicomert/pixcode/compare/v1.50.3...v1.50.4) (2026-05-21)
 
 Pixcode 1.50.4 fixes Hermes readback so visible provider work is not reported before the provider CLI is actually done.

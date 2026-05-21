@@ -7,6 +7,7 @@ const baseUrl = (process.env.PIXCODE_BASE_URL || '').replace(/\/$/, '');
 const apiKey = process.env.PIXCODE_API_KEY || '';
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const mcpServerPath = path.join(appRoot, 'scripts', 'hermes', 'pixcode-mcp-server.mjs');
+const READBACK_IDLE_STABLE_MS = 2500;
 
 const tools = [
   {
@@ -245,12 +246,30 @@ function inferTerminalState(provider, terminalOutput) {
 
 function isTerminalReadbackFinal(provider, terminalOutput) {
   const terminalState = inferTerminalState(provider, terminalOutput);
-  return terminalState === 'idle' || terminalState === 'completed' || terminalState === 'exited';
+  return terminalState === 'idle' || terminalState === 'completed' || terminalState === 'exited' || terminalState === 'failed';
+}
+
+function isTerminalReadbackHardFinal(provider, terminalOutput) {
+  const terminalState = inferTerminalState(provider, terminalOutput);
+  return terminalState === 'completed' || terminalState === 'exited' || terminalState === 'failed' || Boolean(terminalOutput?.terminalFailed);
+}
+
+function getReadbackFingerprint(terminalOutput) {
+  return [
+    terminalOutput?.terminalState || '',
+    terminalOutput?.lifecycleState || '',
+    terminalOutput?.exitCode ?? '',
+    terminalOutput?.exitSignal || '',
+    String(terminalOutput?.output || '').slice(-12000),
+  ].join('\n---pixcode-readback---\n');
 }
 
 async function waitForProviderTerminalOutput(provider, projectPath, waitMs, launchId = null) {
   const startedAt = Date.now();
   let latestOutput = null;
+  let stableFingerprint = null;
+  let stableSince = 0;
+  let stableFinal = false;
   do {
     const elapsed = Date.now() - startedAt;
     const remaining = Math.max(0, waitMs - elapsed);
@@ -262,7 +281,23 @@ async function waitForProviderTerminalOutput(provider, projectPath, waitMs, laun
     }));
 
     if (latestOutput?.output && isTerminalReadbackFinal(provider, latestOutput)) {
-      break;
+      if (isTerminalReadbackHardFinal(provider, latestOutput)) {
+        stableFinal = true;
+        break;
+      }
+
+      const fingerprint = getReadbackFingerprint(latestOutput);
+      if (fingerprint !== stableFingerprint) {
+        stableFingerprint = fingerprint;
+        stableSince = Date.now();
+      }
+      if (Date.now() - stableSince >= READBACK_IDLE_STABLE_MS) {
+        stableFinal = true;
+        break;
+      }
+    } else {
+      stableFingerprint = null;
+      stableSince = 0;
     }
   } while (Date.now() - startedAt < waitMs);
 
@@ -271,6 +306,10 @@ async function waitForProviderTerminalOutput(provider, projectPath, waitMs, laun
   }
   if (latestOutput && typeof latestOutput.isBusy !== 'boolean') {
     latestOutput.isBusy = latestOutput.terminalState === 'busy';
+  }
+  if (latestOutput) {
+    latestOutput.readbackStable = stableFinal;
+    latestOutput.terminalOutputFinal = stableFinal;
   }
   return latestOutput;
 }
@@ -375,7 +414,9 @@ async function callTool(name, args = {}) {
     if (waitForOutputMs > 0) {
       terminalOutput = await waitForProviderTerminalOutput(provider, projectPath, waitForOutputMs, launchId);
     }
-    const terminalOutputFinal = terminalOutput ? isTerminalReadbackFinal(provider, terminalOutput) : false;
+    const terminalOutputFinal = terminalOutput
+      ? Boolean(terminalOutput.terminalOutputFinal ?? isTerminalReadbackFinal(provider, terminalOutput))
+      : false;
     return textResult(JSON.stringify({
       launched: true,
       launchId,
@@ -385,8 +426,11 @@ async function callTool(name, args = {}) {
       permissionBypass: bypassPermissions,
       status,
       terminalOutputFinal,
+      terminalFailed: Boolean(terminalOutput?.terminalFailed),
       message: terminalOutput && !terminalOutputFinal
         ? 'Provider terminal is still running or not at an idle prompt yet. Do not summarize this as final output; call pixcode_read_cli_terminal with launchId later.'
+        : terminalOutput?.terminalFailed
+          ? 'Provider terminal exited with a failure. Do not report this as successful; tell the user the visible CLI failed and include the exit code/output.'
         : undefined,
       terminalOutput,
     }, null, 2));
@@ -407,6 +451,7 @@ async function callTool(name, args = {}) {
       body.isBusy = body.terminalState === 'busy';
     }
     body.terminalOutputFinal = isTerminalReadbackFinal(provider, body);
+    body.terminalFailed = Boolean(body.terminalFailed);
     return textResult(JSON.stringify(body, null, 2));
   }
 
