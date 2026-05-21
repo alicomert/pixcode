@@ -813,6 +813,17 @@
     "install": "Install",
     "repair": "Repair command",
     "refresh": "Refresh",
+    "gatewayTitle": "REST API gateway",
+    "gatewayStatusFailed": "Unable to check Hermes REST gateway.",
+    "gatewayStartFailed": "Hermes REST gateway could not be started.",
+    "gatewayStopFailed": "Hermes REST gateway could not be stopped.",
+    "gatewayProbeFailed": "Hermes REST probe failed.",
+    "gatewayRunning": "REST gateway running",
+    "gatewayStopped": "REST gateway stopped",
+    "gatewayStart": "Start REST",
+    "gatewayProbe": "Test REST",
+    "gatewayStop": "Stop",
+    "gatewayProbeOk": "REST probe passed: health, capabilities, and models responded.",
     "pixcodeControlTitle": "Pixcode control",
     "pixcodeControlDescription": "Pixcode configures the Hermes MCP server before launch, so Hermes can inspect workspaces and open provider terminals inside the visible Pixcode UI when you ask it to."
   }

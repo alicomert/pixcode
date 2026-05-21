@@ -107,6 +107,8 @@ assert.match(hermesRoutes, /terminal-launches/, 'Hermes MCP should be able to re
 assert.match(hermesRoutes, /install-status/, 'Hermes settings and terminal UI should have an install-status endpoint.');
 assert.match(hermesRoutes, /router\.post\('\/install'/, 'Hermes should install through the backend API instead of terminal command paste.');
 assert.match(read('scripts/smoke/hermes-api-install.mjs'), /hermes API install smoke passed/, 'Hermes API install behavior should have a focused smoke test.');
+assert.match(workbench, /terminalStartupInput/, 'Hermes terminal launch prompts should be passed into the selected CLI.');
+assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /startupInputRef/, 'Shell connections should support one-shot startup input for Hermes-triggered CLI work.');
 assert.match(serverIndex, /forceNewSession/, 'Shell backend should support explicit fresh-session launches from the workbench.');
 assert.match(serverIndex, /killProviderPtySessions/, 'Shell backend should terminate old provider PTYs when a fresh CLI session is requested.');
 

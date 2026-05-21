@@ -639,6 +639,17 @@
     "install": "설치",
     "repair": "명령 복구",
     "refresh": "새로 고침",
+    "gatewayTitle": "REST API 게이트웨이",
+    "gatewayStatusFailed": "Hermes REST 게이트웨이를 확인할 수 없습니다.",
+    "gatewayStartFailed": "Hermes REST 게이트웨이를 시작할 수 없습니다.",
+    "gatewayStopFailed": "Hermes REST 게이트웨이를 중지할 수 없습니다.",
+    "gatewayProbeFailed": "Hermes REST 프로브에 실패했습니다.",
+    "gatewayRunning": "REST 게이트웨이 실행 중",
+    "gatewayStopped": "REST 게이트웨이 중지됨",
+    "gatewayStart": "REST 시작",
+    "gatewayProbe": "REST 테스트",
+    "gatewayStop": "중지",
+    "gatewayProbeOk": "REST 프로브 통과: health, capabilities, models가 응답했습니다.",
     "pixcodeControlTitle": "Pixcode 제어",
     "pixcodeControlDescription": "Pixcode는 실행 전에 Hermes MCP 서버를 구성하므로 Hermes가 워크스페이스를 검사하고 필요할 때 Pixcode UI 안에서 제공자 터미널을 열 수 있습니다."
   }

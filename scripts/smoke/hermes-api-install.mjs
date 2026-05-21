@@ -30,6 +30,11 @@ assert.match(hermesInstallJobs, /repairHermesCommandLaunchers/, 'Hermes installe
 assert.match(hermesInstallJobs, /hermes\.cmd/, 'Windows Hermes repair should create or prefer a hermes.cmd shim so typing hermes does not open the Python launcher as text.');
 assert.match(hermesInstallJobs, /isUsableHermesCommand/, 'Hermes status should verify candidates before treating them as installed.');
 assert.match(hermesInstallJobs, /export function buildHermesPathEnv/, 'Hermes should expose a PATH-only shell env helper so normal project terminals can run hermes after repair.');
+assert.match(hermesInstallJobs, /isWindowsEpermSpawnError/, 'Hermes install should recognize Windows spawn EPERM as a launcher failure.');
+assert.match(hermesInstallJobs, /windowsCmdFallbackCommand/, 'Hermes install should retry Windows PowerShell installer launches through cmd.exe without requiring elevation.');
+assert.match(hermesInstallJobs, /retrying through cmd\.exe without elevation/, 'Hermes install logs should explain the no-admin Windows EPERM fallback.');
+assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /platform_toolsets/, 'Pixcode MCP config should enable the Pixcode toolset for Hermes API server runs.');
+assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /api_server:[\s\S]+pixcode/, 'Hermes API server should see Pixcode MCP tools during /v1/runs.');
 assert.match(serverIndex, /Test-HermesCommand/, 'Hermes terminal start should verify a resolved command before running it.');
 assert.match(serverIndex, /buildHermesPathEnv\(process\.env/, 'Shell PTYs should inherit Hermes bin directories so typing hermes in Pixcode terminal works on Windows.');
 assert.match(serverIndex, /env: shellEnv/, 'Shell PTYs should use the augmented shell environment instead of raw process.env.');

@@ -414,6 +414,7 @@ function getOrCreateHermesApiKey(userId) {
 
     return apiKeysDb.createApiKey(userId, 'Hermes Agent MCP', [
         'hermes:mcp',
+        'hermes:gateway',
         'projects:read',
         'providers:read',
         'terminal:launch',

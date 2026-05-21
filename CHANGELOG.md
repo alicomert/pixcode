@@ -2,6 +2,30 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.6](https://github.com/alicomert/pixcode/compare/v1.49.5...v1.49.6) (2026-05-21)
+
+Pixcode 1.49.6 makes Hermes testable and usable through a managed REST gateway instead of trusting terminal-only launch behavior.
+
+### Fixes
+
+* **hermes:** add a Pixcode-managed `hermes gateway` lifecycle with status, start, stop, and REST probe APIs for `/health`, `/v1/capabilities`, `/v1/models`, and optional `/v1/runs`.
+* **hermes:** expose gateway status/probe tools through Pixcode MCP and enable the Pixcode MCP toolset for Hermes API-server runs.
+* **hermes:** pass Hermes MCP terminal-launch prompts into the selected CLI terminal, so a Hermes request can open Codex and submit the requested work text.
+* **hermes:** retry Windows installer `spawn EPERM` PowerShell launch failures through `cmd.exe` without requesting elevation.
+* **settings:** add Hermes REST gateway controls and probe feedback to the dedicated Hermes Agent settings page.
+
+### Verification
+
+* `scripts/smoke/hermes-rest-gateway.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/hermes-rest-live.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `scripts/smoke/hermes-api-install.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+
 ## [1.49.5](https://github.com/alicomert/pixcode/compare/v1.49.4...v1.49.5) (2026-05-20)
 
 Pixcode 1.49.5 makes the Hermes activity button behave like the working terminal command and keeps Hermes sessions alive in the backend.

@@ -639,6 +639,17 @@
     "install": "インストール",
     "repair": "コマンドを修復",
     "refresh": "更新",
+    "gatewayTitle": "REST API ゲートウェイ",
+    "gatewayStatusFailed": "Hermes REST ゲートウェイを確認できません。",
+    "gatewayStartFailed": "Hermes REST ゲートウェイを開始できません。",
+    "gatewayStopFailed": "Hermes REST ゲートウェイを停止できません。",
+    "gatewayProbeFailed": "Hermes REST プローブに失敗しました。",
+    "gatewayRunning": "REST ゲートウェイ稼働中",
+    "gatewayStopped": "REST ゲートウェイ停止中",
+    "gatewayStart": "REST 開始",
+    "gatewayProbe": "REST テスト",
+    "gatewayStop": "停止",
+    "gatewayProbeOk": "REST プローブ成功: health、capabilities、models が応答しました。",
     "pixcodeControlTitle": "Pixcode 制御",
     "pixcodeControlDescription": "Pixcode は起動前に Hermes MCP サーバーを設定するため、Hermes はワークスペースを確認し、必要に応じて Pixcode UI 内でプロバイダー端末を開けます。"
   }

@@ -26,6 +26,7 @@ type UseShellConnectionOptions = {
   initialCommandRef: MutableRefObject<string | null | undefined>;
   isPlainShellRef: MutableRefObject<boolean>;
   forceNewSessionRef: MutableRefObject<boolean>;
+  startupInputRef: MutableRefObject<string | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
@@ -140,6 +141,7 @@ export function useShellConnection({
   initialCommandRef,
   isPlainShellRef,
   forceNewSessionRef,
+  startupInputRef,
   onProcessCompleteRef,
   isInitialized,
   autoConnect,
@@ -262,6 +264,13 @@ export function useShellConnection({
               permissionMode: permissionOptions.permissionMode,
               skipPermissions: permissionOptions.skipPermissions,
             });
+
+            const startupInput = startupInputRef.current;
+            if (startupInput && !isPlainShellRef.current) {
+              window.setTimeout(() => {
+                sendSocketMessage(socket, { type: 'input', data: startupInput });
+              }, TERMINAL_INIT_DELAY_MS * 3);
+            }
           }, TERMINAL_INIT_DELAY_MS);
         };
 
@@ -300,6 +309,7 @@ export function useShellConnection({
       selectedProjectRef,
       selectedSessionRef,
       setAuthUrl,
+      startupInputRef,
       terminalRef,
       wsRef,
     ],

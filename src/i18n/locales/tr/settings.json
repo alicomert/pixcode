@@ -813,6 +813,17 @@
     "install": "Kur",
     "repair": "Komutu onar",
     "refresh": "Yenile",
+    "gatewayTitle": "REST API gecidi",
+    "gatewayStatusFailed": "Hermes REST gecidi kontrol edilemedi.",
+    "gatewayStartFailed": "Hermes REST gecidi baslatilamadi.",
+    "gatewayStopFailed": "Hermes REST gecidi durdurulamadi.",
+    "gatewayProbeFailed": "Hermes REST testi basarisiz.",
+    "gatewayRunning": "REST gecidi calisiyor",
+    "gatewayStopped": "REST gecidi durdu",
+    "gatewayStart": "REST baslat",
+    "gatewayProbe": "REST test et",
+    "gatewayStop": "Durdur",
+    "gatewayProbeOk": "REST testi gecti: health, capabilities ve models cevap verdi.",
     "pixcodeControlTitle": "Pixcode kontrolu",
     "pixcodeControlDescription": "Pixcode, baslatmadan once Hermes MCP sunucusunu ayarlar. Boylece Hermes workspaceleri inceleyebilir ve istediginde gorunur Pixcode UI icinde provider terminalleri acabilir."
   }

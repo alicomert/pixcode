@@ -29,8 +29,15 @@ const block = [
   '        - pixcode_list_projects',
   '        - pixcode_get_provider_status',
   '        - pixcode_open_cli_terminal',
+  '        - pixcode_get_hermes_gateway_status',
+  '        - pixcode_probe_hermes_gateway',
   '      resources: false',
   '      prompts: false',
+].join('\n');
+const apiServerToolsetBlock = [
+  '  api_server:',
+  '    - hermes-api-server',
+  '    - pixcode',
 ].join('\n');
 
 function findRootKeyEnd(lines, startIndex) {
@@ -75,9 +82,33 @@ function upsertPixcodeMcpConfig(rawConfig) {
   return `${lines.join('\n').replace(/\s*$/, '')}\n`;
 }
 
+function upsertPixcodeApiServerToolset(rawConfig) {
+  const lines = rawConfig.split(/\r?\n/);
+  const platformIndex = lines.findIndex((line) => /^platform_toolsets:\s*(?:#.*)?$/.test(line));
+
+  if (platformIndex === -1) {
+    const prefix = rawConfig.trim() ? `${rawConfig.replace(/\s*$/, '')}\n\n` : '';
+    return `${prefix}platform_toolsets:\n${apiServerToolsetBlock}\n`;
+  }
+
+  const platformEnd = findRootKeyEnd(lines, platformIndex);
+  const apiServerIndex = lines.findIndex((line, index) => (
+    index > platformIndex && index < platformEnd && /^  api_server:\s*(?:#.*)?$/.test(line)
+  ));
+
+  if (apiServerIndex === -1) {
+    lines.splice(platformIndex + 1, 0, apiServerToolsetBlock);
+    return `${lines.join('\n').replace(/\s*$/, '')}\n`;
+  }
+
+  const apiServerEnd = findNestedKeyEnd(lines, apiServerIndex, platformEnd);
+  lines.splice(apiServerIndex, apiServerEnd - apiServerIndex, apiServerToolsetBlock);
+  return `${lines.join('\n').replace(/\s*$/, '')}\n`;
+}
+
 fs.mkdirSync(hermesHome, { recursive: true });
 const previous = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
-const next = upsertPixcodeMcpConfig(previous);
+const next = upsertPixcodeApiServerToolset(upsertPixcodeMcpConfig(previous));
 
 if (previous !== next) {
   fs.writeFileSync(configPath, next);

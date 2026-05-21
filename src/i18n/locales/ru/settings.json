@@ -619,6 +619,17 @@
     "install": "Установить",
     "repair": "Исправить команду",
     "refresh": "Обновить",
+    "gatewayTitle": "REST API gateway",
+    "gatewayStatusFailed": "Не удалось проверить Hermes REST gateway.",
+    "gatewayStartFailed": "Не удалось запустить Hermes REST gateway.",
+    "gatewayStopFailed": "Не удалось остановить Hermes REST gateway.",
+    "gatewayProbeFailed": "Проверка Hermes REST не удалась.",
+    "gatewayRunning": "REST gateway запущен",
+    "gatewayStopped": "REST gateway остановлен",
+    "gatewayStart": "Запустить REST",
+    "gatewayProbe": "Тест REST",
+    "gatewayStop": "Остановить",
+    "gatewayProbeOk": "REST проверка прошла: health, capabilities и models ответили.",
     "pixcodeControlTitle": "Управление Pixcode",
     "pixcodeControlDescription": "Pixcode настраивает MCP-сервер Hermes перед запуском, поэтому Hermes может просматривать workspace и открывать терминалы провайдеров внутри интерфейса Pixcode."
   }

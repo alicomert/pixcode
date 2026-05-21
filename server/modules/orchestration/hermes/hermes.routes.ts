@@ -11,6 +11,12 @@ import {
   readHermesInstallStatus,
   snapshotHermesInstallDonePayload,
 } from '@/services/hermes-install-jobs.js';
+import {
+  ensureHermesGateway,
+  getHermesGatewayStatus,
+  probeHermesGateway,
+  stopHermesGateway,
+} from '@/services/hermes-gateway.js';
 
 const HERMES_TERMINAL_LAUNCH_LIMIT = 100;
 const HERMES_TERMINAL_LAUNCH_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
@@ -89,6 +95,86 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
 
   router.get('/install-status', (_req, res) => {
     res.json(readHermesInstallStatus());
+  });
+
+  router.get('/gateway/status', (req, res) => {
+    const projectPath = typeof req.query.projectPath === 'string' ? req.query.projectPath : null;
+    res.json(getHermesGatewayStatus(projectPath));
+  });
+
+  router.post('/gateway/start', async (req: PixcodeRequest, res) => {
+    const apiKey = options.createHermesApiKey?.(readUserId(req)) ?? null;
+    if (!apiKey) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_API_KEY_UNAVAILABLE',
+          message: 'Pixcode could not create a Hermes MCP API key for this user.',
+        },
+      });
+      return;
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    try {
+      const gateway = await ensureHermesGateway({
+        appRoot: options.appRoot ?? process.cwd(),
+        pixcodeApiKey: apiKey,
+        pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+        projectPath: typeof body.projectPath === 'string' ? body.projectPath : undefined,
+      });
+      res.status(202).json(gateway);
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_GATEWAY_START_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.post('/gateway/probe', async (req: PixcodeRequest, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const projectPath = typeof body.projectPath === 'string' ? body.projectPath : null;
+    const input = typeof body.input === 'string' ? body.input : undefined;
+    const shouldStart = body.startIfNeeded === true;
+
+    try {
+      if (shouldStart) {
+        const apiKey = options.createHermesApiKey?.(readUserId(req)) ?? null;
+        if (!apiKey) {
+          res.status(500).json({
+            error: {
+              code: 'HERMES_API_KEY_UNAVAILABLE',
+              message: 'Pixcode could not create a Hermes MCP API key for this user.',
+            },
+          });
+          return;
+        }
+        await ensureHermesGateway({
+          appRoot: options.appRoot ?? process.cwd(),
+          pixcodeApiKey: apiKey,
+          pixcodeBaseUrl: options.resolvePublicBaseUrl?.(req) ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}`,
+          projectPath: projectPath ?? undefined,
+        });
+      }
+
+      const probe = await probeHermesGateway(projectPath, { input });
+      res.status(probe.ok ? 200 : 503).json(probe);
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_GATEWAY_PROBE_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.post('/gateway/stop', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const projectPath = typeof body.projectPath === 'string' ? body.projectPath : null;
+    res.json(stopHermesGateway(projectPath));
   });
 
   router.post('/install', (req: PixcodeRequest, res) => {

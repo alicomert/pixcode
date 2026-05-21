@@ -52,6 +52,42 @@ const tools = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'pixcode_get_hermes_gateway_status',
+    description: 'Read Pixcode-managed Hermes REST gateway status, including base URL, running state, and the last probe result.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path. Omit to inspect all managed Hermes gateways.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_probe_hermes_gateway',
+    description: 'Ask Pixcode to call Hermes Agent REST endpoints and report whether health, capabilities, and model discovery respond.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path. Omit to probe the first running managed Hermes gateway.',
+        },
+        input: {
+          type: 'string',
+          description: 'Optional prompt to submit to Hermes /v1/runs after the lightweight REST checks pass.',
+        },
+        startIfNeeded: {
+          type: 'boolean',
+          description: 'When true, Pixcode starts the managed Hermes gateway before probing.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 function send(payload) {
@@ -125,6 +161,26 @@ async function callTool(name, args = {}) {
       }),
     });
     return textResult(JSON.stringify(body?.event ?? body, null, 2));
+  }
+
+  if (name === 'pixcode_get_hermes_gateway_status') {
+    const projectPath = typeof args.projectPath === 'string' && args.projectPath.trim()
+      ? `?projectPath=${encodeURIComponent(args.projectPath.trim())}`
+      : '';
+    const body = await pixcodeFetch(`/api/orchestration/hermes/gateway/status${projectPath}`);
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_probe_hermes_gateway') {
+    const body = await pixcodeFetch('/api/orchestration/hermes/gateway/probe', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectPath: args.projectPath || null,
+        input: args.input || null,
+        startIfNeeded: args.startIfNeeded === true,
+      }),
+    });
+    return textResult(JSON.stringify(body, null, 2));
   }
 
   throw new Error(`Unknown Pixcode MCP tool: ${name}`);

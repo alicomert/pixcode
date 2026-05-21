@@ -2671,6 +2671,7 @@ function WorkbenchCliPanel({
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [pendingFreshSession, setPendingFreshSession] = useState(false);
   const [terminalMode, setTerminalMode] = useState<WorkbenchCliTerminalMode>('provider');
+  const [terminalStartupInput, setTerminalStartupInput] = useState<string | null>(null);
   const [terminalLaunch, setTerminalLaunch] = useState({
     runId: 0,
     forceNewSession: false,
@@ -2889,6 +2890,7 @@ function WorkbenchCliPanel({
     if (!project) return;
     if (!canStartSelectedProvider) return;
     setTerminalMode('provider');
+    setTerminalStartupInput(null);
     setTerminalSession(null);
     setShowHistory(false);
     setPendingFreshSession(false);
@@ -2922,6 +2924,7 @@ function WorkbenchCliPanel({
 
     setTerminalMode('provider');
     setSelectedProvider(provider);
+    setTerminalStartupInput(hermesCliLaunch.prompt ? `${hermesCliLaunch.prompt}\r` : null);
     window.localStorage.setItem('selected-provider', provider);
     setTerminalSession(null);
     setShowHistory(false);
@@ -2941,6 +2944,7 @@ function WorkbenchCliPanel({
   const openNewCliSessionPicker = useCallback(() => {
     terminateCurrentCliSession(selectedProvider);
     setTerminalMode('provider');
+    setTerminalStartupInput(null);
     setTerminalSession(null);
     setShowHistory(false);
     setIsTerminalOpen(false);
@@ -2954,6 +2958,7 @@ function WorkbenchCliPanel({
 
   const closeTerminal = useCallback(() => {
     setTerminalMode('provider');
+    setTerminalStartupInput(null);
     setShowHistory(false);
     setIsTerminalOpen(false);
     setPendingFreshSession(false);
@@ -2967,6 +2972,7 @@ function WorkbenchCliPanel({
   const handleHistorySessionSelect = useCallback((nextSession: ProjectSession) => {
     const provider = nextSession.__provider ?? 'claude';
     setTerminalMode('provider');
+    setTerminalStartupInput(null);
     setSelectedProvider(provider);
     window.localStorage.setItem('selected-provider', provider);
     setTerminalSession(nextSession);
@@ -3017,6 +3023,7 @@ function WorkbenchCliPanel({
             project={project}
             session={sessionForShell}
             forceNewSession={terminalLaunch.forceNewSession}
+            startupInput={terminalStartupInput}
             showHeader
             autoConnect={canAutoConnect}
             isActive

@@ -33,6 +33,7 @@ type ShellProps = {
   minimal?: boolean;
   autoConnect?: boolean;
   forceNewSession?: boolean;
+  startupInput?: string | null;
   isActive?: boolean;
   onClose?: (() => void) | null;
 };
@@ -46,6 +47,7 @@ export default function Shell({
   minimal = false,
   autoConnect = false,
   forceNewSession = false,
+  startupInput = null,
   isActive = true,
   onClose = null,
 }: ShellProps) {
@@ -76,6 +78,7 @@ export default function Shell({
     minimal,
     autoConnect,
     forceNewSession,
+    startupInput,
     isRestarting,
     onProcessComplete,
     onOutputRef,

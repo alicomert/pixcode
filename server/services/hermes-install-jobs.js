@@ -455,7 +455,39 @@ function scheduleCleanup(job) {
     }, FINISHED_TTL_MS);
 }
 
-function spawnLogged(job, command, args, options) {
+function isWindowsEpermSpawnError(error) {
+    return process.platform === 'win32' && (
+        error?.code === 'EPERM' ||
+        /spawn\s+EPERM/i.test(String(error?.message || ''))
+    );
+}
+
+function isWindowsPowerShellCommand(command) {
+    if (process.platform !== 'win32') return false;
+    const name = path.basename(String(command || '')).toLowerCase();
+    return name === 'powershell.exe' || name === 'powershell' || name === 'pwsh.exe' || name === 'pwsh';
+}
+
+function quoteWindowsCmdArg(value) {
+    const text = String(value ?? '');
+    if (!text) return '""';
+    if (!/[\s"&|<>^()]/.test(text)) return text;
+    return `"${text.replace(/"/g, '\\"')}"`;
+}
+
+function windowsCmdFallbackCommand(command, args) {
+    return {
+        command: process.env.ComSpec || 'cmd.exe',
+        args: [
+            '/d',
+            '/s',
+            '/c',
+            [command, ...args].map(quoteWindowsCmdArg).join(' '),
+        ],
+    };
+}
+
+function spawnLoggedOnce(job, command, args, options) {
     appendLog(job, 'meta', `$ ${command} ${args.join(' ')}\n`);
     const child = spawn(command, args, {
         ...options,
@@ -463,8 +495,8 @@ function spawnLogged(job, command, args, options) {
         windowsHide: true,
     });
     job.child = child;
-    child.stdout.on('data', (buf) => appendLog(job, 'stdout', buf.toString()));
-    child.stderr.on('data', (buf) => appendLog(job, 'stderr', buf.toString()));
+    child.stdout?.on('data', (buf) => appendLog(job, 'stdout', buf.toString()));
+    child.stderr?.on('data', (buf) => appendLog(job, 'stderr', buf.toString()));
     return new Promise((resolve, reject) => {
         child.on('error', reject);
         child.on('close', (code, signal) => {
@@ -475,6 +507,20 @@ function spawnLogged(job, command, args, options) {
             resolve(code ?? 0);
         });
     });
+}
+
+async function spawnLogged(job, command, args, options) {
+    try {
+        return await spawnLoggedOnce(job, command, args, options);
+    } catch (error) {
+        if (!isWindowsEpermSpawnError(error) || !isWindowsPowerShellCommand(command)) {
+            throw error;
+        }
+
+        appendLog(job, 'stderr', 'PowerShell direct launch was blocked by Windows (EPERM); retrying through cmd.exe without elevation.\n');
+        const fallback = windowsCmdFallbackCommand(command, args);
+        return spawnLoggedOnce(job, fallback.command, fallback.args, options);
+    }
 }
 
 async function runConfigureScript(job, env, appRoot) {

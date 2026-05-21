@@ -48,6 +48,7 @@ export type UseShellRuntimeOptions = {
   minimal: boolean;
   autoConnect: boolean;
   forceNewSession: boolean;
+  startupInput: string | null | undefined;
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
   onOutputRef?: MutableRefObject<(() => void) | null>;
@@ -62,6 +63,8 @@ export type ShellSharedRefs = {
   selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>;
   initialCommandRef: MutableRefObject<string | null | undefined>;
   isPlainShellRef: MutableRefObject<boolean>;
+  forceNewSessionRef: MutableRefObject<boolean>;
+  startupInputRef: MutableRefObject<string | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
 };
 

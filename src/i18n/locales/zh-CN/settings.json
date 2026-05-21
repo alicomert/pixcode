@@ -639,6 +639,17 @@
     "install": "安装",
     "repair": "修复命令",
     "refresh": "刷新",
+    "gatewayTitle": "REST API 网关",
+    "gatewayStatusFailed": "无法检查 Hermes REST 网关。",
+    "gatewayStartFailed": "无法启动 Hermes REST 网关。",
+    "gatewayStopFailed": "无法停止 Hermes REST 网关。",
+    "gatewayProbeFailed": "Hermes REST 探测失败。",
+    "gatewayRunning": "REST 网关运行中",
+    "gatewayStopped": "REST 网关已停止",
+    "gatewayStart": "启动 REST",
+    "gatewayProbe": "测试 REST",
+    "gatewayStop": "停止",
+    "gatewayProbeOk": "REST 探测通过：health、capabilities 和 models 已响应。",
     "pixcodeControlTitle": "Pixcode 控制",
     "pixcodeControlDescription": "Pixcode 会在启动前配置 Hermes MCP 服务器，因此 Hermes 可以检查工作区，并在需要时在 Pixcode UI 中打开可见的提供商终端。"
   }
