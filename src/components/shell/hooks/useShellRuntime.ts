@@ -17,6 +17,7 @@ export function useShellRuntime({
   autoConnect,
   forceNewSession,
   startupInput,
+  hermesLaunchId,
   permissionOverride,
   isRestarting,
   onProcessComplete,
@@ -36,6 +37,7 @@ export function useShellRuntime({
   const isPlainShellRef = useRef(isPlainShell);
   const forceNewSessionRef = useRef(forceNewSession);
   const startupInputRef = useRef(startupInput);
+  const hermesLaunchIdRef = useRef(hermesLaunchId);
   const permissionOverrideRef = useRef(permissionOverride);
   const onProcessCompleteRef = useRef(onProcessComplete);
   const authUrlRef = useRef('');
@@ -49,9 +51,10 @@ export function useShellRuntime({
     isPlainShellRef.current = isPlainShell;
     forceNewSessionRef.current = forceNewSession;
     startupInputRef.current = startupInput;
+    hermesLaunchIdRef.current = hermesLaunchId;
     permissionOverrideRef.current = permissionOverride;
     onProcessCompleteRef.current = onProcessComplete;
-  }, [selectedProject, selectedSession, initialCommand, isPlainShell, forceNewSession, startupInput, permissionOverride, onProcessComplete]);
+  }, [selectedProject, selectedSession, initialCommand, isPlainShell, forceNewSession, startupInput, hermesLaunchId, permissionOverride, onProcessComplete]);
 
   const setCurrentAuthUrl = useCallback((nextAuthUrl: string) => {
     authUrlRef.current = nextAuthUrl;
@@ -126,6 +129,7 @@ export function useShellRuntime({
     isPlainShellRef,
     forceNewSessionRef,
     startupInputRef,
+    hermesLaunchIdRef,
     permissionOverrideRef,
     onProcessCompleteRef,
     isInitialized,

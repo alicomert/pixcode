@@ -35,6 +35,7 @@ type ShellProps = {
   autoConnect?: boolean;
   forceNewSession?: boolean;
   startupInput?: string | null;
+  hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
   isActive?: boolean;
   onClose?: (() => void) | null;
@@ -50,6 +51,7 @@ export default function Shell({
   autoConnect = false,
   forceNewSession = false,
   startupInput = null,
+  hermesLaunchId = null,
   permissionOverride = null,
   isActive = true,
   onClose = null,
@@ -82,6 +84,7 @@ export default function Shell({
     autoConnect,
     forceNewSession,
     startupInput,
+    hermesLaunchId,
     permissionOverride,
     isRestarting,
     onProcessComplete,

@@ -18,6 +18,7 @@ export type ShellInitMessage = {
   isPlainShell: boolean;
   forceNewSession: boolean;
   startupInput?: string | null;
+  hermesLaunchId?: number | null;
   permissionMode?: string;
   skipPermissions?: boolean;
 };
@@ -55,6 +56,7 @@ export type UseShellRuntimeOptions = {
   autoConnect: boolean;
   forceNewSession: boolean;
   startupInput: string | null | undefined;
+  hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
@@ -72,6 +74,7 @@ export type ShellSharedRefs = {
   isPlainShellRef: MutableRefObject<boolean>;
   forceNewSessionRef: MutableRefObject<boolean>;
   startupInputRef: MutableRefObject<string | null | undefined>;
+  hermesLaunchIdRef: MutableRefObject<number | null | undefined>;
   permissionOverrideRef: MutableRefObject<ShellPermissionOverride | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
 };

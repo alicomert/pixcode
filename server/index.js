@@ -324,6 +324,77 @@ function killProviderPtySessions(projectPath, provider) {
     return killed;
 }
 
+function getLastRegexMatchIndex(text, pattern) {
+    let lastIndex = -1;
+    for (const match of text.matchAll(pattern)) {
+        lastIndex = match.index ?? lastIndex;
+    }
+    return lastIndex;
+}
+
+function detectProviderTerminalState(provider, output) {
+    const cleanOutput = String(output || '');
+    if (!cleanOutput.trim()) {
+        return {
+            terminalState: 'unknown',
+            isBusy: false,
+            terminalStateReason: 'empty_output',
+        };
+    }
+
+    if (/Process exited with code/iu.test(cleanOutput)) {
+        return {
+            terminalState: 'exited',
+            isBusy: false,
+            terminalStateReason: 'process_exit',
+        };
+    }
+
+    const lastBusy = Math.max(
+        getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*[•*]\s*(?:Working|Running|Thinking)\b/giu),
+        getLastRegexMatchIndex(cleanOutput, /\bWorking\s*\([^)]*esc to interrupt[^)]*\)/giu),
+        getLastRegexMatchIndex(cleanOutput, /\bmsg=interrupt\b/giu),
+    );
+
+    if (provider === 'codex') {
+        const lastPrompt = Math.max(
+            getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*›(?:\s|$)/gu),
+            getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*❯(?:\s|$)/gu),
+        );
+
+        if (lastBusy >= 0) {
+            const isBusy = lastPrompt <= lastBusy;
+            return {
+                terminalState: isBusy ? 'busy' : 'idle',
+                isBusy,
+                terminalStateReason: isBusy ? 'codex_busy_marker_after_prompt' : 'codex_prompt_after_busy_marker',
+            };
+        }
+
+        if (lastPrompt >= 0 && /(?:Initialized|Baseline check passed|I did not modify files|Use \/skills)/iu.test(cleanOutput)) {
+            return {
+                terminalState: 'idle',
+                isBusy: false,
+                terminalStateReason: 'codex_idle_prompt',
+            };
+        }
+    }
+
+    if (lastBusy >= 0) {
+        return {
+            terminalState: 'busy',
+            isBusy: true,
+            terminalStateReason: 'generic_busy_marker',
+        };
+    }
+
+    return {
+        terminalState: 'unknown',
+        isBusy: false,
+        terminalStateReason: 'no_known_marker',
+    };
+}
+
 function normalizeShellPermissionMode(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -532,6 +603,8 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => 
     const projectPath = typeof req.query.projectPath === 'string' && req.query.projectPath.trim()
         ? req.query.projectPath.trim()
         : null;
+    const launchId = Number.parseInt(String(req.query.launchId || ''), 10);
+    const requestedLaunchId = Number.isFinite(launchId) && launchId > 0 ? launchId : null;
     const maxChars = Math.min(
         20000,
         Math.max(1000, Number.parseInt(String(req.query.maxChars || '12000'), 10) || 12000)
@@ -547,7 +620,8 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => 
         if (
             session?.provider === provider &&
             !session?.isPlainShell &&
-            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath)
+            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath) &&
+            (!requestedLaunchId || session.hermesLaunchId === requestedLaunchId)
         ) {
             if (!matchedSession || (session.updatedAt || 0) > (matchedSession.updatedAt || 0)) {
                 matchedSession = session;
@@ -560,19 +634,24 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => 
             active: false,
             provider,
             projectPath: requestedProjectPath,
+            launchId: requestedLaunchId,
             output: '',
             message: 'No active provider terminal session found for this project.',
         });
     }
 
     const rawOutput = matchedSession.buffer.join('').slice(-maxChars);
+    const output = stripAnsiSequences(rawOutput);
+    const terminalState = detectProviderTerminalState(provider, output);
     res.json({
         active: true,
         provider,
         projectPath: path.resolve(matchedSession.projectPath || os.homedir()),
         sessionId: matchedSession.sessionId || null,
+        launchId: matchedSession.hermesLaunchId || null,
         updatedAt: matchedSession.updatedAt || null,
-        output: stripAnsiSequences(rawOutput),
+        ...terminalState,
+        output,
     });
 });
 
@@ -2268,6 +2347,9 @@ function handleShellConnection(ws, request) {
                 const startupInput = typeof data.startupInput === 'string' && data.startupInput.trim()
                     ? data.startupInput.trim()
                     : null;
+                const hermesLaunchId = Number.isFinite(Number(data.hermesLaunchId)) && Number(data.hermesLaunchId) > 0
+                    ? Number(data.hermesLaunchId)
+                    : null;
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
                 const isHermesCliLaunch = isPlainShell && isHermesCliCommand(initialCommand);
                 const forceNewSession = Boolean(data.forceNewSession);
@@ -2548,6 +2630,7 @@ function handleShellConnection(ws, request) {
                         timeoutId: null,
                         projectPath,
                         sessionId,
+                        hermesLaunchId,
                         provider,
                         isPlainShell,
                         keepAliveUntilExit: false,

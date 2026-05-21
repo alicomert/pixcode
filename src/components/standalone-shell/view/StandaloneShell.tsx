@@ -16,6 +16,7 @@ type StandaloneShellProps = {
   autoConnect?: boolean;
   forceNewSession?: boolean;
   startupInput?: string | null;
+  hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
   onComplete?: ((exitCode: number) => void) | null;
   onClose?: (() => void) | null;
@@ -42,6 +43,7 @@ export default function StandaloneShell({
   minimal = false,
   forceNewSession = false,
   startupInput = null,
+  hermesLaunchId = null,
   permissionOverride = null,
 }: StandaloneShellProps) {
   const [isCompleted, setIsCompleted] = useState(false);
@@ -81,6 +83,7 @@ export default function StandaloneShell({
           autoConnect={minimal ? true : autoConnect}
           forceNewSession={forceNewSession}
           startupInput={startupInput}
+          hermesLaunchId={hermesLaunchId}
           permissionOverride={permissionOverride}
           onClose={onClose}
         />

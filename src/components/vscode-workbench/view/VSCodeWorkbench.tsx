@@ -2913,6 +2913,7 @@ function WorkbenchCliPanel({
   const [pendingFreshSession, setPendingFreshSession] = useState(false);
   const [terminalMode, setTerminalMode] = useState<WorkbenchCliTerminalMode>('provider');
   const [terminalStartupInput, setTerminalStartupInput] = useState<string | null>(null);
+  const [terminalHermesLaunchId, setTerminalHermesLaunchId] = useState<number | null>(null);
   const [terminalPermissionOverride, setTerminalPermissionOverride] = useState<ShellPermissionOverride | null>(null);
   const [terminalLaunch, setTerminalLaunch] = useState({
     runId: 0,
@@ -3135,6 +3136,7 @@ function WorkbenchCliPanel({
     if (!canStartSelectedProvider) return;
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalHermesLaunchId(null);
     setTerminalPermissionOverride(null);
     setTerminalSession(null);
     setShowHistory(false);
@@ -3174,6 +3176,7 @@ function WorkbenchCliPanel({
     setTerminalMode('provider');
     setSelectedProvider(provider);
     setTerminalStartupInput(hermesCliLaunch.startupInput || null);
+    setTerminalHermesLaunchId(hermesCliLaunch.id);
     setTerminalPermissionOverride(launchPermissionMode || launchBypass ? {
       permissionMode: launchPermissionMode,
       skipPermissions: launchBypass,
@@ -3198,6 +3201,7 @@ function WorkbenchCliPanel({
     terminateCurrentCliSession(selectedProvider);
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalHermesLaunchId(null);
     setTerminalPermissionOverride(null);
     setTerminalSession(null);
     setShowHistory(false);
@@ -3213,6 +3217,7 @@ function WorkbenchCliPanel({
   const closeTerminal = useCallback(() => {
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalHermesLaunchId(null);
     setTerminalPermissionOverride(null);
     setShowHistory(false);
     setIsTerminalOpen(false);
@@ -3228,6 +3233,7 @@ function WorkbenchCliPanel({
     const provider = nextSession.__provider ?? 'claude';
     setTerminalMode('provider');
     setTerminalStartupInput(null);
+    setTerminalHermesLaunchId(null);
     setTerminalPermissionOverride(null);
     setSelectedProvider(provider);
     window.localStorage.setItem('selected-provider', provider);
@@ -3281,6 +3287,7 @@ function WorkbenchCliPanel({
             session={sessionForShell}
             forceNewSession={terminalLaunch.forceNewSession}
             startupInput={terminalStartupInput}
+            hermesLaunchId={terminalHermesLaunchId}
             permissionOverride={terminalPermissionOverride}
             showHeader
             autoConnect={canAutoConnect}

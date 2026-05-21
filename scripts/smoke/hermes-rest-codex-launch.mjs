@@ -84,6 +84,20 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/shell/sessions/provider-output') {
+    const launchId = Number(url.searchParams.get('launchId') || 0) || null;
+    res.end(JSON.stringify({
+      active: true,
+      provider: url.searchParams.get('provider') || 'codex',
+      projectPath,
+      launchId,
+      terminalState: 'idle',
+      isBusy: false,
+      output: 'Hermes launched Codex through Pixcode MCP\n\n› ',
+    }));
+    return;
+  }
+
   res.statusCode = 404;
   res.end(JSON.stringify({ error: url.pathname }));
 });

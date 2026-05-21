@@ -35,7 +35,7 @@ const tools = [
   },
   {
     name: 'pixcode_open_cli_terminal',
-    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and submit startup input there. Do not run a parallel Hermes codex/claude/proc command for the same request. For multi-step, piece-by-piece, or long-running work, put the full user instruction in startupInput so the provider CLI does the work visibly inside Pixcode. If the user asks for the provider output, set waitForOutputMs or call pixcode_read_cli_terminal after launch.',
+    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and submit startup input there. Do not run a parallel Hermes codex/claude/proc command for the same request. For multi-step, piece-by-piece, or long-running work, put the full user instruction in startupInput so the provider CLI does the work visibly inside Pixcode. When startupInput is present, Pixcode waits for the terminal to become idle before returning readback by default; never treat the first working frame as final output.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -66,7 +66,15 @@ const tools = [
         },
         waitForOutputMs: {
           type: 'number',
-          description: 'Optional milliseconds to wait and then read recent terminal output. Useful when the user asks you to report the provider output.',
+          description: 'Optional milliseconds to wait for recent terminal output. Pixcode keeps polling while terminalState is busy, so use a large value when the user asks for the final provider answer.',
+        },
+        waitForCompletionMs: {
+          type: 'number',
+          description: 'Optional explicit milliseconds to wait for the visible provider CLI to return to an idle prompt before reporting output. Overrides waitForOutputMs.',
+        },
+        launchId: {
+          type: 'number',
+          description: 'Optional Pixcode terminal launch id. Use the id returned by pixcode_open_cli_terminal when reading one specific visible terminal.',
         },
       },
       required: ['provider'],
@@ -186,13 +194,85 @@ async function readProviderStatus(provider) {
   return body?.data ?? body;
 }
 
-async function readProviderTerminalOutput(provider, projectPath, maxChars) {
+async function readProviderTerminalOutput(provider, projectPath, maxChars, launchId = null) {
   const params = new URLSearchParams({
     provider,
     maxChars: String(maxChars || 12000),
   });
   if (projectPath) params.set('projectPath', projectPath);
+  if (launchId) params.set('launchId', String(launchId));
   return pixcodeFetch(`/api/shell/sessions/provider-output?${params.toString()}`);
+}
+
+function getLastMatchIndex(text, pattern) {
+  let lastIndex = -1;
+  for (const match of text.matchAll(pattern)) {
+    lastIndex = match.index ?? lastIndex;
+  }
+  return lastIndex;
+}
+
+function inferTerminalState(provider, terminalOutput) {
+  if (!terminalOutput) return 'unknown';
+  if (typeof terminalOutput.terminalState === 'string') return terminalOutput.terminalState;
+  if (typeof terminalOutput.isBusy === 'boolean') return terminalOutput.isBusy ? 'busy' : 'idle';
+  if (terminalOutput.active === false) return terminalOutput.output ? 'idle' : 'unknown';
+
+  const output = String(terminalOutput.output || '');
+  if (!output.trim()) return 'unknown';
+  if (/Process exited with code/iu.test(output)) return 'idle';
+
+  const lastBusy = Math.max(
+    getLastMatchIndex(output, /(?:^|\n)\s*[•*]\s*(?:Working|Running|Thinking)\b/giu),
+    getLastMatchIndex(output, /\bWorking\s*\([^)]*esc to interrupt[^)]*\)/giu),
+    getLastMatchIndex(output, /\bmsg=interrupt\b/giu),
+  );
+
+  if (provider === 'codex') {
+    const lastPrompt = Math.max(
+      getLastMatchIndex(output, /(?:^|\n)\s*›(?:\s|$)/gu),
+      getLastMatchIndex(output, /(?:^|\n)\s*❯(?:\s|$)/gu),
+    );
+    if (lastBusy >= 0) return lastPrompt > lastBusy ? 'idle' : 'busy';
+    return lastPrompt >= 0 && /(?:Initialized|Baseline check passed|I did not modify files|Use \/skills)/iu.test(output)
+      ? 'idle'
+      : 'unknown';
+  }
+
+  if (lastBusy >= 0) return 'busy';
+  return 'unknown';
+}
+
+function isTerminalReadbackFinal(provider, terminalOutput) {
+  const terminalState = inferTerminalState(provider, terminalOutput);
+  return terminalState === 'idle' || terminalState === 'completed' || terminalState === 'exited';
+}
+
+async function waitForProviderTerminalOutput(provider, projectPath, waitMs, launchId = null) {
+  const startedAt = Date.now();
+  let latestOutput = null;
+  do {
+    const elapsed = Date.now() - startedAt;
+    const remaining = Math.max(0, waitMs - elapsed);
+    await sleep(Math.min(1000, Math.max(250, remaining)));
+    latestOutput = await readProviderTerminalOutput(provider, projectPath, 12000, launchId).catch((error) => ({
+      active: false,
+      terminalState: 'unknown',
+      error: error instanceof Error ? error.message : String(error),
+    }));
+
+    if (latestOutput?.output && isTerminalReadbackFinal(provider, latestOutput)) {
+      break;
+    }
+  } while (Date.now() - startedAt < waitMs);
+
+  if (latestOutput && !latestOutput.terminalState) {
+    latestOutput.terminalState = inferTerminalState(provider, latestOutput);
+  }
+  if (latestOutput && typeof latestOutput.isBusy !== 'boolean') {
+    latestOutput.isBusy = latestOutput.terminalState === 'busy';
+  }
+  return latestOutput;
 }
 
 function isLegacyPromptLikelyStartupInput(prompt) {
@@ -287,26 +367,27 @@ async function callTool(name, args = {}) {
         permissionMode,
       }),
     });
+    const launchId = Number(body?.event?.id || body?.id || 0) || null;
     let terminalOutput = null;
-    const waitForOutputMs = Math.min(15000, Math.max(0, Number(args.waitForOutputMs || 0)));
+    const defaultWaitMs = startupInput ? 180000 : 0;
+    const requestedWaitMs = Number(args.waitForCompletionMs ?? args.waitForOutputMs ?? defaultWaitMs);
+    const waitForOutputMs = Math.min(600000, Math.max(0, requestedWaitMs));
     if (waitForOutputMs > 0) {
-      const startedAt = Date.now();
-      do {
-        await sleep(Math.min(1000, Math.max(250, waitForOutputMs)));
-        terminalOutput = await readProviderTerminalOutput(provider, projectPath, 12000).catch((error) => ({
-          active: false,
-          error: error instanceof Error ? error.message : String(error),
-        }));
-        if (terminalOutput?.active && terminalOutput?.output) break;
-      } while (Date.now() - startedAt < waitForOutputMs);
+      terminalOutput = await waitForProviderTerminalOutput(provider, projectPath, waitForOutputMs, launchId);
     }
+    const terminalOutputFinal = terminalOutput ? isTerminalReadbackFinal(provider, terminalOutput) : false;
     return textResult(JSON.stringify({
       launched: true,
+      launchId,
       pixcodeMcpConfigured: mcpConfigured,
       pixcodeMcpError: mcpError,
       event: body?.event ?? body,
       permissionBypass: bypassPermissions,
       status,
+      terminalOutputFinal,
+      message: terminalOutput && !terminalOutputFinal
+        ? 'Provider terminal is still running or not at an idle prompt yet. Do not summarize this as final output; call pixcode_read_cli_terminal with launchId later.'
+        : undefined,
       terminalOutput,
     }, null, 2));
   }
@@ -317,7 +398,15 @@ async function callTool(name, args = {}) {
       ? args.projectPath.trim()
       : null;
     const maxChars = Math.min(20000, Math.max(1000, Number(args.maxChars || 12000)));
-    const body = await readProviderTerminalOutput(provider, projectPath, maxChars);
+    const launchId = Number(args.launchId || 0) || null;
+    const body = await readProviderTerminalOutput(provider, projectPath, maxChars, launchId);
+    if (body && !body.terminalState) {
+      body.terminalState = inferTerminalState(provider, body);
+    }
+    if (body && typeof body.isBusy !== 'boolean') {
+      body.isBusy = body.terminalState === 'busy';
+    }
+    body.terminalOutputFinal = isTerminalReadbackFinal(provider, body);
     return textResult(JSON.stringify(body, null, 2));
   }
 

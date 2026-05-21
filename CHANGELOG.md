@@ -2,6 +2,27 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.4](https://github.com/alicomert/pixcode/compare/v1.50.3...v1.50.4) (2026-05-21)
+
+Pixcode 1.50.4 fixes Hermes readback so visible provider work is not reported before the provider CLI is actually done.
+
+### Fixes
+
+* **hermes:** keep polling visible provider terminal output while Codex is still busy and only treat the readback as final after the terminal returns to an idle prompt.
+* **mcp:** tie Pixcode MCP provider-output reads to the exact Hermes terminal launch id, so Hermes cannot summarize an older or different Codex terminal session by mistake.
+* **shell:** carry the Hermes launch id from the workbench into the provider PTY cache and expose terminal busy/idle state through the provider-output API.
+* **hermes:** default startup-input launches to completion-aware readback and return an explicit non-final message if the provider is still running.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+* `git diff --check`
+
 ## [1.50.3](https://github.com/alicomert/pixcode/compare/v1.50.2...v1.50.3) (2026-05-21)
 
 Pixcode 1.50.3 fixes Hermes-driven visible Codex launches and makes Hermes terminal state workspace-scoped again.

@@ -9,6 +9,7 @@ const apiKey = 'px_smoke_key';
 const seen = [];
 const providerMcpUpserts = [];
 const terminalLaunches = [];
+const providerOutputReads = [];
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
@@ -90,13 +91,46 @@ const server = createServer(async (req, res) => {
     res.statusCode = 201;
     res.end(JSON.stringify({
       event: {
-        id: 1,
+        id: terminalLaunches.length,
         provider: body.provider,
         projectPath: body.projectPath,
         prompt: body.prompt,
         source: 'hermes-mcp',
       },
     }));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/shell/sessions/provider-output') {
+    providerOutputReads.push({
+      provider: url.searchParams.get('provider'),
+      projectPath: url.searchParams.get('projectPath'),
+      launchId: url.searchParams.get('launchId'),
+    });
+    const outputs = [
+      {
+        active: true,
+        provider: 'codex',
+        projectPath: '/root/pixcode',
+        terminalState: 'busy',
+        output: 'OpenAI Codex\n› /init\n\n• Working (10s • esc to interrupt)\n',
+      },
+      {
+        active: true,
+        provider: 'codex',
+        projectPath: '/root/pixcode',
+        terminalState: 'busy',
+        output: 'OpenAI Codex\n› /init\n\n• Ran npm test\n• Working (30s • esc to interrupt)\n',
+      },
+      {
+        active: true,
+        provider: 'codex',
+        projectPath: '/root/pixcode',
+        terminalState: 'idle',
+        output: 'Baseline check passed: npm test reports 195 passing, 0 failing.\n\n› Use /skills to list available skills\n',
+      },
+    ];
+    res.end(JSON.stringify(outputs[Math.min(providerOutputReads.length - 1, outputs.length - 1)]));
     return;
   }
 
@@ -190,13 +224,38 @@ try {
   assert.equal(providerMcpUpserts.length, 1, 'Codex launch should upsert a project-scoped Pixcode MCP server');
   assert.equal(providerMcpUpserts[0].name, 'pixcode', 'Provider MCP server should be named pixcode');
 
+  providerOutputReads.length = 0;
+  const launchWithReadback = await callMcp(child, 'tools/call', {
+    name: 'pixcode_open_cli_terminal',
+    arguments: {
+      provider: 'codex',
+      projectPath: '/root/pixcode',
+      prompt: 'read final output',
+      startupInput: '/init',
+      waitForOutputMs: 3000,
+    },
+  });
+  assert(
+    providerOutputReads.length >= 3,
+    `readback should keep polling until the provider terminal is idle, reads=${providerOutputReads.length}`,
+  );
+  assert.match(
+    launchWithReadback.content[0].text,
+    /195 passing, 0 failing/,
+    'readback should return the final Codex output instead of the first working frame',
+  );
+  assert(
+    providerOutputReads.every((read) => read.launchId === '2'),
+    `readback should be tied to the Hermes terminal launch id, reads=${JSON.stringify(providerOutputReads)}`,
+  );
+
   const blockedLaunch = await callMcp(child, 'tools/call', {
     name: 'pixcode_open_cli_terminal',
     arguments: { provider: 'qwen', projectPath: '/root/pixcode', prompt: 'smoke' },
   });
   assert.match(blockedLaunch.content[0].text, /"launched": false/, 'uninstalled providers should not create terminal launches');
   assert.match(blockedLaunch.content[0].text, /"reason": "not_installed"/, 'uninstalled provider response should explain the block');
-  assert.equal(terminalLaunches.length, 1, 'Only the installed Codex provider should be launched');
+  assert.equal(terminalLaunches.length, 2, 'Only installed Codex provider launches should be created');
 
   assert(seen.every((entry) => entry.auth === `Bearer ${apiKey}`), 'all MCP calls should use the Pixcode bearer key');
   console.log('hermes MCP Pixcode roundtrip smoke passed');

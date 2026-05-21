@@ -85,6 +85,36 @@ assert.match(
 );
 assert.match(
   pixcodeMcpServer,
+  /defaultWaitMs\s*=\s*startupInput \? 180000 : 0/,
+  'Pixcode MCP should wait for visible provider completion by default when startupInput is present.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /launchId/,
+  'Pixcode MCP should tie provider output readback to the terminal launch id.',
+);
+assert.match(
+  serverIndex,
+  /requestedLaunchId[\s\S]+session\.hermesLaunchId === requestedLaunchId/,
+  'Provider output API should filter by Hermes terminal launch id when supplied.',
+);
+assert.match(
+  serverIndex,
+  /const hermesLaunchId = Number\.isFinite\(Number\(data\.hermesLaunchId\)\)/,
+  'Shell backend should persist Hermes terminal launch ids on PTY sessions.',
+);
+assert.match(
+  workbench,
+  /terminalHermesLaunchId/,
+  'Workbench CLI panel should pass Hermes launch ids into provider shells.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /terminalState is busy|terminalState.+busy|terminal to become idle/i,
+  'Pixcode MCP should not summarize the first busy terminal frame as final output.',
+);
+assert.match(
+  pixcodeMcpServer,
   /startup input typed into the provider CLI/,
   'Pixcode MCP should describe prompt as real terminal input, not audit text.',
 );
