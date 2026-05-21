@@ -2266,7 +2266,7 @@ function handleShellConnection(ws, request) {
                 console.log('📋 Session info:', hasSession ? `Resume session ${sessionId}` : (isPlainShell ? 'Plain shell mode' : 'New session'));
                 console.log('🤖 Provider:', isPlainShell ? 'plain-shell' : provider);
                 if (initialCommand) {
-                    console.log('⚡ Initial command:', hermesCommand ? hermesCommand : initialCommand);
+                    console.log('⚡ Initial command:', initialCommand || 'interactive shell');
                 }
 
                 // First send a welcome message
@@ -2413,7 +2413,7 @@ function handleShellConnection(ws, request) {
                         }
                     }
 
-                    console.log('🔧 Executing shell command:', hermesCommand ? hermesCommand : (shellCommand || 'interactive shell'));
+                    console.log('🔧 Executing shell command:', shellCommand || 'interactive shell');
 
                     // Use appropriate shell based on platform
                     const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';

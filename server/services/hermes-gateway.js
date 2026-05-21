@@ -173,6 +173,41 @@ function extractRunOutput(body) {
     return null;
 }
 
+function extractChatCompletionOutput(body) {
+    if (!body || typeof body !== 'object') return null;
+    const choices = Array.isArray(body.choices) ? body.choices : [];
+    for (const choice of choices) {
+        const text = extractTextFromValue(choice?.message?.content)
+            || extractTextFromValue(choice?.delta?.content)
+            || extractTextFromValue(choice?.text);
+        if (text) return text;
+    }
+    return extractTextFromValue(body.output_text)
+        || extractTextFromValue(body.output)
+        || extractTextFromValue(body.message)
+        || extractTextFromValue(body.response)
+        || null;
+}
+
+function recentGatewayLogText(gateway) {
+    if (!gateway?.logs?.length) return '';
+    return gateway.logs
+        .slice(-16)
+        .map((entry) => String(entry.chunk || '').trim())
+        .filter(Boolean)
+        .join('\n')
+        .trim();
+}
+
+function gatewayExitMessage(gateway, fallback = 'Hermes gateway is not running.') {
+    if (!gateway) return fallback;
+    const exit = gateway.exitSignal
+        ? `Hermes gateway exited with signal ${gateway.exitSignal}.`
+        : `Hermes gateway exited with code ${gateway.exitCode ?? 'unknown'}.`;
+    const logs = recentGatewayLogText(gateway);
+    return logs ? `${exit}\n${logs}` : (gateway.error || exit);
+}
+
 function makeRunRequest(options) {
     const input = String(options.input || '').trim();
     return {
@@ -186,13 +221,36 @@ function makeRunRequest(options) {
     };
 }
 
+function makeChatCompletionRequest(options) {
+    const input = String(options.input || '').trim();
+    const messages = Array.isArray(options.messages) ? options.messages : [
+        {
+            role: 'system',
+            content: options.instructions || [
+                'You are Hermes Agent running inside Pixcode.',
+                'Use Pixcode MCP tools when they help inspect projects, launch CLIs, or perform workspace actions.',
+                'Keep answers concise and include concrete next steps when work is blocked.',
+            ].join(' '),
+        },
+        {
+            role: 'user',
+            content: input,
+        },
+    ];
+    return {
+        model: options.model || 'hermes-agent',
+        messages,
+        stream: false,
+    };
+}
+
 async function waitForGatewayReady(gateway) {
     const started = Date.now();
     let lastError = null;
 
     while (Date.now() - started < STARTUP_TIMEOUT_MS) {
         if (!isGatewayRunning(gateway)) {
-            throw new Error(gateway.error || `Hermes gateway exited with code ${gateway.exitCode ?? 'unknown'}.`);
+            throw new Error(gatewayExitMessage(gateway));
         }
 
         try {
@@ -458,12 +516,56 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
         throw new Error('Hermes prompt is required.');
     }
 
+    const chatRequest = makeChatCompletionRequest({ ...options, input });
+    const chat = await callGateway(gateway, '/v1/chat/completions', {
+        method: 'POST',
+        body: JSON.stringify(chatRequest),
+        timeoutMs: options.chatTimeoutMs || options.timeoutMs || RUN_TIMEOUT_MS,
+    }).catch((error) => {
+        if (!isGatewayRunning(gateway)) {
+            throw new Error(gatewayExitMessage(gateway));
+        }
+        throw error;
+    });
+
+    if (!isGatewayRunning(gateway)) {
+        throw new Error(gatewayExitMessage(gateway));
+    }
+
+    if (chat.ok) {
+        const message = extractChatCompletionOutput(chat.body);
+        return {
+            ok: true,
+            projectPath: gateway.projectPath,
+            baseUrl: gateway.baseUrl,
+            sessionId: options.sessionId || null,
+            runId: null,
+            status: 'completed',
+            message,
+            raw: chat.body,
+            transport: 'chat.completions',
+        };
+    }
+
+    if (chat.status && chat.status !== 404 && chat.status !== 405) {
+        throw new Error(`Hermes /v1/chat/completions failed with HTTP ${chat.status}: ${JSON.stringify(chat.body)}`);
+    }
+
     const request = makeRunRequest({ ...options, input });
     const create = await callGateway(gateway, '/v1/runs', {
         method: 'POST',
         body: JSON.stringify(request),
         timeoutMs: options.createTimeoutMs || 15000,
+    }).catch((error) => {
+        if (!isGatewayRunning(gateway)) {
+            throw new Error(gatewayExitMessage(gateway));
+        }
+        throw error;
     });
+
+    if (!isGatewayRunning(gateway)) {
+        throw new Error(gatewayExitMessage(gateway));
+    }
 
     if (!create.ok) {
         throw new Error(`Hermes /v1/runs failed with HTTP ${create.status}: ${JSON.stringify(create.body)}`);
@@ -481,6 +583,7 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
             status: initialStatus || 'completed',
             message: extractRunOutput(create.body),
             raw: create.body,
+            transport: 'runs',
         };
     }
 
@@ -496,6 +599,9 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
         });
         if (!poll.ok) {
             throw new Error(`Hermes /v1/runs/${runId} failed with HTTP ${poll.status}: ${JSON.stringify(poll.body)}`);
+        }
+        if (!isGatewayRunning(gateway)) {
+            throw new Error(gatewayExitMessage(gateway));
         }
         latest = poll.body;
         status = extractRunStatus(latest) || status;
@@ -516,6 +622,7 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
         message,
         error: status === 'completed' ? null : extractTextFromValue(latest?.error) || message || 'Hermes run failed.',
         raw: latest,
+        transport: 'runs',
     };
 }
 

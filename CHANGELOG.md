@@ -2,6 +2,29 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.49.9](https://github.com/alicomert/pixcode/compare/v1.49.8...v1.49.9) (2026-05-21)
+
+Pixcode 1.49.9 fixes the Hermes REST chat path and the Codex terminal crash introduced while removing the old Hermes shell sentinel.
+
+### Fixes
+
+* **cli:** remove the last stale `hermesCommand` references from provider shell startup logging so Codex, Gemini, Qwen, OpenCode, and Cursor sessions can start normally.
+* **hermes:** send bottom-panel Hermes chat prompts through the OpenAI-compatible `/v1/chat/completions` gateway endpoint before falling back to `/v1/runs`.
+* **hermes:** include recent Hermes gateway stdout/stderr when the gateway exits, so the UI shows the real failure text instead of only `Hermes gateway exited with code 1`.
+
+### Verification
+
+* `scripts/smoke/hermes-rest-chat-api.mjs`
+* `scripts/smoke/hermes-rest-chat-live.mjs`
+* `scripts/smoke/hermes-rest-live.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/hermes-rest-gateway.mjs`
+* `scripts/smoke/hermes-api-install.mjs`
+* `node --check server/index.js`
+* `node --check server/services/hermes-gateway.js`
+* `node_modules/.bin/eslint server/index.js server/services/hermes-gateway.js scripts/smoke/hermes-rest-chat-api.mjs scripts/smoke/hermes-rest-gateway.mjs scripts/smoke/pixcode-workbench-1-48.mjs`
+* `npm run build:server`
+
 ## [1.49.8](https://github.com/alicomert/pixcode/compare/v1.49.7...v1.49.8) (2026-05-21)
 
 Pixcode 1.49.8 replaces the brittle Hermes terminal launch path with a REST-backed chat flow and stops the workbench from polling empty launch events every few seconds.

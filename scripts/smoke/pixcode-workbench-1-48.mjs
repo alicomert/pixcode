@@ -85,6 +85,7 @@ assert.doesNotMatch(workbench, /suspendAutoConnect/, 'Right CLI provider starts 
 assert.match(serverIndex, /\/api\/shell\/sessions\/terminate/, 'Backend should expose an authenticated endpoint to terminate cached provider PTYs immediately.');
 assert.match(serverIndex, /isPlainShell && !initialCommand/, 'Backend should spawn an interactive plain shell when no terminal command is provided.');
 assert.doesNotMatch(serverIndex, /pixcode:hermes:start/, 'Backend should not need a Hermes terminal sentinel for the workbench Hermes panel.');
+assert.doesNotMatch(serverIndex, /hermesCommand/, 'Provider shell starts should not reference the removed Hermes sentinel variable.');
 assert.doesNotMatch(hermesInstallJobs, /iex \(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)/, 'Windows Hermes install should avoid the old inline iex pattern.');
 assert.doesNotMatch(hermesInstallJobs, /scriptblock\]::Create\(\(irm https:\/\/raw\.githubusercontent\.com\/NousResearch\/hermes-agent\/main\/scripts\/install\.ps1\)\)/, 'Windows Hermes install should avoid scriptblock Invoke-RestMethod eval patterns.');
 assert.match(hermesInstallJobs, /downloadHermesInstaller/, 'Windows Hermes install should download the installer through backend API code before running it.');
