@@ -650,6 +650,43 @@
     "gatewayProbe": "REST 테스트",
     "gatewayStop": "중지",
     "gatewayProbeOk": "REST 프로브 통과: health, capabilities, models가 응답했습니다.",
+    "commandsTitle": "Hermes CLI 설정",
+    "commandsDescription": "Pixcode에서 실제 Hermes 터미널 마법사를 엽니다. 모델 및 제공자로 Codex, OpenRouter, Anthropic, Gemini 등 제공자를 연결합니다.",
+    "commandsInstallFirst": "CLI 설정을 열기 전에 Hermes를 설치하세요.",
+    "commands": {
+      "model": {
+        "title": "모델 및 제공자",
+        "description": "OAuth, API 키, 기본 모델 선택을 위한 대화형 제공자/모델 마법사를 엽니다."
+      },
+      "auth": {
+        "title": "자격 증명",
+        "description": "구성된 제공자의 OAuth 세션과 API 키 풀을 관리합니다."
+      },
+      "tools": {
+        "title": "도구",
+        "description": "Pixcode MCP 접근을 포함해 활성화할 Hermes 도구 세트를 선택합니다."
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "터미널에서 Hermes 구성, 의존성, 플랫폼 문제를 진단합니다."
+      },
+      "status": {
+        "title": "상태",
+        "description": "현재 제공자, 인증, 플랫폼, 수정된 설정 요약을 표시합니다."
+      },
+      "lsp": {
+        "title": "LSP 상태",
+        "description": "시맨틱 진단을 위한 Hermes language server 통합을 확인합니다."
+      },
+      "skills": {
+        "title": "스킬",
+        "description": "CLI에서 Hermes 스킬을 탐색, 설치, 감사, 구성합니다."
+      },
+      "sessions": {
+        "title": "세션",
+        "description": "Hermes 세션을 탐색, 내보내기, 이름 변경, 정리, 삭제합니다."
+      }
+    },
     "pixcodeControlTitle": "Pixcode 제어",
     "pixcodeControlDescription": "Pixcode는 실행 전에 Hermes MCP 서버를 구성하므로 Hermes가 워크스페이스를 검사하고 필요할 때 Pixcode UI 안에서 제공자 터미널을 열 수 있습니다."
   }

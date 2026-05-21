@@ -650,6 +650,43 @@
     "gatewayProbe": "测试 REST",
     "gatewayStop": "停止",
     "gatewayProbeOk": "REST 探测通过：health、capabilities 和 models 已响应。",
+    "commandsTitle": "Hermes CLI 设置",
+    "commandsDescription": "从 Pixcode 打开真正的 Hermes 终端向导。使用模型和提供商连接 Codex、OpenRouter、Anthropic、Gemini 等提供商。",
+    "commandsInstallFirst": "打开 CLI 设置前请先安装 Hermes。",
+    "commands": {
+      "model": {
+        "title": "模型和提供商",
+        "description": "打开用于 OAuth、API 密钥和默认模型选择的交互式提供商/模型向导。"
+      },
+      "auth": {
+        "title": "凭据",
+        "description": "管理已配置提供商的 OAuth 会话和 API 密钥池。"
+      },
+      "tools": {
+        "title": "工具",
+        "description": "选择启用哪些 Hermes 工具集，包括 Pixcode MCP 访问。"
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "在终端中诊断 Hermes 配置、依赖和平台问题。"
+      },
+      "status": {
+        "title": "状态",
+        "description": "显示当前提供商、认证、平台和脱敏后的设置摘要。"
+      },
+      "lsp": {
+        "title": "LSP 状态",
+        "description": "检查 Hermes language server 集成以进行语义诊断。"
+      },
+      "skills": {
+        "title": "技能",
+        "description": "通过 CLI 浏览、安装、审计和配置 Hermes 技能。"
+      },
+      "sessions": {
+        "title": "会话",
+        "description": "浏览、导出、重命名、清理或删除 Hermes 会话。"
+      }
+    },
     "pixcodeControlTitle": "Pixcode 控制",
     "pixcodeControlDescription": "Pixcode 会在启动前配置 Hermes MCP 服务器，因此 Hermes 可以检查工作区，并在需要时在 Pixcode UI 中打开可见的提供商终端。"
   }

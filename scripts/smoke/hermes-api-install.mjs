@@ -43,10 +43,10 @@ assert.doesNotMatch(serverIndex, /pixcode:hermes:start/, 'Hermes H button should
 assert.doesNotMatch(serverIndex, /Hermes already installed:/, 'Hermes H launch should not leave a version/status banner stuck before the interactive prompt.');
 assert.doesNotMatch(serverIndex, /if command -v hermes >\/dev\/null 2>&1; then command -v hermes; return 0; fi;/, 'POSIX Hermes start must not accept a stale PATH shim without testing it.');
 assert.match(workbench, /HermesActivityButton/, 'Workbench activity rail should expose a dedicated Hermes H button under Terminal.');
-assert.match(workbench, /HermesApiChatPanel/, 'Opening the Hermes H button should show the REST-backed Hermes chat panel.');
-assert.match(workbench, /\/api\/orchestration\/hermes\/gateway\/chat/, 'Hermes prompts should be sent through the Pixcode REST gateway chat API.');
-assert.match(workbench, /openBottomTerminal\('hermes'\)/, 'Opening Hermes should restore the existing REST chat panel.');
-assert.match(workbench, /openBottomTerminal\('hermes', \{ forceNewSession: true \}\)/, 'The Hermes new-session action should reset the REST chat session.');
+assert.match(workbench, /command=\{hermesCommand\}/, 'Opening the Hermes H button should show the real Hermes terminal/TUI.');
+assert.match(workbench, /bottomTerminalCommand/, 'Hermes settings should be able to launch Hermes subcommands in the bottom terminal.');
+assert.match(workbench, /openBottomTerminal\('hermes'\)/, 'Opening Hermes should restore the Hermes terminal.');
+assert.match(workbench, /openBottomTerminal\('hermes', \{ command: 'hermes', forceNewSession: true \}\)/, 'The Hermes new-session action should reset the Hermes terminal session.');
 assert.match(workbench, /installLogRef/, 'Hermes install log panel should keep a scroll ref.');
 assert.match(workbench, /scrollTop = installLogRef\.current\.scrollHeight/, 'Hermes install logs should auto-scroll to the latest line.');
 assert.doesNotMatch(workbench, /suspendAutoConnect/, 'Right CLI launches should not be blocked by an open Hermes bottom terminal.');

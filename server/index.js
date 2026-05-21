@@ -405,17 +405,20 @@ function quotePowerShellArg(value) {
     return `"${String(value).replace(/`/g, '``').replace(/\$/g, '`$').replace(/"/g, '`"')}"`;
 }
 
+const HERMES_CLI_COMMAND_PATTERN = /^hermes(?:\s+[A-Za-z0-9._:/=@+-]+)*\s*$/;
+
 function isHermesCliCommand(command) {
-    return typeof command === 'string' && command.trim() === 'hermes';
+    return typeof command === 'string' && HERMES_CLI_COMMAND_PATTERN.test(command.trim());
 }
 
 function buildHermesCliCommand(command) {
+    const hermesCommand = typeof command === 'string' && command.trim() ? command.trim() : 'hermes';
     const configureScript = path.join(APP_ROOT, 'scripts', 'hermes', 'configure-pixcode-mcp.mjs');
     if (os.platform() === 'win32') {
-        return `& ${quotePowerShellArg(process.execPath)} ${quotePowerShellArg(configureScript)} *> $null; ${command}`;
+        return `& ${quotePowerShellArg(process.execPath)} ${quotePowerShellArg(configureScript)} *> $null; ${hermesCommand}`;
     }
 
-    return `${quoteBashArg(process.execPath)} ${quoteBashArg(configureScript)} >/dev/null 2>&1; exec ${command}`;
+    return `${quoteBashArg(process.execPath)} ${quoteBashArg(configureScript)} >/dev/null 2>&1; exec ${hermesCommand}`;
 }
 
 function getOrCreateHermesApiKey(userId) {
@@ -518,6 +521,55 @@ app.post('/api/shell/sessions/terminate', authenticateToken, (req, res) => {
 
     const killedSessions = killProviderPtySessions(projectPath, provider);
     res.json({ success: true, killedSessions });
+});
+
+app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => {
+    const provider = String(req.query.provider || 'claude');
+    const projectPath = typeof req.query.projectPath === 'string' && req.query.projectPath.trim()
+        ? req.query.projectPath.trim()
+        : null;
+    const maxChars = Math.min(
+        20000,
+        Math.max(1000, Number.parseInt(String(req.query.maxChars || '12000'), 10) || 12000)
+    );
+
+    if (!SHELL_CLI_PROVIDERS.has(provider)) {
+        return res.status(400).json({ error: 'Unsupported provider' });
+    }
+
+    const requestedProjectPath = projectPath ? path.resolve(projectPath) : null;
+    let matchedSession = null;
+    for (const session of ptySessionsMap.values()) {
+        if (
+            session?.provider === provider &&
+            !session?.isPlainShell &&
+            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath)
+        ) {
+            if (!matchedSession || (session.updatedAt || 0) > (matchedSession.updatedAt || 0)) {
+                matchedSession = session;
+            }
+        }
+    }
+
+    if (!matchedSession) {
+        return res.json({
+            active: false,
+            provider,
+            projectPath: requestedProjectPath,
+            output: '',
+            message: 'No active provider terminal session found for this project.',
+        });
+    }
+
+    const rawOutput = matchedSession.buffer.join('').slice(-maxChars);
+    res.json({
+        active: true,
+        provider,
+        projectPath: path.resolve(matchedSession.projectPath || os.homedir()),
+        sessionId: matchedSession.sessionId || null,
+        updatedAt: matchedSession.updatedAt || null,
+        output: stripAnsiSequences(rawOutput),
+    });
 });
 
 // Authentication routes (public)
@@ -2490,12 +2542,14 @@ function handleShellConnection(ws, request) {
                         provider,
                         isPlainShell,
                         keepAliveUntilExit: false,
+                        updatedAt: Date.now(),
                     });
 
                     // Handle data output
                     shellProcess.onData((data) => {
                         const session = ptySessionsMap.get(ptySessionKey);
                         if (!session) return;
+                        session.updatedAt = Date.now();
 
                         if (session.buffer.length < 5000) {
                             session.buffer.push(data);

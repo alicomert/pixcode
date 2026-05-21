@@ -824,6 +824,43 @@
     "gatewayProbe": "REST test et",
     "gatewayStop": "Durdur",
     "gatewayProbeOk": "REST testi gecti: health, capabilities ve models cevap verdi.",
+    "commandsTitle": "Hermes CLI ayarlari",
+    "commandsDescription": "Gercek Hermes terminal sihirbazlarini Pixcode icinden ac. Codex, OpenRouter, Anthropic, Gemini ve diger saglayicilari baglamak icin Model ve saglayici alanini kullan.",
+    "commandsInstallFirst": "CLI ayarlarini acmadan once Hermes'i kur.",
+    "commands": {
+      "model": {
+        "title": "Model ve saglayici",
+        "description": "OAuth, API key ve varsayilan model secimi icin etkilesimli provider/model sihirbazini ac."
+      },
+      "auth": {
+        "title": "Kimlik bilgileri",
+        "description": "Kurulu saglayicilar icin OAuth oturumlarini ve API key havuzlarini yonet."
+      },
+      "tools": {
+        "title": "Araclar",
+        "description": "Pixcode MCP dahil Hermes toolsetlerinin hangilerinin acik olacagini sec."
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "Hermes config, bagimlilik ve platform sorunlarini terminalde teshis et."
+      },
+      "status": {
+        "title": "Durum",
+        "description": "Mevcut saglayici, auth, platform ve gizlenmis kurulum ozetini goster."
+      },
+      "lsp": {
+        "title": "LSP durumu",
+        "description": "Semantik diagnostic icin Hermes language server entegrasyonunu kontrol et."
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "Hermes skilllerini CLI icinden gez, kur, denetle ve ayarla."
+      },
+      "sessions": {
+        "title": "Oturumlar",
+        "description": "Hermes oturumlarini gez, disa aktar, yeniden adlandir, temizle veya sil."
+      }
+    },
     "pixcodeControlTitle": "Pixcode kontrolu",
     "pixcodeControlDescription": "Pixcode, baslatmadan once Hermes MCP sunucusunu ayarlar. Boylece Hermes workspaceleri inceleyebilir ve istediginde gorunur Pixcode UI icinde provider terminalleri acabilir."
   }

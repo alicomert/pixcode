@@ -824,6 +824,43 @@
     "gatewayProbe": "Test REST",
     "gatewayStop": "Stop",
     "gatewayProbeOk": "REST probe passed: health, capabilities, and models responded.",
+    "commandsTitle": "Hermes CLI settings",
+    "commandsDescription": "Open the real Hermes terminal wizards from Pixcode. Use Model and provider to connect Codex, OpenRouter, Anthropic, Gemini, and other providers.",
+    "commandsInstallFirst": "Install Hermes before opening CLI settings.",
+    "commands": {
+      "model": {
+        "title": "Model and provider",
+        "description": "Open the interactive provider/model wizard for OAuth, API keys, and default model selection."
+      },
+      "auth": {
+        "title": "Credentials",
+        "description": "Manage OAuth sessions and API key pools for configured providers."
+      },
+      "tools": {
+        "title": "Tools",
+        "description": "Choose which Hermes toolsets are enabled, including Pixcode MCP access."
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "Diagnose Hermes config, dependency, and platform problems in a terminal."
+      },
+      "status": {
+        "title": "Status",
+        "description": "Show the current provider, auth, platform, and redacted setup summary."
+      },
+      "lsp": {
+        "title": "LSP status",
+        "description": "Check Hermes language server integration for semantic diagnostics."
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "Browse, install, audit, and configure Hermes skills from the CLI."
+      },
+      "sessions": {
+        "title": "Sessions",
+        "description": "Browse, export, rename, prune, or delete Hermes sessions."
+      }
+    },
     "pixcodeControlTitle": "Pixcode control",
     "pixcodeControlDescription": "Pixcode configures the Hermes MCP server before launch, so Hermes can inspect workspaces and open provider terminals inside the visible Pixcode UI when you ask it to."
   }

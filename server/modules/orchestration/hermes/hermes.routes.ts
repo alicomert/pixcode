@@ -29,6 +29,7 @@ type HermesTerminalLaunchEvent = {
   provider: string;
   projectPath: string | null;
   prompt: string | null;
+  startupInput: string | null;
   source: string;
   createdAt: string;
 };
@@ -78,6 +79,20 @@ function rememberHermesTerminalLaunch(event: HermesTerminalLaunchEvent) {
     hermesTerminalLaunches.splice(0, hermesTerminalLaunches.length - HERMES_TERMINAL_LAUNCH_LIMIT);
   }
   hermesTerminalLaunchEmitter.emit('terminal-launch', event);
+}
+
+function readTrimmedString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function isLegacyPromptLikelyStartupInput(prompt: string | null) {
+  if (!prompt || prompt.length > 160 || prompt.includes('\n')) return false;
+  if (/^[/:!@]/u.test(prompt)) return true;
+  if (prompt.includes(':')) return false;
+  if (/\b(user|request|reason|audit|task|kullanıcı|kullanicinin|istek|isteği|gorev|görev|terminal|codex|claude|qwen|gemini|cursor|opencode|open|aç|ac|başlat|baslat|send|gönder|gonder)\b/iu.test(prompt)) {
+    return false;
+  }
+  return prompt.length <= 80;
 }
 
 export function createHermesRouter(options: HermesRouterOptions = {}): Router {
@@ -448,15 +463,16 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
     const projectPath = typeof body.projectPath === 'string' && body.projectPath.trim()
       ? body.projectPath.trim()
       : null;
-    const prompt = typeof body.prompt === 'string' && body.prompt.trim()
-      ? body.prompt.trim()
-      : null;
+    const prompt = readTrimmedString(body.prompt ?? body.reason);
+    const requestedStartupInput = readTrimmedString(body.startupInput ?? body.input);
+    const startupInput = requestedStartupInput ?? (isLegacyPromptLikelyStartupInput(prompt) ? prompt : null);
 
     const event: HermesTerminalLaunchEvent = {
       id: nextHermesTerminalLaunchId,
       provider,
       projectPath,
       prompt,
+      startupInput,
       source: 'hermes-mcp',
       createdAt: new Date().toISOString(),
     };

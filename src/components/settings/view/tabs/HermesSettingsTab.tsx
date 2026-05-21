@@ -4,7 +4,24 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '../../../../shared/view/ui';
 import { authenticatedFetch } from '../../../../utils/api';
 
-import { AlertCircle, Check, Download, Loader2, RefreshCw, Server, SquareIcon, Terminal, Workflow } from '@/lib/icons';
+import {
+  AlertCircle,
+  Bug,
+  Check,
+  Code2,
+  Download,
+  History,
+  Key,
+  List,
+  Loader2,
+  RefreshCw,
+  Server,
+  Settings2,
+  Sparkles,
+  SquareIcon,
+  Terminal,
+  Workflow,
+} from '@/lib/icons';
 
 type HermesInstallStatus = {
   installed: boolean;
@@ -30,6 +47,95 @@ type HermesGatewayProbe = {
   error?: string | null;
 };
 
+type HermesSettingsTabProps = {
+  onClose?: () => void;
+};
+
+type HermesSettingsCommand = {
+  id: string;
+  command: string;
+  titleKey: string;
+  titleDefault: string;
+  descriptionKey: string;
+  descriptionDefault: string;
+  icon: typeof Terminal;
+};
+
+const HERMES_SETTINGS_COMMANDS: HermesSettingsCommand[] = [
+  {
+    id: 'model',
+    command: 'hermes model',
+    titleKey: 'hermes.commands.model.title',
+    titleDefault: 'Model and provider',
+    descriptionKey: 'hermes.commands.model.description',
+    descriptionDefault: 'Open the interactive provider/model wizard for OAuth, API keys, and default model selection.',
+    icon: Settings2,
+  },
+  {
+    id: 'auth',
+    command: 'hermes auth',
+    titleKey: 'hermes.commands.auth.title',
+    titleDefault: 'Credentials',
+    descriptionKey: 'hermes.commands.auth.description',
+    descriptionDefault: 'Manage OAuth sessions and API key pools for configured providers.',
+    icon: Key,
+  },
+  {
+    id: 'tools',
+    command: 'hermes setup tools',
+    titleKey: 'hermes.commands.tools.title',
+    titleDefault: 'Tools',
+    descriptionKey: 'hermes.commands.tools.description',
+    descriptionDefault: 'Choose which Hermes toolsets are enabled, including Pixcode MCP access.',
+    icon: Workflow,
+  },
+  {
+    id: 'doctor',
+    command: 'hermes doctor',
+    titleKey: 'hermes.commands.doctor.title',
+    titleDefault: 'Doctor',
+    descriptionKey: 'hermes.commands.doctor.description',
+    descriptionDefault: 'Diagnose Hermes config, dependency, and platform problems in a terminal.',
+    icon: Bug,
+  },
+  {
+    id: 'status',
+    command: 'hermes status --all',
+    titleKey: 'hermes.commands.status.title',
+    titleDefault: 'Status',
+    descriptionKey: 'hermes.commands.status.description',
+    descriptionDefault: 'Show the current provider, auth, platform, and redacted setup summary.',
+    icon: List,
+  },
+  {
+    id: 'lsp',
+    command: 'hermes lsp status',
+    titleKey: 'hermes.commands.lsp.title',
+    titleDefault: 'LSP status',
+    descriptionKey: 'hermes.commands.lsp.description',
+    descriptionDefault: 'Check Hermes language server integration for semantic diagnostics.',
+    icon: Code2,
+  },
+  {
+    id: 'skills',
+    command: 'hermes skills',
+    titleKey: 'hermes.commands.skills.title',
+    titleDefault: 'Skills',
+    descriptionKey: 'hermes.commands.skills.description',
+    descriptionDefault: 'Browse, install, audit, and configure Hermes skills from the CLI.',
+    icon: Sparkles,
+  },
+  {
+    id: 'sessions',
+    command: 'hermes sessions',
+    titleKey: 'hermes.commands.sessions.title',
+    titleDefault: 'Sessions',
+    descriptionKey: 'hermes.commands.sessions.description',
+    descriptionDefault: 'Browse, export, rename, prune, or delete Hermes sessions.',
+    icon: History,
+  },
+];
+
 const emptyStatus: HermesInstallStatus = {
   installed: false,
   command: null,
@@ -37,7 +143,7 @@ const emptyStatus: HermesInstallStatus = {
   error: null,
 };
 
-export default function HermesSettingsTab() {
+export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   const { t } = useTranslation('settings');
   const [status, setStatus] = useState<HermesInstallStatus>(emptyStatus);
   const [loading, setLoading] = useState(true);
@@ -101,10 +207,26 @@ export default function HermesSettingsTab() {
     void refreshGatewayStatus();
   }, [refreshGatewayStatus, refreshStatus]);
 
+  const closeSettingsAfterTerminalOpen = () => {
+    window.setTimeout(() => onClose?.(), 0);
+  };
+
   const openHermesTerminal = (mode: 'start' | 'install') => {
     window.dispatchEvent(new CustomEvent('pixcode:hermes-terminal', {
       detail: { mode },
     }));
+    closeSettingsAfterTerminalOpen();
+  };
+
+  const openHermesCommand = (command: HermesSettingsCommand) => {
+    window.dispatchEvent(new CustomEvent('pixcode:hermes-terminal', {
+      detail: {
+        mode: 'command',
+        command: command.command,
+        title: command.titleDefault,
+      },
+    }));
+    closeSettingsAfterTerminalOpen();
   };
 
   const startGateway = async () => {
@@ -185,7 +307,7 @@ export default function HermesSettingsTab() {
     : t('hermes.gatewayStopped', { defaultValue: 'REST gateway stopped' });
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-4xl space-y-5">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
           <span className="font-mono text-lg font-semibold leading-none">H</span>
@@ -262,6 +384,59 @@ export default function HermesSettingsTab() {
               {t('hermes.refresh', { defaultValue: 'Refresh' })}
             </Button>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-foreground">
+              {t('hermes.commandsTitle', { defaultValue: 'Hermes CLI settings' })}
+            </div>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {t('hermes.commandsDescription', {
+                defaultValue: 'Open the real Hermes terminal wizards from Pixcode. Use Model and provider to connect Codex, OpenRouter, Anthropic, Gemini, and other providers.',
+              })}
+            </p>
+          </div>
+          {!status.installed && (
+            <div className="rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
+              {t('hermes.commandsInstallFirst', { defaultValue: 'Install Hermes before opening CLI settings.' })}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {HERMES_SETTINGS_COMMANDS.map((command) => {
+            const Icon = command.icon;
+
+            return (
+              <button
+                key={command.id}
+                type="button"
+                disabled={!status.installed}
+                onClick={() => openHermesCommand(command)}
+                className="group flex min-h-24 items-start gap-3 rounded-md border border-border bg-background p-3 text-left transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-background"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-500/15 dark:text-emerald-300">
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground">
+                      {t(command.titleKey, { defaultValue: command.titleDefault })}
+                    </span>
+                    <span className="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {command.command}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                    {t(command.descriptionKey, { defaultValue: command.descriptionDefault })}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </section>
 

@@ -630,6 +630,43 @@
     "gatewayProbe": "REST testen",
     "gatewayStop": "Stoppen",
     "gatewayProbeOk": "REST Probe bestanden: Health, Capabilities und Models haben geantwortet.",
+    "commandsTitle": "Hermes CLI-Einstellungen",
+    "commandsDescription": "Offne echte Hermes-Terminalassistenten aus Pixcode. Nutze Modell und Provider, um Codex, OpenRouter, Anthropic, Gemini und weitere Provider zu verbinden.",
+    "commandsInstallFirst": "Installiere Hermes, bevor du CLI-Einstellungen offnest.",
+    "commands": {
+      "model": {
+        "title": "Modell und Provider",
+        "description": "Offnet den interaktiven Provider/Modell-Assistenten fur OAuth, API-Schlussel und Standardmodell."
+      },
+      "auth": {
+        "title": "Zugangsdaten",
+        "description": "Verwalte OAuth-Sitzungen und API-Schlusselpools fur konfigurierte Provider."
+      },
+      "tools": {
+        "title": "Tools",
+        "description": "Wahle aktive Hermes-Toolsets, einschliesslich Pixcode MCP-Zugriff."
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "Diagnostiziert Hermes-Konfiguration, Abhangigkeiten und Plattformprobleme im Terminal."
+      },
+      "status": {
+        "title": "Status",
+        "description": "Zeigt aktuellen Provider, Auth, Plattform und redigierte Setup-Zusammenfassung."
+      },
+      "lsp": {
+        "title": "LSP-Status",
+        "description": "Prufe die Hermes-Language-Server-Integration fur semantische Diagnosen."
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "Durchsuche, installiere, prufe und konfiguriere Hermes-Skills per CLI."
+      },
+      "sessions": {
+        "title": "Sitzungen",
+        "description": "Durchsuche, exportiere, benenne um, bereinige oder losche Hermes-Sitzungen."
+      }
+    },
     "pixcodeControlTitle": "Pixcode-Steuerung",
     "pixcodeControlDescription": "Pixcode konfiguriert den Hermes-MCP-Server vor dem Start, damit Hermes Workspaces prüfen und Provider-Terminals sichtbar in Pixcode öffnen kann."
   }

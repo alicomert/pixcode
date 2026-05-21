@@ -656,6 +656,43 @@
     "gatewayProbe": "Test REST",
     "gatewayStop": "Ferma",
     "gatewayProbeOk": "Test REST superato: health, capabilities e models hanno risposto.",
+    "commandsTitle": "Impostazioni Hermes CLI",
+    "commandsDescription": "Apri i veri wizard terminali di Hermes da Pixcode. Usa Modello e provider per collegare Codex, OpenRouter, Anthropic, Gemini e altri provider.",
+    "commandsInstallFirst": "Installa Hermes prima di aprire le impostazioni CLI.",
+    "commands": {
+      "model": {
+        "title": "Modello e provider",
+        "description": "Apri il wizard interattivo provider/modello per OAuth, chiavi API e modello predefinito."
+      },
+      "auth": {
+        "title": "Credenziali",
+        "description": "Gestisci sessioni OAuth e pool di chiavi API per i provider configurati."
+      },
+      "tools": {
+        "title": "Strumenti",
+        "description": "Scegli quali toolset Hermes sono attivi, incluso l'accesso Pixcode MCP."
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "Diagnostica nel terminale problemi di configurazione, dipendenze e piattaforma Hermes."
+      },
+      "status": {
+        "title": "Stato",
+        "description": "Mostra provider corrente, auth, piattaforma e riepilogo configurazione redatto."
+      },
+      "lsp": {
+        "title": "Stato LSP",
+        "description": "Controlla l'integrazione language server di Hermes per diagnostica semantica."
+      },
+      "skills": {
+        "title": "Skill",
+        "description": "Sfoglia, installa, verifica e configura le skill Hermes dalla CLI."
+      },
+      "sessions": {
+        "title": "Sessioni",
+        "description": "Sfoglia, esporta, rinomina, pulisci o elimina sessioni Hermes."
+      }
+    },
     "pixcodeControlTitle": "Controllo Pixcode",
     "pixcodeControlDescription": "Pixcode configura il server MCP di Hermes prima dell avvio, cosi Hermes puo ispezionare i workspace e aprire terminali provider visibili nell interfaccia Pixcode."
   }

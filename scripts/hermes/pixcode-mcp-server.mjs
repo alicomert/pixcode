@@ -20,7 +20,7 @@ const tools = [
   },
   {
     name: 'pixcode_get_provider_status',
-    description: 'Get install/auth/version status for one Pixcode CLI provider.',
+    description: 'Get install/auth/version status for one Pixcode CLI provider before launching it inside Pixcode.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -35,7 +35,7 @@ const tools = [
   },
   {
     name: 'pixcode_open_cli_terminal',
-    description: 'Ask the open Pixcode workbench to open a visible CLI terminal for a provider in a project.',
+    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and can type startup input into that terminal.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -49,7 +49,38 @@ const tools = [
         },
         prompt: {
           type: 'string',
-          description: 'Optional short reason shown to Pixcode for audit/display.',
+          description: 'Optional audit/reason text for Pixcode. This is not typed into the provider CLI.',
+        },
+        startupInput: {
+          type: 'string',
+          description: 'Exact startup input typed into the provider CLI after the TUI is ready. Use this for commands like /init, hello prompts, or the exact text the user asked to send.',
+        },
+        waitForOutputMs: {
+          type: 'number',
+          description: 'Optional milliseconds to wait and then read recent terminal output. Useful when the user asks you to report the provider output.',
+        },
+      },
+      required: ['provider'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_read_cli_terminal',
+    description: 'Read recent visible Pixcode provider CLI terminal output for a project. Use after pixcode_open_cli_terminal when the user asks what Codex/Claude/Gemini/Qwen/OpenCode printed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        provider: {
+          type: 'string',
+          enum: ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'],
+        },
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path. Omit to use the currently selected Pixcode project.',
+        },
+        maxChars: {
+          type: 'number',
+          description: 'Maximum transcript characters to return, capped by Pixcode.',
         },
       },
       required: ['provider'],
@@ -109,6 +140,10 @@ function textResult(text) {
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function pixcodeFetch(endpoint, options = {}) {
   if (!baseUrl || !apiKey) {
     throw new Error('Pixcode MCP is missing PIXCODE_BASE_URL or PIXCODE_API_KEY.');
@@ -140,6 +175,25 @@ async function pixcodeFetch(endpoint, options = {}) {
 async function readProviderStatus(provider) {
   const body = await pixcodeFetch(`/api/providers/${encodeURIComponent(provider)}/auth/status?refresh=1`);
   return body?.data ?? body;
+}
+
+async function readProviderTerminalOutput(provider, projectPath, maxChars) {
+  const params = new URLSearchParams({
+    provider,
+    maxChars: String(maxChars || 12000),
+  });
+  if (projectPath) params.set('projectPath', projectPath);
+  return pixcodeFetch(`/api/shell/sessions/provider-output?${params.toString()}`);
+}
+
+function isLegacyPromptLikelyStartupInput(prompt) {
+  if (!prompt || prompt.length > 160 || prompt.includes('\n')) return false;
+  if (/^[/:!@]/u.test(prompt)) return true;
+  if (prompt.includes(':')) return false;
+  if (/\b(user|request|reason|audit|task|kullanıcı|kullanicinin|istek|isteği|gorev|görev|terminal|codex|claude|qwen|gemini|cursor|opencode|open|aç|ac|başlat|baslat|send|gönder|gonder)\b/iu.test(prompt)) {
+    return false;
+  }
+  return prompt.length <= 80;
 }
 
 async function ensureProviderPixcodeMcp(provider, projectPath) {
@@ -210,15 +264,42 @@ async function callTool(name, args = {}) {
         provider,
         projectPath,
         prompt: args.prompt || null,
+        startupInput: typeof args.startupInput === 'string' && args.startupInput.trim()
+          ? args.startupInput.trim()
+          : (isLegacyPromptLikelyStartupInput(args.prompt) ? args.prompt.trim() : null),
       }),
     });
+    let terminalOutput = null;
+    const waitForOutputMs = Math.min(15000, Math.max(0, Number(args.waitForOutputMs || 0)));
+    if (waitForOutputMs > 0) {
+      const startedAt = Date.now();
+      do {
+        await sleep(Math.min(1000, Math.max(250, waitForOutputMs)));
+        terminalOutput = await readProviderTerminalOutput(provider, projectPath, 12000).catch((error) => ({
+          active: false,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+        if (terminalOutput?.active && terminalOutput?.output) break;
+      } while (Date.now() - startedAt < waitForOutputMs);
+    }
     return textResult(JSON.stringify({
       launched: true,
       pixcodeMcpConfigured: mcpConfigured,
       pixcodeMcpError: mcpError,
       event: body?.event ?? body,
       status,
+      terminalOutput,
     }, null, 2));
+  }
+
+  if (name === 'pixcode_read_cli_terminal') {
+    const provider = String(args.provider || '');
+    const projectPath = typeof args.projectPath === 'string' && args.projectPath.trim()
+      ? args.projectPath.trim()
+      : null;
+    const maxChars = Math.min(20000, Math.max(1000, Number(args.maxChars || 12000)));
+    const body = await readProviderTerminalOutput(provider, projectPath, maxChars);
+    return textResult(JSON.stringify(body, null, 2));
   }
 
   if (name === 'pixcode_get_hermes_gateway_status') {

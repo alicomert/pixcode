@@ -29,6 +29,7 @@ const block = [
   '        - pixcode_list_projects',
   '        - pixcode_get_provider_status',
   '        - pixcode_open_cli_terminal',
+  '        - pixcode_read_cli_terminal',
   '        - pixcode_get_hermes_gateway_status',
   '        - pixcode_probe_hermes_gateway',
   '      resources: false',

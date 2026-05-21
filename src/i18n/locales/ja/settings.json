@@ -650,6 +650,43 @@
     "gatewayProbe": "REST テスト",
     "gatewayStop": "停止",
     "gatewayProbeOk": "REST プローブ成功: health、capabilities、models が応答しました。",
+    "commandsTitle": "Hermes CLI 設定",
+    "commandsDescription": "Pixcode から実際の Hermes ターミナルウィザードを開きます。モデルとプロバイダーで Codex、OpenRouter、Anthropic、Gemini などを接続します。",
+    "commandsInstallFirst": "CLI 設定を開く前に Hermes をインストールしてください。",
+    "commands": {
+      "model": {
+        "title": "モデルとプロバイダー",
+        "description": "OAuth、API キー、既定モデル選択用の対話型プロバイダー/モデルウィザードを開きます。"
+      },
+      "auth": {
+        "title": "認証情報",
+        "description": "設定済みプロバイダーの OAuth セッションと API キープールを管理します。"
+      },
+      "tools": {
+        "title": "ツール",
+        "description": "Pixcode MCP アクセスを含め、有効にする Hermes ツールセットを選びます。"
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "Hermes の設定、依存関係、プラットフォーム問題をターミナルで診断します。"
+      },
+      "status": {
+        "title": "ステータス",
+        "description": "現在のプロバイダー、認証、プラットフォーム、編集済みセットアップ概要を表示します。"
+      },
+      "lsp": {
+        "title": "LSP ステータス",
+        "description": "セマンティック診断用の Hermes language server 連携を確認します。"
+      },
+      "skills": {
+        "title": "スキル",
+        "description": "CLI から Hermes スキルを参照、インストール、監査、設定します。"
+      },
+      "sessions": {
+        "title": "セッション",
+        "description": "Hermes セッションを参照、エクスポート、名前変更、整理、削除します。"
+      }
+    },
     "pixcodeControlTitle": "Pixcode 制御",
     "pixcodeControlDescription": "Pixcode は起動前に Hermes MCP サーバーを設定するため、Hermes はワークスペースを確認し、必要に応じて Pixcode UI 内でプロバイダー端末を開けます。"
   }

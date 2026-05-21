@@ -101,11 +101,25 @@ type WorkbenchCliTerminalMode = 'provider';
 
 type WorkbenchBottomTerminalMode = 'shell' | 'hermes' | 'hermes-install';
 
+type WorkbenchBottomTerminalOptions = {
+  forceNewSession?: boolean;
+  command?: string | null;
+  title?: string | null;
+};
+
+type PendingHermesLaunch = {
+  projectPath: string;
+  command?: string | null;
+  title?: string | null;
+  forceNewSession?: boolean;
+};
+
 type HermesTerminalLaunchEvent = {
   id: number;
   provider: LLMProvider;
   projectPath: string | null;
   prompt: string | null;
+  startupInput: string | null;
   source: string;
   createdAt: string;
 };
@@ -415,6 +429,8 @@ function VSCodeWorkbench({
   const [bottomTerminalMode, setBottomTerminalMode] = useState<WorkbenchBottomTerminalMode>('shell');
   const [bottomTerminalRunId, setBottomTerminalRunId] = useState(0);
   const [bottomTerminalForceNewSession, setBottomTerminalForceNewSession] = useState(false);
+  const [bottomTerminalCommand, setBottomTerminalCommand] = useState<string | null>(null);
+  const [bottomTerminalTitle, setBottomTerminalTitle] = useState<string | null>(null);
   const [bottomTerminalHeight, setBottomTerminalHeight] = useState(BOTTOM_TERMINAL_DEFAULT_HEIGHT);
   const [isBottomTerminalMinimized, setIsBottomTerminalMinimized] = useState(false);
   const [hermesCliLaunch, setHermesCliLaunch] = useState<HermesTerminalLaunchEvent | null>(null);
@@ -434,7 +450,7 @@ function VSCodeWorkbench({
   const [editorTabContextMenu, setEditorTabContextMenu] = useState<EditorTabContextMenu>(null);
   const [workspaceTabs, setWorkspaceTabs] = useState<WorkbenchWorkspaceTab[]>(readWorkspaceTabs);
   const [workspaceTabContextMenu, setWorkspaceTabContextMenu] = useState<WorkspaceTabContextMenu>(null);
-  const [pendingHermesProjectPath, setPendingHermesProjectPath] = useState<string | null>(null);
+  const [pendingHermesLaunch, setPendingHermesLaunch] = useState<PendingHermesLaunch | null>(null);
   const editorTabStripRef = useRef<HTMLDivElement>(null);
   const hermesInstallEventSourceRef = useRef<EventSource | null>(null);
   const hasPrimedHermesTerminalLaunchesRef = useRef(false);
@@ -626,9 +642,11 @@ function VSCodeWorkbench({
     });
   }, []);
 
-  const openBottomTerminal = useCallback((mode: WorkbenchBottomTerminalMode, options: { forceNewSession?: boolean } = {}) => {
+  const openBottomTerminal = useCallback((mode: WorkbenchBottomTerminalMode, options: WorkbenchBottomTerminalOptions = {}) => {
     setBottomTerminalMode(mode);
     setBottomTerminalForceNewSession(Boolean(options.forceNewSession));
+    setBottomTerminalCommand(mode === 'hermes' ? (options.command || 'hermes') : null);
+    setBottomTerminalTitle(mode === 'hermes' ? (options.title || null) : null);
     setIsBottomTerminalOpen(true);
     setIsBottomTerminalMinimized(false);
     setBottomTerminalRunId((current) => current + 1);
@@ -762,17 +780,21 @@ function VSCodeWorkbench({
   }, [refreshHermesInstallStatus]);
 
   useEffect(() => {
-    if (!pendingHermesProjectPath || !selectedProject) {
+    if (!pendingHermesLaunch || !selectedProject) {
       return;
     }
 
-    if (getProjectPath(selectedProject) !== pendingHermesProjectPath) {
+    if (getProjectPath(selectedProject) !== pendingHermesLaunch.projectPath) {
       return;
     }
 
-    setPendingHermesProjectPath(null);
-    openBottomTerminal('hermes');
-  }, [openBottomTerminal, pendingHermesProjectPath, selectedProject]);
+    setPendingHermesLaunch(null);
+    openBottomTerminal('hermes', {
+      command: pendingHermesLaunch.command,
+      title: pendingHermesLaunch.title,
+      forceNewSession: pendingHermesLaunch.forceNewSession,
+    });
+  }, [openBottomTerminal, pendingHermesLaunch, selectedProject]);
 
   const activeEditorFile = useMemo(
     () => openEditorTabs.find((tab) => tab.path === activeEditorPath) ?? openEditorTabs[0] ?? null,
@@ -909,11 +931,16 @@ function VSCodeWorkbench({
     }
   }, [activeTab, bottomTerminalMode, isBottomTerminalMinimized, isBottomTerminalOpen, openBottomTerminal, selectedProject, setActiveTab]);
 
-  const openHermesAgent = useCallback(() => {
+  const openHermesAgent = useCallback((options: WorkbenchBottomTerminalOptions = {}) => {
     if (!selectedProject) {
       const fallbackProject = sidebarProps.projects[0];
       if (fallbackProject) {
-        setPendingHermesProjectPath(getProjectPath(fallbackProject));
+        setPendingHermesLaunch({
+          projectPath: getProjectPath(fallbackProject),
+          command: options.command,
+          title: options.title,
+          forceNewSession: options.forceNewSession,
+        });
         sidebarProps.onProjectSelect(fallbackProject);
         setActivityPanel('explorer');
         setActiveTab('files');
@@ -930,7 +957,7 @@ function VSCodeWorkbench({
       return;
     }
 
-    openBottomTerminal('hermes');
+    openBottomTerminal('hermes', options);
   }, [hermesInstallStatus?.installed, openBottomTerminal, selectedProject, setActiveTab, sidebarProps, startHermesApiInstall]);
 
   const startNewHermesSession = useCallback(() => {
@@ -939,7 +966,7 @@ function VSCodeWorkbench({
       return;
     }
 
-    openBottomTerminal('hermes', { forceNewSession: true });
+    openBottomTerminal('hermes', { command: 'hermes', forceNewSession: true });
   }, [hermesInstallStatus?.installed, openBottomTerminal, startHermesApiInstall]);
 
   const installHermesAgent = useCallback(() => {
@@ -948,13 +975,24 @@ function VSCodeWorkbench({
 
   useEffect(() => {
     const handleHermesTerminalRequest = (event: Event) => {
-      const detail = (event as CustomEvent<{ mode?: string }>).detail;
+      const detail: CustomEvent<{ mode?: string; command?: string; title?: string }>['detail'] = (
+        event as CustomEvent<{ mode?: string; command?: string; title?: string }>
+      ).detail;
       if (detail?.mode === 'install') {
         installHermesAgent();
         return;
       }
 
-      openHermesAgent();
+      if (detail?.mode === 'command' && detail.command) {
+        openHermesAgent({
+          command: detail.command,
+          title: detail.title || detail.command,
+          forceNewSession: true,
+        });
+        return;
+      }
+
+      openHermesAgent({ command: 'hermes' });
     };
 
     window.addEventListener('pixcode:hermes-terminal', handleHermesTerminalRequest);
@@ -1470,6 +1508,8 @@ function VSCodeWorkbench({
                 hermesInstallJob={hermesInstallJob}
                 runId={bottomTerminalRunId}
                 forceNewSession={bottomTerminalForceNewSession}
+                command={bottomTerminalCommand}
+                commandTitle={bottomTerminalTitle}
                 height={bottomTerminalHeight}
                 isMinimized={isBottomTerminalMinimized}
                 isActive
@@ -2179,6 +2219,8 @@ function WorkbenchBottomTerminal({
   hermesInstallJob,
   runId,
   forceNewSession,
+  command,
+  commandTitle,
   height,
   isMinimized,
   isActive,
@@ -2196,6 +2238,8 @@ function WorkbenchBottomTerminal({
   hermesInstallJob: HermesInstallJobState;
   runId: number;
   forceNewSession: boolean;
+  command: string | null;
+  commandTitle: string | null;
   height: number;
   isMinimized: boolean;
   isActive: boolean;
@@ -2212,8 +2256,9 @@ function WorkbenchBottomTerminal({
   const title = mode === 'hermes-install'
     ? t('vscodeWorkbench.hermes.installTitle', { defaultValue: 'Install Hermes Agent' })
     : mode === 'hermes'
-      ? t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })
+      ? commandTitle || t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })
       : t('vscodeWorkbench.terminal.title', { defaultValue: 'Terminal' });
+  const hermesCommand = command || 'hermes';
 
   return (
     <section
@@ -2312,7 +2357,7 @@ function WorkbenchBottomTerminal({
               key={`hermes-terminal-${project?.name || 'none'}-${runId}`}
               project={project}
               session={null}
-              command="hermes"
+              command={hermesCommand}
               isPlainShell
               forceNewSession={forceNewSession}
               showHeader={false}
@@ -2946,7 +2991,7 @@ function WorkbenchCliPanel({
 
     setTerminalMode('provider');
     setSelectedProvider(provider);
-    setTerminalStartupInput(hermesCliLaunch.prompt ? `${hermesCliLaunch.prompt}\r` : null);
+    setTerminalStartupInput(hermesCliLaunch.startupInput ? `${hermesCliLaunch.startupInput}\r` : null);
     window.localStorage.setItem('selected-provider', provider);
     setTerminalSession(null);
     setShowHistory(false);

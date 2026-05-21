@@ -630,6 +630,43 @@
     "gatewayProbe": "Тест REST",
     "gatewayStop": "Остановить",
     "gatewayProbeOk": "REST проверка прошла: health, capabilities и models ответили.",
+    "commandsTitle": "Настройки Hermes CLI",
+    "commandsDescription": "Открывайте настоящие терминальные мастера Hermes из Pixcode. Используйте Модель и провайдер, чтобы подключить Codex, OpenRouter, Anthropic, Gemini и другие провайдеры.",
+    "commandsInstallFirst": "Установите Hermes перед открытием настроек CLI.",
+    "commands": {
+      "model": {
+        "title": "Модель и провайдер",
+        "description": "Открывает интерактивный мастер провайдера/модели для OAuth, API-ключей и модели по умолчанию."
+      },
+      "auth": {
+        "title": "Учетные данные",
+        "description": "Управляйте OAuth-сессиями и пулами API-ключей для настроенных провайдеров."
+      },
+      "tools": {
+        "title": "Инструменты",
+        "description": "Выберите активные наборы инструментов Hermes, включая доступ Pixcode MCP."
+      },
+      "doctor": {
+        "title": "Doctor",
+        "description": "Диагностирует проблемы конфигурации Hermes, зависимостей и платформы в терминале."
+      },
+      "status": {
+        "title": "Статус",
+        "description": "Показывает текущего провайдера, auth, платформу и отредактированную сводку настройки."
+      },
+      "lsp": {
+        "title": "Статус LSP",
+        "description": "Проверяет интеграцию Hermes language server для семантической диагностики."
+      },
+      "skills": {
+        "title": "Навыки",
+        "description": "Просматривайте, устанавливайте, проверяйте и настраивайте навыки Hermes из CLI."
+      },
+      "sessions": {
+        "title": "Сессии",
+        "description": "Просматривайте, экспортируйте, переименовывайте, очищайте или удаляйте сессии Hermes."
+      }
+    },
     "pixcodeControlTitle": "Управление Pixcode",
     "pixcodeControlDescription": "Pixcode настраивает MCP-сервер Hermes перед запуском, поэтому Hermes может просматривать workspace и открывать терминалы провайдеров внутри интерфейса Pixcode."
   }

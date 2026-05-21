@@ -158,7 +158,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 />
               )}
 
-              {activeTab === 'hermes' && <HermesSettingsTab />}
+              {activeTab === 'hermes' && <HermesSettingsTab onClose={onClose} />}
 
             {activeTab === 'notifications' && (
               <NotificationsSettingsTab
