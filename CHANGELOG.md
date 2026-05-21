@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.0](https://github.com/alicomert/pixcode/compare/v1.49.11...v1.50.0) (2026-05-21)
+
+Pixcode 1.50.0 makes Hermes a visible work controller for full provider-CLI tasks and gives Hermes launches a real bypass path.
+
+### Features
+
+* **hermes:** send arbitrary multi-step user work through Pixcode MCP as provider CLI `startupInput`, so Hermes can open Codex, Claude, Gemini, Qwen, Cursor, or OpenCode and drive the requested work in the visible Pixcode terminal instead of using hidden shell/proc execution.
+* **hermes:** carry `permissionMode`, `skipPermissions`, and `bypassPermissions` from Hermes MCP launch requests through the backend event stream into the shell websocket init message, using provider-specific no-approval flags where supported.
+* **hermes:** start the real Hermes terminal with `hermes --yolo` by default so Hermes approval prompts do not block work launched from Pixcode.
+* **ui:** replace the placeholder Hermes `H` glyph with the provided 60x60 Hermes Agent logo across settings, welcome, activity, and terminal surfaces.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+
 ## [1.49.11](https://github.com/alicomert/pixcode/compare/v1.49.10...v1.49.11) (2026-05-21)
 
 Pixcode 1.49.11 stabilizes the Hermes terminal integration, keeps REST gateway control isolated from the user's normal Hermes gateway, and restores terminal copy/paste shortcuts.
