@@ -109,7 +109,7 @@ type WorkbenchBottomTerminalOptions = {
   project?: Project | null;
 };
 
-const HERMES_DEFAULT_COMMAND = 'hermes --yolo';
+const HERMES_DEFAULT_COMMAND = 'hermes --yolo --toolsets mcp-pixcode';
 const HERMES_HISTORY_COMMAND = 'hermes sessions browse';
 
 type PendingHermesLaunch = {
@@ -125,6 +125,7 @@ type HermesTerminalLaunchEvent = {
   projectPath: string | null;
   prompt: string | null;
   startupInput: string | null;
+  forceNewSession?: boolean;
   permissionMode?: string | null;
   skipPermissions?: boolean;
   bypassPermissions?: boolean;
@@ -3188,7 +3189,7 @@ function WorkbenchCliPanel({
     setIsTerminalOpen(true);
     setTerminalLaunch((current) => ({
       runId: current.runId + 1,
-      forceNewSession: true,
+      forceNewSession: hermesCliLaunch.forceNewSession === true,
     }));
     persistCliState({
       provider,

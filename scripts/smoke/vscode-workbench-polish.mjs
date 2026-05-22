@@ -268,6 +268,12 @@ assert.match(
 
 assert.match(
   workbench,
+  /forceNewSession:\s*hermesCliLaunch\.forceNewSession === true/,
+  'Hermes-triggered provider work should reuse the current visible CLI session unless a fresh session is explicitly requested.',
+);
+
+assert.match(
+  workbench,
   /function WorkbenchCliPanelToolbar/,
   'Right CLI terminal should keep compact History and New Session actions visible while the terminal is open.',
 );
@@ -308,8 +314,8 @@ assert.doesNotMatch(
 
 assert.match(
   workbench,
-  /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/,
-  'Hermes Agent should launch the Hermes CLI directly in bypass mode.',
+  /HERMES_DEFAULT_COMMAND = 'hermes --yolo --toolsets mcp-pixcode'/,
+  'Hermes Agent should launch the Hermes CLI directly in bypass mode with only the Pixcode MCP toolset.',
 );
 
 assert.match(

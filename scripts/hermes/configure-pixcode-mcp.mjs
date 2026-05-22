@@ -40,7 +40,7 @@ const apiServerToolsetBlock = [
   '    - hermes-api-server',
   '    - pixcode',
 ].join('\n');
-const cliToolsets = ['hermes-cli', 'mcp-pixcode'];
+const cliToolsets = ['mcp-pixcode'];
 
 function findRootKeyEnd(lines, startIndex) {
   for (let index = startIndex + 1; index < lines.length; index += 1) {
@@ -128,13 +128,16 @@ function upsertRootListValues(rawConfig, key, values) {
   }
 
   const keyEnd = findRootKeyEnd(lines, keyIndex);
-  const existing = new Set(readRootListValues(lines, keyIndex, keyEnd));
-  const missing = values.filter((value) => !existing.has(value));
-  if (missing.length === 0) {
+  const nextList = values.map((value) => `- ${value}`);
+  const existingList = readRootListValues(lines, keyIndex, keyEnd);
+  if (
+    existingList.length === values.length &&
+    existingList.every((value, index) => value === values[index])
+  ) {
     return `${lines.join('\n').replace(/\s*$/, '')}\n`;
   }
 
-  lines.splice(keyEnd, 0, ...missing.map((value) => `- ${value}`));
+  lines.splice(keyIndex + 1, keyEnd - keyIndex - 1, ...nextList);
   return `${lines.join('\n').replace(/\s*$/, '')}\n`;
 }
 

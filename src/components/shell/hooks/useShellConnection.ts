@@ -373,7 +373,10 @@ export function useShellConnection({
             const startupInputForCommand = typeof startupInputRef.current === 'string' && startupInputRef.current.trim()
               ? startupInputRef.current.trim()
               : null;
-            const handlesStartupInputInCommand = provider === 'codex' && Boolean(startupInputForCommand) && !isPlainShellRef.current;
+            const handlesStartupInputInCommand = provider === 'codex'
+              && forceNewSessionRef.current
+              && Boolean(startupInputForCommand)
+              && !isPlainShellRef.current;
             clearStartupInputTimer();
             startupInputSentRef.current = false;
             startupInputBufferRef.current = '';

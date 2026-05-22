@@ -72,6 +72,7 @@ const server = createServer(async (req, res) => {
       projectPath: body.projectPath,
       prompt: body.prompt,
       startupInput: body.startupInput,
+      forceNewSession: Boolean(body.forceNewSession),
       permissionMode: body.permissionMode,
       skipPermissions: Boolean(body.skipPermissions),
       bypassPermissions: Boolean(body.bypassPermissions),
@@ -175,10 +176,10 @@ try {
       instructions: [
         'You are testing Pixcode integration.',
         'Use the MCP tool named mcp_pixcode_pixcode_open_cli_terminal exactly once.',
-        'Call it with provider="codex", the supplied projectPath, startupInput equal to the supplied task, prompt="Pixcode Hermes REST smoke visible Codex task", and bypassPermissions=true.',
+        'Call it with provider="codex", the supplied projectPath, startupInput equal to the supplied task, prompt="Pixcode Hermes REST smoke visible Codex task", forceNewSession=false, and bypassPermissions=true.',
         'After the tool call, answer with "codex launch requested".',
       ].join(' '),
-      input: `Call mcp_pixcode_pixcode_open_cli_terminal with provider codex, projectPath ${JSON.stringify(projectPath)}, startupInput ${JSON.stringify(codexTask)}, prompt "Pixcode Hermes REST smoke visible Codex task", and bypassPermissions true.`,
+      input: `Call mcp_pixcode_pixcode_open_cli_terminal with provider codex, projectPath ${JSON.stringify(projectPath)}, startupInput ${JSON.stringify(codexTask)}, prompt "Pixcode Hermes REST smoke visible Codex task", forceNewSession false, and bypassPermissions true.`,
     }),
   });
   if (!response.ok || !body?.run_id) {
@@ -195,6 +196,7 @@ try {
   assert.equal(launch.bypassPermissions, true, 'Hermes Codex launch should request provider permission bypass.');
   assert.equal(launch.skipPermissions, true, 'Hermes Codex launch should carry skipPermissions for providers that use skip flags.');
   assert.equal(launch.permissionMode, 'bypassPermissions', 'Hermes Codex launch should use bypassPermissions mode.');
+  assert.equal(launch.forceNewSession, false, 'Hermes Codex launch should continue the visible provider terminal unless a fresh session is explicit.');
   console.log(JSON.stringify({
     ok: true,
     runId: body.run_id,

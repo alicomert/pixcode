@@ -8,6 +8,7 @@ const apiKey = process.env.PIXCODE_API_KEY || '';
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const mcpServerPath = path.join(appRoot, 'scripts', 'hermes', 'pixcode-mcp-server.mjs');
 const READBACK_IDLE_STABLE_MS = 2500;
+const DEFAULT_STARTUP_WAIT_MS = 100000;
 
 const tools = [
   {
@@ -36,7 +37,7 @@ const tools = [
   },
   {
     name: 'pixcode_open_cli_terminal',
-    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to open a visible provider CLI terminal in the project and submit startup input there. Do not run a parallel Hermes codex/claude/proc command for the same request. For multi-step, piece-by-piece, or long-running work, put the full user instruction in startupInput so the provider CLI does the work visibly inside Pixcode. When startupInput is present, Pixcode waits for the terminal to become idle before returning readback by default; never treat the first working frame as final output.',
+    description: 'Use this instead of Hermes shell/proc/skill execution whenever the user asks to open Codex, Claude, Cursor, Gemini, Qwen, or OpenCode inside Pixcode. It asks the open Pixcode workbench to continue the existing visible provider terminal in the project and submit startup input there. Do not run a parallel Hermes codex/claude/proc command for the same request. Do not request a fresh session unless the user explicitly asks for a new session. For multi-step, piece-by-piece, or long-running work, put the full user instruction in startupInput so the provider CLI does the work visibly inside Pixcode. When startupInput is present, Pixcode waits for the terminal to become idle before returning readback by default; never treat the first working frame as final output.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -55,6 +56,10 @@ const tools = [
         startupInput: {
           type: 'string',
           description: 'Exact startup input typed into the provider CLI after the TUI is ready. Use this for commands like /init, hello prompts, or full multi-step task instructions the user asked to run visibly.',
+        },
+        forceNewSession: {
+          type: 'boolean',
+          description: 'Start a fresh visible provider CLI session only when the user explicitly asks for a new session. Omit or false to continue the existing visible provider terminal.',
         },
         bypassPermissions: {
           type: 'boolean',
@@ -223,21 +228,21 @@ function inferTerminalState(provider, terminalOutput) {
   if (!output.trim()) return 'unknown';
   if (/Process exited with code/iu.test(output)) return 'idle';
 
-  const lastBusy = Math.max(
-    getLastMatchIndex(output, /(?:^|\n)\s*[•*]\s*(?:Working|Running|Thinking)\b/giu),
+  const lastWeakBusy = getLastMatchIndex(output, /(?:^|\n)\s*[•*]\s*(?:Working|Running|Thinking)\b/giu);
+  const lastStrongBusy = Math.max(
     getLastMatchIndex(output, /\bWorking\s*\([^)]*esc to interrupt[^)]*\)/giu),
     getLastMatchIndex(output, /\bmsg=interrupt\b/giu),
   );
+  const lastBusy = Math.max(lastWeakBusy, lastStrongBusy);
 
   if (provider === 'codex') {
     const lastPrompt = Math.max(
       getLastMatchIndex(output, /(?:^|\n)\s*›(?:\s|$)/gu),
       getLastMatchIndex(output, /(?:^|\n)\s*❯(?:\s|$)/gu),
     );
-    if (lastBusy >= 0) return lastPrompt > lastBusy ? 'idle' : 'busy';
-    return lastPrompt >= 0 && /(?:Initialized|Baseline check passed|I did not modify files|Use \/skills)/iu.test(output)
-      ? 'idle'
-      : 'unknown';
+    if (lastPrompt >= 0) return lastStrongBusy > lastPrompt ? 'busy' : 'idle';
+    if (lastBusy >= 0) return 'busy';
+    return 'unknown';
   }
 
   if (lastBusy >= 0) return 'busy';
@@ -324,13 +329,13 @@ function isLegacyPromptLikelyStartupInput(prompt) {
   return prompt.length <= 80;
 }
 
-async function ensureProviderPixcodeMcp(provider, projectPath) {
+async function upsertProviderPixcodeMcp(provider, projectPath, scope) {
   const body = await pixcodeFetch(`/api/providers/${encodeURIComponent(provider)}/mcp/servers`, {
     method: 'POST',
     body: JSON.stringify({
       name: 'pixcode',
       transport: 'stdio',
-      scope: 'project',
+      scope,
       workspacePath: projectPath || process.cwd(),
       command: process.execPath,
       args: [mcpServerPath],
@@ -341,6 +346,22 @@ async function ensureProviderPixcodeMcp(provider, projectPath) {
     }),
   });
   return body?.data?.server ?? body?.server ?? body;
+}
+
+async function ensureProviderPixcodeMcp(provider, projectPath) {
+  try {
+    const server = await upsertProviderPixcodeMcp(provider, projectPath, 'project');
+    return { scope: 'project', server, projectScopeError: null };
+  } catch (error) {
+    const projectScopeError = error instanceof Error ? error.message : String(error);
+    try {
+      const server = await upsertProviderPixcodeMcp(provider, projectPath, 'user');
+      return { scope: 'user', server, projectScopeError };
+    } catch (fallbackError) {
+      const userScopeError = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      throw new Error(`Pixcode MCP auto-config failed for project scope (${projectScopeError}) and user scope (${userScopeError})`);
+    }
+  }
 }
 
 async function callTool(name, args = {}) {
@@ -378,9 +399,10 @@ async function callTool(name, args = {}) {
     }
 
     let mcpConfigured = false;
+    let mcpConfig = null;
     let mcpError = null;
     try {
-      await ensureProviderPixcodeMcp(provider, projectPath);
+      mcpConfig = await ensureProviderPixcodeMcp(provider, projectPath);
       mcpConfigured = true;
     } catch (error) {
       mcpError = error instanceof Error ? error.message : String(error);
@@ -390,6 +412,7 @@ async function callTool(name, args = {}) {
       ? args.startupInput
       : (isLegacyPromptLikelyStartupInput(args.prompt) ? args.prompt.trim() : null);
     const bypassPermissions = args.bypassPermissions === false ? false : true;
+    const forceNewSession = args.forceNewSession === true || args.newSession === true || args.freshSession === true;
     const permissionMode = typeof args.permissionMode === 'string' && args.permissionMode.trim()
       ? args.permissionMode.trim()
       : (bypassPermissions ? 'bypassPermissions' : null);
@@ -401,6 +424,7 @@ async function callTool(name, args = {}) {
         projectPath,
         prompt: args.prompt || null,
         startupInput,
+        forceNewSession,
         bypassPermissions,
         skipPermissions: bypassPermissions,
         permissionMode,
@@ -408,7 +432,7 @@ async function callTool(name, args = {}) {
     });
     const launchId = Number(body?.event?.id || body?.id || 0) || null;
     let terminalOutput = null;
-    const defaultWaitMs = startupInput ? 180000 : 0;
+    const defaultWaitMs = startupInput ? DEFAULT_STARTUP_WAIT_MS : 0;
     const requestedWaitMs = Number(args.waitForCompletionMs ?? args.waitForOutputMs ?? defaultWaitMs);
     const waitForOutputMs = Math.min(600000, Math.max(0, requestedWaitMs));
     if (waitForOutputMs > 0) {
@@ -421,6 +445,8 @@ async function callTool(name, args = {}) {
       launched: true,
       launchId,
       pixcodeMcpConfigured: mcpConfigured,
+      pixcodeMcpScope: mcpConfig?.scope ?? null,
+      pixcodeMcpProjectScopeError: mcpConfig?.projectScopeError ?? null,
       pixcodeMcpError: mcpError,
       event: body?.event ?? body,
       permissionBypass: bypassPermissions,

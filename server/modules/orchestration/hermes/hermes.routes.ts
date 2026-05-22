@@ -30,6 +30,7 @@ type HermesTerminalLaunchEvent = {
   projectPath: string | null;
   prompt: string | null;
   startupInput: string | null;
+  forceNewSession: boolean;
   permissionMode: string | null;
   skipPermissions: boolean;
   bypassPermissions: boolean;
@@ -473,6 +474,7 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
     const prompt = readTrimmedString(body.prompt ?? body.reason);
     const requestedStartupInput = readTrimmedString(body.startupInput ?? body.input);
     const startupInput = requestedStartupInput ?? (isLegacyPromptLikelyStartupInput(prompt) ? prompt : null);
+    const forceNewSession = readBoolean(body.forceNewSession ?? body.newSession ?? body.freshSession);
     const bypassPermissions = readBoolean(body.bypassPermissions);
     const skipPermissions = readBoolean(body.skipPermissions) || bypassPermissions;
     const requestedPermissionMode = readTrimmedString(body.permissionMode);
@@ -484,6 +486,7 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       projectPath,
       prompt,
       startupInput,
+      forceNewSession,
       permissionMode,
       skipPermissions,
       bypassPermissions,

@@ -352,11 +352,12 @@ function detectProviderTerminalState(provider, output) {
         };
     }
 
-    const lastBusy = Math.max(
-        getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*[•*]\s*(?:Working|Running|Thinking)\b/giu),
+    const lastWeakBusy = getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*[•*]\s*(?:Working|Running|Thinking)\b/giu);
+    const lastStrongBusy = Math.max(
         getLastRegexMatchIndex(cleanOutput, /\bWorking\s*\([^)]*esc to interrupt[^)]*\)/giu),
         getLastRegexMatchIndex(cleanOutput, /\bmsg=interrupt\b/giu),
     );
+    const lastBusy = Math.max(lastWeakBusy, lastStrongBusy);
 
     if (provider === 'codex') {
         const lastPrompt = Math.max(
@@ -364,20 +365,20 @@ function detectProviderTerminalState(provider, output) {
             getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*❯(?:\s|$)/gu),
         );
 
-        if (lastBusy >= 0) {
-            const isBusy = lastPrompt <= lastBusy;
+        if (lastPrompt >= 0) {
+            const isBusy = lastStrongBusy > lastPrompt;
             return {
                 terminalState: isBusy ? 'busy' : 'idle',
                 isBusy,
-                terminalStateReason: isBusy ? 'codex_busy_marker_after_prompt' : 'codex_prompt_after_busy_marker',
+                terminalStateReason: isBusy ? 'codex_strong_busy_marker_after_prompt' : 'codex_prompt_after_busy_marker',
             };
         }
 
-        if (lastPrompt >= 0 && /(?:Initialized|Baseline check passed|I did not modify files|Use \/skills)/iu.test(cleanOutput)) {
+        if (lastBusy >= 0) {
             return {
-                terminalState: 'idle',
-                isBusy: false,
-                terminalStateReason: 'codex_idle_prompt',
+                terminalState: 'busy',
+                isBusy: true,
+                terminalStateReason: 'codex_busy_marker_without_prompt',
             };
         }
     }
@@ -2749,6 +2750,11 @@ function handleShellConnection(ws, request) {
                     shellProcess.onExit((exitCode) => {
                         console.log('🔚 Shell process exited with code:', exitCode.exitCode, 'signal:', exitCode.signal);
                         const session = ptySessionsMap.get(ptySessionKey);
+                        if (session?.pty && session.pty !== shellProcess) {
+                            console.log('↩️  Ignoring stale PTY exit for replacement session:', ptySessionKey);
+                            return;
+                        }
+
                         const exitMessage = `\r\n\x1b[33mProcess exited with code ${exitCode.exitCode}${exitCode.signal ? ` (${exitCode.signal})` : ''}\x1b[0m\r\n`;
                         if (session) {
                             session.lifecycleState = exitCode.exitCode === 0 && !exitCode.signal ? 'completed' : 'failed';

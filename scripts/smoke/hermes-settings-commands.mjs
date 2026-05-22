@@ -55,8 +55,8 @@ assert.match(
 );
 assert.match(
   workbench,
-  /HERMES_DEFAULT_COMMAND\s*=\s*'hermes --yolo'/,
-  'Hermes terminal should default to --yolo so Hermes approval prompts do not stop visible work.',
+  /HERMES_DEFAULT_COMMAND\s*=\s*'hermes --yolo --toolsets mcp-pixcode'/,
+  'Hermes terminal should default to Pixcode MCP-only toolsets so provider CLIs stay visible inside Pixcode.',
 );
 assert.match(
   serverIndex,
@@ -85,8 +85,18 @@ assert.match(
 );
 assert.match(
   pixcodeMcpServer,
-  /defaultWaitMs\s*=\s*startupInput \? 180000 : 0/,
-  'Pixcode MCP should wait for visible provider completion by default when startupInput is present.',
+  /DEFAULT_STARTUP_WAIT_MS\s*=\s*100000/,
+  'Pixcode MCP default completion wait should stay under the Hermes MCP tool timeout.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /lastStrongBusy[\s\S]+lastPrompt[\s\S]+\?\s*'busy'\s*:\s*'idle'/,
+  'Codex readback should ignore weak spinner remnants once the prompt has returned.',
+);
+assert.match(
+  serverIndex,
+  /lastStrongBusy[\s\S]+lastPrompt[\s\S]+\?\s*'busy'\s*:\s*'idle'/,
+  'Backend provider-output should ignore weak Codex spinner remnants once the prompt has returned.',
 );
 assert.match(
   pixcodeMcpServer,
@@ -112,6 +122,11 @@ assert.match(
   serverIndex,
   /existingSession[\s\S]+existingSession\.pty/,
   'Completed visible terminal records should not be reattached as live PTYs.',
+);
+assert.match(
+  serverIndex,
+  /session\.pty\s*!==\s*shellProcess/,
+  'Stale PTY exit handlers should not mark a replacement provider session as completed or failed.',
 );
 assert.match(
   pixcodeMcpServer,
@@ -142,6 +157,11 @@ assert.match(
   pixcodeMcpServer,
   /readbackStable/,
   'Pixcode MCP should mark whether a visible provider readback was stable before Hermes summarizes it.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /scope:\s*'user'/,
+  'Pixcode MCP provider auto-config should fall back to user scope when project scope cannot be written.',
 );
 assert.match(
   pixcodeMcpServer,
@@ -200,13 +220,28 @@ assert.match(
 );
 assert.match(
   shellConnection,
-  /provider === 'codex'[\s\S]+startupInputRef\.current/,
-  'Codex startup input should be handled at process launch instead of typed into an already-open TUI.',
+  /provider === 'codex'[\s\S]+forceNewSessionRef\.current[\s\S]+startupInputForCommand/,
+  'Codex startup input should be passed as a process argument only for explicit fresh sessions.',
 );
 assert.match(
   shellConnection,
   /startupInput:\s*handlesStartupInputInCommand \? startupInputForCommand : null/,
   'Shell websocket init should send Codex startup input to the backend command builder.',
+);
+assert.match(
+  workbench,
+  /forceNewSession:\s*hermesCliLaunch\.forceNewSession === true/,
+  'Hermes-launched provider work should continue the current visible terminal unless forceNewSession is explicit.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /forceNewSession/,
+  'Pixcode MCP should let Hermes request a fresh visible provider session only when the user asks for one.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /continue the existing visible provider terminal/i,
+  'Pixcode MCP tool instructions should tell Hermes to continue existing visible provider terminals by default.',
 );
 assert.doesNotMatch(
   workbench,

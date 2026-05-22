@@ -73,13 +73,14 @@ assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selecte
 assert.doesNotMatch(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should not launch from the bottom terminal through a server-side sentinel.');
 assert.doesNotMatch(workbench, /HermesApiChatPanel|HermesTerminalTranscript/, 'Hermes Agent should use the real PTY terminal UI, not a custom REST chat transcript.');
 assert.doesNotMatch(workbench, /REST POST \/|transport=|response=|gateway=http/, 'Hermes terminal UI must not expose REST debug internals to the user.');
-assert.match(workbench, /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI in a bypass-enabled PTY.');
+assert.match(workbench, /HERMES_DEFAULT_COMMAND = 'hermes --yolo --toolsets mcp-pixcode'/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI with Pixcode MCP-only tools.');
 assert.match(workbench, /HERMES_HISTORY_COMMAND = 'hermes sessions browse'/, 'Hermes terminal history should open the native interactive session picker.');
 assert.match(workbench, /onOpenHistory=\{openHermesHistory\}/, 'Hermes terminal header should wire its history button to the native Hermes sessions command.');
 assert.match(workbench, /Pixcode MCP Live/, 'Hermes terminal should show a user-facing Pixcode MCP live badge.');
 assert.doesNotMatch(workbench, /ml-auto border-blue-500\/40 bg-blue-500\/10/, 'Hermes REST panel must not use right-aligned chat bubbles.');
 assert.match(workbench, /terminal-launches\/stream/, 'Hermes CLI launch requests should arrive through an EventSource stream.');
 assert.doesNotMatch(workbench, /HERMES_TERMINAL_LAUNCH_POLL_MS|setInterval\([\s\S]*terminal-launches/, 'Hermes CLI launch requests should not be polled every few seconds.');
+assert.match(workbench, /forceNewSession:\s*hermesCliLaunch\.forceNewSession === true/, 'Hermes MCP provider launches should continue the current visible CLI session by default.');
 assert.doesNotMatch(workbench, /Project-scoped agent terminal\. Installs Hermes when missing/, 'Right CLI panel should not show the old Hermes card.');
 assert.doesNotMatch(workbench, /vscodeWorkbench\.hermes\.docsShort|HERMES_AGENT_DOCS_URL/, 'Hermes terminal header should not include a docs shortcut.');
 assert.match(workbench, /shrinkCliPanel/, 'Right CLI panel should expose a shrink action.');
@@ -135,6 +136,7 @@ assert.match(read('scripts/smoke/hermes-api-install.mjs'), /hermes API install s
 assert.match(workbench, /terminalStartupInput/, 'Hermes terminal launch prompts should be passed into the selected CLI.');
 assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /startupInputRef/, 'Shell connections should support one-shot startup input for Hermes-triggered CLI work.');
 assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /isCliReadyForStartupInput/, 'Hermes-triggered CLI input should wait until the provider TUI is ready.');
+assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /forceNewSessionRef\.current[\s\S]+startupInputForCommand/, 'Codex startup input should only be sent as a CLI argument for explicit fresh sessions.');
 assert.doesNotMatch(read('src/components/shell/hooks/useShellConnection.ts'), /TERMINAL_INIT_DELAY_MS \* 3/, 'Hermes-triggered CLI input should not be sent on a blind fixed delay.');
 assert.match(shellTerminal, /handleTerminalPaste/, 'Terminal should support browser paste events.');
 assert.match(shellTerminal, /handleCopyPasteShortcut/, 'Terminal should normalize Ctrl/Cmd copy and paste shortcuts.');

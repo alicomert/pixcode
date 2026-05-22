@@ -2,6 +2,28 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.6](https://github.com/alicomert/pixcode/compare/v1.50.5...v1.50.6) (2026-05-22)
+
+Pixcode 1.50.6 makes Hermes continue visible Pixcode CLI sessions instead of starting hidden provider processes.
+
+### Fixes
+
+* **hermes:** run the Hermes terminal with the Pixcode MCP-only toolset so requests like "open Codex and run /init" do not fall back to Hermes' hidden Codex skill/proc path.
+* **workbench:** continue the current visible Codex/Claude/Gemini/Qwen/OpenCode terminal by default and only kill/start a fresh provider PTY when the user explicitly asks for a new session.
+* **mcp:** carry `forceNewSession` through the Hermes launch API and keep startup input on the visible terminal path when reusing an existing session.
+* **hermes:** update live REST smoke coverage to prove Pixcode MCP launches Codex with `forceNewSession=false` and permission bypass enabled.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `scripts/smoke/hermes-api-install.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `npm run typecheck`
+* `npm run lint`
+
 ## [1.50.5](https://github.com/alicomert/pixcode/compare/v1.50.4...v1.50.5) (2026-05-21)
 
 Pixcode 1.50.5 hardens Hermes-visible CLI work and keeps user-started tunnels alive across app updates.

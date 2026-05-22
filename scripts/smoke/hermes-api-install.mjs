@@ -37,6 +37,7 @@ assert.match(hermesInstallJobs, /windowsCmdFallbackCommand/, 'Hermes install sho
 assert.match(hermesInstallJobs, /retrying through cmd\.exe without elevation/, 'Hermes install logs should explain the no-admin Windows EPERM fallback.');
 assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /platform_toolsets/, 'Pixcode MCP config should enable the Pixcode toolset for Hermes API server runs.');
 assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /api_server:[\s\S]+pixcode/, 'Hermes API server should see Pixcode MCP tools during /v1/runs.');
+assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /const cliToolsets = \['mcp-pixcode'\]/, 'Hermes CLI profile should use Pixcode MCP-only tools by default so provider CLIs stay visible.');
 assert.match(serverIndex, /buildHermesPathEnv\(process\.env/, 'Shell PTYs should inherit Hermes bin directories so typing hermes in Pixcode terminal works on Windows.');
 assert.match(serverIndex, /env: shellEnv/, 'Shell PTYs should use the augmented shell environment instead of raw process.env.');
 assert.doesNotMatch(serverIndex, /pixcode:hermes:start/, 'Hermes H button should not depend on a shell sentinel.');
@@ -46,7 +47,7 @@ assert.match(workbench, /HermesActivityButton/, 'Workbench activity rail should 
 assert.match(workbench, /command=\{hermesCommand\}/, 'Opening the Hermes H button should show the real Hermes terminal/TUI.');
 assert.match(workbench, /bottomTerminalCommand/, 'Hermes settings should be able to launch Hermes subcommands in the bottom terminal.');
 assert.match(workbench, /openBottomTerminal\('hermes'\)/, 'Opening Hermes should restore the Hermes terminal.');
-assert.match(workbench, /openBottomTerminal\('hermes', \{ command: 'hermes', forceNewSession: true \}\)/, 'The Hermes new-session action should reset the Hermes terminal session.');
+assert.match(workbench, /openBottomTerminal\('hermes', \{[\s\S]*command: HERMES_DEFAULT_COMMAND,[\s\S]*forceNewSession: true,[\s\S]*\}\)/, 'The Hermes new-session action should reset the Hermes terminal session with the guarded default command.');
 assert.match(workbench, /installLogRef/, 'Hermes install log panel should keep a scroll ref.');
 assert.match(workbench, /scrollTop = installLogRef\.current\.scrollHeight/, 'Hermes install logs should auto-scroll to the latest line.');
 assert.doesNotMatch(workbench, /suspendAutoConnect/, 'Right CLI launches should not be blocked by an open Hermes bottom terminal.');
