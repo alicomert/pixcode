@@ -62,7 +62,8 @@ assert.match(workbench, /vscodeWorkbench\.cli\.closeTerminal/, 'CLI terminal clo
 assert.match(workbench, /WORKBENCH_CLI_STATE_STORAGE_KEY/, 'CLI terminal should remember per-project open state across workspace switches.');
 assert.match(workbench, /function WorkbenchBottomTerminal/, 'Terminal activity should render as a bottom plain-shell panel.');
 assert.match(workbench, /BOTTOM_TERMINAL_MIN_HEIGHT/, 'Bottom terminal should support height resizing.');
-assert.match(workbench, /isBottomTerminalMinimized/, 'Bottom terminal should support minimizing without closing.');
+assert.match(workbench, /WorkbenchBottomTerminalViewMode/, 'Bottom terminal should support explicit half and full-screen modes.');
+assert.doesNotMatch(workbench, /BOTTOM_TERMINAL_MINIMIZED_HEIGHT|Minimize terminal/, 'Bottom terminal should not expose the old minimized strip behavior.');
 assert.match(workbench, /bottomTerminalProject/, 'Bottom terminal should stay bound to the project it was opened for.');
 assert.match(workbench, /setBottomTerminalProject/, 'Opening a bottom terminal should capture its project instead of following workspace selection changes.');
 assert.match(workbench, /terminalProject = bottomTerminalProject \?\? selectedProject/, 'Workbench should render bottom terminals against their captured project binding.');
@@ -135,9 +136,9 @@ assert.match(hermesRoutes, /router\.post\('\/install'/, 'Hermes should install t
 assert.match(read('scripts/smoke/hermes-api-install.mjs'), /hermes API install smoke passed/, 'Hermes API install behavior should have a focused smoke test.');
 assert.match(workbench, /terminalStartupInput/, 'Hermes terminal launch prompts should be passed into the selected CLI.');
 assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /startupInputRef/, 'Shell connections should support one-shot startup input for Hermes-triggered CLI work.');
-assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /isCliReadyForStartupInput/, 'Hermes-triggered CLI input should wait until the provider TUI is ready.');
+assert.match(read('src/components/shell/hooks/useShellTerminal.ts'), /sanitizeTerminalInputData/, 'Terminal should filter xterm color-query replies before forwarding input to provider CLIs.');
 assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /forceNewSessionRef\.current[\s\S]+startupInputForCommand/, 'Codex startup input should only be sent as a CLI argument for explicit fresh sessions.');
-assert.doesNotMatch(read('src/components/shell/hooks/useShellConnection.ts'), /TERMINAL_INIT_DELAY_MS \* 3/, 'Hermes-triggered CLI input should not be sent on a blind fixed delay.');
+assert.match(read('src/components/shell/hooks/useShellConnection.ts'), /startupInputDelivery:\s*handlesStartupInputInCommand \? 'command' : 'terminal'/, 'Reused visible sessions should submit startup input through the backend terminal path.');
 assert.match(shellTerminal, /handleTerminalPaste/, 'Terminal should support browser paste events.');
 assert.match(shellTerminal, /handleCopyPasteShortcut/, 'Terminal should normalize Ctrl/Cmd copy and paste shortcuts.');
 assert.match(shellTerminal, /event\.shiftKey/, 'Terminal should support Ctrl+Shift+C/V style shortcuts.');

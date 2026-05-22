@@ -18,6 +18,7 @@ export type ShellInitMessage = {
   isPlainShell: boolean;
   forceNewSession: boolean;
   startupInput?: string | null;
+  startupInputDelivery?: 'command' | 'terminal';
   hermesLaunchId?: number | null;
   permissionMode?: string;
   skipPermissions?: boolean;

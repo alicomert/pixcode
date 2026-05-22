@@ -47,7 +47,6 @@ import {
   Loader2,
   Maximize2,
   MessageSquare,
-  Minimize2,
   Monitor,
   MoreHorizontal,
   PanelLeftClose,
@@ -70,6 +69,7 @@ type VSCodeWorkbenchProps = MainContentProps & {
 type ActivityPanel = 'explorer' | 'projects' | 'sourceControl' | 'terminal';
 
 type ResizeTarget = 'left' | 'right' | 'bottom';
+type WorkbenchBottomTerminalViewMode = 'half' | 'full';
 
 type WorkbenchWorkspaceTab = {
   id: string;
@@ -164,7 +164,7 @@ type WorkbenchEditorProjectState = {
 
 type WorkbenchHermesProjectState = {
   isOpen: boolean;
-  isMinimized: boolean;
+  viewMode: WorkbenchBottomTerminalViewMode;
   command: string | null;
   title: string | null;
   updatedAt: number;
@@ -180,7 +180,6 @@ const RIGHT_RESIZE_STEP = 80;
 const BOTTOM_TERMINAL_MIN_HEIGHT = 150;
 const BOTTOM_TERMINAL_MAX_HEIGHT = 560;
 const BOTTOM_TERMINAL_DEFAULT_HEIGHT = 256;
-const BOTTOM_TERMINAL_MINIMIZED_HEIGHT = 34;
 const WORKBENCH_WORKSPACE_TABS_STORAGE_KEY = 'pixcode.workbench.workspaceTabs.v1';
 const WORKBENCH_CLI_STATE_STORAGE_KEY = 'pixcode.workbench.cliState.v1';
 const WORKBENCH_EDITOR_STATE_STORAGE_KEY = 'pixcode.workbench.editorState.v1';
@@ -402,7 +401,7 @@ function readWorkbenchHermesState(projectKey: string | null): WorkbenchHermesPro
 
   return {
     isOpen: Boolean(state.isOpen),
-    isMinimized: Boolean(state.isMinimized),
+    viewMode: state.viewMode === 'full' ? 'full' : 'half',
     command: typeof state.command === 'string' && state.command.trim() ? state.command : HERMES_DEFAULT_COMMAND,
     title: typeof state.title === 'string' && state.title.trim() ? state.title : null,
     updatedAt: typeof state.updatedAt === 'number' ? state.updatedAt : Date.now(),
@@ -496,7 +495,7 @@ function VSCodeWorkbench({
   const [bottomTerminalTitle, setBottomTerminalTitle] = useState<string | null>(null);
   const [bottomTerminalProject, setBottomTerminalProject] = useState<Project | null>(null);
   const [bottomTerminalHeight, setBottomTerminalHeight] = useState(BOTTOM_TERMINAL_DEFAULT_HEIGHT);
-  const [isBottomTerminalMinimized, setIsBottomTerminalMinimized] = useState(false);
+  const [bottomTerminalViewMode, setBottomTerminalViewMode] = useState<WorkbenchBottomTerminalViewMode>('half');
   const [hermesCliLaunch, setHermesCliLaunch] = useState<HermesTerminalLaunchEvent | null>(null);
   const [hermesInstallStatus, setHermesInstallStatus] = useState<HermesInstallStatus | null>(null);
   const [hermesInstallJob, setHermesInstallJob] = useState<HermesInstallJobState>({
@@ -718,12 +717,12 @@ function VSCodeWorkbench({
     setBottomTerminalTitle(nextTitle);
     setBottomTerminalProject(nextProject);
     setIsBottomTerminalOpen(true);
-    setIsBottomTerminalMinimized(false);
+    setBottomTerminalViewMode('half');
     setBottomTerminalRunId((current) => current + 1);
     if (mode === 'hermes') {
       writeWorkbenchHermesState(getProjectCliStateKey(nextProject), {
         isOpen: true,
-        isMinimized: false,
+        viewMode: 'half',
         command: nextCommand,
         title: nextTitle,
         updatedAt: Date.now(),
@@ -879,7 +878,7 @@ function VSCodeWorkbench({
     setBottomTerminalTitle(savedState.title);
     setBottomTerminalProject(selectedProject ?? null);
     setIsBottomTerminalOpen(true);
-    setIsBottomTerminalMinimized(savedState.isMinimized);
+    setBottomTerminalViewMode(savedState.viewMode);
     setBottomTerminalRunId((current) => current + 1);
   }, [bottomTerminalMode, selectedProject, selectedProjectStateKey]);
 
@@ -1010,8 +1009,8 @@ function VSCodeWorkbench({
         return;
       }
 
-      if (isBottomTerminalOpen && bottomTerminalMode === 'shell' && isBottomTerminalMinimized) {
-        setIsBottomTerminalMinimized(false);
+      if (isBottomTerminalOpen && bottomTerminalMode === 'shell' && bottomTerminalViewMode === 'full') {
+        setBottomTerminalViewMode('half');
       } else if (isBottomTerminalOpen && bottomTerminalMode === 'shell') {
         setIsBottomTerminalOpen(false);
       } else {
@@ -1034,7 +1033,7 @@ function VSCodeWorkbench({
     if (tab !== 'chat' || !isCenterSystemTab(activeTab)) {
       setActiveTab(tab);
     }
-  }, [activeTab, bottomTerminalMode, isBottomTerminalMinimized, isBottomTerminalOpen, openBottomTerminal, selectedProject, setActiveTab]);
+  }, [activeTab, bottomTerminalMode, bottomTerminalViewMode, isBottomTerminalOpen, openBottomTerminal, selectedProject, setActiveTab]);
 
   const openHermesAgent = useCallback((options: WorkbenchBottomTerminalOptions = {}) => {
     if (!selectedProject) {
@@ -1100,7 +1099,7 @@ function VSCodeWorkbench({
     if (bottomTerminalMode === 'hermes') {
       writeWorkbenchHermesState(getProjectCliStateKey(bottomTerminalProject), {
         isOpen: false,
-        isMinimized: false,
+        viewMode: 'half',
         command: bottomTerminalCommand || HERMES_DEFAULT_COMMAND,
         title: bottomTerminalTitle,
         updatedAt: Date.now(),
@@ -1110,12 +1109,12 @@ function VSCodeWorkbench({
     setBottomTerminalProject(null);
   }, [bottomTerminalCommand, bottomTerminalMode, bottomTerminalProject, bottomTerminalTitle]);
 
-  const minimizeBottomTerminal = useCallback(() => {
-    setIsBottomTerminalMinimized(true);
+  const showBottomTerminalFull = useCallback(() => {
+    setBottomTerminalViewMode('full');
     if (bottomTerminalMode === 'hermes') {
       writeWorkbenchHermesState(getProjectCliStateKey(bottomTerminalProject), {
         isOpen: true,
-        isMinimized: true,
+        viewMode: 'full',
         command: bottomTerminalCommand || HERMES_DEFAULT_COMMAND,
         title: bottomTerminalTitle,
         updatedAt: Date.now(),
@@ -1123,12 +1122,12 @@ function VSCodeWorkbench({
     }
   }, [bottomTerminalCommand, bottomTerminalMode, bottomTerminalProject, bottomTerminalTitle]);
 
-  const restoreBottomTerminal = useCallback(() => {
-    setIsBottomTerminalMinimized(false);
+  const showBottomTerminalHalf = useCallback(() => {
+    setBottomTerminalViewMode('half');
     if (bottomTerminalMode === 'hermes') {
       writeWorkbenchHermesState(getProjectCliStateKey(bottomTerminalProject), {
         isOpen: true,
-        isMinimized: false,
+        viewMode: 'half',
         command: bottomTerminalCommand || HERMES_DEFAULT_COMMAND,
         title: bottomTerminalTitle,
         updatedAt: Date.now(),
@@ -1659,8 +1658,8 @@ function VSCodeWorkbench({
               {selectedProject?.displayName || selectedProject?.name || t('vscodeWorkbench.noProject')}
             </span>
           </div>
-          <div className="flex h-[calc(100%-2.5rem)] min-h-0 flex-col overflow-hidden">
-            <div className={cn('min-h-0 flex-1 overflow-hidden', isBottomTerminalOpen && 'border-b border-border')}>
+          <div className="relative flex h-[calc(100%-2.5rem)] min-h-0 flex-col overflow-hidden">
+            <div className={cn('min-h-0 flex-1 overflow-hidden', isBottomTerminalOpen && bottomTerminalViewMode === 'half' && 'border-b border-border')}>
               {renderCenterPanel()}
             </div>
             {isBottomTerminalOpen && (
@@ -1674,11 +1673,11 @@ function VSCodeWorkbench({
                 command={bottomTerminalCommand}
                 commandTitle={bottomTerminalTitle}
                 height={bottomTerminalHeight}
-                isMinimized={isBottomTerminalMinimized}
+                viewMode={bottomTerminalViewMode}
                 isActive
                 onResizeStart={(event) => startResize('bottom', event)}
-                onMinimize={minimizeBottomTerminal}
-                onRestore={restoreBottomTerminal}
+                onShowFull={showBottomTerminalFull}
+                onShowHalf={showBottomTerminalHalf}
                 onStartHermes={startNewHermesSession}
                 onOpenHistory={openHermesHistory}
                 onInstallHermes={installHermesAgent}
@@ -2386,11 +2385,11 @@ function WorkbenchBottomTerminal({
   command,
   commandTitle,
   height,
-  isMinimized,
+  viewMode,
   isActive,
   onResizeStart,
-  onMinimize,
-  onRestore,
+  onShowFull,
+  onShowHalf,
   onStartHermes,
   onOpenHistory,
   onInstallHermes,
@@ -2406,11 +2405,11 @@ function WorkbenchBottomTerminal({
   command: string | null;
   commandTitle: string | null;
   height: number;
-  isMinimized: boolean;
+  viewMode: WorkbenchBottomTerminalViewMode;
   isActive: boolean;
   onResizeStart: (event: React.PointerEvent<HTMLButtonElement>) => void;
-  onMinimize: () => void;
-  onRestore: () => void;
+  onShowFull: () => void;
+  onShowHalf: () => void;
   onStartHermes: () => void;
   onOpenHistory: () => void;
   onInstallHermes: () => void;
@@ -2425,13 +2424,17 @@ function WorkbenchBottomTerminal({
       ? commandTitle || t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })
       : t('vscodeWorkbench.terminal.title', { defaultValue: 'Terminal' });
   const hermesCommand = command || 'hermes';
+  const isFullScreen = viewMode === 'full';
 
   return (
     <section
-      className="relative shrink-0 overflow-hidden bg-gray-950 text-gray-100"
-      style={{ height: isMinimized ? BOTTOM_TERMINAL_MINIMIZED_HEIGHT : height }}
+      className={cn(
+        'relative overflow-hidden bg-gray-950 text-gray-100',
+        isFullScreen ? 'absolute inset-0 z-30' : 'shrink-0',
+      )}
+      style={{ height: isFullScreen ? '100%' : height }}
     >
-      {!isMinimized && (
+      {!isFullScreen && (
         <button
           type="button"
           className="absolute inset-x-0 top-0 z-10 h-1 cursor-ns-resize bg-transparent hover:bg-blue-500/40"
@@ -2491,25 +2494,25 @@ function WorkbenchBottomTerminal({
               </button>
             </>
           )}
-          {isMinimized ? (
+          {isFullScreen ? (
             <button
               type="button"
               className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
-              onClick={onRestore}
-              aria-label={t('vscodeWorkbench.terminal.restore', { defaultValue: 'Restore terminal' })}
-              title={t('vscodeWorkbench.terminal.restore', { defaultValue: 'Restore terminal' })}
+              onClick={onShowHalf}
+              aria-label={t('vscodeWorkbench.terminal.halfScreen', { defaultValue: 'Half screen terminal' })}
+              title={t('vscodeWorkbench.terminal.halfScreen', { defaultValue: 'Half screen terminal' })}
             >
-              <Maximize2 className="h-3.5 w-3.5" />
+              <Columns className="h-3.5 w-3.5" />
             </button>
           ) : (
             <button
               type="button"
               className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
-              onClick={onMinimize}
-              aria-label={t('vscodeWorkbench.terminal.minimize', { defaultValue: 'Minimize terminal' })}
-              title={t('vscodeWorkbench.terminal.minimize', { defaultValue: 'Minimize terminal' })}
+              onClick={onShowFull}
+              aria-label={t('vscodeWorkbench.terminal.fullScreen', { defaultValue: 'Full screen terminal' })}
+              title={t('vscodeWorkbench.terminal.fullScreen', { defaultValue: 'Full screen terminal' })}
             >
-              <Minimize2 className="h-3.5 w-3.5" />
+              <Maximize2 className="h-3.5 w-3.5" />
             </button>
           )}
           <button
@@ -2523,38 +2526,36 @@ function WorkbenchBottomTerminal({
           </button>
         </div>
       </div>
-      {!isMinimized && (
-        <div className="h-[calc(100%-2rem)] min-h-0">
-          {mode === 'hermes-install' ? (
-            <HermesInstallLogPanel installJob={hermesInstallJob} onRetry={onInstallHermes} onStart={onStartHermes} t={t} />
-          ) : mode === 'hermes' ? (
-            <StandaloneShell
-              key={`hermes-terminal-${project ? getProjectPath(project) : 'none'}-${runId}`}
-              project={project}
-              session={null}
-              command={hermesCommand}
-              isPlainShell
-              forceNewSession={forceNewSession}
-              showHeader={false}
-              autoConnect={Boolean(project)}
-              isActive={isActive}
-              title={title}
-            />
-          ) : (
-            <StandaloneShell
-              key={`bottom-terminal-${mode}-${project ? getProjectPath(project) : 'none'}-${runId}`}
-              project={project}
-              session={null}
-              isPlainShell
-              forceNewSession={forceNewSession}
-              showHeader={false}
-              autoConnect={Boolean(project)}
-              isActive={isActive}
-              title={title}
-            />
-          )}
-        </div>
-      )}
+      <div className="h-[calc(100%-2rem)] min-h-0">
+        {mode === 'hermes-install' ? (
+          <HermesInstallLogPanel installJob={hermesInstallJob} onRetry={onInstallHermes} onStart={onStartHermes} t={t} />
+        ) : mode === 'hermes' ? (
+          <StandaloneShell
+            key={`hermes-terminal-${project ? getProjectPath(project) : 'none'}-${runId}`}
+            project={project}
+            session={null}
+            command={hermesCommand}
+            isPlainShell
+            forceNewSession={forceNewSession}
+            showHeader={false}
+            autoConnect={Boolean(project)}
+            isActive={isActive}
+            title={title}
+          />
+        ) : (
+          <StandaloneShell
+            key={`bottom-terminal-${mode}-${project ? getProjectPath(project) : 'none'}-${runId}`}
+            project={project}
+            session={null}
+            isPlainShell
+            forceNewSession={forceNewSession}
+            showHeader={false}
+            autoConnect={Boolean(project)}
+            isActive={isActive}
+            title={title}
+          />
+        )}
+      </div>
     </section>
   );
 }

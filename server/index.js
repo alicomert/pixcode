@@ -435,6 +435,26 @@ function appendPtySessionBuffer(session, data) {
     }
 }
 
+function normalizeTerminalStartupInput(input) {
+    return `${String(input || '').replace(/(?:\r\n|\r|\n)+$/u, '')}\r`;
+}
+
+function writeTerminalStartupInput(session, startupInput, reason, delayMs = 500) {
+    if (!session?.pty || !startupInput) return;
+    const submittedInput = normalizeTerminalStartupInput(startupInput);
+    setTimeout(() => {
+        try {
+            if (session.pty && session.lifecycleState === 'running') {
+                session.pty.write(submittedInput);
+                session.updatedAt = Date.now();
+                console.log(`⌨️  Submitted startup input to visible PTY (${reason})`);
+            }
+        } catch (error) {
+            console.warn('Failed to submit startup input to visible PTY:', error?.message || error);
+        }
+    }, delayMs);
+}
+
 function normalizeShellPermissionMode(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -2387,6 +2407,9 @@ function handleShellConnection(ws, request) {
                 const startupInput = typeof data.startupInput === 'string' && data.startupInput.trim()
                     ? data.startupInput.trim()
                     : null;
+                const startupInputDelivery = data.startupInputDelivery === 'terminal' ? 'terminal' : 'command';
+                const commandStartupInput = startupInputDelivery === 'command' ? startupInput : null;
+                const terminalStartupInput = startupInputDelivery === 'terminal' ? startupInput : null;
                 const hermesLaunchId = Number.isFinite(Number(data.hermesLaunchId)) && Number(data.hermesLaunchId) > 0
                     ? Number(data.hermesLaunchId)
                     : null;
@@ -2474,6 +2497,9 @@ function handleShellConnection(ws, request) {
                         }
 
                         existingSession.ws = ws;
+                        if (terminalStartupInput && !isPlainShell) {
+                            writeTerminalStartupInput(existingSession, terminalStartupInput, 'reused provider session', 350);
+                        }
 
                         return;
                     }
@@ -2551,8 +2577,8 @@ function handleShellConnection(ws, request) {
                             } else {
                                 shellCommand = `${command} resume "${sessionId}" || ${command}`;
                             }
-                        } else if (startupInput) {
-                            shellCommand = `${command} ${quoteShellArgForPlatform(startupInput)}`;
+                        } else if (commandStartupInput) {
+                            shellCommand = `${command} ${quoteShellArgForPlatform(commandStartupInput)}`;
                         } else {
                             shellCommand = command;
                         }
@@ -2684,6 +2710,10 @@ function handleShellConnection(ws, request) {
                         keepAliveUntilExit: false,
                         updatedAt: Date.now(),
                     });
+                    const createdSession = ptySessionsMap.get(ptySessionKey);
+                    if (terminalStartupInput && !isPlainShell) {
+                        writeTerminalStartupInput(createdSession, terminalStartupInput, 'new provider session', 4500);
+                    }
 
                     // Handle data output
                     shellProcess.onData((data) => {

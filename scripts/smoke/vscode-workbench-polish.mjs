@@ -284,9 +284,19 @@ assert.match(
   'Terminal activity should open a VS Code-style bottom terminal instead of the provider CLI picker.',
 );
 
-for (const token of ['BOTTOM_TERMINAL_MIN_HEIGHT', 'isBottomTerminalMinimized', 'shrinkCliPanel', 'expandCliPanel']) {
+for (const token of ['BOTTOM_TERMINAL_MIN_HEIGHT', 'bottomTerminalViewMode', 'shrinkCliPanel', 'expandCliPanel']) {
   assert.match(workbench, new RegExp(token), `Workbench should include ${token}.`);
 }
+assert.match(
+  workbench,
+  /WorkbenchBottomTerminalViewMode/,
+  'Bottom terminal should expose half/full display modes instead of minimize/restore.',
+);
+assert.doesNotMatch(
+  workbench,
+  /BOTTOM_TERMINAL_MINIMIZED_HEIGHT|Minimize terminal|isBottomTerminalMinimized/,
+  'Bottom terminal should not keep the old minimized strip UI.',
+);
 
 assert.match(
   workbench,

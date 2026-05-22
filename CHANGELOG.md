@@ -2,6 +2,28 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.7](https://github.com/alicomert/pixcode/compare/v1.50.6...v1.50.7) (2026-05-22)
+
+Pixcode 1.50.7 fixes Hermes visible-terminal submission and replaces the bottom terminal minimized strip with half/full modes.
+
+### Fixes
+
+* **terminal:** filter xterm OSC 10/11/12 color-query replies before they are forwarded to provider PTYs, preventing `]11;rgb:...` text from corrupting Hermes/Codex prompts during resize or theme probes.
+* **hermes:** submit Hermes startup input from the backend directly into the reused visible provider PTY, so existing Codex sessions receive `/init`, `selam`, or longer tasks instead of leaving text typed but unsubmitted.
+* **shell:** carry explicit startup input delivery mode (`command` or `terminal`) through the shell WebSocket init payload.
+* **workbench:** remove the bottom terminal minimize/restore strip and replace it with half-screen/full-screen controls that keep the PTY alive.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+
 ## [1.50.6](https://github.com/alicomert/pixcode/compare/v1.50.5...v1.50.6) (2026-05-22)
 
 Pixcode 1.50.6 makes Hermes continue visible Pixcode CLI sessions instead of starting hidden provider processes.

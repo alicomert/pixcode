@@ -13,6 +13,7 @@ const serverIndex = read('server/index.js');
 const shellTypes = read('src/components/shell/types/types.ts');
 const shellRuntime = read('src/components/shell/hooks/useShellRuntime.ts');
 const shellConnection = read('src/components/shell/hooks/useShellConnection.ts');
+const shellTerminal = read('src/components/shell/hooks/useShellTerminal.ts');
 const shellView = read('src/components/shell/view/Shell.tsx');
 const standaloneShell = read('src/components/standalone-shell/view/StandaloneShell.tsx');
 const hermesRoutes = read('server/modules/orchestration/hermes/hermes.routes.ts');
@@ -215,8 +216,8 @@ assert.match(
 );
 assert.match(
   shellConnection,
-  /normalizeStartupInput\(input: string, provider: LLMProvider\)/,
-  'Startup input normalization should be provider-aware.',
+  /startupInputDelivery/,
+  'Startup input should be delivered through an explicit command-or-terminal mode.',
 );
 assert.match(
   shellConnection,
@@ -225,8 +226,28 @@ assert.match(
 );
 assert.match(
   shellConnection,
-  /startupInput:\s*handlesStartupInputInCommand \? startupInputForCommand : null/,
-  'Shell websocket init should send Codex startup input to the backend command builder.',
+  /startupInputDelivery:\s*handlesStartupInputInCommand \? 'command' : 'terminal'/,
+  'Shell websocket init should tell the backend whether startup input belongs in the command or visible terminal.',
+);
+assert.match(
+  shellTerminal,
+  /sanitizeTerminalInputData/,
+  'Terminal input should filter xterm color-query reports before sending data to the PTY.',
+);
+assert.match(
+  shellTerminal,
+  /OSC_COLOR_REPORT_REGEX/,
+  'Terminal input should drop OSC 10/11/12 color reports so resize/theme probes do not corrupt CLI prompts.',
+);
+assert.match(
+  serverIndex,
+  /writeTerminalStartupInput/,
+  'Shell backend should submit Hermes startup input directly into reused visible PTYs.',
+);
+assert.match(
+  serverIndex,
+  /startupInputDelivery === 'terminal'[\s\S]+writeTerminalStartupInput/,
+  'Existing visible provider sessions should receive terminal-delivered startup input before reconnect returns.',
 );
 assert.match(
   workbench,
@@ -254,13 +275,18 @@ assert.match(
   'Shell init messages should carry launch-time startup input for providers that accept an initial prompt.',
 );
 assert.match(
+  shellTypes,
+  /startupInputDelivery\?: 'command' \| 'terminal'/,
+  'Shell init messages should carry startup input delivery mode.',
+);
+assert.match(
   serverIndex,
   /const startupInput = typeof data\.startupInput === 'string'/,
   'Shell backend should read launch-time startup input from the websocket init payload.',
 );
 assert.match(
   serverIndex,
-  /provider === 'codex'[\s\S]+startupInput[\s\S]+quoteShellArgForPlatform\(startupInput\)/,
+  /provider === 'codex'[\s\S]+commandStartupInput[\s\S]+quoteShellArgForPlatform\(commandStartupInput\)/,
   'Codex provider terminals should start with the requested prompt as a CLI argument so banners/update notices cannot swallow Enter.',
 );
 assert.match(

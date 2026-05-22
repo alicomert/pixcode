@@ -37,6 +37,12 @@ type UseShellTerminalResult = {
   disposeTerminal: () => void;
 };
 
+const OSC_COLOR_REPORT_REGEX = /\x1b\](?:10|11|12);rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/giu;
+
+function sanitizeTerminalInputData(data: string) {
+  return data.replace(OSC_COLOR_REPORT_REGEX, '');
+}
+
 export function useShellTerminal({
   terminalContainerRef,
   terminalRef,
@@ -247,9 +253,14 @@ export function useShellTerminal({
     setIsInitialized(true);
 
     const dataSubscription = nextTerminal.onData((data) => {
+      const sanitizedData = sanitizeTerminalInputData(data);
+      if (!sanitizedData) {
+        return;
+      }
+
       sendSocketMessage(wsRef.current, {
         type: 'input',
-        data,
+        data: sanitizedData,
       });
     });
 
