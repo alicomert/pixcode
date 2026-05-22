@@ -8,7 +8,12 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from 'react';
 import MarkdownPreview from './markdown/MarkdownPreview';
 
 const MonacoEditor = lazy(async () => {
-  const module = await import('@monaco-editor/react');
+  const [module, { ensureLocalMonaco }] = await Promise.all([
+    import('@monaco-editor/react'),
+    import('../../utils/localMonaco'),
+  ]);
+
+  ensureLocalMonaco();
   return { default: module.Editor };
 });
 

@@ -2,6 +2,23 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.9](https://github.com/alicomert/pixcode/compare/v1.50.8...v1.50.9) (2026-05-23)
+
+Pixcode 1.50.9 fixes the Linux/self-hosted code editor loader so files that download correctly also open in Monaco.
+
+### Fixes
+
+* **editor:** configure the Monaco editor before mount to use Pixcode's same-origin `/vendor/monaco-editor/min/vs` loader instead of the default CDN loader.
+* **server:** serve Monaco loader, language files, and workers from the installed `monaco-editor` package so git/npm Linux installs work without external CDN access.
+* **packaging:** move `monaco-editor` to production dependencies so npm/runtime installs include the editor assets required by the backend vendor route.
+
+### Verification
+
+* `scripts/smoke/code-editor-vscode-engine.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+
 ## [1.50.8](https://github.com/alicomert/pixcode/compare/v1.50.7...v1.50.8) (2026-05-22)
 
 Pixcode 1.50.8 hardens Hermes MCP control of visible provider terminals and keeps the Hermes REST gateway ready from settings.

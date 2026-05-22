@@ -7,6 +7,7 @@ import path from 'path';
 import os from 'os';
 import http from 'http';
 import net from 'node:net';
+import { createRequire } from 'node:module';
 import { spawn } from 'child_process';
 
 import express from 'express';
@@ -23,6 +24,8 @@ const __dirname = getModuleDir(import.meta.url);
 // The server source runs from /server, while the compiled output runs from /dist-server/server.
 // Resolving the app root once keeps every repo-level lookup below aligned across both layouts.
 const APP_ROOT = findAppRoot(__dirname);
+const require = createRequire(import.meta.url);
+const MONACO_ASSETS_ROUTE = '/vendor/monaco-editor/min/vs';
 const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
 const SERVER_VERSION = (() => {
     try {
@@ -37,6 +40,23 @@ const DAEMON_COMMAND_CONTEXT = {
     cliEntry: path.join(APP_ROOT, 'server', 'cli.js'),
     nodeExecPath: process.execPath,
 };
+
+function resolveMonacoAssetsPath() {
+    const candidates = [
+        path.join(APP_ROOT, 'node_modules', 'monaco-editor', 'min', 'vs'),
+    ];
+
+    try {
+        const monacoPackagePath = require.resolve('monaco-editor/package.json', {
+            paths: [APP_ROOT, __dirname],
+        });
+        candidates.push(path.join(path.dirname(monacoPackagePath), 'min', 'vs'));
+    } catch {
+        // The editor will show its normal load failure if the dependency is unavailable.
+    }
+
+    return candidates.find((candidate) => fs.existsSync(path.join(candidate, 'loader.js'))) || null;
+}
 
 import { c } from './utils/colors.js';
 
@@ -888,6 +908,18 @@ app.use('/api/agent', agentRoutes);
 // Static app files served after API routes. Keep dist before public so
 // / and /index.html always resolve to the Pixcode app, not the GitHub Pages
 // landing page that also lives in public/index.html.
+const monacoAssetsPath = resolveMonacoAssetsPath();
+if (monacoAssetsPath) {
+    app.use(MONACO_ASSETS_ROUTE, express.static(monacoAssetsPath, {
+        index: false,
+        setHeaders: (res) => {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        },
+    }));
+} else {
+    console.warn('[monaco] Local Monaco assets not found; code editor loader may fail.');
+}
+
 app.use(express.static(path.join(APP_ROOT, 'dist'), {
     setHeaders: (res, filePath) => {
         if (filePath.endsWith('.html')) {

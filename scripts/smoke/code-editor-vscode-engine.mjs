@@ -6,6 +6,7 @@ const read = (path) => fs.readFileSync(path, 'utf8');
 const packageJson = JSON.parse(read('package.json'));
 const surface = read('src/components/code-editor/view/subcomponents/CodeEditorSurface.tsx');
 const editor = read('src/components/code-editor/view/CodeEditor.tsx');
+const localMonaco = read('src/components/code-editor/utils/localMonaco.ts');
 
 const allDeps = {
   ...(packageJson.dependencies ?? {}),
@@ -19,6 +20,36 @@ assert.match(
   surface,
   /const MonacoEditor = lazy[\s\S]*import\(['"]@monaco-editor\/react['"]\)/,
   'Normal file editing should lazy-load Monaco instead of keeping a CodeMirror-only surface.',
+);
+
+assert.match(
+  surface,
+  /ensureLocalMonaco\(\)/,
+  'Monaco should be configured before mount so Linux/self-hosted installs do not depend on the CDN loader.',
+);
+
+assert.match(
+  localMonaco,
+  /LOCAL_MONACO_BASE_PATH\s*=\s*['"]\/vendor\/monaco-editor\/min\/vs['"]/,
+  "Code editor should load Monaco from Pixcode's same-origin vendor route.",
+);
+
+assert.match(
+  localMonaco,
+  /loader\.config\(\{\s*paths:\s*\{\s*vs:\s*LOCAL_MONACO_BASE_PATH/s,
+  'Code editor should point @monaco-editor/react at the local Monaco loader path.',
+);
+
+assert.doesNotMatch(
+  localMonaco,
+  /https:\/\/cdn\.jsdelivr\.net|unpkg\.com|from ['"]monaco-editor/,
+  'Local Monaco setup should not use a remote CDN or import the full monaco-editor barrel.',
+);
+
+assert.match(
+  read('server/index.js'),
+  /\/vendor\/monaco-editor\/min\/vs[\s\S]*express\.static/,
+  'Server should serve Monaco loader and workers from the same-origin vendor route.',
 );
 
 assert.match(
