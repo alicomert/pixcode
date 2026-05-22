@@ -9,6 +9,7 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..',
 const mcpServerPath = path.join(appRoot, 'scripts', 'hermes', 'pixcode-mcp-server.mjs');
 const READBACK_IDLE_STABLE_MS = 2500;
 const DEFAULT_STARTUP_WAIT_MS = 100000;
+const CODEX_PROMPT_INPUT_PENDING_REASON = 'codex_prompt_input_pending';
 
 const tools = [
   {
@@ -140,7 +141,7 @@ const tools = [
         },
         startIfNeeded: {
           type: 'boolean',
-          description: 'When true, Pixcode starts the managed Hermes gateway before probing.',
+          description: 'When false, only probe an already-running gateway. Defaults to true so Pixcode keeps Hermes REST ready.',
         },
       },
       additionalProperties: false,
@@ -218,13 +219,29 @@ function getLastMatchIndex(text, pattern) {
   return lastIndex;
 }
 
-function inferTerminalState(provider, terminalOutput) {
+function normalizePromptInput(value) {
+  return String(value || '').replace(/(?:\r\n|\r|\n)+$/u, '').trim();
+}
+
+function hasCodexPromptInputPending(output, expectedInput) {
+  const expected = normalizePromptInput(expectedInput);
+  if (!expected) return false;
+  const match = String(output || '').match(/(?:^|\n)[^\S\r\n]*[›❯][ \t]+([^\r\n]+)[\r\n]*$/u);
+  if (!match) return false;
+  return normalizePromptInput(match[1]) === expected;
+}
+
+function inferTerminalState(provider, terminalOutput, expectedInput = null) {
   if (!terminalOutput) return 'unknown';
+  const output = String(terminalOutput.output || '');
+  if (provider === 'codex' && hasCodexPromptInputPending(output, expectedInput)) {
+    terminalOutput.terminalStateReason = terminalOutput.terminalStateReason || CODEX_PROMPT_INPUT_PENDING_REASON;
+    return 'busy';
+  }
   if (typeof terminalOutput.terminalState === 'string') return terminalOutput.terminalState;
   if (typeof terminalOutput.isBusy === 'boolean') return terminalOutput.isBusy ? 'busy' : 'idle';
   if (terminalOutput.active === false) return terminalOutput.output ? 'idle' : 'unknown';
 
-  const output = String(terminalOutput.output || '');
   if (!output.trim()) return 'unknown';
   if (/Process exited with code/iu.test(output)) return 'idle';
 
@@ -240,6 +257,10 @@ function inferTerminalState(provider, terminalOutput) {
       getLastMatchIndex(output, /(?:^|\n)\s*›(?:\s|$)/gu),
       getLastMatchIndex(output, /(?:^|\n)\s*❯(?:\s|$)/gu),
     );
+    if (hasCodexPromptInputPending(output, expectedInput)) {
+      terminalOutput.terminalStateReason = terminalOutput.terminalStateReason || CODEX_PROMPT_INPUT_PENDING_REASON;
+      return 'busy';
+    }
     if (lastPrompt >= 0) return lastStrongBusy > lastPrompt ? 'busy' : 'idle';
     if (lastBusy >= 0) return 'busy';
     return 'unknown';
@@ -249,13 +270,13 @@ function inferTerminalState(provider, terminalOutput) {
   return 'unknown';
 }
 
-function isTerminalReadbackFinal(provider, terminalOutput) {
-  const terminalState = inferTerminalState(provider, terminalOutput);
+function isTerminalReadbackFinal(provider, terminalOutput, expectedInput = null) {
+  const terminalState = inferTerminalState(provider, terminalOutput, expectedInput);
   return terminalState === 'idle' || terminalState === 'completed' || terminalState === 'exited' || terminalState === 'failed';
 }
 
-function isTerminalReadbackHardFinal(provider, terminalOutput) {
-  const terminalState = inferTerminalState(provider, terminalOutput);
+function isTerminalReadbackHardFinal(provider, terminalOutput, expectedInput = null) {
+  const terminalState = inferTerminalState(provider, terminalOutput, expectedInput);
   return terminalState === 'completed' || terminalState === 'exited' || terminalState === 'failed' || Boolean(terminalOutput?.terminalFailed);
 }
 
@@ -269,7 +290,7 @@ function getReadbackFingerprint(terminalOutput) {
   ].join('\n---pixcode-readback---\n');
 }
 
-async function waitForProviderTerminalOutput(provider, projectPath, waitMs, launchId = null) {
+async function waitForProviderTerminalOutput(provider, projectPath, waitMs, launchId = null, expectedInput = null) {
   const startedAt = Date.now();
   let latestOutput = null;
   let stableFingerprint = null;
@@ -285,8 +306,8 @@ async function waitForProviderTerminalOutput(provider, projectPath, waitMs, laun
       error: error instanceof Error ? error.message : String(error),
     }));
 
-    if (latestOutput?.output && isTerminalReadbackFinal(provider, latestOutput)) {
-      if (isTerminalReadbackHardFinal(provider, latestOutput)) {
+    if (latestOutput?.output && isTerminalReadbackFinal(provider, latestOutput, expectedInput)) {
+      if (isTerminalReadbackHardFinal(provider, latestOutput, expectedInput)) {
         stableFinal = true;
         break;
       }
@@ -307,7 +328,7 @@ async function waitForProviderTerminalOutput(provider, projectPath, waitMs, laun
   } while (Date.now() - startedAt < waitMs);
 
   if (latestOutput && !latestOutput.terminalState) {
-    latestOutput.terminalState = inferTerminalState(provider, latestOutput);
+    latestOutput.terminalState = inferTerminalState(provider, latestOutput, expectedInput);
   }
   if (latestOutput && typeof latestOutput.isBusy !== 'boolean') {
     latestOutput.isBusy = latestOutput.terminalState === 'busy';
@@ -436,10 +457,10 @@ async function callTool(name, args = {}) {
     const requestedWaitMs = Number(args.waitForCompletionMs ?? args.waitForOutputMs ?? defaultWaitMs);
     const waitForOutputMs = Math.min(600000, Math.max(0, requestedWaitMs));
     if (waitForOutputMs > 0) {
-      terminalOutput = await waitForProviderTerminalOutput(provider, projectPath, waitForOutputMs, launchId);
+      terminalOutput = await waitForProviderTerminalOutput(provider, projectPath, waitForOutputMs, launchId, startupInput);
     }
     const terminalOutputFinal = terminalOutput
-      ? Boolean(terminalOutput.terminalOutputFinal ?? isTerminalReadbackFinal(provider, terminalOutput))
+      ? Boolean(terminalOutput.terminalOutputFinal ?? isTerminalReadbackFinal(provider, terminalOutput, startupInput))
       : false;
     return textResult(JSON.stringify({
       launched: true,
@@ -495,7 +516,7 @@ async function callTool(name, args = {}) {
       body: JSON.stringify({
         projectPath: args.projectPath || null,
         input: args.input || null,
-        startIfNeeded: args.startIfNeeded === true,
+        startIfNeeded: args.startIfNeeded !== false,
       }),
     });
     return textResult(JSON.stringify(body, null, 2));

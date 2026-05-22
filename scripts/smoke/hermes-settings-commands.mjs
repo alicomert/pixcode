@@ -35,6 +35,16 @@ assert.match(
   'Hermes settings should dispatch command and title to the workbench terminal.',
 );
 assert.match(
+  settingsTab,
+  /ensureGatewayReady/,
+  'Hermes settings should automatically start/probe the REST API gateway when Hermes is installed.',
+);
+assert.match(
+  settingsTab,
+  /startIfNeeded:\s*true/,
+  'Hermes settings should start the REST API gateway through Pixcode when checking gateway readiness.',
+);
+assert.match(
   settingsModal,
   /<HermesSettingsTab onClose=\{onClose\} \/>/,
   'Opening a Hermes command from settings should be able to close the settings modal so the terminal is visible.',
@@ -76,6 +86,11 @@ assert.match(
 );
 assert.match(
   pixcodeMcpServer,
+  /startIfNeeded:\s*args\.startIfNeeded !== false/,
+  'Pixcode MCP gateway probes should start the managed REST gateway by default unless Hermes explicitly opts out.',
+);
+assert.match(
+  pixcodeMcpServer,
   /Use this instead of Hermes shell\/proc\/skill execution/,
   'Pixcode MCP tool descriptions should explicitly steer Hermes away from non-visible provider proc launches.',
 );
@@ -95,6 +110,11 @@ assert.match(
   'Codex readback should ignore weak spinner remnants once the prompt has returned.',
 );
 assert.match(
+  pixcodeMcpServer,
+  /codex_prompt_input_pending/,
+  'Codex readback should not treat a prompt line with typed-but-unsubmitted input as final output.',
+);
+assert.match(
   serverIndex,
   /lastStrongBusy[\s\S]+lastPrompt[\s\S]+\?\s*'busy'\s*:\s*'idle'/,
   'Backend provider-output should ignore weak Codex spinner remnants once the prompt has returned.',
@@ -108,6 +128,11 @@ assert.match(
   serverIndex,
   /requestedLaunchId[\s\S]+session\.hermesLaunchId === requestedLaunchId/,
   'Provider output API should filter by Hermes terminal launch id when supplied.',
+);
+assert.match(
+  serverIndex,
+  /existingSession\.hermesLaunchId = hermesLaunchId \|\| existingSession\.hermesLaunchId/,
+  'Reused visible provider PTYs should be rebound to the latest Hermes launch id so MCP readback follows the current request.',
 );
 assert.match(
   serverIndex,
@@ -243,6 +268,26 @@ assert.match(
   serverIndex,
   /writeTerminalStartupInput/,
   'Shell backend should submit Hermes startup input directly into reused visible PTYs.',
+);
+assert.match(
+  serverIndex,
+  /queueTerminalStartupInput/,
+  'Shell backend should queue Hermes startup input until the visible provider terminal is ready instead of writing blindly after a fixed delay.',
+);
+assert.match(
+  serverIndex,
+  /STARTUP_INPUT_READY_TIMEOUT_MS/,
+  'Queued provider startup input should have a bounded readiness timeout.',
+);
+assert.match(
+  serverIndex,
+  /resolveProviderTerminalState[\s\S]+terminalState === 'busy'/,
+  'Queued startup input should inspect the provider terminal state and avoid sending while the CLI is busy.',
+);
+assert.match(
+  serverIndex,
+  /\\x15/,
+  'Provider startup input should clear any half-typed prompt line before typing the requested work.',
 );
 assert.match(
   serverIndex,

@@ -153,6 +153,8 @@ let projectsWatchers = [];
 let projectsWatcherDebounceTimer = null;
 const connectedClients = new Set();
 let isGetProjectsRunning = false; // Flag to prevent reentrant calls
+const STARTUP_INPUT_READY_TIMEOUT_MS = 10 * 60 * 1000;
+const STARTUP_INPUT_POLL_MS = 750;
 
 // Broadcast progress to all connected WebSocket clients
 function broadcastProgress(progress) {
@@ -298,6 +300,10 @@ function terminatePtySession(sessionKey, session, reason) {
     if (session.timeoutId) {
         clearTimeout(session.timeoutId);
     }
+    if (session.startupInputTimerId) {
+        clearTimeout(session.startupInputTimerId);
+        session.startupInputTimerId = null;
+    }
 
     try {
         if (session.pty && session.pty.kill) {
@@ -436,23 +442,97 @@ function appendPtySessionBuffer(session, data) {
 }
 
 function normalizeTerminalStartupInput(input) {
-    return `${String(input || '').replace(/(?:\r\n|\r|\n)+$/u, '')}\r`;
+    return `\x15${String(input || '').replace(/(?:\r\n|\r|\n)+$/u, '')}\r`;
+}
+
+function readSessionOutputForState(session, maxChars = 12000) {
+    return stripAnsiSequences((session?.buffer || []).join('').slice(-maxChars));
+}
+
+function shouldWaitForProviderIdle(provider) {
+    return provider === 'codex';
+}
+
+function isTerminalReadyForStartupInput(session) {
+    if (!session?.pty || session.lifecycleState !== 'running') {
+        return { ready: false, retry: false, terminalState: 'exited' };
+    }
+
+    const output = readSessionOutputForState(session);
+    const state = resolveProviderTerminalState(session, session.provider, output);
+    if (state.terminalState === 'busy') {
+        return { ready: false, retry: true, terminalState: state.terminalState };
+    }
+
+    if (state.terminalState === 'idle') {
+        return { ready: true, retry: false, terminalState: state.terminalState };
+    }
+
+    if (shouldWaitForProviderIdle(session.provider)) {
+        return { ready: false, retry: true, terminalState: state.terminalState };
+    }
+
+    return { ready: true, retry: false, terminalState: state.terminalState };
+}
+
+function processTerminalStartupInputQueue(session) {
+    if (!session?.pendingStartupInputs?.length) {
+        session.startupInputTimerId = null;
+        return;
+    }
+
+    const item = session.pendingStartupInputs[0];
+    const readiness = isTerminalReadyForStartupInput(session);
+    if (!readiness.ready) {
+        if (!readiness.retry || Date.now() - item.queuedAt > STARTUP_INPUT_READY_TIMEOUT_MS) {
+            session.pendingStartupInputs.shift();
+            session.startupInputTimerId = null;
+            const message = `\r\n\x1b[33m[Pixcode] Startup input was not sent because ${session.provider} is still ${readiness.terminalState || 'unavailable'}.\x1b[0m\r\n`;
+            try {
+                session.ws?.send?.(JSON.stringify({ type: 'output', data: message }));
+            } catch { /* websocket gone */ }
+            if (session.pendingStartupInputs.length > 0) {
+                session.startupInputTimerId = setTimeout(() => processTerminalStartupInputQueue(session), STARTUP_INPUT_POLL_MS);
+            }
+            return;
+        }
+
+        session.startupInputTimerId = setTimeout(() => processTerminalStartupInputQueue(session), STARTUP_INPUT_POLL_MS);
+        return;
+    }
+
+    session.pendingStartupInputs.shift();
+    session.startupInputTimerId = null;
+    try {
+        session.pty.write(normalizeTerminalStartupInput(item.startupInput));
+        session.updatedAt = Date.now();
+        console.log(`⌨️  Submitted startup input to visible PTY (${item.reason})`);
+    } catch (error) {
+        console.warn('Failed to submit startup input to visible PTY:', error?.message || error);
+    }
+
+    if (session.pendingStartupInputs.length > 0) {
+        session.startupInputTimerId = setTimeout(() => processTerminalStartupInputQueue(session), STARTUP_INPUT_POLL_MS);
+    }
+}
+
+function queueTerminalStartupInput(session, startupInput, reason, delayMs = 500) {
+    if (!session?.pty || !startupInput) return;
+    if (!Array.isArray(session.pendingStartupInputs)) {
+        session.pendingStartupInputs = [];
+    }
+    session.pendingStartupInputs.push({
+        startupInput,
+        reason,
+        queuedAt: Date.now(),
+    });
+
+    if (session.startupInputTimerId) return;
+    session.startupInputTimerId = setTimeout(() => processTerminalStartupInputQueue(session), delayMs);
 }
 
 function writeTerminalStartupInput(session, startupInput, reason, delayMs = 500) {
-    if (!session?.pty || !startupInput) return;
-    const submittedInput = normalizeTerminalStartupInput(startupInput);
-    setTimeout(() => {
-        try {
-            if (session.pty && session.lifecycleState === 'running') {
-                session.pty.write(submittedInput);
-                session.updatedAt = Date.now();
-                console.log(`⌨️  Submitted startup input to visible PTY (${reason})`);
-            }
-        } catch (error) {
-            console.warn('Failed to submit startup input to visible PTY:', error?.message || error);
-        }
-    }, delayMs);
+    queueTerminalStartupInput(session, startupInput, reason, delayMs);
 }
 
 function normalizeShellPermissionMode(value) {
@@ -2497,6 +2577,8 @@ function handleShellConnection(ws, request) {
                         }
 
                         existingSession.ws = ws;
+                        existingSession.hermesLaunchId = hermesLaunchId || existingSession.hermesLaunchId;
+                        existingSession.updatedAt = Date.now();
                         if (terminalStartupInput && !isPlainShell) {
                             writeTerminalStartupInput(existingSession, terminalStartupInput, 'reused provider session', 350);
                         }
@@ -2708,6 +2790,8 @@ function handleShellConnection(ws, request) {
                         exitSignal: null,
                         completedAt: null,
                         keepAliveUntilExit: false,
+                        pendingStartupInputs: [],
+                        startupInputTimerId: null,
                         updatedAt: Date.now(),
                     });
                     const createdSession = ptySessionsMap.get(ptySessionKey);
@@ -2792,6 +2876,11 @@ function handleShellConnection(ws, request) {
                             session.exitSignal = exitCode.signal || null;
                             session.completedAt = new Date().toISOString();
                             session.updatedAt = Date.now();
+                            if (session.startupInputTimerId) {
+                                clearTimeout(session.startupInputTimerId);
+                                session.startupInputTimerId = null;
+                            }
+                            session.pendingStartupInputs = [];
                             session.pty = null;
                             appendPtySessionBuffer(session, exitMessage);
                         }

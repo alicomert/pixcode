@@ -2,6 +2,25 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.50.8](https://github.com/alicomert/pixcode/compare/v1.50.7...v1.50.8) (2026-05-22)
+
+Pixcode 1.50.8 hardens Hermes MCP control of visible provider terminals and keeps the Hermes REST gateway ready from settings.
+
+### Fixes
+
+* **hermes:** queue startup input for reused visible provider PTYs until the terminal is no longer busy, preventing Codex from receiving `/init` while a task is still in progress.
+* **shell:** clear half-typed provider prompt lines before sending Hermes-requested work, so corrupted inputs like `t/init` are replaced with the exact requested command.
+* **mcp:** rebind reused provider PTYs to the latest Hermes launch id so readback follows the current Codex/Claude/Gemini/Qwen/OpenCode request instead of timing out against an old session id.
+* **mcp:** keep polling when Codex shows the requested text at the prompt but has not produced the final response yet.
+* **hermes:** auto-start/probe the managed Hermes REST gateway from Settings and make MCP gateway probes start it by default unless explicitly disabled.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `node --check server/index.js`
+* `node --check scripts/hermes/pixcode-mcp-server.mjs`
+
 ## [1.50.7](https://github.com/alicomert/pixcode/compare/v1.50.6...v1.50.7) (2026-05-22)
 
 Pixcode 1.50.7 fixes Hermes visible-terminal submission and replaces the bottom terminal minimized strip with half/full modes.

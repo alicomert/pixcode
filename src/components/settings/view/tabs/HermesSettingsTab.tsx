@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '../../../../shared/view/ui';
@@ -151,6 +151,7 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   const [gatewayProbe, setGatewayProbe] = useState<HermesGatewayProbe | null>(null);
   const [gatewayLoading, setGatewayLoading] = useState(false);
   const [gatewayError, setGatewayError] = useState<string | null>(null);
+  const autoGatewayStartedRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     setLoading(true);
@@ -207,6 +208,41 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
     void refreshGatewayStatus();
   }, [refreshGatewayStatus, refreshStatus]);
 
+  const ensureGatewayReady = useCallback(async () => {
+    setGatewayLoading(true);
+    setGatewayError(null);
+    try {
+      const response = await authenticatedFetch('/api/orchestration/hermes/gateway/probe', {
+        method: 'POST',
+        body: JSON.stringify({ startIfNeeded: true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok && !body?.ok) {
+        throw new Error(body?.error?.message || body?.error || `HTTP ${response.status}`);
+      }
+      setGatewayProbe({
+        ok: Boolean(body?.ok),
+        checkedAt: typeof body?.checkedAt === 'string' ? body.checkedAt : null,
+        baseUrl: typeof body?.baseUrl === 'string' ? body.baseUrl : null,
+        error: typeof body?.error === 'string' ? body.error : null,
+      });
+      await refreshGatewayStatus();
+    } catch (error) {
+      setGatewayError(error instanceof Error ? error.message : t('hermes.gatewayProbeFailed', { defaultValue: 'Hermes REST probe failed.' }));
+    } finally {
+      setGatewayLoading(false);
+    }
+  }, [refreshGatewayStatus, t]);
+
+  useEffect(() => {
+    if (!status.installed || autoGatewayStartedRef.current) {
+      return;
+    }
+
+    autoGatewayStartedRef.current = true;
+    void ensureGatewayReady();
+  }, [ensureGatewayReady, status.installed]);
+
   const closeSettingsAfterTerminalOpen = () => {
     window.setTimeout(() => onClose?.(), 0);
   };
@@ -258,29 +294,7 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   };
 
   const probeGateway = async () => {
-    setGatewayLoading(true);
-    setGatewayError(null);
-    try {
-      const response = await authenticatedFetch('/api/orchestration/hermes/gateway/probe', {
-        method: 'POST',
-        body: JSON.stringify({ startIfNeeded: true }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok && !body?.ok) {
-        throw new Error(body?.error?.message || body?.error || `HTTP ${response.status}`);
-      }
-      setGatewayProbe({
-        ok: Boolean(body?.ok),
-        checkedAt: typeof body?.checkedAt === 'string' ? body.checkedAt : null,
-        baseUrl: typeof body?.baseUrl === 'string' ? body.baseUrl : null,
-        error: typeof body?.error === 'string' ? body.error : null,
-      });
-      await refreshGatewayStatus();
-    } catch (error) {
-      setGatewayError(error instanceof Error ? error.message : t('hermes.gatewayProbeFailed', { defaultValue: 'Hermes REST probe failed.' }));
-    } finally {
-      setGatewayLoading(false);
-    }
+    await ensureGatewayReady();
   };
 
   const stopGateway = async () => {
