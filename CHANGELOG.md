@@ -2,6 +2,23 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.51.1](https://github.com/alicomert/pixcode/compare/v1.51.0...v1.51.1) (2026-06-01)
+
+Pixcode 1.51.1 keeps the desktop runtime dependency aligned with the published Hermes integration package.
+
+### Fixes
+
+* **desktop:** bump the Electron shell package and its embedded `@pixelbyte-software/pixcode` runtime dependency to `1.51.1` so newly built desktop installers do not pin the older runtime.
+
+### Verification
+
+* `npm view @pixelbyte-software/pixcode@1.51.0 version dist.tarball --json`
+* `node --check dist-server/server/services/hermes-gateway.js`
+* `node --check scripts/hermes/pixcode-mcp-server.mjs`
+* `scripts/hermes/configure-pixcode-mcp.mjs`
+* `scripts/smoke/hermes-rest-chat-api.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+
 ## [1.51.0](https://github.com/alicomert/pixcode/compare/v1.50.9...v1.51.0) (2026-06-01)
 
 Pixcode 1.51.0 makes Hermes Agent a full Pixcode control plane instead of a narrow visible-terminal bridge.
