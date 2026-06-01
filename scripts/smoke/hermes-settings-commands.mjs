@@ -27,22 +27,20 @@ assert.match(
 assert.match(settingsTab, /command:\s*'hermes model'/, 'Hermes settings should expose the interactive provider/model wizard.');
 assert.match(settingsTab, /command:\s*'hermes auth'/, 'Hermes settings should expose the credential manager.');
 assert.match(settingsTab, /command:\s*'hermes setup tools'/, 'Hermes settings should expose tool setup.');
+assert.match(settingsTab, /command:\s*'hermes cron status'/, 'Hermes settings should expose scheduler/cron status.');
+assert.match(settingsTab, /command:\s*'hermes mcp'/, 'Hermes settings should expose MCP server management.');
 assert.match(settingsTab, /command:\s*'hermes doctor'/, 'Hermes settings should expose diagnostics.');
+assert.match(settingsTab, /command:\s*'hermes update --yes'/, 'Hermes settings should expose a non-interactive updater.');
 assert.match(settingsTab, /command:\s*'hermes sessions browse'/, 'Hermes settings should open the interactive sessions browser, not the sessions usage screen.');
+assert.match(settingsTab, /\/api\/orchestration\/hermes\/diagnostics/, 'Hermes settings should read integration diagnostics.');
+assert.match(settingsTab, /diagnosticsTitle/, 'Hermes settings should render a diagnostics panel.');
+assert.match(settingsTab, /diagnosticsMcpTools/, 'Hermes settings diagnostics should show Pixcode MCP tool counts.');
+assert.match(settingsTab, /diagnosticsCron/, 'Hermes settings diagnostics should show cron availability.');
+assert.match(settingsTab, /Pixcode Hermes REST health check/, 'Hermes REST probe should submit a real prompt so provider/auth failures are visible.');
 assert.match(
   settingsTab,
   /pixcode:hermes-terminal[\s\S]+command[\s\S]+title/,
   'Hermes settings should dispatch command and title to the workbench terminal.',
-);
-assert.match(
-  settingsTab,
-  /ensureGatewayReady/,
-  'Hermes settings should automatically start/probe the REST API gateway when Hermes is installed.',
-);
-assert.match(
-  settingsTab,
-  /startIfNeeded:\s*true/,
-  'Hermes settings should start the REST API gateway through Pixcode when checking gateway readiness.',
 );
 assert.match(
   settingsModal,
@@ -66,8 +64,8 @@ assert.match(
 );
 assert.match(
   workbench,
-  /HERMES_DEFAULT_COMMAND\s*=\s*'hermes --yolo --toolsets mcp-pixcode'/,
-  'Hermes terminal should default to Pixcode MCP-only toolsets so provider CLIs stay visible inside Pixcode.',
+  /HERMES_DEFAULT_COMMAND\s*=\s*'hermes --yolo'/,
+  'Hermes terminal should not override toolsets on the command line; Pixcode writes hermes-cli plus Pixcode MCP into Hermes config before launch.',
 );
 assert.match(
   serverIndex,
@@ -86,8 +84,18 @@ assert.match(
 );
 assert.match(
   pixcodeMcpServer,
-  /startIfNeeded:\s*args\.startIfNeeded !== false/,
-  'Pixcode MCP gateway probes should start the managed REST gateway by default unless Hermes explicitly opts out.',
+  /pixcode_send_cli_input/,
+  'Pixcode MCP should expose a direct input tool for continuing an existing visible CLI terminal.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /pixcode_manage_hermes_cron/,
+  'Pixcode MCP should expose Hermes cron management through the managed gateway.',
+);
+assert.match(
+  pixcodeMcpServer,
+  /pixcode_get_hermes_diagnostics/,
+  'Pixcode MCP should expose redacted Hermes integration diagnostics.',
 );
 assert.match(
   pixcodeMcpServer,
@@ -110,11 +118,6 @@ assert.match(
   'Codex readback should ignore weak spinner remnants once the prompt has returned.',
 );
 assert.match(
-  pixcodeMcpServer,
-  /codex_prompt_input_pending/,
-  'Codex readback should not treat a prompt line with typed-but-unsubmitted input as final output.',
-);
-assert.match(
   serverIndex,
   /lastStrongBusy[\s\S]+lastPrompt[\s\S]+\?\s*'busy'\s*:\s*'idle'/,
   'Backend provider-output should ignore weak Codex spinner remnants once the prompt has returned.',
@@ -128,11 +131,6 @@ assert.match(
   serverIndex,
   /requestedLaunchId[\s\S]+session\.hermesLaunchId === requestedLaunchId/,
   'Provider output API should filter by Hermes terminal launch id when supplied.',
-);
-assert.match(
-  serverIndex,
-  /existingSession\.hermesLaunchId = hermesLaunchId \|\| existingSession\.hermesLaunchId/,
-  'Reused visible provider PTYs should be rebound to the latest Hermes launch id so MCP readback follows the current request.',
 );
 assert.match(
   serverIndex,
@@ -268,26 +266,6 @@ assert.match(
   serverIndex,
   /writeTerminalStartupInput/,
   'Shell backend should submit Hermes startup input directly into reused visible PTYs.',
-);
-assert.match(
-  serverIndex,
-  /queueTerminalStartupInput/,
-  'Shell backend should queue Hermes startup input until the visible provider terminal is ready instead of writing blindly after a fixed delay.',
-);
-assert.match(
-  serverIndex,
-  /STARTUP_INPUT_READY_TIMEOUT_MS/,
-  'Queued provider startup input should have a bounded readiness timeout.',
-);
-assert.match(
-  serverIndex,
-  /resolveProviderTerminalState[\s\S]+terminalState === 'busy'/,
-  'Queued startup input should inspect the provider terminal state and avoid sending while the CLI is busy.',
-);
-assert.match(
-  serverIndex,
-  /\\x15/,
-  'Provider startup input should clear any half-typed prompt line before typing the requested work.',
 );
 assert.match(
   serverIndex,

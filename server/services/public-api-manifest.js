@@ -3,6 +3,8 @@ const API_GROUPS = [
   { id: 'projects', title: 'Projects', basePath: '/api/projects', scopes: ['projects:read', 'projects:write'] },
   { id: 'sessions', title: 'Sessions and messages', basePath: '/api/sessions', scopes: ['sessions:read', 'sessions:write'] },
   { id: 'providers', title: 'CLI providers', basePath: '/api/providers', scopes: ['providers:read', 'providers:write'] },
+  { id: 'terminal', title: 'Visible terminal sessions', basePath: '/api/shell/sessions', scopes: ['terminal:launch'] },
+  { id: 'hermes', title: 'Hermes Agent control', basePath: '/api/orchestration/hermes', scopes: ['hermes:mcp', 'hermes:gateway', 'terminal:launch'] },
   { id: 'orchestration', title: 'Orchestration runs', basePath: '/api/orchestration', scopes: ['orchestration:read', 'orchestration:write'] },
   { id: 'notifications', title: 'Notifications', basePath: '/api/settings/notifications', scopes: ['notifications:read', 'notifications:write'] },
   { id: 'files', title: 'Files', basePath: '/api/projects/:projectName/files', scopes: ['files:read', 'files:write'] },

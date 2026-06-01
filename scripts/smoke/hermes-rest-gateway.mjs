@@ -12,6 +12,8 @@ const settingsTab = read('src/components/settings/view/tabs/HermesSettingsTab.ts
 assert.match(service, /export async function ensureHermesGateway/, 'Pixcode should expose an API-managed Hermes gateway starter.');
 assert.match(service, /export async function probeHermesGateway/, 'Pixcode should probe Hermes through its REST API.');
 assert.match(service, /export async function runHermesGatewayPrompt/, 'Pixcode should submit Hermes prompts through the managed REST gateway.');
+assert.match(service, /export async function requestHermesGateway/, 'Pixcode should proxy documented Hermes gateway endpoints such as /api/jobs.');
+assert.match(service, /export async function readHermesDiagnostics/, 'Pixcode should expose redacted Hermes diagnostics for config, auth, MCP, gateway, and cron state.');
 assert.match(service, /export function stopHermesGateway/, 'Pixcode should be able to stop a managed Hermes gateway process.');
 assert.match(service, /\/v1\/chat\/completions/, 'Hermes UI chat should use the documented OpenAI-compatible chat completions endpoint first.');
 assert.match(service, /\/v1\/responses/, 'Hermes UI chat should use the stateful OpenAI-compatible responses endpoint before legacy chat fallback.');
@@ -36,6 +38,8 @@ assert.match(routes, /router\.get\('\/gateway\/status'/, 'Hermes router should e
 assert.match(routes, /router\.post\('\/gateway\/start'/, 'Hermes router should expose gateway start.');
 assert.match(routes, /router\.post\('\/gateway\/probe'/, 'Hermes router should expose a REST probe endpoint.');
 assert.match(routes, /router\.post\('\/gateway\/chat'/, 'Hermes router should expose a REST chat endpoint.');
+assert.match(routes, /router\.post\('\/gateway\/request'/, 'Hermes router should expose a generic documented gateway request endpoint.');
+assert.match(routes, /router\.get\('\/diagnostics'/, 'Hermes router should expose integration diagnostics.');
 assert.match(routes, /router\.post\('\/gateway\/stop'/, 'Hermes router should expose gateway stop.');
 assert.match(routes, /ensureHermesGateway/, 'Hermes router should use the managed gateway service.');
 assert.match(routes, /probeHermesGateway/, 'Hermes router should use the REST probe service.');
@@ -45,12 +49,22 @@ assert.match(routes, /probeExisting:\s*false/, 'Hermes chat should reuse a runni
 
 assert.match(mcpServer, /pixcode_get_hermes_gateway_status/, 'Pixcode MCP should let Hermes inspect gateway status.');
 assert.match(mcpServer, /pixcode_probe_hermes_gateway/, 'Pixcode MCP should let Hermes trigger a REST probe.');
+assert.match(mcpServer, /pixcode_get_hermes_diagnostics/, 'Pixcode MCP should let Hermes read redacted integration diagnostics.');
+assert.match(mcpServer, /pixcode_get_api_manifest/, 'Pixcode MCP should let Hermes discover Pixcode API docs.');
+assert.match(mcpServer, /pixcode_api_request/, 'Pixcode MCP should let Hermes call authenticated Pixcode APIs.');
+assert.match(mcpServer, /pixcode_hermes_gateway_request/, 'Pixcode MCP should let Hermes call documented gateway APIs.');
+assert.match(mcpServer, /pixcode_manage_hermes_cron/, 'Pixcode MCP should expose Hermes cron job management.');
+assert.match(mcpServer, /pixcode_send_cli_input/, 'Pixcode MCP should let Hermes continue an existing visible CLI terminal.');
 assert.match(configureMcp, /pixcode_get_hermes_gateway_status/, 'Hermes MCP config should include gateway status tool.');
 assert.match(configureMcp, /pixcode_probe_hermes_gateway/, 'Hermes MCP config should include gateway probe tool.');
+assert.match(configureMcp, /pixcode_get_hermes_diagnostics/, 'Hermes MCP config should include diagnostics tool.');
+assert.match(configureMcp, /pixcode_manage_hermes_cron/, 'Hermes MCP config should include cron management tool.');
 assert.match(configureMcp, /mcp-pixcode/, 'Hermes MCP config should enable the Pixcode MCP toolset for the real CLI.');
+assert.match(configureMcp, /hermes-cli/, 'Hermes MCP config should keep the native Hermes CLI toolset enabled for cron/files/terminal tools.');
 
 assert.match(settingsTab, /gateway\/status/, 'Hermes settings should read gateway status.');
 assert.match(settingsTab, /gateway\/start/, 'Hermes settings should start the REST gateway via API.');
 assert.match(settingsTab, /gateway\/probe/, 'Hermes settings should run REST probe via API.');
+assert.match(settingsTab, /diagnostics/, 'Hermes settings should render diagnostics from the server.');
 
 console.log('hermes REST gateway smoke passed');

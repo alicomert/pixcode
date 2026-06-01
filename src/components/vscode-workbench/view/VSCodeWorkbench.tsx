@@ -109,7 +109,7 @@ type WorkbenchBottomTerminalOptions = {
   project?: Project | null;
 };
 
-const HERMES_DEFAULT_COMMAND = 'hermes --yolo --toolsets mcp-pixcode';
+const HERMES_DEFAULT_COMMAND = 'hermes --yolo';
 const HERMES_HISTORY_COMMAND = 'hermes sessions browse';
 
 type PendingHermesLaunch = {

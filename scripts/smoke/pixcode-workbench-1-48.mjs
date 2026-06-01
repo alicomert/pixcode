@@ -74,7 +74,7 @@ assert.match(workbench, /isPlainShell/, 'Bottom terminal should open the selecte
 assert.doesNotMatch(workbench, /HERMES_AGENT_START_COMMAND/, 'Hermes Agent should not launch from the bottom terminal through a server-side sentinel.');
 assert.doesNotMatch(workbench, /HermesApiChatPanel|HermesTerminalTranscript/, 'Hermes Agent should use the real PTY terminal UI, not a custom REST chat transcript.');
 assert.doesNotMatch(workbench, /REST POST \/|transport=|response=|gateway=http/, 'Hermes terminal UI must not expose REST debug internals to the user.');
-assert.match(workbench, /HERMES_DEFAULT_COMMAND = 'hermes --yolo --toolsets mcp-pixcode'/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI with Pixcode MCP-only tools.');
+assert.match(workbench, /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/, 'Hermes Agent bottom panel should launch the actual `hermes` CLI and leave toolsets to the Pixcode-managed Hermes config.');
 assert.match(workbench, /HERMES_HISTORY_COMMAND = 'hermes sessions browse'/, 'Hermes terminal history should open the native interactive session picker.');
 assert.match(workbench, /onOpenHistory=\{openHermesHistory\}/, 'Hermes terminal header should wire its history button to the native Hermes sessions command.');
 assert.match(workbench, /Pixcode MCP Live/, 'Hermes terminal should show a user-facing Pixcode MCP live badge.');

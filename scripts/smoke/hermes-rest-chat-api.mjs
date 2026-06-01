@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import {
   ensureHermesGateway,
+  readHermesDiagnostics,
+  requestHermesGateway,
   runHermesGatewayPrompt,
   stopHermesGateway,
 } from '../../server/services/hermes-gateway.js';
@@ -89,6 +91,14 @@ const server = http.createServer(async (req, res) => {
     }));
     return;
   }
+  if (req.method === 'GET' && url.pathname === '/api/jobs') {
+    res.end(JSON.stringify({
+      jobs: [
+        { job_id: 'job_smoke', name: 'Pixcode cron smoke', schedule: 'every 1h' },
+      ],
+    }));
+    return;
+  }
   res.statusCode = 404;
   res.end(JSON.stringify({ error: url.pathname }));
 });
@@ -120,10 +130,31 @@ try {
     throw new Error(`Hermes REST chat did not use responses: ${JSON.stringify(run)}`);
   }
 
+  const jobs = await requestHermesGateway(projectPath, {
+    method: 'GET',
+    endpoint: '/api/jobs',
+  });
+  if (!jobs.ok || !String(JSON.stringify(jobs.body)).includes('Pixcode cron smoke')) {
+    throw new Error(`Hermes gateway jobs API did not proxy cron jobs: ${JSON.stringify(jobs)}`);
+  }
+
+  const diagnostics = await readHermesDiagnostics({ projectPath, hermesHome });
+  if (!diagnostics.config?.active?.toolsets?.includes('hermes-cli') || !diagnostics.config.active.toolsets.includes('mcp-pixcode')) {
+    throw new Error(`Hermes diagnostics did not see the full toolset config: ${JSON.stringify(diagnostics.config?.active)}`);
+  }
+  if (!diagnostics.cron?.gatewayJobsApi?.ok) {
+    throw new Error(`Hermes diagnostics did not verify cron jobs API: ${JSON.stringify(diagnostics.cron)}`);
+  }
+
   console.log(JSON.stringify({
     ok: true,
     transport: run.transport,
     message: run.message,
+    jobs: jobs.body,
+    diagnostics: {
+      toolsets: diagnostics.config.active.toolsets,
+      cronOk: diagnostics.cron.gatewayJobsApi.ok,
+    },
   }, null, 2));
 } finally {
   stopHermesGateway(projectPath);

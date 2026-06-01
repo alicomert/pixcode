@@ -823,45 +823,42 @@
     "gatewayStart": "REST baslat",
     "gatewayProbe": "REST test et",
     "gatewayStop": "Durdur",
-    "gatewayProbeOk": "REST testi gecti: health, capabilities ve models cevap verdi.",
+    "gatewayProbeOk": "REST testi gecti: health, capabilities, models ve gercek prompt cevap verdi.",
     "commandsTitle": "Hermes CLI ayarlari",
     "commandsDescription": "Gercek Hermes terminal sihirbazlarini Pixcode icinden ac. Codex, OpenRouter, Anthropic, Gemini ve diger saglayicilari baglamak icin Model ve saglayici alanini kullan.",
     "commandsInstallFirst": "CLI ayarlarini acmadan once Hermes'i kur.",
     "commands": {
-      "model": {
-        "title": "Model ve saglayici",
-        "description": "OAuth, API key ve varsayilan model secimi icin etkilesimli provider/model sihirbazini ac."
+      "cron": {
+        "title": "Cron isleri",
+        "description": "Scheduler durumunu incele, isleri listele ve tekrarlanan proje gorevlerinin Hermes gecidiyle calisabildigini dogrula."
       },
-      "auth": {
-        "title": "Kimlik bilgileri",
-        "description": "Kurulu saglayicilar icin OAuth oturumlarini ve API key havuzlarini yonet."
+      "mcp": {
+        "title": "MCP sunuculari",
+        "description": "MCP sunucularini yonet ve arac ayarlari degistiginde Pixcode MCP'yi yeniden yukle."
       },
-      "tools": {
-        "title": "Araclar",
-        "description": "Pixcode MCP dahil Hermes toolsetlerinin hangilerinin acik olacagini sec."
-      },
-      "doctor": {
-        "title": "Doctor",
-        "description": "Hermes config, bagimlilik ve platform sorunlarini terminalde teshis et."
-      },
-      "status": {
-        "title": "Durum",
-        "description": "Mevcut saglayici, auth, platform ve gizlenmis kurulum ozetini goster."
-      },
-      "lsp": {
-        "title": "LSP durumu",
-        "description": "Semantik diagnostic icin Hermes language server entegrasyonunu kontrol et."
-      },
-      "skills": {
-        "title": "Skills",
-        "description": "Hermes skilllerini CLI icinden gez, kur, denetle ve ayarla."
-      },
-      "sessions": {
-        "title": "Oturumlar",
-        "description": "Hermes oturumlarini gez, disa aktar, yeniden adlandir, temizle veya sil."
+      "update": {
+        "title": "Hermes guncelle",
+        "description": "Etkilesimli soru olmadan en yeni Hermes duzeltmelerini cekip bagimliliklari yeniden kur."
       }
     },
     "pixcodeControlTitle": "Pixcode kontrolu",
-    "pixcodeControlDescription": "Pixcode, baslatmadan once Hermes MCP sunucusunu ayarlar. Boylece Hermes workspaceleri inceleyebilir ve istediginde gorunur Pixcode UI icinde provider terminalleri acabilir."
+    "pixcodeControlDescription": "Pixcode, baslatmadan once Hermes MCP sunucusunu ayarlar. Boylece Hermes workspaceleri inceleyebilir ve istediginde gorunur Pixcode UI icinde provider terminalleri acabilir.",
+    "diagnosticsTitle": "Entegrasyon tanilari",
+    "diagnosticsDescription": "Gizli bilgi gostermeden Hermes model/auth, native toolset, Pixcode MCP araclari, REST gecidi ve cron API baglantisini kontrol eder.",
+    "diagnosticsFailed": "Hermes tanilari okunamadi.",
+    "diagnosticsModel": "Model",
+    "diagnosticsTools": "Araclar",
+    "diagnosticsCron": "Cron",
+    "diagnosticsIssues": "Sorunlar",
+    "diagnosticsAuthReady": "Saglayici auth mevcut.",
+    "diagnosticsAuthMissing": "Saglayici auth dikkat istiyor.",
+    "diagnosticsMcpTools": "Pixcode MCP: {{count}} arac, {{missing}} eksik",
+    "diagnosticsCronReady": "Hermes cron toolset kullanilabilir.",
+    "diagnosticsCronMissing": "Hermes cron icin hermes-cli toolset gerekli.",
+    "diagnosticsCronApiReady": "Gateway /api/jobs cevap verdi.",
+    "diagnosticsCronApiFailed": "Gateway /api/jobs cevap vermedi.",
+    "diagnosticsNoIssues": "Engelleyici sorun bulunmadi.",
+    "diagnosticsIssueCount": "{{count}} sorun tespit edildi.",
+    "unknown": "Bilinmiyor"
   }
 }

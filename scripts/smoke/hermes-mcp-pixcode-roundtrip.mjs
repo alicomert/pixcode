@@ -10,6 +10,8 @@ const seen = [];
 const providerMcpUpserts = [];
 const terminalLaunches = [];
 const providerOutputReads = [];
+const providerInputWrites = [];
+const gatewayRequests = [];
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
@@ -48,6 +50,17 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/public/manifest') {
+    res.end(JSON.stringify({
+      name: 'Pixcode Public API',
+      groups: [
+        { id: 'projects', basePath: '/api/projects', scopes: ['projects:read', 'projects:write'] },
+        { id: 'providers', basePath: '/api/providers', scopes: ['providers:read', 'providers:write'] },
+      ],
+    }));
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/providers/codex/auth/status') {
     res.end(JSON.stringify({ data: { provider: 'codex', installed: true, authenticated: true } }));
     return;
@@ -80,6 +93,37 @@ const server = createServer(async (req, res) => {
         health: { ok: true, status: 200 },
         capabilities: { ok: true, status: 200 },
         models: { ok: true, status: 200 },
+      },
+    }));
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/orchestration/hermes/diagnostics') {
+    res.end(JSON.stringify({
+      ok: true,
+      model: { provider: 'openai-codex', default: 'gpt-5.5' },
+      config: {
+        active: {
+          toolsets: ['hermes-cli', 'mcp-pixcode'],
+          pixcodeMcp: { toolCount: 12, missingTools: [] },
+        },
+      },
+      cron: { toolsetAvailable: true, gatewayJobsApi: { ok: true, status: 200 } },
+      issues: [],
+    }));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/orchestration/hermes/gateway/request') {
+    const body = await readJson(req);
+    gatewayRequests.push(body);
+    res.end(JSON.stringify({
+      ok: true,
+      endpoint: body.endpoint,
+      body: {
+        jobs: [
+          { job_id: 'job_1', name: 'Morning repo check', schedule: '0 9 * * *' },
+        ],
       },
     }));
     return;
@@ -127,28 +171,7 @@ const server = createServer(async (req, res) => {
         provider: 'codex',
         projectPath: '/root/pixcode',
         terminalState: 'idle',
-        output: 'OpenAI Codex\n› /init\n',
-      },
-      {
-        active: true,
-        provider: 'codex',
-        projectPath: '/root/pixcode',
-        terminalState: 'idle',
-        output: 'OpenAI Codex\n› /init\n',
-      },
-      {
-        active: true,
-        provider: 'codex',
-        projectPath: '/root/pixcode',
-        terminalState: 'idle',
-        output: 'OpenAI Codex\n› /init\n',
-      },
-      {
-        active: true,
-        provider: 'codex',
-        projectPath: '/root/pixcode',
-        terminalState: 'idle',
-        output: 'OpenAI Codex\n› /init\n',
+        output: 'OpenAI Codex\n› /init\n\n• Ran npm test\n\n› Implement {feature}\n',
       },
       {
         active: true,
@@ -159,6 +182,13 @@ const server = createServer(async (req, res) => {
       },
     ];
     res.end(JSON.stringify(outputs[Math.min(providerOutputReads.length - 1, outputs.length - 1)]));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/shell/sessions/provider-input') {
+    const body = await readJson(req);
+    providerInputWrites.push(body);
+    res.end(JSON.stringify({ ok: true, wrote: true, provider: body.provider, launchId: body.launchId }));
     return;
   }
 
@@ -218,6 +248,7 @@ const child = spawn(process.execPath, [path.join(repoRoot, 'scripts/hermes/pixco
     ...process.env,
     PIXCODE_BASE_URL: baseUrl,
     PIXCODE_API_KEY: apiKey,
+    PIXCODE_MCP_READBACK_IDLE_STABLE_MS: '500',
   },
   stdio: ['pipe', 'pipe', 'pipe'],
 });
@@ -230,6 +261,12 @@ try {
   assert(toolNames.includes('pixcode_get_provider_status'), 'provider status tool missing');
   assert(toolNames.includes('pixcode_get_hermes_gateway_status'), 'Hermes gateway status tool missing');
   assert(toolNames.includes('pixcode_probe_hermes_gateway'), 'Hermes gateway probe tool missing');
+  assert(toolNames.includes('pixcode_get_hermes_diagnostics'), 'Hermes diagnostics tool missing');
+  assert(toolNames.includes('pixcode_get_api_manifest'), 'Pixcode API manifest tool missing');
+  assert(toolNames.includes('pixcode_api_request'), 'Pixcode generic API request tool missing');
+  assert(toolNames.includes('pixcode_hermes_gateway_request'), 'Hermes gateway request proxy tool missing');
+  assert(toolNames.includes('pixcode_manage_hermes_cron'), 'Hermes cron management tool missing');
+  assert(toolNames.includes('pixcode_send_cli_input'), 'Provider terminal input tool missing');
 
   const projects = await callMcp(child, 'tools/call', { name: 'pixcode_list_projects', arguments: {} });
   assert.match(projects.content[0].text, /224/, 'projects response should include file count');
@@ -242,6 +279,35 @@ try {
     arguments: { projectPath: '/root/pixcode' },
   });
   assert.match(probe.content[0].text, /"ok": true/, 'gateway probe should return ok');
+
+  const diagnostics = await callMcp(child, 'tools/call', {
+    name: 'pixcode_get_hermes_diagnostics',
+    arguments: { projectPath: '/root/pixcode' },
+  });
+  assert.match(diagnostics.content[0].text, /mcp-pixcode/, 'Hermes diagnostics should expose active toolsets.');
+  assert.match(diagnostics.content[0].text, /"toolsetAvailable": true/, 'Hermes diagnostics should expose cron toolset availability.');
+
+  const manifest = await callMcp(child, 'tools/call', { name: 'pixcode_get_api_manifest', arguments: {} });
+  assert.match(manifest.content[0].text, /Pixcode Public API/, 'API manifest tool should expose Pixcode API docs to Hermes.');
+
+  const apiRequest = await callMcp(child, 'tools/call', {
+    name: 'pixcode_api_request',
+    arguments: { method: 'GET', path: '/api/projects' },
+  });
+  assert.match(apiRequest.content[0].text, /"name": "pixcode"/, 'generic Pixcode API tool should call allowlisted local API paths.');
+
+  const cronJobs = await callMcp(child, 'tools/call', {
+    name: 'pixcode_hermes_gateway_request',
+    arguments: { method: 'GET', endpoint: '/api/jobs', projectPath: '/root/pixcode' },
+  });
+  assert.match(cronJobs.content[0].text, /Morning repo check/, 'Hermes gateway request tool should expose API-server jobs/cron endpoints.');
+  assert.equal(gatewayRequests[0].endpoint, '/api/jobs', 'Gateway request should keep the requested Hermes endpoint.');
+
+  const cronList = await callMcp(child, 'tools/call', {
+    name: 'pixcode_manage_hermes_cron',
+    arguments: { action: 'list', projectPath: '/root/pixcode' },
+  });
+  assert.match(cronList.content[0].text, /Morning repo check/, 'Hermes cron helper should list managed Hermes jobs.');
 
   const launch = await callMcp(child, 'tools/call', {
     name: 'pixcode_open_cli_terminal',
@@ -284,6 +350,14 @@ try {
   assert.match(blockedLaunch.content[0].text, /"launched": false/, 'uninstalled providers should not create terminal launches');
   assert.match(blockedLaunch.content[0].text, /"reason": "not_installed"/, 'uninstalled provider response should explain the block');
   assert.equal(terminalLaunches.length, 2, 'Only installed Codex provider launches should be created');
+
+  const inputWrite = await callMcp(child, 'tools/call', {
+    name: 'pixcode_send_cli_input',
+    arguments: { provider: 'codex', projectPath: '/root/pixcode', input: 'selam', submit: true, launchId: 2 },
+  });
+  assert.match(inputWrite.content[0].text, /"wrote": true/, 'MCP should be able to submit input to an existing visible provider terminal.');
+  assert.equal(providerInputWrites[0].input, 'selam', 'Provider input body should preserve exact user input.');
+  assert.equal(providerInputWrites[0].submit, true, 'Provider input should submit by default when requested.');
 
   assert(seen.every((entry) => entry.auth === `Bearer ${apiKey}`), 'all MCP calls should use the Pixcode bearer key');
   console.log('hermes MCP Pixcode roundtrip smoke passed');

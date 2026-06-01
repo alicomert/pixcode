@@ -2,6 +2,37 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.51.0](https://github.com/alicomert/pixcode/compare/v1.50.9...v1.51.0) (2026-06-01)
+
+Pixcode 1.51.0 makes Hermes Agent a full Pixcode control plane instead of a narrow visible-terminal bridge.
+
+### Features
+
+* **hermes:** expose redacted integration diagnostics for install state, active model/provider, auth, toolsets, Pixcode MCP tools, REST gateway health, cron jobs, and recent error signals.
+* **mcp:** add Pixcode API manifest access, authenticated Pixcode REST calls, managed Hermes gateway requests, Hermes cron job management, and direct visible CLI input tools.
+* **settings:** add Hermes diagnostics, cron/MCP/model visibility, a real-prompt REST probe, and a non-interactive Hermes updater.
+* **api:** document Hermes Agent and visible terminal control in the public automation manifest.
+
+### Fixes
+
+* **hermes:** keep `hermes-cli` enabled alongside `mcp-pixcode` so cron, skills, file, terminal, and native Hermes tools remain available.
+* **hermes:** stop overriding toolsets on the Hermes terminal command line; Pixcode now writes the toolset config before launch to avoid new Hermes CLI warnings.
+* **mcp:** wait for a stable idle visible provider readback, recover stuck startup input by submitting Enter to the existing terminal, and keep provider work in the visible Pixcode session.
+
+### Verification
+
+* `scripts/smoke/hermes-settings-commands.mjs`
+* `scripts/smoke/hermes-mcp-pixcode-roundtrip.mjs`
+* `scripts/smoke/hermes-rest-chat-api.mjs`
+* `scripts/smoke/hermes-rest-codex-launch.mjs`
+* `scripts/smoke/hermes-rest-gateway.mjs`
+* `scripts/smoke/hermes-api-install.mjs`
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `scripts/smoke/vscode-workbench-polish.mjs`
+* `npm run typecheck`
+* `npm run lint`
+* `npm run build`
+
 ## [1.50.9](https://github.com/alicomert/pixcode/compare/v1.50.8...v1.50.9) (2026-05-23)
 
 Pixcode 1.50.9 fixes the Linux/self-hosted code editor loader so files that download correctly also open in Monaco.

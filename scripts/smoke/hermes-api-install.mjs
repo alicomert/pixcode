@@ -37,7 +37,7 @@ assert.match(hermesInstallJobs, /windowsCmdFallbackCommand/, 'Hermes install sho
 assert.match(hermesInstallJobs, /retrying through cmd\.exe without elevation/, 'Hermes install logs should explain the no-admin Windows EPERM fallback.');
 assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /platform_toolsets/, 'Pixcode MCP config should enable the Pixcode toolset for Hermes API server runs.');
 assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /api_server:[\s\S]+pixcode/, 'Hermes API server should see Pixcode MCP tools during /v1/runs.');
-assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /const cliToolsets = \['mcp-pixcode'\]/, 'Hermes CLI profile should use Pixcode MCP-only tools by default so provider CLIs stay visible.');
+assert.match(read('scripts/hermes/configure-pixcode-mcp.mjs'), /const cliToolsets = \['hermes-cli', 'mcp-pixcode'\]/, 'Hermes CLI profile should keep the full Hermes toolset while adding Pixcode MCP.');
 assert.match(serverIndex, /buildHermesPathEnv\(process\.env/, 'Shell PTYs should inherit Hermes bin directories so typing hermes in Pixcode terminal works on Windows.');
 assert.match(serverIndex, /env: shellEnv/, 'Shell PTYs should use the augmented shell environment instead of raw process.env.');
 assert.doesNotMatch(serverIndex, /pixcode:hermes:start/, 'Hermes H button should not depend on a shell sentinel.');

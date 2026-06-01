@@ -19,6 +19,22 @@ const FETCH_TIMEOUT_MS = 5000;
 const RUN_TIMEOUT_MS = 120000;
 const RUN_POLL_INTERVAL_MS = 1000;
 const LOG_LIMIT = 800;
+const HERMES_DIAGNOSTIC_LOG_BYTES = 120000;
+const ALLOWED_GATEWAY_REQUEST_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const EXPECTED_PIXCODE_MCP_TOOLS = [
+    'pixcode_list_projects',
+    'pixcode_get_provider_status',
+    'pixcode_open_cli_terminal',
+    'pixcode_read_cli_terminal',
+    'pixcode_get_hermes_gateway_status',
+    'pixcode_probe_hermes_gateway',
+    'pixcode_get_hermes_diagnostics',
+    'pixcode_get_api_manifest',
+    'pixcode_api_request',
+    'pixcode_hermes_gateway_request',
+    'pixcode_manage_hermes_cron',
+    'pixcode_send_cli_input',
+];
 const PIXCODE_MANAGED_HERMES_ENV_PREFIXES = [
     'API_SERVER_',
     'BLUEBUBBLES_',
@@ -334,6 +350,170 @@ function recentGatewayLogText(gateway) {
         .trim();
 }
 
+function readFileTail(filePath, maxBytes = HERMES_DIAGNOSTIC_LOG_BYTES) {
+    try {
+        const stat = fs.statSync(filePath);
+        const length = Math.min(maxBytes, stat.size);
+        const buffer = Buffer.alloc(length);
+        const fd = fs.openSync(filePath, 'r');
+        try {
+            fs.readSync(fd, buffer, 0, length, stat.size - length);
+        } finally {
+            fs.closeSync(fd);
+        }
+        return buffer.toString('utf8');
+    } catch {
+        return '';
+    }
+}
+
+function readJsonFileSafe(filePath) {
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch {
+        return null;
+    }
+}
+
+function redactDiagnosticText(text) {
+    return String(text || '')
+        .replace(/\b(px_|ck_|sk-|ghp_|npm_)[A-Za-z0-9._-]+/gu, '$1[redacted]')
+        .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/giu, '$1[redacted]')
+        .replace(/((?:api[_-]?key|authorization|access[_-]?token|refresh[_-]?token|id[_-]?token|token)\s*[:=]\s*["']?)[^"',\s}]+/giu, '$1[redacted]');
+}
+
+function findRootBlockEnd(lines, startIndex) {
+    for (let index = startIndex + 1; index < lines.length; index += 1) {
+        if (/^\S[^:]*:\s*(?:#.*)?$/u.test(lines[index])) {
+            return index;
+        }
+    }
+    return lines.length;
+}
+
+function readRootList(text, key) {
+    const lines = String(text || '').split(/\r?\n/);
+    const start = lines.findIndex((line) => new RegExp(`^${key}:\\s*(?:#.*)?$`, 'u').test(line));
+    if (start === -1) return [];
+    const end = findRootBlockEnd(lines, start);
+    const values = [];
+    for (let index = start + 1; index < end; index += 1) {
+        const match = lines[index].match(/^\s*-\s*([^#\s][^#]*?)(?:\s+#.*)?$/u);
+        if (match) values.push(match[1].trim().replace(/^['"]|['"]$/gu, ''));
+    }
+    return values;
+}
+
+function readRootMap(text, key) {
+    const lines = String(text || '').split(/\r?\n/);
+    const start = lines.findIndex((line) => new RegExp(`^${key}:\\s*(?:#.*)?$`, 'u').test(line));
+    if (start === -1) return {};
+    const end = findRootBlockEnd(lines, start);
+    const values = {};
+    for (let index = start + 1; index < end; index += 1) {
+        const match = lines[index].match(/^\s+([A-Za-z0-9_.-]+):\s*(.*?)(?:\s+#.*)?$/u);
+        if (!match) continue;
+        values[match[1]] = match[2].trim().replace(/^['"]|['"]$/gu, '');
+    }
+    return values;
+}
+
+function readPixcodeMcpTools(text) {
+    return Array.from(new Set(
+        Array.from(String(text || '').matchAll(/^\s*-\s*(pixcode_[A-Za-z0-9_]+)\s*$/gmu))
+            .map((match) => match[1]),
+    ));
+}
+
+function readApiServerToolset(text) {
+    const platformText = String(text || '');
+    return {
+        hasHermesApiServer: /^\s*-\s*hermes-api-server\s*$/gmu.test(platformText),
+        hasPixcodePlatform: /^\s*-\s*pixcode\s*$/gmu.test(platformText),
+    };
+}
+
+function summarizeHermesConfig(hermesHome) {
+    const configPath = path.join(hermesHome, 'config.yaml');
+    const text = readFileTail(configPath, HERMES_DIAGNOSTIC_LOG_BYTES);
+    const toolsets = readRootList(text, 'toolsets');
+    const pixcodeTools = readPixcodeMcpTools(text);
+    const missingPixcodeTools = EXPECTED_PIXCODE_MCP_TOOLS.filter((tool) => !pixcodeTools.includes(tool));
+    return {
+        path: configPath,
+        exists: Boolean(text),
+        model: readRootMap(text, 'model'),
+        toolsets,
+        platformToolsets: readApiServerToolset(text),
+        pixcodeMcp: {
+            configured: /mcp_servers:[\s\S]*^\s+pixcode:\s*$/mu.test(text),
+            enabled: /mcp_servers:[\s\S]*^\s+pixcode:[\s\S]*^\s+enabled:\s*true\s*$/mu.test(text),
+            toolCount: pixcodeTools.length,
+            tools: pixcodeTools,
+            missingTools: missingPixcodeTools,
+        },
+        staleToolsetConfig: toolsets.includes('mcp-pixcode') && !toolsets.includes('hermes-cli'),
+    };
+}
+
+function summarizeHermesAuth(hermesHome, provider) {
+    const authPath = path.join(hermesHome, 'auth.json');
+    const auth = readJsonFileSafe(authPath);
+    const providers = auth && typeof auth === 'object' && auth.providers && typeof auth.providers === 'object'
+        ? Object.keys(auth.providers)
+        : [];
+    const pools = auth && typeof auth === 'object' && auth.credential_pool && typeof auth.credential_pool === 'object'
+        ? auth.credential_pool
+        : {};
+    const selectedProvider = provider || auth?.active_provider || null;
+    const providerEntry = selectedProvider && auth?.providers && typeof auth.providers === 'object'
+        ? auth.providers[selectedProvider]
+        : null;
+    return {
+        path: authPath,
+        exists: Boolean(auth),
+        activeProvider: auth?.active_provider || null,
+        providers,
+        selectedProvider,
+        selectedProviderConfigured: Boolean(providerEntry),
+        selectedProviderLastRefresh: providerEntry?.last_refresh || null,
+        selectedProviderAuthMode: providerEntry?.auth_mode || null,
+        selectedProviderPoolSize: selectedProvider && Array.isArray(pools?.[selectedProvider])
+            ? pools[selectedProvider].length
+            : 0,
+    };
+}
+
+function summarizeHermesLogs(hermesHomes) {
+    const files = [];
+    const seen = new Set();
+    for (const home of hermesHomes.filter(Boolean)) {
+        for (const name of ['errors.log', 'agent.log']) {
+            const filePath = path.join(home, 'logs', name);
+            if (seen.has(filePath)) continue;
+            seen.add(filePath);
+            const text = redactDiagnosticText(readFileTail(filePath));
+            if (!text) continue;
+            files.push({
+                path: filePath,
+                name,
+                recent: text.split(/\r?\n/).filter(Boolean).slice(-80),
+            });
+        }
+    }
+    const combined = files.flatMap((file) => file.recent).join('\n');
+    return {
+        files,
+        signals: {
+            codexNoneType: /NoneType' object is not iterable|NoneType object is not iterable/iu.test(combined),
+            codexOauthMissing: /openai-codex requested but no Codex OAuth .*found/iu.test(combined),
+            mcpTimeout: /MCP call timed out|pixcode_open_cli_terminal call failed/iu.test(combined),
+            stalePixcodeMcpToolCount: /MCP server 'pixcode'.*registered\s+[0-9]\s+tool\(s\)/iu.test(combined)
+                && !/registered\s+1[0-9]\s+tool\(s\)/iu.test(combined),
+        },
+    };
+}
+
 function gatewayExitMessage(gateway, fallback = 'Hermes gateway is not running.') {
     if (!gateway) return fallback;
     const exit = gateway.exitSignal
@@ -341,6 +521,36 @@ function gatewayExitMessage(gateway, fallback = 'Hermes gateway is not running.'
         : `Hermes gateway exited with code ${gateway.exitCode ?? 'unknown'}.`;
     const logs = recentGatewayLogText(gateway);
     return logs ? `${exit}\n${logs}` : (gateway.error || exit);
+}
+
+function normalizeGatewayEndpoint(endpoint) {
+    const value = typeof endpoint === 'string' ? endpoint.trim() : '';
+    if (!value) {
+        throw new Error('Hermes gateway endpoint is required.');
+    }
+    if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(value) || value.startsWith('//')) {
+        throw new Error('Hermes gateway endpoint must be local; external URLs are not allowed.');
+    }
+    if (!value.startsWith('/')) {
+        throw new Error('Hermes gateway endpoint must start with /.');
+    }
+    if (
+        value !== '/health' &&
+        value !== '/health/detailed' &&
+        !value.startsWith('/v1/') &&
+        !value.startsWith('/api/')
+    ) {
+        throw new Error('Hermes gateway endpoint must be /health, /v1/..., or /api/....');
+    }
+    return value;
+}
+
+function normalizeGatewayRequestMethod(method) {
+    const value = String(method || 'GET').trim().toUpperCase();
+    if (!ALLOWED_GATEWAY_REQUEST_METHODS.has(value)) {
+        throw new Error(`Unsupported Hermes gateway HTTP method: ${value || '(empty)'}`);
+    }
+    return value;
 }
 
 function makeRunRequest(options) {
@@ -639,15 +849,18 @@ export async function probeHermesGateway(projectPath, options = {}) {
 
     if (typeof options.input === 'string' && options.input.trim()) {
         try {
-            checks.run = await callGateway(gateway, '/v1/runs', {
-                method: 'POST',
-                body: JSON.stringify({
-                    input: options.input.trim(),
-                    session_id: options.sessionId || `pixcode-${Date.now()}`,
-                    instructions: options.instructions || 'Respond briefly for a Pixcode REST integration check.',
-                }),
-                timeoutMs: options.runTimeoutMs || 15000,
+            const run = await runHermesGatewayPrompt(gateway.projectPath, {
+                input: options.input.trim(),
+                sessionId: options.sessionId || `pixcode-probe-${Date.now()}`,
+                instructions: options.instructions || 'Respond briefly for a Pixcode REST integration check.',
+                timeoutMs: options.runTimeoutMs || 30000,
             });
+            checks.run = {
+                ok: run.ok,
+                status: run.httpStatus || 200,
+                body: run,
+                error: run.error || null,
+            };
         } catch (error) {
             checks.run = { ok: false, status: 0, error: error instanceof Error ? error.message : String(error) };
         }
@@ -838,6 +1051,181 @@ export async function runHermesGatewayPrompt(projectPath, options = {}) {
         transport: 'runs',
         endpoint: '/v1/runs',
         httpStatus: create.status,
+    };
+}
+
+export async function requestHermesGateway(projectPath, options = {}) {
+    const gateway = projectPath
+        ? gateways.get(normalizeProjectPath(projectPath))
+        : Array.from(gateways.values()).find(isGatewayRunning);
+
+    if (!isGatewayRunning(gateway)) {
+        throw new Error('Hermes gateway is not running.');
+    }
+
+    const endpoint = normalizeGatewayEndpoint(options.endpoint || options.path);
+    const method = normalizeGatewayRequestMethod(options.method);
+    const requestOptions = {
+        method,
+        timeoutMs: options.timeoutMs || FETCH_TIMEOUT_MS,
+    };
+    if (typeof options.body !== 'undefined' && options.body !== null && method !== 'GET') {
+        requestOptions.body = JSON.stringify(options.body);
+    }
+
+    const response = await callGateway(gateway, endpoint, requestOptions);
+    return {
+        ok: response.ok,
+        status: response.status,
+        projectPath: gateway.projectPath,
+        baseUrl: gateway.baseUrl,
+        endpoint,
+        method,
+        body: response.body,
+        error: response.ok ? null : `Hermes gateway ${method} ${endpoint} failed with HTTP ${response.status}.`,
+    };
+}
+
+export async function readHermesDiagnostics(options = {}) {
+    const projectPath = options.projectPath ? normalizeProjectPath(options.projectPath) : null;
+    const gateway = projectPath
+        ? gateways.get(projectPath)
+        : Array.from(gateways.values()).find(isGatewayRunning) || null;
+    const sourceHermesHome = resolveSourceHermesHome(process.env);
+    const gatewayHermesHome = resolveHermesGatewayHome(process.env, options);
+    const installStatus = readHermesInstallStatus(process.env, {
+        allowSmokeHermes: options.allowSmokeHermes === true,
+        repairLaunchers: options.repairLaunchers !== false,
+    });
+    const sourceConfig = summarizeHermesConfig(sourceHermesHome);
+    const gatewayConfig = summarizeHermesConfig(gatewayHermesHome);
+    const activeConfig = gatewayConfig.exists ? gatewayConfig : sourceConfig;
+    const provider = activeConfig.model.provider || sourceConfig.model.provider || null;
+    const sourceAuth = summarizeHermesAuth(sourceHermesHome, provider);
+    const gatewayAuth = summarizeHermesAuth(gatewayHermesHome, provider);
+    const activeAuth = gatewayAuth.exists ? gatewayAuth : sourceAuth;
+    const logs = summarizeHermesLogs([sourceHermesHome, gatewayHermesHome]);
+    const issues = [];
+
+    if (!installStatus.installed) {
+        issues.push({
+            severity: 'error',
+            code: 'HERMES_NOT_INSTALLED',
+            message: installStatus.error || 'Hermes Agent CLI is not installed.',
+        });
+    }
+    if (!activeConfig.toolsets.includes('hermes-cli')) {
+        issues.push({
+            severity: 'error',
+            code: 'HERMES_CLI_TOOLSET_MISSING',
+            message: 'Hermes CLI toolset is not enabled; cron, file, terminal, skills, and native tools are unavailable.',
+        });
+    }
+    if (!activeConfig.toolsets.includes('mcp-pixcode')) {
+        issues.push({
+            severity: 'error',
+            code: 'PIXCODE_MCP_TOOLSET_MISSING',
+            message: 'Pixcode MCP toolset is not enabled in Hermes config.',
+        });
+    }
+    if (activeConfig.pixcodeMcp.missingTools.length > 0) {
+        issues.push({
+            severity: 'warning',
+            code: 'PIXCODE_MCP_TOOLS_STALE',
+            message: `Pixcode MCP config is missing ${activeConfig.pixcodeMcp.missingTools.length} current tool(s). Restart Hermes from Pixcode to rewrite the config.`,
+            tools: activeConfig.pixcodeMcp.missingTools,
+        });
+    }
+    if (provider === 'openai-codex' && !activeAuth.selectedProviderConfigured) {
+        issues.push({
+            severity: 'error',
+            code: 'OPENAI_CODEX_AUTH_MISSING',
+            message: 'Hermes is configured for OpenAI Codex, but Hermes auth.json does not contain an OpenAI Codex OAuth session.',
+        });
+    }
+    if (logs.signals.codexNoneType) {
+        issues.push({
+            severity: 'error',
+            code: 'OPENAI_CODEX_PROVIDER_FAILURE',
+            message: 'Recent Hermes logs show OpenAI Codex provider failing with "NoneType object is not iterable" before Pixcode MCP tools run.',
+        });
+    }
+    if (logs.signals.codexOauthMissing) {
+        issues.push({
+            severity: 'warning',
+            code: 'OPENAI_CODEX_OAUTH_WARNING',
+            message: 'Recent Hermes logs reported a missing OpenAI Codex OAuth token. Run Hermes model/auth from Settings if prompts fail.',
+        });
+    }
+    if (logs.signals.mcpTimeout) {
+        issues.push({
+            severity: 'warning',
+            code: 'PIXCODE_MCP_TIMEOUT',
+            message: 'Recent Hermes logs include Pixcode MCP terminal timeouts; visible CLI readback may still be waiting for provider completion.',
+        });
+    }
+
+    const cron = {
+        toolsetAvailable: activeConfig.toolsets.includes('hermes-cli'),
+        gatewayJobsApi: null,
+    };
+    if (isGatewayRunning(gateway)) {
+        try {
+            const jobs = await callGateway(gateway, '/api/jobs', { timeoutMs: 3000 });
+            cron.gatewayJobsApi = {
+                ok: jobs.ok,
+                status: jobs.status,
+                body: jobs.body,
+            };
+        } catch (error) {
+            cron.gatewayJobsApi = {
+                ok: false,
+                status: 0,
+                error: error instanceof Error ? error.message : String(error),
+            };
+        }
+    }
+
+    const recommendedActions = [];
+    if (issues.some((issue) => issue.code === 'HERMES_CLI_TOOLSET_MISSING' || issue.code === 'PIXCODE_MCP_TOOLS_STALE')) {
+        recommendedActions.push('Restart Hermes from Pixcode so configure-pixcode-mcp.mjs rewrites toolsets to hermes-cli + mcp-pixcode and registers all tools.');
+    }
+    if (issues.some((issue) => issue.code === 'OPENAI_CODEX_AUTH_MISSING' || issue.code === 'OPENAI_CODEX_PROVIDER_FAILURE')) {
+        recommendedActions.push('Open Settings > Hermes Agent > Model and provider, reselect OpenAI Codex or another provider, then run Test REST with a short prompt.');
+    }
+    if (!isGatewayRunning(gateway)) {
+        recommendedActions.push('Start REST in Settings > Hermes Agent to enable /v1 and /api/jobs gateway checks for this workspace.');
+    }
+
+    return {
+        ok: installStatus.installed && !issues.some((issue) => issue.severity === 'error'),
+        generatedAt: nowIso(),
+        install: installStatus,
+        hermesHome: {
+            source: sourceHermesHome,
+            gateway: gatewayHermesHome,
+        },
+        model: {
+            provider,
+            default: activeConfig.model.default || null,
+            baseUrl: activeConfig.model.base_url || null,
+        },
+        config: {
+            source: sourceConfig,
+            gateway: gatewayConfig,
+            active: activeConfig,
+            activePath: activeConfig.path,
+        },
+        auth: {
+            source: sourceAuth,
+            gateway: gatewayAuth,
+            active: activeAuth,
+        },
+        gateway: snapshotGateway(gateway),
+        cron,
+        logs,
+        issues,
+        recommendedActions,
     };
 }
 

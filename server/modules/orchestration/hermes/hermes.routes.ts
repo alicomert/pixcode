@@ -16,6 +16,8 @@ import {
   ensureHermesGateway,
   getHermesGatewayStatus,
   probeHermesGateway,
+  readHermesDiagnostics,
+  requestHermesGateway,
   runHermesGatewayPrompt,
   stopHermesGateway,
 } from '@/services/hermes-gateway.js';
@@ -274,6 +276,72 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       res.status(500).json({
         error: {
           code: 'HERMES_GATEWAY_CHAT_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.post('/gateway/request', async (req: PixcodeRequest, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const projectPath = typeof body.projectPath === 'string' && body.projectPath.trim()
+      ? body.projectPath.trim()
+      : undefined;
+    const endpoint = typeof body.endpoint === 'string' ? body.endpoint : body.path;
+    const method = typeof body.method === 'string' ? body.method : 'GET';
+
+    try {
+      if (body.startIfNeeded === true) {
+        const apiKey = options.createHermesApiKey?.(readUserId(req)) ?? null;
+        if (!apiKey) {
+          res.status(500).json({
+            error: {
+              code: 'HERMES_API_KEY_UNAVAILABLE',
+              message: 'Pixcode could not create a Hermes MCP API key for this user.',
+            },
+          });
+          return;
+        }
+        await ensureHermesGateway({
+          appRoot: options.appRoot ?? process.cwd(),
+          pixcodeApiKey: apiKey,
+          pixcodeBaseUrl: resolveHermesMcpBaseUrl(),
+          projectPath,
+        });
+      }
+
+      const gatewayResponse = await requestHermesGateway(projectPath, {
+        endpoint,
+        method,
+        body: body.body,
+        timeoutMs: typeof body.timeoutMs === 'number' ? body.timeoutMs : undefined,
+      });
+      res.status(gatewayResponse.ok ? 200 : 502).json(gatewayResponse);
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_GATEWAY_REQUEST_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.get('/diagnostics', async (req, res) => {
+    const projectPath = typeof req.query.projectPath === 'string' && req.query.projectPath.trim()
+      ? req.query.projectPath.trim()
+      : undefined;
+
+    try {
+      const diagnostics = await readHermesDiagnostics({
+        appRoot: options.appRoot ?? process.cwd(),
+        projectPath,
+      });
+      res.status(diagnostics.ok ? 200 : 503).json(diagnostics);
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_DIAGNOSTICS_FAILED',
           message: error instanceof Error ? error.message : String(error),
         },
       });

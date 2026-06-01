@@ -32,6 +32,12 @@ const block = [
   '        - pixcode_read_cli_terminal',
   '        - pixcode_get_hermes_gateway_status',
   '        - pixcode_probe_hermes_gateway',
+  '        - pixcode_get_hermes_diagnostics',
+  '        - pixcode_get_api_manifest',
+  '        - pixcode_api_request',
+  '        - pixcode_hermes_gateway_request',
+  '        - pixcode_manage_hermes_cron',
+  '        - pixcode_send_cli_input',
   '      resources: false',
   '      prompts: false',
 ].join('\n');
@@ -40,7 +46,7 @@ const apiServerToolsetBlock = [
   '    - hermes-api-server',
   '    - pixcode',
 ].join('\n');
-const cliToolsets = ['mcp-pixcode'];
+const cliToolsets = ['hermes-cli', 'mcp-pixcode'];
 
 function findRootKeyEnd(lines, startIndex) {
   for (let index = startIndex + 1; index < lines.length; index += 1) {

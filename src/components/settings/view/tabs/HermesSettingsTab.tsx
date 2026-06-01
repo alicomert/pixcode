@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Bug,
   Check,
+  Clock,
   Code2,
   Download,
   History,
@@ -45,6 +46,57 @@ type HermesGatewayProbe = {
   checkedAt?: string | null;
   baseUrl?: string | null;
   error?: string | null;
+};
+
+type HermesDiagnosticsIssue = {
+  severity?: 'error' | 'warning' | 'info' | string;
+  code?: string;
+  message?: string;
+  tools?: string[];
+};
+
+type HermesDiagnostics = {
+  ok: boolean;
+  generatedAt?: string | null;
+  model?: {
+    provider?: string | null;
+    default?: string | null;
+    baseUrl?: string | null;
+  };
+  config?: {
+    active?: {
+      toolsets?: string[];
+      pixcodeMcp?: {
+        configured?: boolean;
+        enabled?: boolean;
+        toolCount?: number;
+        missingTools?: string[];
+      };
+      platformToolsets?: {
+        hasHermesApiServer?: boolean;
+        hasPixcodePlatform?: boolean;
+      };
+    };
+    activePath?: string | null;
+  };
+  auth?: {
+    active?: {
+      selectedProviderConfigured?: boolean;
+      selectedProviderLastRefresh?: string | null;
+      selectedProviderPoolSize?: number;
+    };
+  };
+  cron?: {
+    toolsetAvailable?: boolean;
+    gatewayJobsApi?: {
+      ok?: boolean;
+      status?: number;
+      error?: string | null;
+      body?: unknown;
+    } | null;
+  };
+  issues?: HermesDiagnosticsIssue[];
+  recommendedActions?: string[];
 };
 
 type HermesSettingsTabProps = {
@@ -90,6 +142,24 @@ const HERMES_SETTINGS_COMMANDS: HermesSettingsCommand[] = [
     icon: Workflow,
   },
   {
+    id: 'cron',
+    command: 'hermes cron status',
+    titleKey: 'hermes.commands.cron.title',
+    titleDefault: 'Cron jobs',
+    descriptionKey: 'hermes.commands.cron.description',
+    descriptionDefault: 'Inspect the scheduler, list jobs, and confirm recurring project tasks can run through the Hermes gateway.',
+    icon: Clock,
+  },
+  {
+    id: 'mcp',
+    command: 'hermes mcp',
+    titleKey: 'hermes.commands.mcp.title',
+    titleDefault: 'MCP servers',
+    descriptionKey: 'hermes.commands.mcp.description',
+    descriptionDefault: 'Manage MCP servers and reload Pixcode MCP when tool configuration changes.',
+    icon: Server,
+  },
+  {
     id: 'doctor',
     command: 'hermes doctor',
     titleKey: 'hermes.commands.doctor.title',
@@ -97,6 +167,15 @@ const HERMES_SETTINGS_COMMANDS: HermesSettingsCommand[] = [
     descriptionKey: 'hermes.commands.doctor.description',
     descriptionDefault: 'Diagnose Hermes config, dependency, and platform problems in a terminal.',
     icon: Bug,
+  },
+  {
+    id: 'update',
+    command: 'hermes update --yes',
+    titleKey: 'hermes.commands.update.title',
+    titleDefault: 'Update Hermes',
+    descriptionKey: 'hermes.commands.update.description',
+    descriptionDefault: 'Pull the latest Hermes fixes and reinstall dependencies without interactive prompts.',
+    icon: RefreshCw,
   },
   {
     id: 'status',
@@ -143,6 +222,21 @@ const emptyStatus: HermesInstallStatus = {
   error: null,
 };
 
+function readHermesProbeError(body: Record<string, unknown>) {
+  const checks = body?.checks as Record<string, unknown> | undefined;
+  const run = checks?.run as Record<string, unknown> | undefined;
+  const runBody = run?.body as Record<string, unknown> | string | undefined;
+  const runBodyError = typeof runBody === 'string'
+    ? runBody
+    : typeof runBody?.error === 'string'
+      ? runBody.error
+      : null;
+  return (typeof run?.error === 'string' && run.error)
+    || runBodyError
+    || (typeof body?.error === 'string' && body.error)
+    || null;
+}
+
 export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   const { t } = useTranslation('settings');
   const [status, setStatus] = useState<HermesInstallStatus>(emptyStatus);
@@ -151,6 +245,9 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   const [gatewayProbe, setGatewayProbe] = useState<HermesGatewayProbe | null>(null);
   const [gatewayLoading, setGatewayLoading] = useState(false);
   const [gatewayError, setGatewayError] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<HermesDiagnostics | null>(null);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
   const autoGatewayStartedRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
@@ -203,10 +300,37 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
     }
   }, [t]);
 
+  const refreshDiagnostics = useCallback(async () => {
+    setDiagnosticsLoading(true);
+    setDiagnosticsError(null);
+    try {
+      const response = await authenticatedFetch('/api/orchestration/hermes/diagnostics', {
+        cache: 'no-store',
+      });
+      const body = await response.json().catch(() => ({}));
+      if (body && typeof body === 'object' && Array.isArray(body.issues)) {
+        setDiagnostics(body as HermesDiagnostics);
+        if (!response.ok && !body.ok) {
+          setDiagnosticsError(body.issues[0]?.message ?? `HTTP ${response.status}`);
+        }
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(body?.error?.message || `HTTP ${response.status}`);
+      }
+      setDiagnostics(body as HermesDiagnostics);
+    } catch (error) {
+      setDiagnosticsError(error instanceof Error ? error.message : t('hermes.diagnosticsFailed', { defaultValue: 'Unable to read Hermes diagnostics.' }));
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  }, [t]);
+
   useEffect(() => {
     void refreshStatus();
     void refreshGatewayStatus();
-  }, [refreshGatewayStatus, refreshStatus]);
+    void refreshDiagnostics();
+  }, [refreshDiagnostics, refreshGatewayStatus, refreshStatus]);
 
   const ensureGatewayReady = useCallback(async () => {
     setGatewayLoading(true);
@@ -218,21 +342,23 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok && !body?.ok) {
-        throw new Error(body?.error?.message || body?.error || `HTTP ${response.status}`);
+        setGatewayError(body?.error?.message || body?.error || `HTTP ${response.status}`);
+      } else {
+        setGatewayProbe({
+          ok: Boolean(body?.ok),
+          checkedAt: typeof body?.checkedAt === 'string' ? body.checkedAt : null,
+          baseUrl: typeof body?.baseUrl === 'string' ? body.baseUrl : null,
+          error: typeof body?.error === 'string' ? body.error : null,
+        });
       }
-      setGatewayProbe({
-        ok: Boolean(body?.ok),
-        checkedAt: typeof body?.checkedAt === 'string' ? body.checkedAt : null,
-        baseUrl: typeof body?.baseUrl === 'string' ? body.baseUrl : null,
-        error: typeof body?.error === 'string' ? body.error : null,
-      });
       await refreshGatewayStatus();
+      void refreshDiagnostics();
     } catch (error) {
       setGatewayError(error instanceof Error ? error.message : t('hermes.gatewayProbeFailed', { defaultValue: 'Hermes REST probe failed.' }));
     } finally {
       setGatewayLoading(false);
     }
-  }, [refreshGatewayStatus, t]);
+  }, [refreshDiagnostics, refreshGatewayStatus, t]);
 
   useEffect(() => {
     if (!status.installed || autoGatewayStartedRef.current) {
@@ -286,6 +412,7 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
         lastProbe: body?.probe ?? body?.lastProbe ?? null,
       });
       setGatewayProbe(body?.probe ?? null);
+      void refreshDiagnostics();
     } catch (error) {
       setGatewayError(error instanceof Error ? error.message : t('hermes.gatewayStartFailed', { defaultValue: 'Hermes REST gateway could not be started.' }));
     } finally {
@@ -294,7 +421,41 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   };
 
   const probeGateway = async () => {
-    await ensureGatewayReady();
+    setGatewayLoading(true);
+    setGatewayError(null);
+    try {
+      const response = await authenticatedFetch('/api/orchestration/hermes/gateway/probe', {
+        method: 'POST',
+        body: JSON.stringify({
+          startIfNeeded: true,
+          input: 'Pixcode Hermes REST health check. Reply with OK.',
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body?.ok) {
+        setGatewayProbe({
+          ok: false,
+          checkedAt: typeof body?.checkedAt === 'string' ? body.checkedAt : null,
+          baseUrl: typeof body?.baseUrl === 'string' ? body.baseUrl : null,
+          error: readHermesProbeError(body as Record<string, unknown>) || body?.error?.message || `HTTP ${response.status}`,
+        });
+        await refreshGatewayStatus();
+        void refreshDiagnostics();
+        return;
+      }
+      setGatewayProbe({
+        ok: Boolean(body?.ok),
+        checkedAt: typeof body?.checkedAt === 'string' ? body.checkedAt : null,
+        baseUrl: typeof body?.baseUrl === 'string' ? body.baseUrl : null,
+        error: typeof body?.error === 'string' ? body.error : null,
+      });
+      await refreshGatewayStatus();
+      void refreshDiagnostics();
+    } catch (error) {
+      setGatewayError(error instanceof Error ? error.message : t('hermes.gatewayProbeFailed', { defaultValue: 'Hermes REST probe failed.' }));
+    } finally {
+      setGatewayLoading(false);
+    }
   };
 
   const stopGateway = async () => {
@@ -306,6 +467,7 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
         body: JSON.stringify({}),
       });
       await refreshGatewayStatus();
+      void refreshDiagnostics();
     } catch (error) {
       setGatewayError(error instanceof Error ? error.message : t('hermes.gatewayStopFailed', { defaultValue: 'Hermes REST gateway could not be stopped.' }));
     } finally {
@@ -319,6 +481,11 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
   const gatewayLabel = gatewayStatus?.running
     ? t('hermes.gatewayRunning', { defaultValue: 'REST gateway running' })
     : t('hermes.gatewayStopped', { defaultValue: 'REST gateway stopped' });
+  const activeDiagnosticsConfig = diagnostics?.config?.active;
+  const pixcodeMcpToolCount = activeDiagnosticsConfig?.pixcodeMcp?.toolCount ?? 0;
+  const pixcodeMcpMissingCount = activeDiagnosticsConfig?.pixcodeMcp?.missingTools?.length ?? 0;
+  const diagnosticsIssues = diagnostics?.issues ?? [];
+  const diagnosticsHasErrors = diagnosticsIssues.some((issue) => issue.severity === 'error');
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -482,7 +649,7 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
                   : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200'
               }`}>
                 {gatewayProbe.ok
-                  ? t('hermes.gatewayProbeOk', { defaultValue: 'REST probe passed: health, capabilities, and models responded.' })
+                  ? t('hermes.gatewayProbeOk', { defaultValue: 'REST probe passed: health, capabilities, models, and a real prompt responded.' })
                   : (gatewayProbe.error || t('hermes.gatewayProbeFailed', { defaultValue: 'Hermes REST probe failed.' }))}
               </div>
             )}
@@ -526,6 +693,131 @@ export default function HermesSettingsTab({ onClose }: HermesSettingsTabProps) {
             </Button>
           </div>
         </div>
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              {diagnosticsLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              ) : diagnostics?.ok ? (
+                <Check className="h-4 w-4 text-emerald-500" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+              )}
+              <div className="text-sm font-semibold text-foreground">
+                {t('hermes.diagnosticsTitle', { defaultValue: 'Integration diagnostics' })}
+              </div>
+            </div>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {t('hermes.diagnosticsDescription', {
+                defaultValue: 'Checks Hermes model/auth, native toolsets, Pixcode MCP tools, REST gateway, and cron API wiring without exposing secrets.',
+              })}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void refreshDiagnostics()}
+            disabled={diagnosticsLoading}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${diagnosticsLoading ? 'animate-spin' : ''}`} />
+            {t('hermes.refresh', { defaultValue: 'Refresh' })}
+          </Button>
+        </div>
+
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
+          <div className="rounded-md border border-border bg-background p-3">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">
+              {t('hermes.diagnosticsModel', { defaultValue: 'Model' })}
+            </div>
+            <div className="mt-1 text-sm text-foreground">
+              {diagnostics?.model?.provider || t('hermes.unknown', { defaultValue: 'Unknown' })}
+              {diagnostics?.model?.default ? ` / ${diagnostics.model.default}` : ''}
+            </div>
+            <div className={`mt-2 text-xs ${diagnostics?.auth?.active?.selectedProviderConfigured ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+              {diagnostics?.auth?.active?.selectedProviderConfigured
+                ? t('hermes.diagnosticsAuthReady', { defaultValue: 'Provider auth is present.' })
+                : t('hermes.diagnosticsAuthMissing', { defaultValue: 'Provider auth needs attention.' })}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border bg-background p-3">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">
+              {t('hermes.diagnosticsTools', { defaultValue: 'Tools' })}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {(activeDiagnosticsConfig?.toolsets ?? []).map((toolset) => (
+                <span key={toolset} className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  {toolset}
+                </span>
+              ))}
+              {(!activeDiagnosticsConfig?.toolsets || activeDiagnosticsConfig.toolsets.length === 0) && (
+                <span className="text-sm text-muted-foreground">{t('hermes.unknown', { defaultValue: 'Unknown' })}</span>
+              )}
+            </div>
+            <div className={`mt-2 text-xs ${pixcodeMcpMissingCount === 0 && pixcodeMcpToolCount > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+              {t('hermes.diagnosticsMcpTools', {
+                defaultValue: 'Pixcode MCP: {{count}} tools, {{missing}} missing',
+                count: pixcodeMcpToolCount,
+                missing: pixcodeMcpMissingCount,
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border bg-background p-3">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">
+              {t('hermes.diagnosticsCron', { defaultValue: 'Cron' })}
+            </div>
+            <div className={`mt-1 text-sm ${diagnostics?.cron?.toolsetAvailable ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+              {diagnostics?.cron?.toolsetAvailable
+                ? t('hermes.diagnosticsCronReady', { defaultValue: 'Hermes cron toolset is available.' })
+                : t('hermes.diagnosticsCronMissing', { defaultValue: 'Hermes cron needs hermes-cli toolset.' })}
+            </div>
+            {diagnostics?.cron?.gatewayJobsApi && (
+              <div className={`mt-2 text-xs ${diagnostics.cron.gatewayJobsApi.ok ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300'}`}>
+                {diagnostics.cron.gatewayJobsApi.ok
+                  ? t('hermes.diagnosticsCronApiReady', { defaultValue: 'Gateway /api/jobs responded.' })
+                  : (diagnostics.cron.gatewayJobsApi.error || t('hermes.diagnosticsCronApiFailed', { defaultValue: 'Gateway /api/jobs did not respond.' }))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-border bg-background p-3">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">
+              {t('hermes.diagnosticsIssues', { defaultValue: 'Issues' })}
+            </div>
+            <div className={`mt-1 text-sm ${diagnostics?.ok ? 'text-emerald-600 dark:text-emerald-300' : diagnosticsHasErrors ? 'text-red-600 dark:text-red-300' : 'text-amber-600 dark:text-amber-300'}`}>
+              {diagnosticsIssues.length === 0
+                ? t('hermes.diagnosticsNoIssues', { defaultValue: 'No blocking issue detected.' })
+                : t('hermes.diagnosticsIssueCount', {
+                    defaultValue: '{{count}} issue(s) detected.',
+                    count: diagnosticsIssues.length,
+                  })}
+            </div>
+            {diagnosticsError && (
+              <div className="mt-2 text-xs text-amber-600 dark:text-amber-300">{diagnosticsError}</div>
+            )}
+          </div>
+        </div>
+
+        {diagnosticsIssues.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {diagnosticsIssues.slice(0, 4).map((issue) => (
+              <div key={`${issue.code}-${issue.message}`} className={`rounded border px-3 py-2 text-xs leading-5 ${
+                issue.severity === 'error'
+                  ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200'
+              }`}>
+                <span className="font-semibold">{issue.code || issue.severity || 'HERMES'}</span>
+                {' '}
+                {issue.message}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="rounded-lg border border-border bg-muted/20 p-4">

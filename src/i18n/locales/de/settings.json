@@ -629,45 +629,42 @@
     "gatewayStart": "REST starten",
     "gatewayProbe": "REST testen",
     "gatewayStop": "Stoppen",
-    "gatewayProbeOk": "REST Probe bestanden: Health, Capabilities und Models haben geantwortet.",
+    "gatewayProbeOk": "REST probe passed: health, capabilities, models, and a real prompt responded.",
     "commandsTitle": "Hermes CLI-Einstellungen",
     "commandsDescription": "Offne echte Hermes-Terminalassistenten aus Pixcode. Nutze Modell und Provider, um Codex, OpenRouter, Anthropic, Gemini und weitere Provider zu verbinden.",
     "commandsInstallFirst": "Installiere Hermes, bevor du CLI-Einstellungen offnest.",
     "commands": {
-      "model": {
-        "title": "Modell und Provider",
-        "description": "Offnet den interaktiven Provider/Modell-Assistenten fur OAuth, API-Schlussel und Standardmodell."
+      "cron": {
+        "title": "Cron jobs",
+        "description": "Inspect the scheduler, list jobs, and confirm recurring project tasks can run through the Hermes gateway."
       },
-      "auth": {
-        "title": "Zugangsdaten",
-        "description": "Verwalte OAuth-Sitzungen und API-Schlusselpools fur konfigurierte Provider."
+      "mcp": {
+        "title": "MCP servers",
+        "description": "Manage MCP servers and reload Pixcode MCP when tool configuration changes."
       },
-      "tools": {
-        "title": "Tools",
-        "description": "Wahle aktive Hermes-Toolsets, einschliesslich Pixcode MCP-Zugriff."
-      },
-      "doctor": {
-        "title": "Doctor",
-        "description": "Diagnostiziert Hermes-Konfiguration, Abhangigkeiten und Plattformprobleme im Terminal."
-      },
-      "status": {
-        "title": "Status",
-        "description": "Zeigt aktuellen Provider, Auth, Plattform und redigierte Setup-Zusammenfassung."
-      },
-      "lsp": {
-        "title": "LSP-Status",
-        "description": "Prufe die Hermes-Language-Server-Integration fur semantische Diagnosen."
-      },
-      "skills": {
-        "title": "Skills",
-        "description": "Durchsuche, installiere, prufe und konfiguriere Hermes-Skills per CLI."
-      },
-      "sessions": {
-        "title": "Sitzungen",
-        "description": "Durchsuche, exportiere, benenne um, bereinige oder losche Hermes-Sitzungen."
+      "update": {
+        "title": "Update Hermes",
+        "description": "Pull the latest Hermes fixes and reinstall dependencies without interactive prompts."
       }
     },
     "pixcodeControlTitle": "Pixcode-Steuerung",
-    "pixcodeControlDescription": "Pixcode konfiguriert den Hermes-MCP-Server vor dem Start, damit Hermes Workspaces prüfen und Provider-Terminals sichtbar in Pixcode öffnen kann."
+    "pixcodeControlDescription": "Pixcode konfiguriert den Hermes-MCP-Server vor dem Start, damit Hermes Workspaces prüfen und Provider-Terminals sichtbar in Pixcode öffnen kann.",
+    "diagnosticsTitle": "Integration diagnostics",
+    "diagnosticsDescription": "Checks Hermes model/auth, native toolsets, Pixcode MCP tools, REST gateway, and cron API wiring without exposing secrets.",
+    "diagnosticsFailed": "Unable to read Hermes diagnostics.",
+    "diagnosticsModel": "Model",
+    "diagnosticsTools": "Tools",
+    "diagnosticsCron": "Cron",
+    "diagnosticsIssues": "Issues",
+    "diagnosticsAuthReady": "Provider auth is present.",
+    "diagnosticsAuthMissing": "Provider auth needs attention.",
+    "diagnosticsMcpTools": "Pixcode MCP: {{count}} tools, {{missing}} missing",
+    "diagnosticsCronReady": "Hermes cron toolset is available.",
+    "diagnosticsCronMissing": "Hermes cron needs hermes-cli toolset.",
+    "diagnosticsCronApiReady": "Gateway /api/jobs responded.",
+    "diagnosticsCronApiFailed": "Gateway /api/jobs did not respond.",
+    "diagnosticsNoIssues": "No blocking issue detected.",
+    "diagnosticsIssueCount": "{{count}} issue(s) detected.",
+    "unknown": "Unknown"
   }
 }

@@ -7,9 +7,12 @@ const baseUrl = (process.env.PIXCODE_BASE_URL || '').replace(/\/$/, '');
 const apiKey = process.env.PIXCODE_API_KEY || '';
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const mcpServerPath = path.join(appRoot, 'scripts', 'hermes', 'pixcode-mcp-server.mjs');
-const READBACK_IDLE_STABLE_MS = 2500;
+const READBACK_IDLE_STABLE_MS = Math.max(
+  1000,
+  Number.parseInt(process.env.PIXCODE_MCP_READBACK_IDLE_STABLE_MS || '8000', 10) || 8000,
+);
 const DEFAULT_STARTUP_WAIT_MS = 100000;
-const CODEX_PROMPT_INPUT_PENDING_REASON = 'codex_prompt_input_pending';
+const ALLOWED_PIXCODE_API_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
 
 const tools = [
   {
@@ -127,7 +130,7 @@ const tools = [
   },
   {
     name: 'pixcode_probe_hermes_gateway',
-    description: 'Ask Pixcode to call Hermes Agent REST endpoints and report whether health, capabilities, and model discovery respond.',
+    description: 'Ask Pixcode to call Hermes Agent REST endpoints and report whether health, capabilities, model discovery, and an optional real prompt respond.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -141,9 +144,152 @@ const tools = [
         },
         startIfNeeded: {
           type: 'boolean',
-          description: 'When false, only probe an already-running gateway. Defaults to true so Pixcode keeps Hermes REST ready.',
+          description: 'When true, Pixcode starts the managed Hermes gateway before probing.',
         },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_get_hermes_diagnostics',
+    description: 'Read Pixcode Hermes integration diagnostics: installed command, active model/provider, Hermes toolsets, Pixcode MCP tool registration, REST gateway status, cron API state, and redacted recent error signals.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path. Omit to diagnose the first running managed Hermes gateway and default Hermes profile.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_get_api_manifest',
+    description: 'Read Pixcode public API documentation manifest. Use this to discover controllable Pixcode API groups, paths, and scopes before calling pixcode_api_request.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_api_request',
+    description: 'Call the authenticated local Pixcode REST API. Use this for full Pixcode control after reading pixcode_get_api_manifest. Path must be a local /api/... path or /health; never pass an external URL.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        method: {
+          type: 'string',
+          enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+          description: 'HTTP method to use.',
+        },
+        path: {
+          type: 'string',
+          description: 'Local Pixcode path, for example /api/projects, /api/providers/codex/auth/status?refresh=1, or /api/remote/config.',
+        },
+        body: {
+          type: 'object',
+          description: 'Optional JSON body for POST, PUT, PATCH, or DELETE requests.',
+          additionalProperties: true,
+        },
+      },
+      required: ['method', 'path'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_hermes_gateway_request',
+    description: 'Call the Pixcode-managed Hermes REST gateway for advanced Hermes features such as /v1/runs, /v1/responses, /api/jobs cron management, /v1/capabilities, and /health. Use startIfNeeded when the gateway is not already running.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        method: {
+          type: 'string',
+          enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        },
+        endpoint: {
+          type: 'string',
+          description: 'Hermes gateway endpoint, for example /api/jobs, /api/jobs/<id>/run, /v1/capabilities, or /v1/responses.',
+        },
+        body: {
+          type: 'object',
+          additionalProperties: true,
+        },
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path for the managed Hermes gateway.',
+        },
+        startIfNeeded: {
+          type: 'boolean',
+          description: 'Start the managed Hermes gateway first when it is not already running.',
+        },
+      },
+      required: ['method', 'endpoint'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_manage_hermes_cron',
+    description: 'Create, list, update, pause, resume, run, or delete Hermes cron jobs through the Pixcode-managed Hermes REST gateway. Cron jobs can run in a project workdir and use Hermes skills/toolsets.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['list', 'create', 'get', 'update', 'delete', 'pause', 'resume', 'run'],
+        },
+        jobId: {
+          type: 'string',
+          description: 'Required for get, update, delete, pause, resume, and run.',
+        },
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path for the managed Hermes gateway and default cron workdir.',
+        },
+        name: { type: 'string' },
+        schedule: { type: 'string' },
+        prompt: { type: 'string' },
+        workdir: { type: 'string' },
+        skills: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        delivery: { type: 'string' },
+        startIfNeeded: { type: 'boolean' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_send_cli_input',
+    description: 'Send text or an Enter key directly to an existing visible Pixcode provider terminal. Use this when a terminal is already open and the user asks Hermes to continue that exact visible session.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        provider: {
+          type: 'string',
+          enum: ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'],
+        },
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path. Omit to use the newest visible terminal for the provider.',
+        },
+        input: {
+          type: 'string',
+          description: 'Text to type. May be empty when submit=true to press Enter on already typed input.',
+        },
+        submit: {
+          type: 'boolean',
+          description: 'Append Enter after input. Defaults to true.',
+        },
+        launchId: {
+          type: 'number',
+          description: 'Optional Pixcode terminal launch id to target one visible terminal.',
+        },
+      },
+      required: ['provider'],
       additionalProperties: false,
     },
   },
@@ -196,6 +342,73 @@ async function pixcodeFetch(endpoint, options = {}) {
   return body;
 }
 
+function normalizeLocalPixcodePath(pathValue) {
+  const endpoint = typeof pathValue === 'string' ? pathValue.trim() : '';
+  if (!endpoint) {
+    throw new Error('Pixcode API path is required.');
+  }
+  if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(endpoint) || endpoint.startsWith('//')) {
+    throw new Error('Pixcode API path must be local; external URLs are not allowed.');
+  }
+  if (endpoint !== '/health' && !endpoint.startsWith('/api/')) {
+    throw new Error('Pixcode API path must start with /api/ or be /health.');
+  }
+  return endpoint;
+}
+
+function normalizeHermesGatewayEndpoint(endpointValue) {
+  const endpoint = typeof endpointValue === 'string' ? endpointValue.trim() : '';
+  if (!endpoint) {
+    throw new Error('Hermes gateway endpoint is required.');
+  }
+  if (/^[a-z][a-z0-9+.-]*:\/\//iu.test(endpoint) || endpoint.startsWith('//')) {
+    throw new Error('Hermes gateway endpoint must be local; external URLs are not allowed.');
+  }
+  if (!endpoint.startsWith('/')) {
+    throw new Error('Hermes gateway endpoint must start with /.');
+  }
+  if (
+    endpoint !== '/health' &&
+    endpoint !== '/health/detailed' &&
+    !endpoint.startsWith('/v1/') &&
+    !endpoint.startsWith('/api/')
+  ) {
+    throw new Error('Hermes gateway endpoint must be /health, /v1/..., or /api/....');
+  }
+  return endpoint;
+}
+
+function normalizeHttpMethod(methodValue) {
+  const method = String(methodValue || 'GET').trim().toUpperCase();
+  if (!ALLOWED_PIXCODE_API_METHODS.has(method)) {
+    throw new Error(`Unsupported HTTP method: ${method || '(empty)'}`);
+  }
+  return method;
+}
+
+async function pixcodeJsonRequest(pathValue, { method = 'GET', body } = {}) {
+  const endpoint = normalizeLocalPixcodePath(pathValue);
+  const normalizedMethod = normalizeHttpMethod(method);
+  const requestOptions = { method: normalizedMethod };
+  if (typeof body !== 'undefined' && normalizedMethod !== 'GET') {
+    requestOptions.body = JSON.stringify(body);
+  }
+  return pixcodeFetch(endpoint, requestOptions);
+}
+
+async function sendProviderTerminalInput(provider, projectPath, input, submit = true, launchId = null) {
+  return pixcodeFetch('/api/shell/sessions/provider-input', {
+    method: 'POST',
+    body: JSON.stringify({
+      provider,
+      projectPath: projectPath || null,
+      input: typeof input === 'string' ? input : '',
+      submit: submit !== false,
+      launchId: Number(launchId || 0) || null,
+    }),
+  });
+}
+
 async function readProviderStatus(provider) {
   const body = await pixcodeFetch(`/api/providers/${encodeURIComponent(provider)}/auth/status?refresh=1`);
   return body?.data ?? body;
@@ -219,29 +432,13 @@ function getLastMatchIndex(text, pattern) {
   return lastIndex;
 }
 
-function normalizePromptInput(value) {
-  return String(value || '').replace(/(?:\r\n|\r|\n)+$/u, '').trim();
-}
-
-function hasCodexPromptInputPending(output, expectedInput) {
-  const expected = normalizePromptInput(expectedInput);
-  if (!expected) return false;
-  const match = String(output || '').match(/(?:^|\n)[^\S\r\n]*[›❯][ \t]+([^\r\n]+)[\r\n]*$/u);
-  if (!match) return false;
-  return normalizePromptInput(match[1]) === expected;
-}
-
-function inferTerminalState(provider, terminalOutput, expectedInput = null) {
+function inferTerminalState(provider, terminalOutput) {
   if (!terminalOutput) return 'unknown';
-  const output = String(terminalOutput.output || '');
-  if (provider === 'codex' && hasCodexPromptInputPending(output, expectedInput)) {
-    terminalOutput.terminalStateReason = terminalOutput.terminalStateReason || CODEX_PROMPT_INPUT_PENDING_REASON;
-    return 'busy';
-  }
   if (typeof terminalOutput.terminalState === 'string') return terminalOutput.terminalState;
   if (typeof terminalOutput.isBusy === 'boolean') return terminalOutput.isBusy ? 'busy' : 'idle';
   if (terminalOutput.active === false) return terminalOutput.output ? 'idle' : 'unknown';
 
+  const output = String(terminalOutput.output || '');
   if (!output.trim()) return 'unknown';
   if (/Process exited with code/iu.test(output)) return 'idle';
 
@@ -257,10 +454,6 @@ function inferTerminalState(provider, terminalOutput, expectedInput = null) {
       getLastMatchIndex(output, /(?:^|\n)\s*›(?:\s|$)/gu),
       getLastMatchIndex(output, /(?:^|\n)\s*❯(?:\s|$)/gu),
     );
-    if (hasCodexPromptInputPending(output, expectedInput)) {
-      terminalOutput.terminalStateReason = terminalOutput.terminalStateReason || CODEX_PROMPT_INPUT_PENDING_REASON;
-      return 'busy';
-    }
     if (lastPrompt >= 0) return lastStrongBusy > lastPrompt ? 'busy' : 'idle';
     if (lastBusy >= 0) return 'busy';
     return 'unknown';
@@ -270,13 +463,13 @@ function inferTerminalState(provider, terminalOutput, expectedInput = null) {
   return 'unknown';
 }
 
-function isTerminalReadbackFinal(provider, terminalOutput, expectedInput = null) {
-  const terminalState = inferTerminalState(provider, terminalOutput, expectedInput);
+function isTerminalReadbackFinal(provider, terminalOutput) {
+  const terminalState = inferTerminalState(provider, terminalOutput);
   return terminalState === 'idle' || terminalState === 'completed' || terminalState === 'exited' || terminalState === 'failed';
 }
 
-function isTerminalReadbackHardFinal(provider, terminalOutput, expectedInput = null) {
-  const terminalState = inferTerminalState(provider, terminalOutput, expectedInput);
+function isTerminalReadbackHardFinal(provider, terminalOutput) {
+  const terminalState = inferTerminalState(provider, terminalOutput);
   return terminalState === 'completed' || terminalState === 'exited' || terminalState === 'failed' || Boolean(terminalOutput?.terminalFailed);
 }
 
@@ -290,7 +483,41 @@ function getReadbackFingerprint(terminalOutput) {
   ].join('\n---pixcode-readback---\n');
 }
 
-async function waitForProviderTerminalOutput(provider, projectPath, waitMs, launchId = null, expectedInput = null) {
+function outputHasProviderPrompt(provider, output) {
+  const text = String(output || '');
+  if (provider === 'codex') {
+    return /(?:^|\n)\s*[›❯]\s*$/u.test(text) || /(?:^|\n)\s*›\s+[^\n]*$/u.test(text);
+  }
+  return /(?:^|\n).{0,80}(?:>\s*|❯\s*)$/u.test(text);
+}
+
+function startupInputLooksStuckAtPrompt(provider, terminalOutput, startupInput) {
+  if (!startupInput || !terminalOutput?.output || terminalOutput.isBusy) return false;
+  const output = String(terminalOutput.output || '');
+  const escapedInput = startupInput.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (provider === 'codex') {
+    return new RegExp(`(?:^|\\n)\\s*[›❯]\\s*${escapedInput}\\s*$`, 'u').test(output);
+  }
+  return output.endsWith(startupInput) || outputHasProviderPrompt(provider, output);
+}
+
+async function recoverStuckStartupInput(provider, projectPath, startupInput, terminalOutput, launchId = null) {
+  if (!startupInputLooksStuckAtPrompt(provider, terminalOutput, startupInput)) {
+    return null;
+  }
+
+  const output = String(terminalOutput?.output || '');
+  const inputAlreadyVisible = output.includes(startupInput);
+  return sendProviderTerminalInput(
+    provider,
+    projectPath,
+    inputAlreadyVisible ? '' : startupInput,
+    true,
+    launchId,
+  );
+}
+
+async function waitForProviderTerminalOutput(provider, projectPath, waitMs, launchId = null) {
   const startedAt = Date.now();
   let latestOutput = null;
   let stableFingerprint = null;
@@ -306,8 +533,8 @@ async function waitForProviderTerminalOutput(provider, projectPath, waitMs, laun
       error: error instanceof Error ? error.message : String(error),
     }));
 
-    if (latestOutput?.output && isTerminalReadbackFinal(provider, latestOutput, expectedInput)) {
-      if (isTerminalReadbackHardFinal(provider, latestOutput, expectedInput)) {
+    if (latestOutput?.output && isTerminalReadbackFinal(provider, latestOutput)) {
+      if (isTerminalReadbackHardFinal(provider, latestOutput)) {
         stableFinal = true;
         break;
       }
@@ -328,7 +555,7 @@ async function waitForProviderTerminalOutput(provider, projectPath, waitMs, laun
   } while (Date.now() - startedAt < waitMs);
 
   if (latestOutput && !latestOutput.terminalState) {
-    latestOutput.terminalState = inferTerminalState(provider, latestOutput, expectedInput);
+    latestOutput.terminalState = inferTerminalState(provider, latestOutput);
   }
   if (latestOutput && typeof latestOutput.isBusy !== 'boolean') {
     latestOutput.isBusy = latestOutput.terminalState === 'busy';
@@ -457,10 +684,22 @@ async function callTool(name, args = {}) {
     const requestedWaitMs = Number(args.waitForCompletionMs ?? args.waitForOutputMs ?? defaultWaitMs);
     const waitForOutputMs = Math.min(600000, Math.max(0, requestedWaitMs));
     if (waitForOutputMs > 0) {
-      terminalOutput = await waitForProviderTerminalOutput(provider, projectPath, waitForOutputMs, launchId, startupInput);
+      terminalOutput = await waitForProviderTerminalOutput(provider, projectPath, waitForOutputMs, launchId);
+      if (startupInput && terminalOutput && !isTerminalReadbackFinal(provider, terminalOutput)) {
+        const recovery = await recoverStuckStartupInput(provider, projectPath, startupInput, terminalOutput, launchId).catch((error) => ({
+          error: error instanceof Error ? error.message : String(error),
+        }));
+        if (recovery) {
+          const recoveredOutput = await waitForProviderTerminalOutput(provider, projectPath, Math.min(waitForOutputMs, 120000), launchId);
+          terminalOutput = recoveredOutput || terminalOutput;
+          if (terminalOutput) {
+            terminalOutput.startupInputRecovery = recovery;
+          }
+        }
+      }
     }
     const terminalOutputFinal = terminalOutput
-      ? Boolean(terminalOutput.terminalOutputFinal ?? isTerminalReadbackFinal(provider, terminalOutput, startupInput))
+      ? Boolean(terminalOutput.terminalOutputFinal ?? isTerminalReadbackFinal(provider, terminalOutput))
       : false;
     return textResult(JSON.stringify({
       launched: true,
@@ -516,9 +755,117 @@ async function callTool(name, args = {}) {
       body: JSON.stringify({
         projectPath: args.projectPath || null,
         input: args.input || null,
+        startIfNeeded: args.startIfNeeded === true,
+      }),
+    });
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_get_hermes_diagnostics') {
+    const projectPath = typeof args.projectPath === 'string' && args.projectPath.trim()
+      ? `?projectPath=${encodeURIComponent(args.projectPath.trim())}`
+      : '';
+    const body = await pixcodeFetch(`/api/orchestration/hermes/diagnostics${projectPath}`);
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_get_api_manifest') {
+    const body = await pixcodeJsonRequest('/api/public/manifest', { method: 'GET' });
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_api_request') {
+    const body = await pixcodeJsonRequest(args.path, {
+      method: args.method || 'GET',
+      body: args.body,
+    });
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_hermes_gateway_request') {
+    const endpoint = normalizeHermesGatewayEndpoint(args.endpoint);
+    const body = await pixcodeFetch('/api/orchestration/hermes/gateway/request', {
+      method: 'POST',
+      body: JSON.stringify({
+        method: normalizeHttpMethod(args.method || 'GET'),
+        endpoint,
+        body: args.body || null,
+        projectPath: args.projectPath || null,
+        startIfNeeded: args.startIfNeeded === true,
+      }),
+    });
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_manage_hermes_cron') {
+    const action = String(args.action || '').trim();
+    const jobId = typeof args.jobId === 'string' && args.jobId.trim() ? args.jobId.trim() : null;
+    const jobBody = {
+      name: args.name || undefined,
+      schedule: args.schedule || undefined,
+      prompt: args.prompt || undefined,
+      workdir: args.workdir || args.projectPath || undefined,
+      skills: Array.isArray(args.skills) ? args.skills : undefined,
+      delivery: args.delivery || undefined,
+    };
+    Object.keys(jobBody).forEach((key) => {
+      if (typeof jobBody[key] === 'undefined') delete jobBody[key];
+    });
+
+    let method = 'GET';
+    let endpoint = '/api/jobs';
+    let body = null;
+    if (action === 'create') {
+      method = 'POST';
+      body = jobBody;
+    } else if (action === 'list') {
+      method = 'GET';
+    } else {
+      if (!jobId) throw new Error(`jobId is required for Hermes cron action "${action}".`);
+      const encodedJobId = encodeURIComponent(jobId);
+      if (action === 'get') {
+        method = 'GET';
+        endpoint = `/api/jobs/${encodedJobId}`;
+      } else if (action === 'update') {
+        method = 'PATCH';
+        endpoint = `/api/jobs/${encodedJobId}`;
+        body = jobBody;
+      } else if (action === 'delete') {
+        method = 'DELETE';
+        endpoint = `/api/jobs/${encodedJobId}`;
+      } else if (action === 'pause' || action === 'resume' || action === 'run') {
+        method = 'POST';
+        endpoint = `/api/jobs/${encodedJobId}/${action}`;
+      } else {
+        throw new Error(`Unsupported Hermes cron action: ${action || '(empty)'}`);
+      }
+    }
+
+    const response = await pixcodeFetch('/api/orchestration/hermes/gateway/request', {
+      method: 'POST',
+      body: JSON.stringify({
+        method,
+        endpoint,
+        body,
+        projectPath: args.projectPath || args.workdir || null,
         startIfNeeded: args.startIfNeeded !== false,
       }),
     });
+    return textResult(JSON.stringify(response, null, 2));
+  }
+
+  if (name === 'pixcode_send_cli_input') {
+    const provider = String(args.provider || '');
+    const projectPath = typeof args.projectPath === 'string' && args.projectPath.trim()
+      ? args.projectPath.trim()
+      : null;
+    const body = await sendProviderTerminalInput(
+      provider,
+      projectPath,
+      typeof args.input === 'string' ? args.input : '',
+      args.submit !== false,
+      Number(args.launchId || 0) || null,
+    );
     return textResult(JSON.stringify(body, null, 2));
   }
 

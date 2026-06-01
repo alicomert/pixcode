@@ -649,45 +649,42 @@
     "gatewayStart": "启动 REST",
     "gatewayProbe": "测试 REST",
     "gatewayStop": "停止",
-    "gatewayProbeOk": "REST 探测通过：health、capabilities 和 models 已响应。",
+    "gatewayProbeOk": "REST probe passed: health, capabilities, models, and a real prompt responded.",
     "commandsTitle": "Hermes CLI 设置",
     "commandsDescription": "从 Pixcode 打开真正的 Hermes 终端向导。使用模型和提供商连接 Codex、OpenRouter、Anthropic、Gemini 等提供商。",
     "commandsInstallFirst": "打开 CLI 设置前请先安装 Hermes。",
     "commands": {
-      "model": {
-        "title": "模型和提供商",
-        "description": "打开用于 OAuth、API 密钥和默认模型选择的交互式提供商/模型向导。"
+      "cron": {
+        "title": "Cron jobs",
+        "description": "Inspect the scheduler, list jobs, and confirm recurring project tasks can run through the Hermes gateway."
       },
-      "auth": {
-        "title": "凭据",
-        "description": "管理已配置提供商的 OAuth 会话和 API 密钥池。"
+      "mcp": {
+        "title": "MCP servers",
+        "description": "Manage MCP servers and reload Pixcode MCP when tool configuration changes."
       },
-      "tools": {
-        "title": "工具",
-        "description": "选择启用哪些 Hermes 工具集，包括 Pixcode MCP 访问。"
-      },
-      "doctor": {
-        "title": "Doctor",
-        "description": "在终端中诊断 Hermes 配置、依赖和平台问题。"
-      },
-      "status": {
-        "title": "状态",
-        "description": "显示当前提供商、认证、平台和脱敏后的设置摘要。"
-      },
-      "lsp": {
-        "title": "LSP 状态",
-        "description": "检查 Hermes language server 集成以进行语义诊断。"
-      },
-      "skills": {
-        "title": "技能",
-        "description": "通过 CLI 浏览、安装、审计和配置 Hermes 技能。"
-      },
-      "sessions": {
-        "title": "会话",
-        "description": "浏览、导出、重命名、清理或删除 Hermes 会话。"
+      "update": {
+        "title": "Update Hermes",
+        "description": "Pull the latest Hermes fixes and reinstall dependencies without interactive prompts."
       }
     },
     "pixcodeControlTitle": "Pixcode 控制",
-    "pixcodeControlDescription": "Pixcode 会在启动前配置 Hermes MCP 服务器，因此 Hermes 可以检查工作区，并在需要时在 Pixcode UI 中打开可见的提供商终端。"
+    "pixcodeControlDescription": "Pixcode 会在启动前配置 Hermes MCP 服务器，因此 Hermes 可以检查工作区，并在需要时在 Pixcode UI 中打开可见的提供商终端。",
+    "diagnosticsTitle": "Integration diagnostics",
+    "diagnosticsDescription": "Checks Hermes model/auth, native toolsets, Pixcode MCP tools, REST gateway, and cron API wiring without exposing secrets.",
+    "diagnosticsFailed": "Unable to read Hermes diagnostics.",
+    "diagnosticsModel": "Model",
+    "diagnosticsTools": "Tools",
+    "diagnosticsCron": "Cron",
+    "diagnosticsIssues": "Issues",
+    "diagnosticsAuthReady": "Provider auth is present.",
+    "diagnosticsAuthMissing": "Provider auth needs attention.",
+    "diagnosticsMcpTools": "Pixcode MCP: {{count}} tools, {{missing}} missing",
+    "diagnosticsCronReady": "Hermes cron toolset is available.",
+    "diagnosticsCronMissing": "Hermes cron needs hermes-cli toolset.",
+    "diagnosticsCronApiReady": "Gateway /api/jobs responded.",
+    "diagnosticsCronApiFailed": "Gateway /api/jobs did not respond.",
+    "diagnosticsNoIssues": "No blocking issue detected.",
+    "diagnosticsIssueCount": "{{count}} issue(s) detected.",
+    "unknown": "Unknown"
   }
 }

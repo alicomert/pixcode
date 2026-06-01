@@ -324,8 +324,8 @@ assert.doesNotMatch(
 
 assert.match(
   workbench,
-  /HERMES_DEFAULT_COMMAND = 'hermes --yolo --toolsets mcp-pixcode'/,
-  'Hermes Agent should launch the Hermes CLI directly in bypass mode with only the Pixcode MCP toolset.',
+  /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/,
+  'Hermes Agent should launch the Hermes CLI directly in bypass mode and rely on Pixcode-written config for hermes-cli + mcp-pixcode.',
 );
 
 assert.match(

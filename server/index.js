@@ -641,6 +641,40 @@ function quoteShellArgForPlatform(value) {
 }
 
 const HERMES_CLI_COMMAND_PATTERN = /^hermes(?:\s+[A-Za-z0-9._:/=@+-]+)*\s*$/;
+const HERMES_AGENT_API_SCOPES = [
+    'auth:read',
+    'auth:write',
+    'diagnostics:read',
+    'files:read',
+    'files:write',
+    'git:read',
+    'git:write',
+    'hermes:mcp',
+    'hermes:gateway',
+    'notifications:read',
+    'notifications:write',
+    'orchestration:read',
+    'orchestration:write',
+    'plugins:read',
+    'plugins:write',
+    'projects:read',
+    'projects:write',
+    'providers:read',
+    'providers:write',
+    'remote:read',
+    'remote:write',
+    'sessions:read',
+    'sessions:write',
+    'settings:read',
+    'settings:write',
+    'telegram:read',
+    'telegram:write',
+    'terminal:launch',
+    'updates:read',
+    'updates:write',
+    'webhooks:read',
+    'webhooks:write',
+];
 
 function isHermesCliCommand(command) {
     return typeof command === 'string' && HERMES_CLI_COMMAND_PATTERN.test(command.trim());
@@ -663,16 +697,15 @@ function getOrCreateHermesApiKey(userId) {
         .getApiKeys(userId)
         .find((key) => key.key_name === 'Hermes Agent MCP' && key.is_active);
     if (existing?.api_key) {
+        const existingScopes = Array.isArray(existing.scopes) ? existing.scopes : [];
+        const missingScopes = HERMES_AGENT_API_SCOPES.filter((scope) => !existingScopes.includes(scope));
+        if (missingScopes.length > 0 && existing.id) {
+            apiKeysDb.updateApiKeyScopes(userId, existing.id, [...existingScopes, ...missingScopes]);
+        }
         return existing.api_key;
     }
 
-    return apiKeysDb.createApiKey(userId, 'Hermes Agent MCP', [
-        'hermes:mcp',
-        'hermes:gateway',
-        'projects:read',
-        'providers:read',
-        'terminal:launch',
-    ]).apiKey;
+    return apiKeysDb.createApiKey(userId, 'Hermes Agent MCP', HERMES_AGENT_API_SCOPES).apiKey;
 }
 
 // Single WebSocket server that handles both paths
@@ -813,6 +846,72 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => 
         ...terminalState,
         output,
     });
+});
+
+app.post('/api/shell/sessions/provider-input', authenticateToken, (req, res) => {
+    const provider = String(req.body?.provider || 'claude');
+    const projectPath = typeof req.body?.projectPath === 'string' && req.body.projectPath.trim()
+        ? req.body.projectPath.trim()
+        : null;
+    const launchId = Number.parseInt(String(req.body?.launchId || ''), 10);
+    const requestedLaunchId = Number.isFinite(launchId) && launchId > 0 ? launchId : null;
+    const input = typeof req.body?.input === 'string' ? req.body.input : '';
+    const submit = req.body?.submit !== false;
+
+    if (!SHELL_CLI_PROVIDERS.has(provider)) {
+        return res.status(400).json({ error: 'Unsupported provider' });
+    }
+
+    const requestedProjectPath = projectPath ? path.resolve(projectPath) : null;
+    let matchedSession = null;
+    for (const session of ptySessionsMap.values()) {
+        if (
+            session?.provider === provider &&
+            !session?.isPlainShell &&
+            session?.pty &&
+            session.lifecycleState === 'running' &&
+            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath) &&
+            (!requestedLaunchId || session.hermesLaunchId === requestedLaunchId)
+        ) {
+            if (!matchedSession || (session.updatedAt || 0) > (matchedSession.updatedAt || 0)) {
+                matchedSession = session;
+            }
+        }
+    }
+
+    if (!matchedSession?.pty) {
+        return res.status(404).json({
+            ok: false,
+            provider,
+            projectPath: requestedProjectPath,
+            launchId: requestedLaunchId,
+            wrote: false,
+            message: 'No running provider terminal session found for this project.',
+        });
+    }
+
+    const data = submit ? normalizeTerminalStartupInput(input) : input;
+    try {
+        matchedSession.pty.write(data);
+        matchedSession.updatedAt = Date.now();
+        res.json({
+            ok: true,
+            provider,
+            projectPath: path.resolve(matchedSession.projectPath || os.homedir()),
+            sessionId: matchedSession.sessionId || null,
+            launchId: matchedSession.hermesLaunchId || null,
+            wrote: true,
+            submitted: submit,
+            bytes: Buffer.byteLength(data),
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            provider,
+            wrote: false,
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
 });
 
 // Authentication routes (public)
