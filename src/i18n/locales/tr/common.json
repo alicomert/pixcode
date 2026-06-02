@@ -875,6 +875,7 @@
       "projects": "Projeler",
       "sourceControl": "Kaynak Kontrolü",
       "terminal": "Terminal",
+      "hermes": "Hermes Agent",
       "showPanel": "Sol paneli göster",
       "hidePanel": "Sol paneli gizle"
     },
@@ -883,6 +884,7 @@
       "projects": "Projeler",
       "sourceControl": "Kaynak Kontrolü",
       "terminal": "Terminal",
+      "hermes": "Hermes Agent",
       "editor": "Editör",
       "cli": "CLI",
       "rightTerminal": "Terminal"
@@ -992,7 +994,30 @@
       "installWaiting": "Hermes kurulum loglari bekleniyor...",
       "retryInstall": "Kurulumu tekrar dene",
       "installFailed": "Hermes kurulumu basarisiz.",
-      "installStreamLost": "Hermes kurulum akisi erken kapandi. Kurulum hala calisiyor olabilir."
+      "installStreamLost": "Hermes kurulum akisi erken kapandi. Kurulum hala calisiyor olabilir.",
+      "controlPlaneFailed": "Hermes kontrol duzlemi okunamadi.",
+      "controlPlaneRepairFailed": "Hermes kontrol duzlemi onarilamadi.",
+      "controlReady": "Kontrol hazir",
+      "needsRepair": "Onarim gerekiyor",
+      "unknown": "Bilinmiyor",
+      "refreshControl": "Hermes kontrol duzlemini yenile",
+      "installState": "Kurulum",
+      "restGateway": "REST",
+      "mcpTools": "MCP araclari",
+      "mcpMissing": "{{count}} eksik",
+      "sessions": "Oturumlar",
+      "cronSummary": "{{count}}/{{total}} cron aktif",
+      "profile": "Profil",
+      "authReady": "Auth hazir",
+      "authMissing": "Auth eksik",
+      "modelNotSelected": "Model secilmedi",
+      "modelSettings": "Hermes model",
+      "cronJobs": "Hermes cron",
+      "deepStatus": "Hermes status",
+      "repairControl": "Kontrolu onar",
+      "capabilities": "Yetenekler",
+      "recentSessions": "Son oturumlar",
+      "recommendations": "Oneriler"
     }
   }
 }

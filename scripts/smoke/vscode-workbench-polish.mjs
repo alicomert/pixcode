@@ -284,6 +284,31 @@ assert.match(
   'Terminal activity should open a VS Code-style bottom terminal instead of the provider CLI picker.',
 );
 
+assert.match(
+  workbench,
+  /function WorkbenchHermesPanel/,
+  'Workbench should expose a Hermes Agent activity panel instead of hiding control-plane state in Settings only.',
+);
+
+for (const token of [
+  'HermesControlMetric',
+  'HermesControlAction',
+  'refreshHermesControlPlane',
+  '/api/orchestration/hermes/control-plane',
+  '/api/orchestration/hermes/control-plane/repair',
+  'HERMES_MODEL_COMMAND',
+  'HERMES_CRON_COMMAND',
+  'HERMES_STATUS_COMMAND',
+]) {
+  assert.match(workbench, new RegExp(token.replaceAll('/', '\\/')), `Hermes workbench control plane should include ${token}.`);
+}
+
+assert.match(
+  workbench,
+  /onActivityPanel\('hermes', 'files'\)/,
+  'Workbench View menu should open the Hermes Agent activity panel.',
+);
+
 for (const token of ['BOTTOM_TERMINAL_MIN_HEIGHT', 'bottomTerminalViewMode', 'shrinkCliPanel', 'expandCliPanel']) {
   assert.match(workbench, new RegExp(token), `Workbench should include ${token}.`);
 }

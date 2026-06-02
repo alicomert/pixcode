@@ -66,7 +66,7 @@ type VSCodeWorkbenchProps = MainContentProps & {
   sidebarProps: SidebarProps;
 };
 
-type ActivityPanel = 'explorer' | 'projects' | 'sourceControl' | 'terminal';
+type ActivityPanel = 'explorer' | 'projects' | 'sourceControl' | 'terminal' | 'hermes';
 
 type ResizeTarget = 'left' | 'right' | 'bottom';
 type WorkbenchBottomTerminalViewMode = 'half' | 'full';
@@ -111,6 +111,9 @@ type WorkbenchBottomTerminalOptions = {
 
 const HERMES_DEFAULT_COMMAND = 'hermes --yolo';
 const HERMES_HISTORY_COMMAND = 'hermes sessions browse';
+const HERMES_MODEL_COMMAND = 'hermes model';
+const HERMES_CRON_COMMAND = 'hermes cron list';
+const HERMES_STATUS_COMMAND = 'hermes status --deep';
 
 type PendingHermesLaunch = {
   projectPath: string;
@@ -138,6 +141,84 @@ type HermesInstallStatus = {
   command: string | null;
   version: string | null;
   error: string | null;
+};
+
+type HermesControlPlaneSession = {
+  id?: string;
+  title?: string | null;
+  source?: string | null;
+  startedAt?: string | null;
+  model?: string | null;
+  messageCount?: number;
+};
+
+type HermesControlPlaneCronJob = {
+  id?: string;
+  name?: string;
+  schedule?: string;
+  state?: string;
+  enabled?: boolean;
+  nextRunAt?: string | null;
+  lastRunAt?: string | null;
+};
+
+type HermesControlPlaneProfile = {
+  name: string;
+  path: string;
+  isDefault?: boolean;
+  isActive?: boolean;
+  model?: {
+    provider?: string | null;
+    default?: string | null;
+    baseUrl?: string | null;
+  };
+  auth?: {
+    configured?: boolean;
+    activeProvider?: string | null;
+    selectedProvider?: string | null;
+  };
+  tools?: {
+    toolsets?: string[];
+    pixcodeMcpReady?: boolean;
+    pixcodeMcpToolCount?: number;
+    missingPixcodeMcpTools?: string[];
+    hermesCliReady?: boolean;
+  };
+  sessions?: {
+    exists?: boolean;
+    total?: number;
+    recent?: HermesControlPlaneSession[];
+  };
+  cron?: {
+    exists?: boolean;
+    total?: number;
+    active?: number;
+    recent?: HermesControlPlaneCronJob[];
+  };
+};
+
+type HermesControlPlaneCapability = {
+  id?: string;
+  label: string;
+  ready: boolean;
+  detail?: string;
+};
+
+type HermesControlPlane = {
+  ok?: boolean;
+  generatedAt?: string;
+  projectPath?: string | null;
+  install?: HermesInstallStatus;
+  gateway?: {
+    running?: boolean;
+    baseUrl?: string | null;
+  };
+  activeProfile?: string | null;
+  profiles?: HermesControlPlaneProfile[];
+  activeProfileSummary?: HermesControlPlaneProfile | null;
+  managedProfile?: HermesControlPlaneProfile | null;
+  capabilities?: HermesControlPlaneCapability[];
+  recommendations?: string[];
 };
 
 type HermesInstallJobState = {
@@ -505,6 +586,10 @@ function VSCodeWorkbench({
     jobId: null,
     startAfterInstall: false,
   });
+  const [hermesControlPlane, setHermesControlPlane] = useState<HermesControlPlane | null>(null);
+  const [hermesControlPlaneLoading, setHermesControlPlaneLoading] = useState(false);
+  const [hermesControlPlaneRepairing, setHermesControlPlaneRepairing] = useState(false);
+  const [hermesControlPlaneError, setHermesControlPlaneError] = useState<string | null>(null);
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>('projects');
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
   const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
@@ -530,6 +615,10 @@ function VSCodeWorkbench({
     }
 
     if (activeTab === 'chat' && activityPanel === 'projects') {
+      return;
+    }
+
+    if (activityPanel === 'hermes') {
       return;
     }
 
@@ -750,6 +839,33 @@ function VSCodeWorkbench({
     }
   }, []);
 
+  const refreshHermesControlPlane = useCallback(async () => {
+    setHermesControlPlaneLoading(true);
+    setHermesControlPlaneError(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (selectedProject) {
+        params.set('projectPath', getProjectPath(selectedProject));
+      }
+      const query = params.toString();
+      const response = await authenticatedFetch(`/api/orchestration/hermes/control-plane${query ? `?${query}` : ''}`);
+      const body = await response.json().catch(() => null);
+      if (!body || (!response.ok && !body.profiles && !body.capabilities)) {
+        throw new Error(body?.error?.message || body?.error || `HTTP ${response.status}`);
+      }
+      setHermesControlPlane(body as HermesControlPlane);
+    } catch (error) {
+      setHermesControlPlaneError(
+        error instanceof Error
+          ? error.message
+          : t('vscodeWorkbench.hermes.controlPlaneFailed', { defaultValue: 'Unable to read Hermes control plane.' }),
+      );
+    } finally {
+      setHermesControlPlaneLoading(false);
+    }
+  }, [selectedProject, t]);
+
   const startHermesApiInstall = useCallback(async ({ force = false, startAfterInstall = false }: { force?: boolean; startAfterInstall?: boolean } = {}) => {
     try { hermesInstallEventSourceRef.current?.close(); } catch { /* noop */ }
     hermesInstallEventSourceRef.current = null;
@@ -858,6 +974,10 @@ function VSCodeWorkbench({
   }, [refreshHermesInstallStatus]);
 
   useEffect(() => {
+    void refreshHermesControlPlane();
+  }, [refreshHermesControlPlane, hermesInstallStatus?.installed]);
+
+  useEffect(() => {
     if (lastRestoredHermesProjectKeyRef.current === selectedProjectStateKey) {
       return;
     }
@@ -904,9 +1024,6 @@ function VSCodeWorkbench({
     [activeEditorPath, openEditorTabs],
   );
   const terminalProject = bottomTerminalProject ?? selectedProject;
-  const isHermesBottomTerminalActive = isBottomTerminalOpen && (
-    bottomTerminalMode === 'hermes' || bottomTerminalMode === 'hermes-install'
-  );
 
   const activityButtons = useMemo(
     () => [
@@ -1023,6 +1140,16 @@ function VSCodeWorkbench({
       return;
     }
 
+    if (panel === 'hermes') {
+      setActivityPanel('hermes');
+      setIsLeftCollapsed(false);
+      if (isCenterSystemTab(activeTab)) {
+        setActiveTab('files');
+      }
+      void refreshHermesControlPlane();
+      return;
+    }
+
     setActivityPanel(panel);
     setIsLeftCollapsed(false);
     if (panel === 'projects') {
@@ -1033,7 +1160,7 @@ function VSCodeWorkbench({
     if (tab !== 'chat' || !isCenterSystemTab(activeTab)) {
       setActiveTab(tab);
     }
-  }, [activeTab, bottomTerminalMode, bottomTerminalViewMode, isBottomTerminalOpen, openBottomTerminal, selectedProject, setActiveTab]);
+  }, [activeTab, bottomTerminalMode, bottomTerminalViewMode, isBottomTerminalOpen, openBottomTerminal, refreshHermesControlPlane, selectedProject, setActiveTab]);
 
   const openHermesAgent = useCallback((options: WorkbenchBottomTerminalOptions = {}) => {
     if (!selectedProject) {
@@ -1094,6 +1221,67 @@ function VSCodeWorkbench({
   const installHermesAgent = useCallback(() => {
     void startHermesApiInstall({ force: true });
   }, [startHermesApiInstall]);
+
+  const repairHermesControlPlane = useCallback(async () => {
+    if (hermesInstallStatus?.installed !== true) {
+      void startHermesApiInstall({ startAfterInstall: true });
+      return;
+    }
+
+    setHermesControlPlaneRepairing(true);
+    setHermesControlPlaneError(null);
+    try {
+      const response = await authenticatedFetch('/api/orchestration/hermes/control-plane/repair', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectPath: selectedProject ? getProjectPath(selectedProject) : undefined,
+          forceRestart: true,
+        }),
+      });
+      const body = await response.json().catch(() => null);
+      const controlPlane = body?.controlPlane ?? body;
+      if (!controlPlane || (!response.ok && !controlPlane.profiles && !controlPlane.capabilities)) {
+        throw new Error(body?.error?.message || body?.error || `HTTP ${response.status}`);
+      }
+      setHermesControlPlane(controlPlane as HermesControlPlane);
+    } catch (error) {
+      setHermesControlPlaneError(
+        error instanceof Error
+          ? error.message
+          : t('vscodeWorkbench.hermes.controlPlaneRepairFailed', { defaultValue: 'Unable to repair Hermes control plane.' }),
+      );
+    } finally {
+      setHermesControlPlaneRepairing(false);
+      void refreshHermesInstallStatus();
+    }
+  }, [hermesInstallStatus?.installed, refreshHermesInstallStatus, selectedProject, startHermesApiInstall, t]);
+
+  const openHermesModelSettings = useCallback(() => {
+    openHermesAgent({
+      command: HERMES_MODEL_COMMAND,
+      title: t('vscodeWorkbench.hermes.modelSettings', { defaultValue: 'Hermes model' }),
+      forceNewSession: true,
+      project: selectedProject,
+    });
+  }, [openHermesAgent, selectedProject, t]);
+
+  const openHermesCronJobs = useCallback(() => {
+    openHermesAgent({
+      command: HERMES_CRON_COMMAND,
+      title: t('vscodeWorkbench.hermes.cronJobs', { defaultValue: 'Hermes cron' }),
+      forceNewSession: true,
+      project: selectedProject,
+    });
+  }, [openHermesAgent, selectedProject, t]);
+
+  const openHermesStatus = useCallback(() => {
+    openHermesAgent({
+      command: HERMES_STATUS_COMMAND,
+      title: t('vscodeWorkbench.hermes.deepStatus', { defaultValue: 'Hermes status' }),
+      forceNewSession: true,
+      project: selectedProject,
+    });
+  }, [openHermesAgent, selectedProject, t]);
 
   const closeBottomTerminal = useCallback(() => {
     if (bottomTerminalMode === 'hermes') {
@@ -1312,6 +1500,29 @@ function VSCodeWorkbench({
 
     if (activityPanel === 'sourceControl') {
       return <GitPanel selectedProject={selectedProject} isMobile={false} compact onFileOpen={handleFileOpen} />;
+    }
+
+    if (activityPanel === 'hermes') {
+      return (
+        <WorkbenchHermesPanel
+          project={selectedProject}
+          installStatus={hermesInstallStatus}
+          controlPlane={hermesControlPlane}
+          loading={hermesControlPlaneLoading}
+          repairing={hermesControlPlaneRepairing}
+          error={hermesControlPlaneError}
+          onRefresh={() => void refreshHermesControlPlane()}
+          onRepair={() => void repairHermesControlPlane()}
+          onStartHermes={() => openHermesAgent()}
+          onNewSession={startNewHermesSession}
+          onHistory={openHermesHistory}
+          onInstall={installHermesAgent}
+          onModel={openHermesModelSettings}
+          onCron={openHermesCronJobs}
+          onStatus={openHermesStatus}
+          t={t}
+        />
+      );
     }
 
     return (
@@ -1589,9 +1800,9 @@ function VSCodeWorkbench({
               />
             ))}
             <HermesActivityButton
-              label={t('vscodeWorkbench.hermes.connect', { defaultValue: 'Connect Hermes Agent' })}
-              active={isHermesBottomTerminalActive}
-              onClick={openHermesAgent}
+              label={t('vscodeWorkbench.activity.hermes', { defaultValue: 'Hermes Agent' })}
+              active={!isLeftCollapsed && activityPanel === 'hermes'}
+              onClick={() => selectActivityPanel('hermes', 'files')}
             />
           </div>
 
@@ -1839,6 +2050,11 @@ function WorkbenchMenuBar({
           label: t('vscodeWorkbench.activity.sourceControl'),
           icon: GitBranch,
           action: () => onActivityPanel('sourceControl', 'git'),
+        },
+        {
+          label: t('vscodeWorkbench.activity.hermes', { defaultValue: 'Hermes Agent' }),
+          icon: Workflow,
+          action: () => onActivityPanel('hermes', 'files'),
         },
       ],
     },
@@ -2626,6 +2842,336 @@ function HermesInstallLogPanel({
         {installJob.log || t('vscodeWorkbench.hermes.installWaiting', { defaultValue: 'Waiting for Hermes install logs...' })}
       </pre>
     </div>
+  );
+}
+
+function WorkbenchHermesPanel({
+  project,
+  installStatus,
+  controlPlane,
+  loading,
+  repairing,
+  error,
+  onRefresh,
+  onRepair,
+  onStartHermes,
+  onNewSession,
+  onHistory,
+  onInstall,
+  onModel,
+  onCron,
+  onStatus,
+  t,
+}: {
+  project: Project | null;
+  installStatus: HermesInstallStatus | null;
+  controlPlane: HermesControlPlane | null;
+  loading: boolean;
+  repairing: boolean;
+  error: string | null;
+  onRefresh: () => void;
+  onRepair: () => void;
+  onStartHermes: () => void;
+  onNewSession: () => void;
+  onHistory: () => void;
+  onInstall: () => void;
+  onModel: () => void;
+  onCron: () => void;
+  onStatus: () => void;
+  t: TFunction<'common'>;
+}) {
+  const profiles = controlPlane?.profiles ?? [];
+  const managedProfile = controlPlane?.managedProfile
+    ?? profiles.find((profile) => profile.name === 'pixcode')
+    ?? profiles.find((profile) => profile.isActive)
+    ?? profiles[0]
+    ?? null;
+  const activeProfile = controlPlane?.activeProfileSummary ?? profiles.find((profile) => profile.isActive) ?? managedProfile;
+  const isInstalled = installStatus?.installed === true || controlPlane?.install?.installed === true;
+  const gatewayRunning = Boolean(controlPlane?.gateway?.running);
+  const mcpToolCount = managedProfile?.tools?.pixcodeMcpToolCount ?? activeProfile?.tools?.pixcodeMcpToolCount ?? 0;
+  const missingMcpTools = managedProfile?.tools?.missingPixcodeMcpTools?.length
+    ?? activeProfile?.tools?.missingPixcodeMcpTools?.length
+    ?? 0;
+  const totalSessions = profiles.reduce((sum, profile) => sum + Number(profile.sessions?.total || 0), 0);
+  const totalCronJobs = profiles.reduce((sum, profile) => sum + Number(profile.cron?.total || 0), 0);
+  const activeCronJobs = profiles.reduce((sum, profile) => sum + Number(profile.cron?.active || 0), 0);
+  const capabilities = controlPlane?.capabilities ?? [];
+  const recommendations = controlPlane?.recommendations ?? [];
+  const recentSessions = managedProfile?.sessions?.recent ?? activeProfile?.sessions?.recent ?? [];
+  const recentCronJobs = managedProfile?.cron?.recent ?? activeProfile?.cron?.recent ?? [];
+  const modelLabel = [
+    activeProfile?.model?.provider,
+    activeProfile?.model?.default,
+  ].filter(Boolean).join(' / ');
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div className="shrink-0 border-b border-border p-3">
+        <div className="flex items-start gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-emerald-500/30 bg-emerald-500/10">
+            <HermesLogo className="h-6 w-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-semibold text-foreground">
+                {t('vscodeWorkbench.hermes.title', { defaultValue: 'Hermes Agent' })}
+              </span>
+              <span className={cn(
+                'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                controlPlane?.ok
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
+                  : 'bg-amber-500/15 text-amber-700 dark:text-amber-200',
+              )}>
+                {controlPlane?.ok
+                  ? t('vscodeWorkbench.hermes.controlReady', { defaultValue: 'Control ready' })
+                  : t('vscodeWorkbench.hermes.needsRepair', { defaultValue: 'Needs repair' })}
+              </span>
+            </div>
+            <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground" title={project ? getProjectPath(project) : undefined}>
+              {project ? getProjectPath(project) : t('vscodeWorkbench.noProject')}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={onRefresh}
+            aria-label={t('vscodeWorkbench.hermes.refreshControl', { defaultValue: 'Refresh Hermes control plane' })}
+            title={t('vscodeWorkbench.hermes.refreshControl', { defaultValue: 'Refresh Hermes control plane' })}
+            disabled={loading}
+          >
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-5 text-amber-700 dark:text-amber-200">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="grid grid-cols-2 gap-2">
+          <HermesControlMetric
+            icon={Download}
+            label={t('vscodeWorkbench.hermes.installState', { defaultValue: 'Install' })}
+            value={isInstalled ? t('vscodeWorkbench.hermes.ready', { defaultValue: 'Ready' }) : t('vscodeWorkbench.cli.notInstalled', { defaultValue: 'Not installed' })}
+            ok={isInstalled}
+          />
+          <HermesControlMetric
+            icon={Server}
+            label={t('vscodeWorkbench.hermes.restGateway', { defaultValue: 'REST' })}
+            value={gatewayRunning ? t('common.enabled', { defaultValue: 'Enabled' }) : t('common.disabled', { defaultValue: 'Disabled' })}
+            ok={gatewayRunning}
+          />
+          <HermesControlMetric
+            icon={Workflow}
+            label={t('vscodeWorkbench.hermes.mcpTools', { defaultValue: 'MCP tools' })}
+            value={`${mcpToolCount}`}
+            detail={t('vscodeWorkbench.hermes.mcpMissing', { count: missingMcpTools, defaultValue: '{{count}} missing' })}
+            ok={mcpToolCount > 0 && missingMcpTools === 0}
+          />
+          <HermesControlMetric
+            icon={History}
+            label={t('vscodeWorkbench.hermes.sessions', { defaultValue: 'Sessions' })}
+            value={totalSessions.toLocaleString()}
+            detail={t('vscodeWorkbench.hermes.cronSummary', { count: activeCronJobs, total: totalCronJobs, defaultValue: '{{count}}/{{total}} cron active' })}
+            ok={totalSessions > 0 || totalCronJobs > 0}
+          />
+        </div>
+
+        <div className="mt-3 rounded-md border border-border bg-card/60 p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t('vscodeWorkbench.hermes.profile', { defaultValue: 'Profile' })}
+              </div>
+              <div className="mt-1 truncate text-sm font-semibold text-foreground">
+                {activeProfile?.name || controlPlane?.activeProfile || t('vscodeWorkbench.hermes.unknown', { defaultValue: 'Unknown' })}
+              </div>
+              <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={activeProfile?.path}>
+                {activeProfile?.path || '-'}
+              </div>
+            </div>
+            <span className={cn(
+              'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
+              activeProfile?.auth?.configured
+                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
+                : 'bg-amber-500/15 text-amber-700 dark:text-amber-200',
+            )}>
+              {activeProfile?.auth?.configured
+                ? t('vscodeWorkbench.hermes.authReady', { defaultValue: 'Auth ready' })
+                : t('vscodeWorkbench.hermes.authMissing', { defaultValue: 'Auth missing' })}
+            </span>
+          </div>
+          <div className="mt-2 truncate text-[11px] text-muted-foreground">
+            {modelLabel || t('vscodeWorkbench.hermes.modelNotSelected', { defaultValue: 'No model selected' })}
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-2">
+          <button
+            type="button"
+            className="flex h-8 items-center justify-center gap-1.5 rounded bg-emerald-600 px-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+            onClick={isInstalled ? onStartHermes : onInstall}
+            disabled={repairing}
+          >
+            {repairing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HermesLogo className="h-3.5 w-3.5" />}
+            {isInstalled
+              ? t('vscodeWorkbench.hermes.start', { defaultValue: 'Start Hermes' })
+              : t('vscodeWorkbench.hermes.install', { defaultValue: 'Install' })}
+          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <HermesControlAction icon={Plus} label={t('vscodeWorkbench.hermes.newSession', { defaultValue: 'New Hermes session' })} onClick={onNewSession} disabled={!isInstalled} />
+            <HermesControlAction icon={History} label={t('vscodeWorkbench.hermes.history', { defaultValue: 'Hermes history' })} onClick={onHistory} disabled={!isInstalled} />
+            <HermesControlAction icon={Settings} label={t('vscodeWorkbench.hermes.modelSettings', { defaultValue: 'Hermes model' })} onClick={onModel} disabled={!isInstalled} />
+            <HermesControlAction icon={Workflow} label={t('vscodeWorkbench.hermes.cronJobs', { defaultValue: 'Hermes cron' })} onClick={onCron} disabled={!isInstalled} />
+            <HermesControlAction icon={Server} label={t('vscodeWorkbench.hermes.deepStatus', { defaultValue: 'Hermes status' })} onClick={onStatus} disabled={!isInstalled} />
+            <HermesControlAction icon={RefreshCw} label={t('vscodeWorkbench.hermes.repairControl', { defaultValue: 'Repair control' })} onClick={onRepair} disabled={!isInstalled || repairing} loading={repairing} />
+          </div>
+        </div>
+
+        {capabilities.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('vscodeWorkbench.hermes.capabilities', { defaultValue: 'Capabilities' })}
+            </div>
+            {capabilities.map((capability) => (
+              <div key={capability.id || capability.label} className="flex items-start gap-2 rounded border border-border bg-card/50 px-2.5 py-2">
+                {capability.ready ? (
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                ) : (
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                )}
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-medium text-foreground">{capability.label}</div>
+                  {capability.detail && (
+                    <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                      {capability.detail}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {recentSessions.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('vscodeWorkbench.hermes.recentSessions', { defaultValue: 'Recent sessions' })}
+            </div>
+            {recentSessions.slice(0, 3).map((session) => (
+              <div key={session.id || session.startedAt} className="rounded border border-border bg-card/50 px-2.5 py-2">
+                <div className="truncate text-xs font-medium text-foreground">
+                  {session.title || session.id || t('mainContent.untitledSession', { defaultValue: 'Untitled Session' })}
+                </div>
+                <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                  {session.model || session.source || '-'} - {session.messageCount ?? 0} msg
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {recentCronJobs.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('vscodeWorkbench.hermes.cronJobs', { defaultValue: 'Hermes cron' })}
+            </div>
+            {recentCronJobs.slice(0, 3).map((job) => (
+              <div key={job.id || job.name} className="rounded border border-border bg-card/50 px-2.5 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-medium text-foreground">{job.name || job.id}</span>
+                  <span className={cn(
+                    'shrink-0 rounded px-1.5 py-0.5 text-[10px]',
+                    job.state === 'active'
+                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-200'
+                      : 'bg-muted text-muted-foreground',
+                  )}>
+                    {job.state || (job.enabled ? 'active' : 'paused')}
+                  </span>
+                </div>
+                <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+                  {job.schedule || '-'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {recommendations.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('vscodeWorkbench.hermes.recommendations', { defaultValue: 'Recommendations' })}
+            </div>
+            {recommendations.slice(0, 3).map((recommendation) => (
+              <div key={recommendation} className="rounded border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[11px] leading-5 text-amber-700 dark:text-amber-200">
+                {recommendation}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HermesControlMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  ok,
+}: {
+  icon: IconComponent;
+  label: string;
+  value: string;
+  detail?: string;
+  ok: boolean;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-card/60 p-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        <span className="truncate">{label}</span>
+      </div>
+      <div className={cn(
+        'mt-1 truncate text-sm font-semibold',
+        ok ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300',
+      )}>
+        {value}
+      </div>
+      {detail && <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{detail}</div>}
+    </div>
+  );
+}
+
+function HermesControlAction({
+  icon: Icon,
+  label,
+  onClick,
+  disabled = false,
+  loading = false,
+}: {
+  icon: IconComponent;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex h-8 min-w-0 items-center justify-center gap-1.5 rounded border border-border px-2 text-[11px] font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+    >
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5 shrink-0" />}
+      <span className="truncate">{label}</span>
+    </button>
   );
 }
 

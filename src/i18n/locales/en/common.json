@@ -875,6 +875,7 @@
       "projects": "Projects",
       "sourceControl": "Source Control",
       "terminal": "Terminal",
+      "hermes": "Hermes Agent",
       "showPanel": "Show left panel",
       "hidePanel": "Hide left panel"
     },
@@ -883,6 +884,7 @@
       "projects": "Projects",
       "sourceControl": "Source Control",
       "terminal": "Terminal",
+      "hermes": "Hermes Agent",
       "editor": "Editor",
       "cli": "CLI",
       "rightTerminal": "Terminal"
@@ -992,7 +994,30 @@
       "installWaiting": "Waiting for Hermes install logs...",
       "retryInstall": "Retry install",
       "installFailed": "Hermes install failed.",
-      "installStreamLost": "Hermes install stream closed early. The install may still be running."
+      "installStreamLost": "Hermes install stream closed early. The install may still be running.",
+      "controlPlaneFailed": "Unable to read Hermes control plane.",
+      "controlPlaneRepairFailed": "Unable to repair Hermes control plane.",
+      "controlReady": "Control ready",
+      "needsRepair": "Needs repair",
+      "unknown": "Unknown",
+      "refreshControl": "Refresh Hermes control plane",
+      "installState": "Install",
+      "restGateway": "REST",
+      "mcpTools": "MCP tools",
+      "mcpMissing": "{{count}} missing",
+      "sessions": "Sessions",
+      "cronSummary": "{{count}}/{{total}} cron active",
+      "profile": "Profile",
+      "authReady": "Auth ready",
+      "authMissing": "Auth missing",
+      "modelNotSelected": "No model selected",
+      "modelSettings": "Hermes model",
+      "cronJobs": "Hermes cron",
+      "deepStatus": "Hermes status",
+      "repairControl": "Repair control",
+      "capabilities": "Capabilities",
+      "recentSessions": "Recent sessions",
+      "recommendations": "Recommendations"
     }
   }
 }
