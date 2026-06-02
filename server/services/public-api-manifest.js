@@ -47,6 +47,10 @@ export function buildPublicApiManifest({ baseUrl = '' } = {}) {
         curl: `curl -H "X-API-Key: px_your_key" ${origin || 'http://127.0.0.1:3001'}/api/diagnostics/bundle`,
       },
       {
+        title: 'Read Hermes control plane',
+        curl: `curl -H "X-API-Key: px_your_key" ${origin || 'http://127.0.0.1:3001'}/api/orchestration/hermes/control-plane`,
+      },
+      {
         title: 'Read the mobile remote control room',
         curl: `curl -H "X-API-Key: px_your_key" ${origin || 'http://127.0.0.1:3001'}/api/remote/control-room`,
       },
@@ -134,6 +138,10 @@ export function buildCurlCookbook({ baseUrl = '' } = {}) {
       {
         title: 'List pending approvals',
         command: `curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/orchestration/workflows/approvals"`,
+      },
+      {
+        title: 'Read Hermes control plane',
+        command: `curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/orchestration/hermes/control-plane"`,
       },
       {
         title: 'Approve a pending action',

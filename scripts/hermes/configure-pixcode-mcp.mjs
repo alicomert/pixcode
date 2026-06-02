@@ -33,6 +33,8 @@ const block = [
   '        - pixcode_get_hermes_gateway_status',
   '        - pixcode_probe_hermes_gateway',
   '        - pixcode_get_hermes_diagnostics',
+  '        - pixcode_get_hermes_control_plane',
+  '        - pixcode_repair_hermes_control_plane',
   '        - pixcode_get_api_manifest',
   '        - pixcode_api_request',
   '        - pixcode_hermes_gateway_request',

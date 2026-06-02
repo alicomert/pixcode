@@ -33,7 +33,10 @@ assert.match(settingsTab, /command:\s*'hermes doctor'/, 'Hermes settings should 
 assert.match(settingsTab, /command:\s*'hermes update --yes'/, 'Hermes settings should expose a non-interactive updater.');
 assert.match(settingsTab, /command:\s*'hermes sessions browse'/, 'Hermes settings should open the interactive sessions browser, not the sessions usage screen.');
 assert.match(settingsTab, /\/api\/orchestration\/hermes\/diagnostics/, 'Hermes settings should read integration diagnostics.');
+assert.match(settingsTab, /\/api\/orchestration\/hermes\/control-plane/, 'Hermes settings should read the Hermes control-plane snapshot.');
+assert.match(settingsTab, /control-plane\/repair/, 'Hermes settings should expose control-plane repair.');
 assert.match(settingsTab, /diagnosticsTitle/, 'Hermes settings should render a diagnostics panel.');
+assert.match(settingsTab, /controlPlaneTitle/, 'Hermes settings should render a control-plane panel.');
 assert.match(settingsTab, /diagnosticsMcpTools/, 'Hermes settings diagnostics should show Pixcode MCP tool counts.');
 assert.match(settingsTab, /diagnosticsCron/, 'Hermes settings diagnostics should show cron availability.');
 assert.match(settingsTab, /Pixcode Hermes REST health check/, 'Hermes REST probe should submit a real prompt so provider/auth failures are visible.');

@@ -165,6 +165,38 @@ const tools = [
     },
   },
   {
+    name: 'pixcode_get_hermes_control_plane',
+    description: 'Read the full Pixcode Hermes control-plane snapshot: install status, managed/source Hermes homes, workspace gateways, profiles, sessions, cron jobs, MCP readiness, capabilities, diagnostics, and recommended fixes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path. Omit to inspect all managed Hermes gateways and the active/default Hermes profile.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'pixcode_repair_hermes_control_plane',
+    description: 'Ask Pixcode to repair Hermes control-plane wiring by starting or replacing the managed gateway and rewriting Pixcode MCP config for the workspace. Use forceRestart only when stale tools or an unhealthy gateway must be replaced.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectPath: {
+          type: 'string',
+          description: 'Absolute project path for the managed Hermes gateway.',
+        },
+        forceRestart: {
+          type: 'boolean',
+          description: 'Stop and restart the managed Hermes gateway before repairing MCP config.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'pixcode_get_api_manifest',
     description: 'Read Pixcode public API documentation manifest. Use this to discover controllable Pixcode API groups, paths, and scopes before calling pixcode_api_request.',
     inputSchema: {
@@ -766,6 +798,25 @@ async function callTool(name, args = {}) {
       ? `?projectPath=${encodeURIComponent(args.projectPath.trim())}`
       : '';
     const body = await pixcodeFetch(`/api/orchestration/hermes/diagnostics${projectPath}`);
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_get_hermes_control_plane') {
+    const projectPath = typeof args.projectPath === 'string' && args.projectPath.trim()
+      ? `?projectPath=${encodeURIComponent(args.projectPath.trim())}`
+      : '';
+    const body = await pixcodeFetch(`/api/orchestration/hermes/control-plane${projectPath}`);
+    return textResult(JSON.stringify(body, null, 2));
+  }
+
+  if (name === 'pixcode_repair_hermes_control_plane') {
+    const body = await pixcodeFetch('/api/orchestration/hermes/control-plane/repair', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectPath: args.projectPath || null,
+        forceRestart: args.forceRestart === true,
+      }),
+    });
     return textResult(JSON.stringify(body, null, 2));
   }
 

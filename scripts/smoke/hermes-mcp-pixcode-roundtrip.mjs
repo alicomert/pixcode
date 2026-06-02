@@ -114,6 +114,50 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/orchestration/hermes/control-plane') {
+    res.end(JSON.stringify({
+      ok: true,
+      homes: {
+        source: '/root/.hermes',
+        managed: '/root/.hermes/profiles/pixcode',
+      },
+      activeProfile: 'default',
+      profiles: [
+        {
+          name: 'default',
+          isActive: true,
+          sessions: { total: 3, exists: true },
+          cron: { total: 1, active: 1, exists: true },
+          tools: { pixcodeMcpReady: true, pixcodeMcpToolCount: 14, missingPixcodeMcpTools: [] },
+        },
+      ],
+      capabilities: [
+        { id: 'rest-gateway', label: 'Hermes REST gateway', ready: true },
+        { id: 'pixcode-mcp', label: 'Pixcode MCP tools', ready: true },
+      ],
+      recommendations: [],
+    }));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/orchestration/hermes/control-plane/repair') {
+    const body = await readJson(req);
+    res.end(JSON.stringify({
+      ok: true,
+      gateway: { running: true, projectPath: body.projectPath || '/root/pixcode' },
+      controlPlane: {
+        ok: true,
+        profiles: [
+          {
+            name: 'pixcode',
+            tools: { pixcodeMcpReady: true, pixcodeMcpToolCount: 14, missingPixcodeMcpTools: [] },
+          },
+        ],
+      },
+    }));
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/orchestration/hermes/gateway/request') {
     const body = await readJson(req);
     gatewayRequests.push(body);
@@ -262,6 +306,8 @@ try {
   assert(toolNames.includes('pixcode_get_hermes_gateway_status'), 'Hermes gateway status tool missing');
   assert(toolNames.includes('pixcode_probe_hermes_gateway'), 'Hermes gateway probe tool missing');
   assert(toolNames.includes('pixcode_get_hermes_diagnostics'), 'Hermes diagnostics tool missing');
+  assert(toolNames.includes('pixcode_get_hermes_control_plane'), 'Hermes control-plane snapshot tool missing');
+  assert(toolNames.includes('pixcode_repair_hermes_control_plane'), 'Hermes control-plane repair tool missing');
   assert(toolNames.includes('pixcode_get_api_manifest'), 'Pixcode API manifest tool missing');
   assert(toolNames.includes('pixcode_api_request'), 'Pixcode generic API request tool missing');
   assert(toolNames.includes('pixcode_hermes_gateway_request'), 'Hermes gateway request proxy tool missing');
@@ -286,6 +332,19 @@ try {
   });
   assert.match(diagnostics.content[0].text, /mcp-pixcode/, 'Hermes diagnostics should expose active toolsets.');
   assert.match(diagnostics.content[0].text, /"toolsetAvailable": true/, 'Hermes diagnostics should expose cron toolset availability.');
+
+  const controlPlane = await callMcp(child, 'tools/call', {
+    name: 'pixcode_get_hermes_control_plane',
+    arguments: { projectPath: '/root/pixcode' },
+  });
+  assert.match(controlPlane.content[0].text, /Hermes REST gateway/, 'Hermes control-plane tool should expose capability state.');
+  assert.match(controlPlane.content[0].text, /"pixcodeMcpReady": true/, 'Hermes control-plane tool should expose MCP readiness.');
+
+  const repairedControlPlane = await callMcp(child, 'tools/call', {
+    name: 'pixcode_repair_hermes_control_plane',
+    arguments: { projectPath: '/root/pixcode', forceRestart: true },
+  });
+  assert.match(repairedControlPlane.content[0].text, /"ok": true/, 'Hermes control-plane repair tool should return repaired state.');
 
   const manifest = await callMcp(child, 'tools/call', { name: 'pixcode_get_api_manifest', arguments: {} });
   assert.match(manifest.content[0].text, /Pixcode Public API/, 'API manifest tool should expose Pixcode API docs to Hermes.');

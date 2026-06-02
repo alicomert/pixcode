@@ -16,7 +16,9 @@ import {
   ensureHermesGateway,
   getHermesGatewayStatus,
   probeHermesGateway,
+  readHermesControlPlane,
   readHermesDiagnostics,
+  repairHermesControlPlane,
   requestHermesGateway,
   runHermesGatewayPrompt,
   stopHermesGateway,
@@ -342,6 +344,63 @@ export function createHermesRouter(options: HermesRouterOptions = {}): Router {
       res.status(500).json({
         error: {
           code: 'HERMES_DIAGNOSTICS_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.get('/control-plane', async (req, res) => {
+    const projectPath = typeof req.query.projectPath === 'string' && req.query.projectPath.trim()
+      ? req.query.projectPath.trim()
+      : undefined;
+
+    try {
+      const controlPlane = await readHermesControlPlane({
+        appRoot: options.appRoot ?? process.cwd(),
+        projectPath,
+      });
+      res.status(controlPlane.ok ? 200 : 503).json(controlPlane);
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_CONTROL_PLANE_FAILED',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  });
+
+  router.post('/control-plane/repair', async (req: PixcodeRequest, res) => {
+    const apiKey = options.createHermesApiKey?.(readUserId(req)) ?? null;
+    if (!apiKey) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_API_KEY_UNAVAILABLE',
+          message: 'Pixcode could not create a Hermes MCP API key for this user.',
+        },
+      });
+      return;
+    }
+
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const projectPath = typeof body.projectPath === 'string' && body.projectPath.trim()
+      ? body.projectPath.trim()
+      : undefined;
+
+    try {
+      const repaired = await repairHermesControlPlane({
+        appRoot: options.appRoot ?? process.cwd(),
+        pixcodeApiKey: apiKey,
+        pixcodeBaseUrl: resolveHermesMcpBaseUrl(),
+        projectPath,
+        forceRestart: readBoolean(body.forceRestart),
+      });
+      res.status(repaired.ok ? 200 : 202).json(repaired);
+    } catch (error) {
+      res.status(500).json({
+        error: {
+          code: 'HERMES_CONTROL_PLANE_REPAIR_FAILED',
           message: error instanceof Error ? error.message : String(error),
         },
       });

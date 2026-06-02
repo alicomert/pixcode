@@ -4,6 +4,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
+import Database from 'better-sqlite3';
 import spawn from 'cross-spawn';
 
 import {
@@ -34,6 +35,8 @@ const EXPECTED_PIXCODE_MCP_TOOLS = [
     'pixcode_hermes_gateway_request',
     'pixcode_manage_hermes_cron',
     'pixcode_send_cli_input',
+    'pixcode_get_hermes_control_plane',
+    'pixcode_repair_hermes_control_plane',
 ];
 const PIXCODE_MANAGED_HERMES_ENV_PREFIXES = [
     'API_SERVER_',
@@ -511,6 +514,195 @@ function summarizeHermesLogs(hermesHomes) {
             stalePixcodeMcpToolCount: /MCP server 'pixcode'.*registered\s+[0-9]\s+tool\(s\)/iu.test(combined)
                 && !/registered\s+1[0-9]\s+tool\(s\)/iu.test(combined),
         },
+    };
+}
+
+function listHermesProfileHomes(sourceHermesHome) {
+    const profiles = [{
+        name: 'default',
+        isDefault: true,
+        path: sourceHermesHome,
+    }];
+    const profilesDir = path.join(sourceHermesHome, 'profiles');
+    try {
+        for (const name of fs.readdirSync(profilesDir)) {
+            if (name.startsWith('.') || !/^[a-z0-9][a-z0-9_-]{0,63}$/iu.test(name)) continue;
+            const profilePath = path.join(profilesDir, name);
+            if (!fs.statSync(profilePath).isDirectory()) continue;
+            profiles.push({
+                name,
+                isDefault: false,
+                path: profilePath,
+            });
+        }
+    } catch {
+        // No named Hermes profiles yet.
+    }
+    return profiles;
+}
+
+function readActiveHermesProfile(sourceHermesHome) {
+    try {
+        const active = fs.readFileSync(path.join(sourceHermesHome, 'active_profile'), 'utf8').trim();
+        return active || 'default';
+    } catch {
+        return 'default';
+    }
+}
+
+function readHermesSessionSummary(hermesHome, limit = 5) {
+    const dbPath = path.join(hermesHome, 'state.db');
+    if (!fs.existsSync(dbPath)) {
+        return {
+            dbPath,
+            exists: false,
+            total: 0,
+            recent: [],
+        };
+    }
+
+    let db = null;
+    try {
+        db = new Database(dbPath, { readonly: true, fileMustExist: true });
+        const total = db.prepare('SELECT COUNT(*) AS count FROM sessions').get()?.count ?? 0;
+        const recent = db.prepare(`
+            SELECT id, source, started_at, ended_at, message_count, model, title
+            FROM sessions
+            ORDER BY started_at DESC
+            LIMIT ?
+        `).all(limit).map((row) => ({
+            id: row.id,
+            source: row.source || null,
+            startedAt: row.started_at || null,
+            endedAt: row.ended_at || null,
+            messageCount: row.message_count || 0,
+            model: row.model || null,
+            title: row.title || null,
+        }));
+        return {
+            dbPath,
+            exists: true,
+            total,
+            recent,
+        };
+    } catch (error) {
+        return {
+            dbPath,
+            exists: true,
+            total: 0,
+            recent: [],
+            error: error instanceof Error ? error.message : String(error),
+        };
+    } finally {
+        try {
+            db?.close();
+        } catch {
+            // ignore close errors
+        }
+    }
+}
+
+function normalizeCronJob(job) {
+    if (!job || typeof job !== 'object') return null;
+    const schedule = typeof job.schedule === 'object' && job.schedule
+        ? job.schedule.value
+        : job.schedule;
+    const enabled = job.enabled !== false;
+    return {
+        id: String(job.id || job.name || ''),
+        name: String(job.name || job.id || '(unnamed)'),
+        schedule: String(job.schedule_display || schedule || ''),
+        state: job.state === 'paused' || !enabled
+            ? 'paused'
+            : job.state === 'completed'
+                ? 'completed'
+                : 'active',
+        enabled,
+        nextRunAt: job.next_run_at || null,
+        lastRunAt: job.last_run_at || null,
+        lastStatus: job.last_status || null,
+        lastError: job.last_error || null,
+    };
+}
+
+function readHermesCronSummary(hermesHome, limit = 6) {
+    const jobsPath = path.join(hermesHome, 'cron', 'jobs.json');
+    if (!fs.existsSync(jobsPath)) {
+        return {
+            jobsPath,
+            exists: false,
+            total: 0,
+            active: 0,
+            paused: 0,
+            completed: 0,
+            recent: [],
+        };
+    }
+
+    try {
+        const parsed = JSON.parse(fs.readFileSync(jobsPath, 'utf8'));
+        const rawJobs = Array.isArray(parsed) ? parsed : Array.isArray(parsed.jobs) ? parsed.jobs : [];
+        const jobs = rawJobs.map(normalizeCronJob).filter(Boolean);
+        return {
+            jobsPath,
+            exists: true,
+            total: jobs.length,
+            active: jobs.filter((job) => job.state === 'active').length,
+            paused: jobs.filter((job) => job.state === 'paused').length,
+            completed: jobs.filter((job) => job.state === 'completed').length,
+            recent: jobs.slice(0, limit),
+        };
+    } catch (error) {
+        return {
+            jobsPath,
+            exists: true,
+            total: 0,
+            active: 0,
+            paused: 0,
+            completed: 0,
+            recent: [],
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
+function summarizeHermesProfile(profile, activeProfile, gatewaySnapshots) {
+    const config = summarizeHermesConfig(profile.path);
+    const provider = config.model.provider || null;
+    const auth = summarizeHermesAuth(profile.path, provider);
+    const gateway = gatewaySnapshots.find((snapshot) => path.resolve(snapshot.hermesHome || '') === path.resolve(profile.path)) || null;
+    const sessions = readHermesSessionSummary(profile.path);
+    const cron = readHermesCronSummary(profile.path);
+
+    return {
+        name: profile.name,
+        path: profile.path,
+        isDefault: profile.isDefault,
+        isActive: profile.name === activeProfile,
+        model: {
+            provider,
+            default: config.model.default || null,
+            baseUrl: config.model.base_url || null,
+        },
+        auth: {
+            configured: auth.selectedProviderConfigured,
+            activeProvider: auth.activeProvider,
+            selectedProvider: auth.selectedProvider,
+            poolSize: auth.selectedProviderPoolSize,
+            lastRefresh: auth.selectedProviderLastRefresh,
+        },
+        tools: {
+            toolsets: config.toolsets,
+            pixcodeMcpConfigured: config.pixcodeMcp.configured,
+            pixcodeMcpEnabled: config.pixcodeMcp.enabled,
+            pixcodeMcpToolCount: config.pixcodeMcp.toolCount,
+            missingPixcodeMcpTools: config.pixcodeMcp.missingTools,
+            hermesCliReady: config.toolsets.includes('hermes-cli'),
+            pixcodeMcpReady: config.toolsets.includes('mcp-pixcode') && config.pixcodeMcp.enabled && config.pixcodeMcp.missingTools.length === 0,
+        },
+        sessions,
+        cron,
+        gateway,
     };
 }
 
@@ -1226,6 +1418,129 @@ export async function readHermesDiagnostics(options = {}) {
         logs,
         issues,
         recommendedActions,
+    };
+}
+
+export async function readHermesControlPlane(options = {}) {
+    const projectPath = options.projectPath ? normalizeProjectPath(options.projectPath) : null;
+    const sourceHermesHome = resolveSourceHermesHome(process.env);
+    const gatewayHermesHome = resolveHermesGatewayHome(process.env, options);
+    const gatewayStatus = getHermesGatewayStatus(projectPath);
+    const gatewaySnapshots = projectPath
+        ? [gatewayStatus]
+        : Array.isArray(gatewayStatus.gateways)
+            ? gatewayStatus.gateways
+            : [];
+    const install = readHermesInstallStatus(process.env, {
+        allowSmokeHermes: options.allowSmokeHermes === true,
+        repairLaunchers: options.repairLaunchers !== false,
+    });
+    const activeProfile = readActiveHermesProfile(sourceHermesHome);
+    const profileHomes = listHermesProfileHomes(sourceHermesHome);
+    const managedProfile = {
+        name: 'pixcode',
+        isDefault: false,
+        path: gatewayHermesHome,
+    };
+    const hasManagedProfile = profileHomes.some((profile) => path.resolve(profile.path) === path.resolve(gatewayHermesHome));
+    const profiles = [
+        ...profileHomes,
+        ...(hasManagedProfile ? [] : [managedProfile]),
+    ].map((profile) => summarizeHermesProfile(profile, activeProfile, gatewaySnapshots));
+    const diagnostics = await readHermesDiagnostics({
+        ...options,
+        projectPath: projectPath ?? undefined,
+    });
+    const activeProfileSummary = profiles.find((profile) => profile.isActive)
+        ?? profiles.find((profile) => profile.name === 'pixcode')
+        ?? profiles[0]
+        ?? null;
+    const managedProfileSummary = profiles.find((profile) => path.resolve(profile.path) === path.resolve(gatewayHermesHome)) ?? null;
+    const capabilities = [
+        {
+            id: 'rest-gateway',
+            label: 'Hermes REST gateway',
+            ready: Boolean(gatewayStatus.running),
+            detail: gatewayStatus.running ? 'Local /v1 and /api endpoints are reachable through Pixcode.' : 'Start REST to enable direct Hermes API control.',
+        },
+        {
+            id: 'pixcode-mcp',
+            label: 'Pixcode MCP tools',
+            ready: Boolean(managedProfileSummary?.tools.pixcodeMcpReady || activeProfileSummary?.tools.pixcodeMcpReady),
+            detail: `${managedProfileSummary?.tools.pixcodeMcpToolCount ?? activeProfileSummary?.tools.pixcodeMcpToolCount ?? 0}/${EXPECTED_PIXCODE_MCP_TOOLS.length} tool(s) registered.`,
+        },
+        {
+            id: 'visible-cli-control',
+            label: 'Visible CLI control',
+            ready: true,
+            detail: 'Hermes can request Pixcode to open and continue provider terminals in the visible workbench.',
+        },
+        {
+            id: 'sessions',
+            label: 'Session history',
+            ready: profiles.some((profile) => profile.sessions.exists),
+            detail: `${profiles.reduce((sum, profile) => sum + Number(profile.sessions.total || 0), 0)} stored Hermes session(s) detected.`,
+        },
+        {
+            id: 'cron',
+            label: 'Cron jobs',
+            ready: Boolean(managedProfileSummary?.cron.exists || activeProfileSummary?.cron.exists || diagnostics.cron?.toolsetAvailable),
+            detail: `${profiles.reduce((sum, profile) => sum + Number(profile.cron.total || 0), 0)} scheduled job(s) detected.`,
+        },
+    ];
+    const recommendations = new Set(diagnostics.recommendedActions || []);
+    if (!capabilities.find((capability) => capability.id === 'pixcode-mcp')?.ready) {
+        recommendations.add('Repair the Hermes control plane from Pixcode so the managed profile rewrites Pixcode MCP tools.');
+    }
+    if (!gatewayStatus.running) {
+        recommendations.add('Start the Hermes REST gateway for this workspace before running cron, REST, or API-driven agent tasks.');
+    }
+
+    return {
+        ok: install.installed && capabilities.filter((capability) => capability.id !== 'visible-cli-control').every((capability) => capability.ready),
+        generatedAt: nowIso(),
+        projectPath,
+        homes: {
+            source: sourceHermesHome,
+            managed: gatewayHermesHome,
+        },
+        install,
+        gateway: gatewayStatus,
+        activeProfile,
+        profiles,
+        activeProfileSummary,
+        managedProfile: managedProfileSummary,
+        capabilities,
+        diagnostics,
+        recommendations: Array.from(recommendations),
+    };
+}
+
+export async function repairHermesControlPlane(options = {}) {
+    const projectPath = options.projectPath ? normalizeProjectPath(options.projectPath) : process.cwd();
+    if (options.forceRestart === true) {
+        stopHermesGateway(projectPath);
+    }
+
+    const gateway = await ensureHermesGateway({
+        appRoot: options.appRoot || process.cwd(),
+        pixcodeApiKey: options.pixcodeApiKey,
+        pixcodeBaseUrl: options.pixcodeBaseUrl,
+        projectPath,
+        probeExisting: true,
+        replaceUnhealthy: true,
+        repairLaunchers: options.repairLaunchers !== false,
+    });
+    const controlPlane = await readHermesControlPlane({
+        ...options,
+        projectPath,
+    });
+
+    return {
+        ok: controlPlane.ok,
+        repairedAt: nowIso(),
+        gateway,
+        controlPlane,
     };
 }
 
