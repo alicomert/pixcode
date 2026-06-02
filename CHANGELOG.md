@@ -2,6 +2,19 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.51.2](https://github.com/alicomert/pixcode/compare/v1.51.1...v1.51.2) (2026-06-02)
+
+Pixcode 1.51.2 fixes OpenCode visible terminal startup with current OpenCode TUI builds.
+
+### Fixes
+
+* **opencode:** stop passing the headless `run --dangerously-skip-permissions` flag to the interactive OpenCode TUI, which prints the help screen and exits with code 1 on current OpenCode builds.
+
+### Verification
+
+* `scripts/smoke/pixcode-workbench-1-48.mjs`
+* `node --check server/index.js`
+
 ## [1.51.1](https://github.com/alicomert/pixcode/compare/v1.51.0...v1.51.1) (2026-06-01)
 
 Pixcode 1.51.1 keeps the desktop runtime dependency aligned with the published Hermes integration package.

@@ -157,7 +157,10 @@ assert.match(shellConnection, /cursor-tools-settings/, 'Cursor shell launches sh
 assert.match(shellConnection, /permissionMode/, 'Shell websocket init should send provider permission mode to the backend.');
 assert.match(serverIndex, /--dangerously-bypass-approvals-and-sandbox/, 'Codex terminal bypass mode should use the Codex CLI bypass flag.');
 assert.match(serverIndex, /--yolo/, 'Gemini and Qwen terminal bypass mode should use --yolo.');
-assert.match(serverIndex, /--dangerously-skip-permissions/, 'Claude/OpenCode terminal bypass mode should pass the provider bypass flag.');
+assert.match(serverIndex, /if \(provider === 'claude'\)[\s\S]+--dangerously-skip-permissions/, 'Claude terminal bypass mode should pass the provider bypass flag.');
+const opencodeTerminalPermissionBranch = serverIndex.match(/if \(provider === 'opencode'\)[\s\S]+?if \(provider === 'claude'\)/)?.[0] || '';
+assert.match(opencodeTerminalPermissionBranch, /--agent', 'plan'/, 'OpenCode terminal plan mode should still pass the supported TUI agent flag.');
+assert.doesNotMatch(opencodeTerminalPermissionBranch, /--dangerously-skip-permissions/, 'OpenCode terminal launch must not pass the headless run-only bypass flag to the TUI.');
 assert.match(geminiCli, /permissionMode === 'bypassPermissions'[\s\S]+--yolo|--yolo[\s\S]+permissionMode === 'bypassPermissions'/, 'Gemini chat route should map Pixcode bypassPermissions to --yolo.');
 assert.match(qwenCli, /permissionMode === 'bypassPermissions'[\s\S]+--yolo|--yolo[\s\S]+permissionMode === 'bypassPermissions'/, 'Qwen chat route should map Pixcode bypassPermissions to --yolo.');
 

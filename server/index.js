@@ -598,7 +598,9 @@ function buildProviderShellPermissionFlags(provider, permissionMode, skipPermiss
         if (mode === 'plan') {
             return ['--agent', 'plan'];
         }
-        return bypass ? ['--dangerously-skip-permissions'] : [];
+        // OpenCode's interactive TUI rejects the headless run-only bypass
+        // option; passing it makes the CLI print help and exit before opening.
+        return [];
     }
 
     if (provider === 'claude') {
