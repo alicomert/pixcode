@@ -11,6 +11,7 @@ export { CursorA2AAdapter } from './a2a/adapters/cursor.adapter.js';
 export { GeminiA2AAdapter } from './a2a/adapters/gemini.adapter.js';
 export { QwenA2AAdapter } from './a2a/adapters/qwen.adapter.js';
 export { OpenCodeA2AAdapter } from './a2a/adapters/opencode.adapter.js';
+export { JsonEventA2AAdapter } from './a2a/adapters/json-event.adapter.js';
 export type {
   AdapterContext,
   TaskHandle,
