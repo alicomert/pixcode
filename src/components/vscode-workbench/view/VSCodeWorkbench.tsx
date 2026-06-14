@@ -24,6 +24,7 @@ import type { WorkspaceType } from '../../project-creation-wizard/types';
 import { DarkModeToggle } from '../../../shared/view/ui';
 import { cn } from '../../../lib/utils';
 import { authenticatedFetch } from '../../../utils/api';
+import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck } from '../../../hooks/useVersionCheck';
 import type { AppTab, LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { MainContentProps } from '../../main-content/types/types';
 
@@ -270,7 +271,6 @@ const LEFT_DEFAULT_WIDTH = 340;
 const RIGHT_MIN_WIDTH = 320;
 const RIGHT_MAX_WIDTH = 680;
 const RIGHT_DEFAULT_WIDTH = 420;
-const RIGHT_RESIZE_STEP = 80;
 const BOTTOM_TERMINAL_MIN_HEIGHT = 150;
 const BOTTOM_TERMINAL_MAX_HEIGHT = 560;
 const BOTTOM_TERMINAL_DEFAULT_HEIGHT = 256;
@@ -604,6 +604,8 @@ function VSCodeWorkbench({
   const [hermesControlPlaneLoading, setHermesControlPlaneLoading] = useState(false);
   const [hermesControlPlaneRepairing, setHermesControlPlaneRepairing] = useState(false);
   const [hermesControlPlaneError, setHermesControlPlaneError] = useState<string | null>(null);
+  const [hasPendingRestartUpdate, setHasPendingRestartUpdate] = useState(false);
+  const versionCheck = useVersionCheck('alicomert', 'pixcode');
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>('projects');
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
   const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
@@ -1039,6 +1041,42 @@ function VSCodeWorkbench({
   );
   const terminalProject = bottomTerminalProject ?? selectedProject;
 
+  useEffect(() => {
+    let cancelled = false;
+    const refreshUpdateState = async () => {
+      try {
+        const response = await authenticatedFetch('/api/system/update-state', { cache: 'no-store' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (!cancelled) {
+          setHasPendingRestartUpdate(Boolean(payload?.state?.pendingRestart));
+        }
+      } catch {
+        // Update activity indicator is best-effort.
+      }
+    };
+    void refreshUpdateState();
+    window.addEventListener('focus', refreshUpdateState);
+    const intervalId = window.setInterval(refreshUpdateState, 60_000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refreshUpdateState);
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const openUpdateModal = useCallback(() => {
+    window.dispatchEvent(new CustomEvent(PIXCODE_UPDATE_AVAILABLE_EVENT, {
+      detail: {
+        updateAvailable: versionCheck.updateAvailable,
+        latestVersion: versionCheck.latestVersion,
+        currentVersion: versionCheck.currentVersion,
+        releaseInfo: versionCheck.releaseInfo,
+        installMode: versionCheck.installMode,
+      },
+    }));
+  }, [versionCheck]);
+
   const activityButtons = useMemo(
     () => [
       {
@@ -1362,14 +1400,6 @@ function VSCodeWorkbench({
     window.addEventListener('pixcode:hermes-terminal', handleHermesTerminalRequest);
     return () => window.removeEventListener('pixcode:hermes-terminal', handleHermesTerminalRequest);
   }, [installHermesAgent, openHermesAgent]);
-
-  const shrinkCliPanel = useCallback(() => {
-    setRightPaneWidth((current) => clamp(current - RIGHT_RESIZE_STEP, RIGHT_MIN_WIDTH, RIGHT_MAX_WIDTH));
-  }, []);
-
-  const expandCliPanel = useCallback(() => {
-    setRightPaneWidth((current) => clamp(current + RIGHT_RESIZE_STEP, RIGHT_MIN_WIDTH, RIGHT_MAX_WIDTH));
-  }, []);
 
   const openSystemTab = useCallback((tab: AppTab) => {
     setActiveTab(tab);
@@ -1819,6 +1849,15 @@ function VSCodeWorkbench({
               active={!isLeftCollapsed && activityPanel === 'hermes'}
               onClick={() => selectActivityPanel('hermes', 'files')}
             />
+            <ActivityButton
+              label={hasPendingRestartUpdate
+                ? t('vscodeWorkbench.activity.updateReady', { defaultValue: 'Update ready' })
+                : t('vscodeWorkbench.activity.update', { defaultValue: 'Update' })}
+              icon={RefreshCw}
+              active={false}
+              badge={versionCheck.updateAvailable || hasPendingRestartUpdate}
+              onClick={openUpdateModal}
+            />
           </div>
 
           <div className="flex flex-col items-center gap-1 border-t border-border py-2">
@@ -1936,35 +1975,6 @@ function VSCodeWorkbench({
                       </span>
                     </div>
                   )}
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={shrinkCliPanel}
-                    aria-label={t('vscodeWorkbench.cli.shrinkPanel', { defaultValue: 'Shrink CLI panel' })}
-                    title={t('vscodeWorkbench.cli.shrinkPanel', { defaultValue: 'Shrink CLI panel' })}
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={expandCliPanel}
-                    aria-label={t('vscodeWorkbench.cli.expandPanel', { defaultValue: 'Expand CLI panel' })}
-                    title={t('vscodeWorkbench.cli.expandPanel', { defaultValue: 'Expand CLI panel' })}
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => setIsRightCollapsed(true)}
-                    aria-label={t('vscodeWorkbench.cli.hidePanel', { defaultValue: 'Hide CLI panel' })}
-                    title={t('vscodeWorkbench.cli.hidePanel', { defaultValue: 'Hide CLI panel' })}
-                  >
-                    <PanelLeftOpen className="h-4 w-4" />
-                  </button>
                 </div>
               </div>
               <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
@@ -3498,6 +3508,7 @@ function WorkbenchCliPanel({
     error: null,
   });
   const installEventSourceRef = useRef<EventSource | null>(null);
+  const cliTabStripRef = useRef<HTMLDivElement>(null);
   const {
     providerAuthStatus,
     refreshProviderAuthStatuses,
@@ -3563,6 +3574,13 @@ function WorkbenchCliPanel({
     setShowProviderPicker(true);
   }, []);
 
+  const scrollCliTabs = useCallback((direction: 'left' | 'right') => {
+    cliTabStripRef.current?.scrollBy({
+      left: direction === 'left' ? -180 : 180,
+      behavior: 'smooth',
+    });
+  }, []);
+
   const cliHeaderTabs = useMemo(() => (
     <div className="flex min-w-0 items-center gap-1">
       {cliTabs.length === 0 && (
@@ -3574,44 +3592,64 @@ function WorkbenchCliPanel({
         </div>
       )}
       {cliTabs.length > 0 && (
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {cliTabs.map((tab) => {
-            const isActive = tab.id === (activeCliTab?.id || activeCliTabId);
-            return (
-              <div
-                key={tab.id}
-                className={cn(
-                  'group flex h-7 min-w-[112px] max-w-[200px] shrink-0 items-center gap-1.5 rounded border px-2 text-[11px]',
-                  isActive
-                    ? 'border-primary/50 bg-primary/10 text-foreground'
-                    : 'border-border/70 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-                )}
-              >
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                  onClick={() => setActiveCliTabId(tab.id)}
-                  onDoubleClick={() => renameCliTab(tab.id)}
-                  title="Double-click to rename"
+        <>
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => scrollCliTabs('left')}
+            aria-label="Scroll CLI tabs left"
+            title="Scroll CLI tabs left"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <div ref={cliTabStripRef} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {cliTabs.map((tab) => {
+              const isActive = tab.id === (activeCliTab?.id || activeCliTabId);
+              return (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    'group flex h-7 min-w-[112px] max-w-[200px] shrink-0 items-center gap-1.5 rounded border px-2 text-[11px]',
+                    isActive
+                      ? 'border-primary/50 bg-primary/10 text-foreground'
+                      : 'border-border/70 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+                  )}
                 >
-                  <SessionProviderLogo provider={tab.provider} className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{tab.title}</span>
-                </button>
-                <button
-                  type="button"
-                  className="rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    closeCliTab(tab.id);
-                  }}
-                  aria-label="Close CLI tab"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                    onClick={() => setActiveCliTabId(tab.id)}
+                    onDoubleClick={() => renameCliTab(tab.id)}
+                    title="Double-click to rename"
+                  >
+                    <SessionProviderLogo provider={tab.provider} className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{tab.title}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      closeCliTab(tab.id);
+                    }}
+                    aria-label="Close CLI tab"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => scrollCliTabs('right')}
+            aria-label="Scroll CLI tabs right"
+            title="Scroll CLI tabs right"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </>
       )}
       <button
         type="button"
@@ -3623,7 +3661,7 @@ function WorkbenchCliPanel({
         <Plus className="h-3.5 w-3.5" />
       </button>
     </div>
-  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openProviderPickerForNewTab, project, renameCliTab, t]);
+  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openProviderPickerForNewTab, project, renameCliTab, scrollCliTabs, t]);
 
   useEffect(() => {
     onHeaderContentChange(cliHeaderTabs);
@@ -4535,11 +4573,13 @@ function ActivityButton({
   icon: Icon,
   label,
   active,
+  badge = false,
   onClick,
 }: {
   icon: IconComponent;
   label: string;
   active: boolean;
+  badge?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -4555,6 +4595,7 @@ function ActivityButton({
     >
       {active && <span className="absolute left-0 h-5 w-0.5 rounded-r bg-primary" />}
       <Icon className="h-5 w-5" />
+      {badge && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-background" />}
     </button>
   );
 }

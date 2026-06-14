@@ -288,6 +288,15 @@ async function readLatestPixcodePackageMetadata() {
     };
 }
 
+function isSafePackageVersion(version) {
+    return typeof version === 'string' && /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/.test(version.trim());
+}
+
+function buildPixcodeTarballUrl(version) {
+    if (!isSafePackageVersion(version)) return null;
+    return `https://registry.npmjs.org/@pixelbyte-software/pixcode/-/pixcode-${version.trim()}.tgz`;
+}
+
 async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl) {
     appendUpdateJobLog(job, 'meta', `Update mode: runtime-dir\nRuntime: ${runtimeDir}\n`);
     appendUpdateJobLog(job, 'meta', `Downloading ${tarballUrl}\n`);
@@ -390,7 +399,7 @@ function readCurrentPackageVersion() {
     }
 }
 
-function createSystemUpdateJob(actorUser) {
+function createSystemUpdateJob(actorUser, options = {}) {
     const activeJob = getActiveUpdateJob();
     if (activeJob) return activeJob;
 
@@ -401,7 +410,7 @@ function createSystemUpdateJob(actorUser) {
         updatedAt: new Date().toISOString(),
         completedAt: null,
         fromVersion: SERVER_VERSION,
-        toVersion: null,
+        toVersion: isSafePackageVersion(options.targetVersion) ? options.targetVersion.trim() : null,
         installMode,
         runtimeDir: process.env.PIXCODE_RUNTIME_DIR || null,
         actorUserId: actorUser?.id ?? actorUser?.userId ?? null,
@@ -422,7 +431,10 @@ function createSystemUpdateJob(actorUser) {
                 appendUpdateJobLog(job, 'stderr', `Registry precheck failed: ${error.message}\n`);
                 return { latestVersion: null, tarballUrl: null };
             });
-            job.toVersion = latest.latestVersion || null;
+            const requestedVersion = isSafePackageVersion(options.targetVersion) ? options.targetVersion.trim() : null;
+            const resolvedVersion = latest.latestVersion || requestedVersion || null;
+            const resolvedTarballUrl = latest.tarballUrl || buildPixcodeTarballUrl(resolvedVersion);
+            job.toVersion = resolvedVersion;
 
             if (!IS_PLATFORM && installMode === 'npm' && latest.latestVersion && latest.latestVersion === SERVER_VERSION) {
                 job.status = 'completed';
@@ -433,10 +445,13 @@ function createSystemUpdateJob(actorUser) {
             }
 
             if (runtimeDir) {
-                if (!latest.latestVersion || !latest.tarballUrl) {
-                    throw new Error('Registry response missing latest version or tarball URL.');
+                if (!resolvedVersion || !resolvedTarballUrl) {
+                    throw new Error('Registry response missing latest version or tarball URL. Try manual update or retry when registry access is available.');
                 }
-                job.toVersion = await runRuntimeDirUpdateJob(job, runtimeDir, latest.latestVersion, latest.tarballUrl);
+                if (!latest.latestVersion) {
+                    appendUpdateJobLog(job, 'meta', `Using requested target version ${resolvedVersion} after registry precheck failed.\n`);
+                }
+                job.toVersion = await runRuntimeDirUpdateJob(job, runtimeDir, resolvedVersion, resolvedTarballUrl);
             } else {
                 const updateCommand = IS_PLATFORM
                     ? 'npm run update:platform'
@@ -1576,7 +1591,9 @@ app.get('/api/system/update-state', authenticateToken, (req, res) => {
 });
 
 app.post('/api/system/update-jobs', authenticateToken, requireAdmin, requireApiScope('system:update'), (req, res) => {
-    const job = createSystemUpdateJob(req.user);
+    const job = createSystemUpdateJob(req.user, {
+        targetVersion: req.body?.targetVersion || req.body?.latestVersion,
+    });
     res.status(job.status === 'queued' ? 202 : 200).json({
         success: true,
         job: snapshotUpdateJob(job),
@@ -3750,9 +3767,17 @@ function handleShellConnection(ws, request) {
                 }
             } else if (data.type === 'resize') {
                 // Handle terminal resize
-                if (shellProcess && shellProcess.resize) {
-                    console.log('Terminal resize requested:', data.cols, 'x', data.rows);
-                    shellProcess.resize(data.cols, data.rows);
+                const session = ptySessionKey ? ptySessionsMap.get(ptySessionKey) : null;
+                const activePty = session?.pty || shellProcess;
+                if (activePty && typeof activePty.resize === 'function' && session?.lifecycleState !== 'completed' && session?.lifecycleState !== 'failed') {
+                    try {
+                        activePty.resize(data.cols, data.rows);
+                    } catch (error) {
+                        const message = error instanceof Error ? error.message : String(error);
+                        if (!/already exited/i.test(message)) {
+                            console.warn('Terminal resize failed:', message);
+                        }
+                    }
                 }
             }
         } catch (error) {

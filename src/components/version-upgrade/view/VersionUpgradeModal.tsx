@@ -190,7 +190,10 @@ export function VersionUpgradeModal({
     }, [appendOutput, latestVersion, pendingRestartVersion, pollHealthUntilReady]);
 
     const streamUpdate = useCallback(async (): Promise<DoneEvent> => {
-        const startResponse = await authenticatedFetch('/api/system/update-jobs', { method: 'POST' });
+        const startResponse = await authenticatedFetch('/api/system/update-jobs', {
+            method: 'POST',
+            body: JSON.stringify({ targetVersion: latestVersion }),
+        });
         const startPayload = await startResponse.json().catch(() => null) as { job?: UpdateJob; error?: string } | null;
         if (!startResponse.ok || !startPayload?.job) {
             throw new Error(startPayload?.error || `Update job request failed (HTTP ${startResponse.status})`);
