@@ -7,6 +7,7 @@ import path from 'path';
 import os from 'os';
 import http from 'http';
 import net from 'node:net';
+import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { spawn } from 'child_process';
 
@@ -128,11 +129,11 @@ import {
 import { primeCliBinPath } from './services/install-jobs.js';
 import { buildHermesPathEnv, primeHermesPath } from './services/hermes-install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, apiKeysDb } from './database/db.js';
+import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, apiKeysDb, appConfigDb } from './database/db.js';
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
 import { configureWebPush } from './services/vapid-keys.js';
-import { validateApiKey, authenticateToken, authenticateWebSocket, requireAdmin } from './middleware/auth.js';
-import { filterProjectsForUser, userHasProjectAccess } from './services/platformization.js';
+import { validateApiKey, authenticateToken, authenticateWebSocket, requireAdmin, requireApiScope } from './middleware/auth.js';
+import { filterFileTreeForUser, filterProjectsForUser, userHasProjectAccess, userHasProjectPathAccess } from './services/platformization.js';
 import { IS_PLATFORM } from './constants/config.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
@@ -140,6 +141,343 @@ import { getConnectableHost } from '../shared/networkHosts.js';
 import { buildDaemonCliCommand, handleDaemonCommand } from './daemon-manager.js';
 
 const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
+const SYSTEM_UPDATE_STATE_KEY = 'system_update_state';
+const SESSION_OWNERSHIP_KEY = 'session_ownership';
+const SYSTEM_UPDATE_LOG_LIMIT = 600;
+const updateJobs = new Map();
+
+function parseStoredJson(value, fallback = {}) {
+    if (!value) return fallback;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+}
+
+function readSystemUpdateState() {
+    return parseStoredJson(appConfigDb.get(SYSTEM_UPDATE_STATE_KEY), {
+        pendingRestart: null,
+        lastAppliedUpdate: null,
+    });
+}
+
+function writeSystemUpdateState(state) {
+    appConfigDb.set(SYSTEM_UPDATE_STATE_KEY, JSON.stringify({
+        pendingRestart: state?.pendingRestart || null,
+        lastAppliedUpdate: state?.lastAppliedUpdate || null,
+    }));
+}
+
+function readSessionOwnership() {
+    return parseStoredJson(appConfigDb.get(SESSION_OWNERSHIP_KEY), {});
+}
+
+function writeSessionOwnership(ownership) {
+    appConfigDb.set(SESSION_OWNERSHIP_KEY, JSON.stringify(ownership || {}));
+}
+
+function sessionOwnershipKey(provider, sessionId) {
+    return `${provider || 'claude'}:${sessionId}`;
+}
+
+function recordSessionOwnership({ provider, sessionId, userId, projectName, projectPath }) {
+    if (!sessionId || !userId) return;
+    const ownership = readSessionOwnership();
+    const key = sessionOwnershipKey(provider, sessionId);
+    if (ownership[key]?.userId) return;
+    ownership[key] = {
+        provider: provider || 'claude',
+        sessionId,
+        userId,
+        projectName: projectName || null,
+        projectPath: projectPath || null,
+        createdAt: new Date().toISOString(),
+    };
+    writeSessionOwnership(ownership);
+}
+
+function canUserSeeSession(user, session, provider) {
+    if (['admin', 'owner'].includes(user?.role)) return true;
+    const sessionId = session?.id || session?.sessionId;
+    if (!sessionId) return false;
+    const owner = readSessionOwnership()[sessionOwnershipKey(provider, sessionId)];
+    return Boolean(owner?.userId && Number(owner.userId) === Number(user?.id ?? user?.userId));
+}
+
+function filterProjectSessionsForUser(project, user) {
+    if (['admin', 'owner'].includes(user?.role)) return project;
+    return {
+        ...project,
+        sessions: (project.sessions || []).filter((session) => canUserSeeSession(user, session, 'claude')),
+        cursorSessions: (project.cursorSessions || []).filter((session) => canUserSeeSession(user, session, 'cursor')),
+        codexSessions: (project.codexSessions || []).filter((session) => canUserSeeSession(user, session, 'codex')),
+        geminiSessions: (project.geminiSessions || []).filter((session) => canUserSeeSession(user, session, 'gemini')),
+        qwenSessions: (project.qwenSessions || []).filter((session) => canUserSeeSession(user, session, 'qwen')),
+        opencodeSessions: (project.opencodeSessions || []).filter((session) => canUserSeeSession(user, session, 'opencode')),
+    };
+}
+
+function reconcileAppliedUpdateStateOnBoot() {
+    const state = readSystemUpdateState();
+    const pending = state.pendingRestart;
+    if (!pending?.toVersion || pending.toVersion !== SERVER_VERSION) {
+        return;
+    }
+
+    writeSystemUpdateState({
+        pendingRestart: null,
+        lastAppliedUpdate: {
+            ...pending,
+            appliedAt: new Date().toISOString(),
+            currentVersion: SERVER_VERSION,
+        },
+    });
+}
+
+function appendUpdateJobLog(job, stream, chunk) {
+    const entry = {
+        stream,
+        chunk: String(chunk || ''),
+        timestamp: new Date().toISOString(),
+    };
+    job.logs.push(entry);
+    if (job.logs.length > SYSTEM_UPDATE_LOG_LIMIT) {
+        job.logs.splice(0, job.logs.length - SYSTEM_UPDATE_LOG_LIMIT);
+    }
+    job.updatedAt = entry.timestamp;
+}
+
+function snapshotUpdateJob(job) {
+    if (!job) return null;
+    return {
+        id: job.id,
+        status: job.status,
+        startedAt: job.startedAt,
+        updatedAt: job.updatedAt,
+        completedAt: job.completedAt || null,
+        fromVersion: job.fromVersion,
+        toVersion: job.toVersion || null,
+        installMode: job.installMode,
+        runtimeDir: job.runtimeDir || null,
+        alreadyLatest: Boolean(job.alreadyLatest),
+        pendingRestart: Boolean(job.pendingRestart),
+        error: job.error || null,
+        logs: job.logs,
+    };
+}
+
+function getActiveUpdateJob() {
+    for (const job of updateJobs.values()) {
+        if (job.status === 'running' || job.status === 'queued') {
+            return job;
+        }
+    }
+    return null;
+}
+
+async function readLatestPixcodePackageMetadata() {
+    const registryRes = await fetch('https://registry.npmjs.org/@pixelbyte-software/pixcode');
+    if (!registryRes.ok) throw new Error(`Registry returned HTTP ${registryRes.status}`);
+    const metadata = await registryRes.json();
+    const latestVersion = metadata['dist-tags']?.latest;
+    const latestEntry = latestVersion ? metadata.versions?.[latestVersion] : null;
+    return {
+        latestVersion,
+        tarballUrl: latestEntry?.dist?.tarball || null,
+    };
+}
+
+async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl) {
+    appendUpdateJobLog(job, 'meta', `Update mode: runtime-dir\nRuntime: ${runtimeDir}\n`);
+    appendUpdateJobLog(job, 'meta', `Downloading ${tarballUrl}\n`);
+    const tarballRes = await fetch(tarballUrl);
+    if (!tarballRes.ok || !tarballRes.body) {
+        throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
+    }
+
+    const stagingDir = path.join(runtimeDir, '.staging');
+    const backupDir = path.join(runtimeDir, '.previous');
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+    fs.mkdirSync(stagingDir, { recursive: true });
+
+    const { Readable } = await import('node:stream');
+    const tarModule = await import('tar');
+    const tarExtract = tarModule.x || tarModule.default?.x;
+    if (!tarExtract) throw new Error('tar extractor not available');
+
+    await new Promise((resolve, reject) => {
+        const webStream = tarballRes.body;
+        const nodeStream = typeof Readable.fromWeb === 'function' && webStream?.getReader
+            ? Readable.fromWeb(webStream)
+            : webStream;
+        const extractor = tarExtract({ cwd: stagingDir, strip: 1 });
+        nodeStream.pipe(extractor);
+        extractor.on('finish', resolve);
+        extractor.on('error', reject);
+        nodeStream.on('error', reject);
+    });
+
+    appendUpdateJobLog(job, 'meta', 'Staging runtime update for next restart...\n');
+    fs.rmSync(backupDir, { recursive: true, force: true });
+    fs.mkdirSync(backupDir, { recursive: true });
+    for (const entry of fs.readdirSync(stagingDir)) {
+        const src = path.join(stagingDir, entry);
+        const dst = path.join(runtimeDir, entry);
+        if (fs.existsSync(dst)) {
+            fs.renameSync(dst, path.join(backupDir, entry));
+        }
+        fs.renameSync(src, dst);
+    }
+    fs.rmSync(stagingDir, { recursive: true, force: true });
+
+    const depsChanged = (() => {
+        try {
+            const prevPkg = JSON.parse(fs.readFileSync(path.join(backupDir, 'package.json'), 'utf8'));
+            const nextPkg = JSON.parse(fs.readFileSync(path.join(runtimeDir, 'package.json'), 'utf8'));
+            return JSON.stringify(prevPkg.dependencies || {}) !== JSON.stringify(nextPkg.dependencies || {});
+        } catch {
+            return true;
+        }
+    })();
+
+    if (!depsChanged) return latestVersion;
+
+    appendUpdateJobLog(job, 'meta', 'Reconciling node_modules with new package.json...\n');
+    await new Promise((resolve, reject) => {
+        const npmChild = spawn('npm', ['install', '--production', '--no-audit', '--no-fund', '--no-save'], {
+            cwd: runtimeDir,
+            env: process.env,
+            shell: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        npmChild.stdout?.on('data', (chunk) => appendUpdateJobLog(job, 'stdout', chunk.toString()));
+        npmChild.stderr?.on('data', (chunk) => appendUpdateJobLog(job, 'stderr', chunk.toString()));
+        npmChild.on('error', reject);
+        npmChild.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`npm install exited with code ${code}`));
+        });
+    });
+    return latestVersion;
+}
+
+async function runCommandUpdateJob(job, updateCommand, updateCwd) {
+    appendUpdateJobLog(job, 'meta', `Running: ${updateCommand}\n`);
+    await new Promise((resolve, reject) => {
+        const child = spawn(updateCommand, {
+            cwd: updateCwd,
+            env: process.env,
+            shell: true,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        child.stdout?.on('data', (data) => appendUpdateJobLog(job, 'stdout', data.toString()));
+        child.stderr?.on('data', (data) => appendUpdateJobLog(job, 'stderr', data.toString()));
+        child.on('error', reject);
+        child.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`Update command exited with code ${code}`));
+        });
+    });
+}
+
+function readCurrentPackageVersion() {
+    try {
+        const pkgRaw = fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8');
+        return JSON.parse(pkgRaw).version || SERVER_VERSION;
+    } catch {
+        return SERVER_VERSION;
+    }
+}
+
+function createSystemUpdateJob(actorUser) {
+    const activeJob = getActiveUpdateJob();
+    if (activeJob) return activeJob;
+
+    const job = {
+        id: crypto.randomUUID(),
+        status: 'queued',
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        completedAt: null,
+        fromVersion: SERVER_VERSION,
+        toVersion: null,
+        installMode,
+        runtimeDir: process.env.PIXCODE_RUNTIME_DIR || null,
+        actorUserId: actorUser?.id ?? actorUser?.userId ?? null,
+        logs: [],
+        alreadyLatest: false,
+        pendingRestart: false,
+        error: null,
+    };
+    updateJobs.set(job.id, job);
+
+    void (async () => {
+        job.status = 'running';
+        appendUpdateJobLog(job, 'meta', `Background update job started at ${job.startedAt}\n`);
+        try {
+            const runtimeDir = job.runtimeDir;
+            const gitUpdateScript = path.join(APP_ROOT, 'scripts', 'update-git-install.mjs');
+            const latest = await readLatestPixcodePackageMetadata().catch((error) => {
+                appendUpdateJobLog(job, 'stderr', `Registry precheck failed: ${error.message}\n`);
+                return { latestVersion: null, tarballUrl: null };
+            });
+            job.toVersion = latest.latestVersion || null;
+
+            if (!IS_PLATFORM && installMode === 'npm' && latest.latestVersion && latest.latestVersion === SERVER_VERSION) {
+                job.status = 'completed';
+                job.alreadyLatest = true;
+                job.completedAt = new Date().toISOString();
+                appendUpdateJobLog(job, 'meta', `Already on ${SERVER_VERSION}.\n`);
+                return;
+            }
+
+            if (runtimeDir) {
+                if (!latest.latestVersion || !latest.tarballUrl) {
+                    throw new Error('Registry response missing latest version or tarball URL.');
+                }
+                job.toVersion = await runRuntimeDirUpdateJob(job, runtimeDir, latest.latestVersion, latest.tarballUrl);
+            } else {
+                const updateCommand = IS_PLATFORM
+                    ? 'npm run update:platform'
+                    : installMode === 'git'
+                        ? `${JSON.stringify(process.execPath)} ${JSON.stringify(gitUpdateScript)}`
+                        : 'npm install -g @pixelbyte-software/pixcode@latest';
+                const updateCwd = IS_PLATFORM || installMode === 'git' ? APP_ROOT : os.homedir();
+                await runCommandUpdateJob(job, updateCommand, updateCwd);
+                if (installMode === 'git') {
+                    job.toVersion = readCurrentPackageVersion();
+                }
+            }
+
+            job.status = 'completed';
+            job.completedAt = new Date().toISOString();
+            job.pendingRestart = true;
+            const state = readSystemUpdateState();
+            writeSystemUpdateState({
+                ...state,
+                pendingRestart: {
+                    jobId: job.id,
+                    fromVersion: job.fromVersion,
+                    toVersion: job.toVersion || latest.latestVersion || SERVER_VERSION,
+                    installMode: job.installMode,
+                    completedAt: job.completedAt,
+                    logs: job.logs.slice(-80),
+                },
+            });
+            appendUpdateJobLog(job, 'meta', 'Update is ready. Restart when convenient to apply it.\n');
+        } catch (error) {
+            job.status = 'failed';
+            job.completedAt = new Date().toISOString();
+            job.error = error instanceof Error ? error.message : String(error);
+            appendUpdateJobLog(job, 'stderr', `Update failed: ${job.error}\n`);
+        }
+    })();
+
+    return job;
+}
+
+reconcileAppliedUpdateStateOnBoot();
 
 function requireProjectAccess(capability = 'viewFiles') {
     return (req, res, next) => {
@@ -160,11 +498,11 @@ function requireProjectPathAccess(capability = 'viewFiles') {
     return (req, res, next) => {
         const projectPath = req.body?.projectPath || req.query.projectPath || os.homedir();
         const resolvedProjectPath = path.resolve(String(projectPath));
-        if (!userHasProjectAccess(req.user, {
+        if (!userHasProjectPathAccess(req.user, {
             fullPath: resolvedProjectPath,
             path: resolvedProjectPath,
             projectPath: resolvedProjectPath,
-        }, capability)) {
+        }, resolvedProjectPath, capability)) {
             return res.status(403).json({ error: 'Project access denied.' });
         }
 
@@ -484,12 +822,13 @@ function terminatePtySession(sessionKey, session, reason) {
     return true;
 }
 
-function killProviderPtySessions(projectPath, provider) {
+function killProviderPtySessions(projectPath, provider, userId = null) {
     let killed = 0;
     for (const [sessionKey, session] of ptySessionsMap.entries()) {
         if (
             session?.projectPath === projectPath &&
             session?.provider === provider &&
+            (!userId || session?.userId === userId) &&
             !session?.isPlainShell
         ) {
             killed += terminatePtySession(sessionKey, session, 'fresh provider session') ? 1 : 0;
@@ -762,6 +1101,25 @@ function buildProviderShellCommand(command, permissionFlags = []) {
     return flags.length > 0 ? `${command} ${flags.join(' ')}` : command;
 }
 
+function hideProviderApprovalChoiceLines(output) {
+    const approvalChoicePattern = /(?:^|\s)(?:[0-9]+[.)]\s*)?(?:yes,?\s+proceed|yes,?\s+and\s+don['’]?t|no,?\s+and\s+(?:tell|keep|cancel)|no,?\s+do\s+not)/iu;
+    return String(output || '')
+        .split(/(\r\n|\n|\r)/u)
+        .reduce((parts, part, index, chunks) => {
+            if (part === '\r\n' || part === '\n' || part === '\r') {
+                const previousWasHidden = chunks[index - 1] && approvalChoicePattern.test(stripAnsiSequences(chunks[index - 1]));
+                if (!previousWasHidden) parts.push(part);
+                return parts;
+            }
+
+            if (!approvalChoicePattern.test(stripAnsiSequences(part))) {
+                parts.push(part);
+            }
+            return parts;
+        }, [])
+        .join('');
+}
+
 function resolvePublicBaseUrl(request) {
     const headers = request?.headers || {};
     const forwardedProto = String(headers['x-forwarded-proto'] || '').split(',')[0].trim();
@@ -863,15 +1221,11 @@ const wss = new WebSocketServer({
     verifyClient: (info) => {
         console.log('WebSocket connection attempt to:', info.req.url);
 
-        // Platform mode: always allow connection
-        if (IS_PLATFORM) {
-            const user = authenticateWebSocket(null); // Will return first user
-            if (!user) {
-                console.log('[WARN] Platform mode: No user found in database');
-                return false;
-            }
+        const platformBypassUser = IS_PLATFORM ? authenticateWebSocket(null) : null;
+        if (platformBypassUser) {
+            const user = platformBypassUser;
             info.req.user = user;
-            console.log('[OK] Platform mode WebSocket authenticated for user:', user.username);
+            console.log('[OK] Platform mode WebSocket authenticated via explicit bypass for user:', user.username);
             return true;
         }
 
@@ -917,11 +1271,14 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Public health check endpoint (no authentication required)
 app.get('/health', (req, res) => {
+    const updateState = readSystemUpdateState();
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
         installMode,
-        version: SERVER_VERSION
+        version: SERVER_VERSION,
+        pendingRestart: updateState.pendingRestart,
+        lastAppliedUpdate: updateState.lastAppliedUpdate,
     });
 });
 
@@ -936,7 +1293,11 @@ app.post('/api/shell/sessions/terminate', authenticateToken, requireProjectPathA
         return res.status(400).json({ error: 'Unsupported provider' });
     }
 
-    const killedSessions = killProviderPtySessions(projectPath, provider);
+    const killedSessions = killProviderPtySessions(
+        projectPath,
+        provider,
+        ['admin', 'owner'].includes(req.user?.role) ? null : (req.user?.id ?? req.user?.userId ?? null),
+    );
     res.json({ success: true, killedSessions });
 });
 
@@ -957,11 +1318,14 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
     }
 
     const requestedProjectPath = projectPath ? path.resolve(projectPath) : null;
+    const requestUserId = req.user?.id ?? req.user?.userId ?? null;
+    const canReadAnyShellSession = ['admin', 'owner'].includes(req.user?.role);
     let matchedSession = null;
     for (const session of ptySessionsMap.values()) {
         if (
             session?.provider === provider &&
             !session?.isPlainShell &&
+            (canReadAnyShellSession || session?.userId === requestUserId) &&
             (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath) &&
             (!requestedLaunchId || session.hermesLaunchId === requestedLaunchId)
         ) {
@@ -1012,6 +1376,8 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
     }
 
     const requestedProjectPath = projectPath ? path.resolve(projectPath) : null;
+    const requestUserId = req.user?.id ?? req.user?.userId ?? null;
+    const canWriteAnyShellSession = ['admin', 'owner'].includes(req.user?.role);
     let matchedSession = null;
     for (const session of ptySessionsMap.values()) {
         if (
@@ -1019,6 +1385,7 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             !session?.isPlainShell &&
             session?.pty &&
             session.lifecycleState === 'running' &&
+            (canWriteAnyShellSession || session?.userId === requestUserId) &&
             (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath) &&
             (!requestedLaunchId || session.hermesLaunchId === requestedLaunchId)
         ) {
@@ -1135,14 +1502,14 @@ adapterRegistry.register(new QwenA2AAdapter());
 adapterRegistry.register(new OpenCodeA2AAdapter());
 adapterRegistry.register(new JsonEventA2AAdapter());
 app.use('/hermes', createHermesTaskRouter());
-app.use('/preview', authenticateToken, createPreviewProxyRouter());
-app.use('/api/orchestration', authenticateToken, createOrchestrationTaskRouter());
-app.use('/api/orchestration/hermes', authenticateToken, createHermesRouter({
+app.use('/preview', authenticateToken, requireAdmin, createPreviewProxyRouter());
+app.use('/api/orchestration', authenticateToken, requireAdmin, createOrchestrationTaskRouter());
+app.use('/api/orchestration/hermes', authenticateToken, requireAdmin, createHermesRouter({
     appRoot: APP_ROOT,
     createHermesApiKey: getOrCreateHermesApiKey,
     resolvePublicBaseUrl,
 }));
-app.use('/api/orchestration', authenticateToken, createWorkflowRouter());
+app.use('/api/orchestration', authenticateToken, requireAdmin, createWorkflowRouter());
 app.use('/live', createLiveViewPublicRouter());
 
 // Network discovery / QR endpoints (protected)
@@ -1193,6 +1560,38 @@ app.use(express.static(path.join(APP_ROOT, 'public'), {
 // /api/config endpoint removed - no longer needed
 // Frontend now uses window.location for WebSocket URLs
 
+app.get('/api/system/update-state', authenticateToken, (req, res) => {
+    res.json({
+        success: true,
+        state: readSystemUpdateState(),
+        activeJob: snapshotUpdateJob(getActiveUpdateJob()),
+        currentVersion: SERVER_VERSION,
+        installMode,
+        capabilities: {
+            canBackgroundUpdate: true,
+            canRestart: true,
+            startupUpdateDefault: false,
+        },
+    });
+});
+
+app.post('/api/system/update-jobs', authenticateToken, requireAdmin, requireApiScope('system:update'), (req, res) => {
+    const job = createSystemUpdateJob(req.user);
+    res.status(job.status === 'queued' ? 202 : 200).json({
+        success: true,
+        job: snapshotUpdateJob(job),
+    });
+});
+
+app.get('/api/system/update-jobs/:jobId', authenticateToken, requireAdmin, requireApiScope('system:update'), (req, res) => {
+    const job = updateJobs.get(req.params.jobId);
+    if (!job) {
+        return res.status(404).json({ success: false, error: 'Update job not found' });
+    }
+
+    res.json({ success: true, job: snapshotUpdateJob(job) });
+});
+
 // System update endpoint — streams live output via Server-Sent Events so the
 // UI sees npm/git progress in real time instead of waiting ~2 minutes for the
 // buffered response.
@@ -1206,7 +1605,7 @@ app.use(express.static(path.join(APP_ROOT, 'public'), {
 //      checkout state before pulling so source installs do not fail on local
 //      modified files left by older releases or manual edits.
 //   3. fallback → `npm install -g …` (classic npm-distributed install).
-app.post('/api/system/update', authenticateToken, async (req, res) => {
+app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope('system:update'), async (req, res) => {
     const projectRoot = APP_ROOT;
     console.log('Starting system update from directory:', projectRoot);
 
@@ -1563,7 +1962,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
 // Restart endpoint — exits the current process so an external wrapper
 // (systemd/pm2/daemon manager) can bring the server back on the new code.
 // Foreground installs without a wrapper will simply stop; the UI reports this.
-app.post('/api/system/restart', authenticateToken, (req, res) => {
+app.post('/api/system/restart', authenticateToken, requireAdmin, requireApiScope('system:restart'), (req, res) => {
     res.json({
         success: true,
         version: SERVER_VERSION,
@@ -1580,7 +1979,7 @@ app.post('/api/system/restart', authenticateToken, (req, res) => {
 app.get('/api/projects', authenticateToken, async (req, res) => {
     try {
         const projects = await getProjects(broadcastProgress);
-        res.json(filterProjectsForUser(projects, req.user));
+        res.json(filterProjectsForUser(projects, req.user).map((project) => filterProjectSessionsForUser(project, req.user)));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -1590,6 +1989,9 @@ app.get('/api/projects/:projectName/sessions', authenticateToken, requireProject
     try {
         const { limit = 5, offset = 0 } = req.query;
         const result = await getSessions(req.params.projectName, parseInt(limit), parseInt(offset));
+        if (!['admin', 'owner'].includes(req.user?.role)) {
+            result.sessions = (result.sessions || []).filter((session) => canUserSeeSession(req.user, session, 'claude'));
+        }
         applyCustomSessionNames(result.sessions, 'claude');
         res.json(result);
     } catch (error) {
@@ -1735,7 +2137,7 @@ const expandBrowsePath = (inputPath) => {
 };
 
 // Browse filesystem endpoint for project suggestions - uses existing getFileTree
-app.get('/api/browse-filesystem', authenticateToken, async (req, res) => {
+app.get('/api/browse-filesystem', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { path: dirPath } = req.query;
 
@@ -1824,7 +2226,7 @@ app.get('/api/browse-filesystem', authenticateToken, async (req, res) => {
     }
 });
 
-app.post('/api/create-folder', authenticateToken, async (req, res) => {
+app.post('/api/create-folder', authenticateToken, requireAdmin, async (req, res) => {
     try {
         const { path: folderPath } = req.body;
         if (!folderPath) {
@@ -1889,6 +2291,9 @@ app.get('/api/projects/:projectName/file', authenticateToken, requireProjectAcce
         if (!resolved.startsWith(normalizedRoot)) {
             return res.status(403).json({ error: 'Path must be under project root' });
         }
+        if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolved, 'viewFiles')) {
+            return res.status(403).json({ error: 'Folder access denied' });
+        }
 
         const content = await fsPromises.readFile(resolved, 'utf8');
         res.json({ content, path: resolved });
@@ -1929,6 +2334,9 @@ app.get('/api/projects/:projectName/files/content', authenticateToken, requirePr
         const normalizedRoot = path.resolve(projectRoot) + path.sep;
         if (!resolved.startsWith(normalizedRoot)) {
             return res.status(403).json({ error: 'Path must be under project root' });
+        }
+        if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolved, 'viewFiles')) {
+            return res.status(403).json({ error: 'Folder access denied' });
         }
 
         // Check if file exists
@@ -1990,6 +2398,9 @@ app.put('/api/projects/:projectName/file', authenticateToken, requireProjectAcce
         if (!resolved.startsWith(normalizedRoot)) {
             return res.status(403).json({ error: 'Path must be under project root' });
         }
+        if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolved, 'editFiles')) {
+            return res.status(403).json({ error: 'Folder access denied' });
+        }
 
         // Write the new content
         await fsPromises.writeFile(resolved, content, 'utf8');
@@ -2038,7 +2449,12 @@ app.get('/api/projects/:projectName/files', authenticateToken, requireProjectAcc
         }
 
         const files = await getFileTree(actualPath, 10, 0, true);
-        res.json(files);
+        res.json(filterFileTreeForUser(files, req.user, {
+            name: req.params.projectName,
+            projectName: req.params.projectName,
+            fullPath: actualPath,
+            path: actualPath,
+        }, 'viewFiles'));
     } catch (error) {
         console.error('[ERROR] File tree error:', error.message);
         res.status(500).json({ error: error.message });
@@ -2127,6 +2543,9 @@ app.post('/api/projects/:projectName/files/create', authenticateToken, requirePr
         }
 
         const resolvedPath = validation.resolved;
+        if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolvedPath, 'editFiles')) {
+            return res.status(403).json({ error: 'Folder access denied' });
+        }
 
         // Check if already exists
         try {
@@ -2198,6 +2617,9 @@ app.put('/api/projects/:projectName/files/rename', authenticateToken, requirePro
         }
 
         const resolvedOldPath = oldValidation.resolved;
+        if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolvedOldPath, 'editFiles')) {
+            return res.status(403).json({ error: 'Folder access denied' });
+        }
 
         // Check if old path exists
         try {
@@ -2212,6 +2634,9 @@ app.put('/api/projects/:projectName/files/rename', authenticateToken, requirePro
         const newValidation = validatePathInProject(projectRoot, resolvedNewPath);
         if (!newValidation.valid) {
             return res.status(403).json({ error: newValidation.error });
+        }
+        if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolvedNewPath, 'editFiles')) {
+            return res.status(403).json({ error: 'Folder access denied' });
         }
 
         // Check if new path already exists
@@ -2270,6 +2695,9 @@ app.delete('/api/projects/:projectName/files', authenticateToken, requireProject
         }
 
         const resolvedPath = validation.resolved;
+        if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolvedPath, 'editFiles')) {
+            return res.status(403).json({ error: 'Folder access denied' });
+        }
 
         // Check if path exists and get stats
         let stats;
@@ -2403,6 +2831,9 @@ const uploadFilesHandler = async (req, res) => {
                 resolvedTargetDir = validation.resolved;
                 console.log('[DEBUG] Resolved target dir:', resolvedTargetDir);
             }
+            if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolvedTargetDir, 'editFiles')) {
+                return res.status(403).json({ error: 'Folder access denied' });
+            }
 
             // Ensure target directory exists
             try {
@@ -2426,6 +2857,10 @@ const uploadFilesHandler = async (req, res) => {
                 if (!destValidation.valid) {
                     console.log('[DEBUG] Destination validation failed for:', destPath);
                     // Clean up temp file
+                    await fsPromises.unlink(file.path).catch(() => {});
+                    continue;
+                }
+                if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, destPath, 'editFiles')) {
                     await fsPromises.unlink(file.path).catch(() => {});
                     continue;
                 }
@@ -2552,13 +2987,33 @@ class WebSocketWriter {
         this.ws = ws;
         this.sessionId = null;
         this.userId = userId;
+        this.provider = 'claude';
+        this.projectName = null;
+        this.projectPath = null;
         this.isWebSocketWriter = true;  // Marker for transport detection
     }
 
     send(data) {
+        const nextSessionId = data?.sessionId || data?.session_id || data?.session?.id;
+        if (nextSessionId) {
+            this.setSessionId(nextSessionId);
+            recordSessionOwnership({
+                provider: data.provider || this.provider,
+                sessionId: nextSessionId,
+                userId: this.userId,
+                projectName: this.projectName,
+                projectPath: this.projectPath,
+            });
+        }
         if (this.ws.readyState === 1) { // WebSocket.OPEN
             this.ws.send(JSON.stringify(data));
         }
+    }
+
+    setContext({ provider, projectName, projectPath } = {}) {
+        if (provider) this.provider = provider;
+        if (projectName) this.projectName = projectName;
+        if (projectPath) this.projectPath = projectPath;
     }
 
     updateWebSocket(newRawWs) {
@@ -2585,6 +3040,45 @@ function handleChatConnection(ws, request) {
 
     // Wrap WebSocket with writer for consistent interface with SSEStreamWriter
     const writer = new WebSocketWriter(ws, request?.user?.id ?? request?.user?.userId ?? null);
+    const isAdminChatUser = () => ['admin', 'owner'].includes(request?.user?.role);
+    const requireAdminChatAction = (action) => {
+        if (!isAdminChatUser()) {
+            throw new Error(`${action} requires admin access until session ownership metadata is available.`);
+        }
+    };
+    const assertChatCommandAccess = (data) => {
+        const options = data?.options || {};
+        if ((options.permissionMode === 'bypassPermissions' || options.skipPermissions === true) && !isAdminChatUser()) {
+            throw new Error('Bypass/skip permission modes require admin access.');
+        }
+
+        const projectName = typeof options.projectName === 'string' ? options.projectName : '';
+        const projectPath = typeof options.projectPath === 'string'
+            ? options.projectPath
+            : (typeof options.cwd === 'string' ? options.cwd : '');
+        const projectRef = projectName
+            ? { name: projectName, projectName }
+            : (projectPath ? { fullPath: path.resolve(projectPath), path: path.resolve(projectPath), projectPath: path.resolve(projectPath) } : null);
+
+        if (!projectRef) {
+            if (isAdminChatUser()) return;
+            throw new Error('Project context is required for agent commands.');
+        }
+
+        if (!userHasProjectAccess(request.user, projectRef, 'chatAgents')) {
+            throw new Error('Project access denied.');
+        }
+    };
+    const setWriterCommandContext = (provider, data) => {
+        const options = data?.options || {};
+        writer.setContext({
+            provider,
+            projectName: typeof options.projectName === 'string' ? options.projectName : null,
+            projectPath: typeof options.projectPath === 'string'
+                ? options.projectPath
+                : (typeof options.cwd === 'string' ? options.cwd : null),
+        });
+    };
 
     ws.on('message', async (message) => {
         try {
@@ -2601,25 +3095,38 @@ function handleChatConnection(ws, request) {
                 : () => {};
 
             if (data.type === 'claude-command') {
+                assertChatCommandAccess(data);
+                setWriterCommandContext('claude', data);
                 chatDebug('claude', data);
                 // Use Claude Agents SDK
                 await queryClaudeSDK(data.command, data.options, writer);
             } else if (data.type === 'cursor-command') {
+                assertChatCommandAccess(data);
+                setWriterCommandContext('cursor', data);
                 chatDebug('cursor', data);
                 await spawnCursor(data.command, data.options, writer);
             } else if (data.type === 'codex-command') {
+                assertChatCommandAccess(data);
+                setWriterCommandContext('codex', data);
                 chatDebug('codex', data);
                 await queryCodex(data.command, data.options, writer);
             } else if (data.type === 'gemini-command') {
+                assertChatCommandAccess(data);
+                setWriterCommandContext('gemini', data);
                 chatDebug('gemini', data);
                 await spawnGemini(data.command, data.options, writer);
             } else if (data.type === 'qwen-command') {
+                assertChatCommandAccess(data);
+                setWriterCommandContext('qwen', data);
                 chatDebug('qwen', data);
                 await spawnQwen(data.command, data.options, writer);
             } else if (data.type === 'opencode-command') {
+                assertChatCommandAccess(data);
+                setWriterCommandContext('opencode', data);
                 chatDebug('opencode', data);
                 await spawnOpencode(data.command, data.options, writer);
             } else if (data.type === 'cursor-resume') {
+                assertChatCommandAccess({ options: { cwd: data.options?.cwd } });
                 // Backward compatibility: treat as cursor-command with resume and no prompt
                 console.log('[DEBUG] Cursor resume session (compat):', data.sessionId);
                 await spawnCursor('', {
@@ -2628,6 +3135,7 @@ function handleChatConnection(ws, request) {
                     cwd: data.options?.cwd
                 }, writer);
             } else if (data.type === 'abort-session') {
+                requireAdminChatAction('Aborting sessions');
                 console.log('[DEBUG] Abort session request:', data.sessionId);
                 const provider = data.provider || 'claude';
                 let success;
@@ -2649,6 +3157,7 @@ function handleChatConnection(ws, request) {
 
                 writer.send(createNormalizedMessage({ kind: 'complete', exitCode: success ? 0 : 1, aborted: true, success, sessionId: data.sessionId, provider }));
             } else if (data.type === 'claude-permission-response') {
+                requireAdminChatAction('Resolving tool approvals');
                 // Relay UI approval decisions back into the SDK control flow.
                 // This does not persist permissions; it only resolves the in-flight request,
                 // introduced so the SDK can resume once the user clicks Allow/Deny.
@@ -2661,10 +3170,12 @@ function handleChatConnection(ws, request) {
                     });
                 }
             } else if (data.type === 'cursor-abort') {
+                requireAdminChatAction('Aborting sessions');
                 console.log('[DEBUG] Abort Cursor session:', data.sessionId);
                 const success = abortCursorSession(data.sessionId);
                 writer.send(createNormalizedMessage({ kind: 'complete', exitCode: success ? 0 : 1, aborted: true, success, sessionId: data.sessionId, provider: 'cursor' }));
             } else if (data.type === 'check-session-status') {
+                requireAdminChatAction('Checking global session status');
                 // Check if a specific session is currently processing
                 const provider = data.provider || 'claude';
                 const sessionId = data.sessionId;
@@ -2697,6 +3208,7 @@ function handleChatConnection(ws, request) {
                     isProcessing: isActive
                 });
             } else if (data.type === 'get-pending-permissions') {
+                requireAdminChatAction('Reading pending permissions');
                 // Return pending permission requests for a session
                 const sessionId = data.sessionId;
                 if (sessionId && isClaudeSDKSessionActive(sessionId)) {
@@ -2715,6 +3227,7 @@ function handleChatConnection(ws, request) {
             } else if (data.type === 'unwatch-project') {
                 unsubscribeFromWorkspace(ws, data.projectName || null);
             } else if (data.type === 'get-active-sessions') {
+                requireAdminChatAction('Listing active sessions');
                 // Get all currently active sessions
                 const activeSessions = {
                     claude: getActiveClaudeSDKSessions(),
@@ -2776,11 +3289,11 @@ function handleShellConnection(ws, request) {
                 // every provider already stores its config (~/.codex etc.).
                 const projectPath = data.projectPath || os.homedir();
                 const requestedProjectPath = path.resolve(projectPath);
-                if (!userHasProjectAccess(request.user, {
+                if (!userHasProjectPathAccess(request.user, {
                     fullPath: requestedProjectPath,
                     path: requestedProjectPath,
                     projectPath: requestedProjectPath,
-                }, 'useShell')) {
+                }, requestedProjectPath, 'useShell')) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Shell access denied for this project' }));
                     return;
                 }
@@ -2833,7 +3346,8 @@ function handleShellConnection(ws, request) {
                 // which collided across providers and made every disconnect →
                 // switch-provider flow reopen the previously-running CLI.
                 const providerSuffix = isPlainShell ? '' : `_${provider}`;
-                ptySessionKey = `${projectPath}_${sessionId || 'default'}${providerSuffix}${commandSuffix}`;
+                const ownerUserId = request.user?.id ?? request.user?.userId ?? 'anonymous';
+                ptySessionKey = `${ownerUserId}_${projectPath}_${sessionId || 'default'}${providerSuffix}${commandSuffix}`;
 
                 // Kill any existing login session before starting fresh
                 if (isLoginCommand) {
@@ -2848,7 +3362,7 @@ function handleShellConnection(ws, request) {
                             terminatePtySession(ptySessionKey, oldSession, 'fresh plain shell session');
                         }
                     } else {
-                        const killedSessions = killProviderPtySessions(projectPath, provider);
+                        const killedSessions = killProviderPtySessions(projectPath, provider, ownerUserId);
                         if (killedSessions > 0) {
                             console.log(`🧹 Fresh ${provider} session requested; terminated ${killedSessions} cached PTY session(s).`);
                         }
@@ -3084,6 +3598,7 @@ function handleShellConnection(ws, request) {
                         ws: ws,
                         buffer: [],
                         timeoutId: null,
+                        userId: ownerUserId,
                         projectPath,
                         sessionId,
                         hermesLaunchId,
@@ -3121,6 +3636,7 @@ function handleShellConnection(ws, request) {
                                 /OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g,
                                 '[INFO] Opening in browser: $1'
                             );
+                            outputData = hideProviderApprovalChoiceLines(outputData);
 
                             const emitAuthUrl = (detectedUrl, autoOpen = false) => {
                                 const normalizedUrl = normalizeDetectedUrl(detectedUrl);
@@ -3157,10 +3673,12 @@ function handleShellConnection(ws, request) {
                             }
 
                             // Send regular output
-                            session.ws.send(JSON.stringify({
-                                type: 'output',
-                                data: outputData
-                            }));
+                            if (outputData) {
+                                session.ws.send(JSON.stringify({
+                                    type: 'output',
+                                    data: outputData
+                                }));
+                            }
                         }
                     });
 

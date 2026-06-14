@@ -37,6 +37,7 @@ type ShellProps = {
   startupInput?: string | null;
   hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
+  provider?: LLMProvider | null;
   isActive?: boolean;
   onClose?: (() => void) | null;
 };
@@ -53,6 +54,7 @@ export default function Shell({
   startupInput = null,
   hermesLaunchId = null,
   permissionOverride = null,
+  provider = null,
   isActive = true,
   onClose = null,
 }: ShellProps) {
@@ -86,6 +88,7 @@ export default function Shell({
     startupInput,
     hermesLaunchId,
     permissionOverride,
+    provider,
     isRestarting,
     onProcessComplete,
     onOutputRef,
@@ -199,10 +202,11 @@ export default function Shell({
 
   const sessionDisplayName = useMemo(() => getSessionDisplayName(selectedSession), [selectedSession]);
   const shellProvider = useMemo<LLMProvider>(() => {
+    if (provider) return provider;
     if (selectedSession?.__provider) return selectedSession.__provider;
     const savedProvider = window.localStorage.getItem('selected-provider') as LLMProvider | null;
     return savedProvider || 'claude';
-  }, [selectedSession?.__provider]);
+  }, [provider, selectedSession?.__provider]);
   const shellProviderName = PROVIDER_DISPLAY_NAMES[shellProvider] ?? 'Claude Code';
   const sessionDisplayNameShort = useMemo(
     () => (sessionDisplayName ? sessionDisplayName.slice(0, 30) : null),

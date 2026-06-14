@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import os from 'node:os';
+import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -174,6 +175,25 @@ function projectMatches(collaborator, project = {}) {
   );
 }
 
+function isPathInside(basePath, targetPath) {
+  const relative = path.relative(path.resolve(basePath), path.resolve(targetPath));
+  return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function normalizeAllowedRoots(input) {
+  const roots = Array.isArray(input) ? input : [];
+  const normalized = roots
+    .filter((entry) => typeof entry === 'string')
+    .map((entry) => entry.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/g, ''))
+    .map((entry) => entry || '.')
+    .filter((entry) => !entry.includes('..'));
+  return Array.from(new Set(normalized.length > 0 ? normalized : ['.']));
+}
+
+function collaboratorAllowedRoots(collaborator) {
+  return normalizeAllowedRoots(collaborator.allowedRoots || collaborator.allowedFolders || ['.']);
+}
+
 export function userHasProjectAccess(user, project, capability = 'viewFiles') {
   if (isAdminUser(user)) return true;
   if (!user?.id && !user?.userId) return false;
@@ -195,6 +215,55 @@ export function userHasProjectAccess(user, project, capability = 'viewFiles') {
     }
 
     return collaborator.capabilities?.[capability] === true;
+  });
+}
+
+export function getProjectAccessForUser(user, project, capability = 'viewFiles') {
+  if (isAdminUser(user)) {
+    return { unrestricted: true, allowedRoots: ['.'] };
+  }
+  if (!user?.id && !user?.userId) return { unrestricted: false, allowedRoots: [] };
+
+  const userId = Number(user.id ?? user.userId);
+  const username = String(user.username || '').toLowerCase();
+  const store = readStore();
+  const allowedRoots = [];
+
+  for (const collaborator of store.projectCollaborators) {
+    if (collaborator.status === 'disabled') continue;
+    if (!projectMatches(collaborator, project)) continue;
+    const sameUser = Number(collaborator.userId) === userId ||
+      String(collaborator.userRef || '').toLowerCase() === username;
+    if (!sameUser) continue;
+    const capabilityAllowed = capability === 'viewFiles'
+      ? collaborator.capabilities?.viewFiles !== false
+      : collaborator.capabilities?.[capability] === true;
+    if (!capabilityAllowed) continue;
+    allowedRoots.push(...collaboratorAllowedRoots(collaborator));
+  }
+
+  return { unrestricted: false, allowedRoots: Array.from(new Set(allowedRoots)) };
+}
+
+export function userHasProjectPathAccess(user, project, targetPath, capability = 'viewFiles') {
+  if (isAdminUser(user)) return true;
+  const projectPath = project?.fullPath || project?.path || project?.projectPath;
+  if (!projectPath || !targetPath) return false;
+  const access = getProjectAccessForUser(user, project, capability);
+  return access.allowedRoots.some((root) => {
+    const allowedPath = root === '.' ? projectPath : path.resolve(projectPath, root);
+    return isPathInside(allowedPath, targetPath);
+  });
+}
+
+export function filterFileTreeForUser(files = [], user, project, capability = 'viewFiles') {
+  if (isAdminUser(user)) return files;
+  const projectPath = project?.fullPath || project?.path || project?.projectPath;
+  if (!projectPath) return [];
+  return files.filter((entry) => {
+    const entryPath = entry?.path || entry?.fullPath || entry?.relativePath || '';
+    const absoluteEntryPath = path.isAbsolute(entryPath) ? entryPath : path.resolve(projectPath, entryPath);
+    return userHasProjectPathAccess(user, { ...project, fullPath: projectPath }, absoluteEntryPath, capability);
   });
 }
 
@@ -431,6 +500,7 @@ export function createProjectCollaborator(input = {}, actorId = null) {
       ...capabilities,
       ...(input.capabilities && typeof input.capabilities === 'object' ? input.capabilities : {}),
     },
+    allowedRoots: normalizeAllowedRoots(input.allowedRoots || input.allowedFolders || ['.']),
     status: input.status || 'active',
     createdAt: nowIso(),
     updatedAt: nowIso(),
@@ -455,6 +525,9 @@ export function updateProjectCollaborator(collaboratorId, patch = {}, actorId = 
         ...collaborator.capabilities,
         ...(patch.capabilities && typeof patch.capabilities === 'object' ? patch.capabilities : {}),
       },
+      allowedRoots: patch.allowedRoots || patch.allowedFolders
+        ? normalizeAllowedRoots(patch.allowedRoots || patch.allowedFolders)
+        : collaboratorAllowedRoots(collaborator),
       updatedAt: nowIso(),
     };
     return updated;

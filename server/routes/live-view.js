@@ -12,6 +12,7 @@ import {
   startLiveView,
   stopLiveView,
 } from '../services/live-view.js';
+import { userHasProjectPathAccess } from '../services/platformization.js';
 
 const router = express.Router();
 
@@ -220,10 +221,26 @@ async function resolveProjectPath(projectName) {
   return projectPath;
 }
 
-router.get('/:projectName/status', async (req, res) => {
+function requireLiveViewProjectAccess(capability) {
+  return async (req, res, next) => {
+    try {
+      const { projectName } = req.params;
+      const projectPath = await resolveProjectPath(projectName);
+      if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectPath, path: projectPath }, projectPath, capability)) {
+        return res.status(403).json({ error: 'Project access denied.' });
+      }
+      req.projectPath = projectPath;
+      return next();
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ error: error.message || 'Failed to resolve project access' });
+    }
+  };
+}
+
+router.get('/:projectName/status', requireLiveViewProjectAccess('viewFiles'), async (req, res) => {
   try {
     const { projectName } = req.params;
-    const projectPath = await resolveProjectPath(projectName);
+    const projectPath = req.projectPath;
     const state = await getLiveViewState(projectName, projectPath);
     const urls = buildUrls(req, state.session);
     const tunnel = getTunnelState();
@@ -238,10 +255,13 @@ router.get('/:projectName/status', async (req, res) => {
   }
 });
 
-router.post('/:projectName/start', async (req, res) => {
+router.post('/:projectName/start', requireLiveViewProjectAccess('useShell'), async (req, res) => {
   try {
     const { projectName } = req.params;
-    const projectPath = await resolveProjectPath(projectName);
+    const projectPath = req.projectPath;
+    if (req.body?.customCommand && !['admin', 'owner'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Custom Live View commands require admin access.' });
+    }
     const session = await startLiveView(projectName, projectPath, req.body || {});
     const state = await getLiveViewState(projectName, projectPath);
     const urls = buildUrls(req, session);
@@ -259,10 +279,13 @@ router.post('/:projectName/start', async (req, res) => {
   }
 });
 
-router.post('/:projectName/restart', async (req, res) => {
+router.post('/:projectName/restart', requireLiveViewProjectAccess('useShell'), async (req, res) => {
   try {
     const { projectName } = req.params;
-    const projectPath = await resolveProjectPath(projectName);
+    const projectPath = req.projectPath;
+    if (req.body?.customCommand && !['admin', 'owner'].includes(req.user?.role)) {
+      return res.status(403).json({ error: 'Custom Live View commands require admin access.' });
+    }
     const session = await restartLiveView(projectName, projectPath, req.body || {});
     const state = await getLiveViewState(projectName, projectPath);
     const urls = buildUrls(req, session);
@@ -279,7 +302,7 @@ router.post('/:projectName/restart', async (req, res) => {
   }
 });
 
-router.post('/:projectName/stop', async (req, res) => {
+router.post('/:projectName/stop', requireLiveViewProjectAccess('useShell'), async (req, res) => {
   try {
     const session = await stopLiveView(req.params.projectName);
     const urls = buildUrls(req, session);

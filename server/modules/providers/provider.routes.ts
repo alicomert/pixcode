@@ -1,5 +1,5 @@
 /* eslint-disable import-x/order */
-import express, { type Request, type Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
@@ -102,6 +102,27 @@ const PROVIDER_MANUAL_INSTALL: Partial<Record<LLMProvider, {
 };
 
 const router = express.Router();
+const ADMIN_ROLES = new Set(['owner', 'admin']);
+
+function requireProviderAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as Request & { user?: { role?: string; api_key_id?: number; api_key_scopes?: string[] } }).user;
+  if (!user || !ADMIN_ROLES.has(user.role || '')) {
+    res.status(403).json({ error: 'Admin access required.' });
+    return;
+  }
+
+  if (
+    user.api_key_id &&
+    !user.api_key_scopes?.includes('admin') &&
+    !user.api_key_scopes?.includes('system') &&
+    !user.api_key_scopes?.includes('*')
+  ) {
+    res.status(403).json({ error: 'API key lacks admin scope.' });
+    return;
+  }
+
+  next();
+}
 
 const readPathParam = (value: unknown, name: string): string => {
   if (typeof value === 'string') {
@@ -262,6 +283,7 @@ router.get(
 
 router.get(
   '/:provider/mcp/servers',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const workspacePath = readOptionalQueryString(req.query.workspacePath);
@@ -280,6 +302,7 @@ router.get(
 
 router.post(
   '/:provider/mcp/servers',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const payload = parseMcpUpsertPayload(req.body);
@@ -290,6 +313,7 @@ router.post(
 
 router.delete(
   '/:provider/mcp/servers/:name',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const scope = parseMcpScope(req.query.scope);
@@ -310,6 +334,7 @@ router.delete(
  */
 router.get(
   '/credentials',
+  requireProviderAdmin,
   asyncHandler(async (_req: Request, res: Response) => {
     const summaries = await listProviderCredentialSummaries();
     res.json(createApiSuccessResponse(summaries));
@@ -324,6 +349,7 @@ router.get(
  */
 router.post(
   '/:provider/auth/api-key',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     if (!(provider in PROVIDER_ENV_VARS)) {
@@ -359,6 +385,7 @@ router.post(
  */
 router.post(
   '/:provider/oauth-paste',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     parseProvider(req.params.provider); // validate id but we don't use it further
     const body = (req.body ?? {}) as Record<string, unknown>;
@@ -442,6 +469,7 @@ router.get(
 
 router.delete(
   '/:provider/models/cache',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     await clearProviderModelRegistryCache(provider);
@@ -461,6 +489,7 @@ router.delete(
  */
 router.post(
   '/:provider/install',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const parsed = parseProvider(req.params.provider);
     const packageName = PROVIDER_INSTALL_PACKAGES[parsed];
@@ -504,6 +533,7 @@ router.post(
  */
 router.get(
   '/:provider/install/:jobId/stream',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const parsed = parseProvider(req.params.provider);
     const jobId = readPathParam(req.params.jobId, 'jobId');
@@ -584,6 +614,7 @@ router.get(
 
 router.delete(
   '/:provider/install/:jobId',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const parsed = parseProvider(req.params.provider);
     const jobId = readPathParam(req.params.jobId, 'jobId');
@@ -601,6 +632,7 @@ router.delete(
 
 router.post(
   '/mcp/servers/global',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const payload = parseMcpUpsertPayload(req.body);
     if (payload.scope === 'local') {
@@ -731,6 +763,7 @@ async function buildProviderPluginState(provider: string) {
 
 router.get(
   '/plugin-state',
+  requireProviderAdmin,
   asyncHandler(async (_req: Request, res: Response) => {
     const providers = await Promise.all(
       Object.keys(PROVIDER_CONFIG_FILES).map((provider) => buildProviderPluginState(provider)),
@@ -741,6 +774,7 @@ router.get(
 
 router.get(
   '/plugin-state/:provider',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     res.json(createApiSuccessResponse(await buildProviderPluginState(provider)));
@@ -749,6 +783,7 @@ router.get(
 
 router.get(
   '/:provider/config-files',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = String(req.params.provider);
     const list = PROVIDER_CONFIG_FILES[provider];
@@ -797,6 +832,7 @@ router.get(
 
 router.get(
   '/:provider/config-files/:fileId',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = String(req.params.provider);
     const fileId = String(req.params.fileId);
@@ -854,6 +890,7 @@ router.get(
 
 router.put(
   '/:provider/config-files/:fileId',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = String(req.params.provider);
     const fileId = String(req.params.fileId);
@@ -905,6 +942,7 @@ router.put(
 
 router.post(
   '/:provider/config-files/:fileId/validate',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = String(req.params.provider);
     const fileId = String(req.params.fileId);

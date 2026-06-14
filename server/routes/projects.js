@@ -6,6 +6,7 @@ import os from 'os';
 import express from 'express';
 
 import { addProjectManually, extractProjectDirectory } from '../projects.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -302,7 +303,7 @@ async function projectHasAnySessions(workspacePath) {
  * composer and surface a "directory deleted" warning instead of letting
  * the user fire prompts into a void.
  */
-router.get('/:projectName/dir-status', async (req, res) => {
+router.get('/:projectName/dir-status', requireAdmin, async (req, res) => {
   const { projectName } = req.params;
   try {
     const actualPath = await extractProjectDirectory(projectName);
@@ -340,7 +341,7 @@ router.get('/:projectName/dir-status', async (req, res) => {
  * matches ChatGPT's "New chat" which reuses the empty canvas until the
  * user actually commits a message.
  */
-router.post('/quick-start', async (req, res) => {
+router.post('/quick-start', requireAdmin, async (req, res) => {
   try {
     await fs.mkdir(WORKSPACES_BASE, { recursive: true });
 
@@ -424,7 +425,7 @@ router.post('/quick-start', async (req, res) => {
  * - githubTokenId?: number (optional, ID of stored token)
  * - newGithubToken?: string (optional, one-time token)
  */
-router.post('/create-workspace', async (req, res) => {
+router.post('/create-workspace', requireAdmin, async (req, res) => {
   try {
     const { workspaceType, path: workspacePath, githubUrl, githubTokenId, newGithubToken, subfolderName } = req.body;
 

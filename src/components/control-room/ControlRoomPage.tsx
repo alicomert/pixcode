@@ -306,7 +306,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
   const [reviewForm, setReviewForm] = useState({ title: '', notes: '', changedFiles: '' });
   const [schedulerForm, setSchedulerForm] = useState({ name: '', mode: 'manual', cron: '', prompt: '' });
   const [adminForm, setAdminForm] = useState({ username: '', password: '', role: 'member', status: 'active' });
-  const [collaboratorForm, setCollaboratorForm] = useState({ userRef: '', role: 'worker' });
+  const [collaboratorForm, setCollaboratorForm] = useState({ userRef: '', role: 'worker', allowedRoots: '.' });
   const [secretForm, setSecretForm] = useState({ name: '', envName: '', scope: 'project', target: '', value: '' });
   const [usageForm, setUsageForm] = useState({ provider: 'opencode', model: '', workflow: 'manual', inputTokens: '1000', outputTokens: '500', costUsd: '0.02', latencyMs: '1200', status: 'ok' });
   const [securityForm, setSecurityForm] = useState({ checks: securityChecks.join('\n'), findingTitle: '' });
@@ -817,6 +817,8 @@ function PeopleGroup({
   filteredAudit: any[];
   action: (message: string, fn: () => Promise<void>) => Promise<void>;
 }) {
+  const canAssignCollaborator = Boolean(defaultProjectName && collaboratorForm.userRef?.trim());
+
   return (
     <section className="space-y-4">
       <GuidanceCard description={cr('guidance.people', 'People is for who can enter the self-hosted server and what they can do inside each project.')} />
@@ -885,19 +887,30 @@ function PeopleGroup({
           <FormPanel title="Assign project collaborator">
             <Input placeholder="User email or username" value={collaboratorForm.userRef} onChange={(e) => setCollaboratorForm({ ...collaboratorForm, userRef: e.target.value })} />
             <Select className="mt-2" value={collaboratorForm.role} onChange={(value) => setCollaboratorForm({ ...collaboratorForm, role: value })} options={collaboratorRoles} />
+            <Textarea
+              className="mt-2"
+              rows={3}
+              placeholder="Allowed folders, one per line. Use . for whole project."
+              value={collaboratorForm.allowedRoots}
+              onChange={(e) => setCollaboratorForm({ ...collaboratorForm, allowedRoots: e.target.value })}
+            />
             <GuidanceCard
               title="Recommended next step"
-              description={`Assign this person to ${defaultProjectName || 'the selected project'}, then share an access URL from Settings > Access.`}
+              description={defaultProjectName
+                ? `Assign this person to ${defaultProjectName}, then share an access URL from Settings > Access.`
+                : 'Select a project before assigning scoped access.'}
             />
-            <Button className="mt-3 min-h-[44px]" onClick={() => { void action('Project collaborator added.', async () => {
+            <Button className="mt-3 min-h-[44px]" disabled={!canAssignCollaborator} onClick={() => { void action('Project collaborator added.', async () => {
               await readJson('/api/platformization/project-collaborators', {
                 method: 'POST',
                 body: JSON.stringify({
                   ...collaboratorForm,
+                  allowedRoots: toLines(collaboratorForm.allowedRoots),
                   projectName: defaultProjectName,
                   projectPath: defaultProjectPath,
                 }),
               });
+              setCollaboratorForm({ ...collaboratorForm, userRef: '', allowedRoots: '.' });
             }); }}>
               Add collaborator
             </Button>

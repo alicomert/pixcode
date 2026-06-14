@@ -358,7 +358,7 @@ export function useGitPanelController({
         return;
       }
 
-      setOperationError(data.error ?? 'Fetch failed');
+      setOperationError([data.error, data.details].filter(Boolean).join(': ') || 'Fetch failed');
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : 'Fetch failed');
     } finally {
@@ -390,7 +390,7 @@ export function useGitPanelController({
         return;
       }
 
-      setOperationError(data.error ?? 'Pull failed');
+      setOperationError([data.error, data.details].filter(Boolean).join(': ') || 'Pull failed');
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : 'Pull failed');
     } finally {
@@ -420,7 +420,7 @@ export function useGitPanelController({
         return;
       }
 
-      setOperationError(data.error ?? 'Push failed');
+      setOperationError([data.error, data.details].filter(Boolean).join(': ') || 'Push failed');
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : 'Push failed');
     } finally {

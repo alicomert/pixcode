@@ -8,6 +8,7 @@ import {
   startTunnel,
   stopTunnel,
 } from '../services/external-access.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -93,7 +94,7 @@ router.delete('/upnp', (_req, res) => {
   });
 });
 
-router.post('/tunnel', async (req, res) => {
+router.post('/tunnel', requireAdmin, async (req, res) => {
   const port = resolveServerPort();
   try {
     const state = await startTunnel({ port, persistPreference: true });
@@ -112,7 +113,7 @@ router.post('/tunnel', async (req, res) => {
   }
 });
 
-router.delete('/tunnel', async (req, res) => {
+router.delete('/tunnel', requireAdmin, async (req, res) => {
   try {
     const state = await stopTunnel({ persistPreference: true });
     res.json({ success: true, tunnel: state });

@@ -30,6 +30,7 @@ type UseShellConnectionOptions = {
   startupInputRef: MutableRefObject<string | null | undefined>;
   hermesLaunchIdRef: MutableRefObject<number | null | undefined>;
   permissionOverrideRef: MutableRefObject<ShellPermissionOverride | null | undefined>;
+  providerRef: MutableRefObject<LLMProvider | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
@@ -168,6 +169,7 @@ export function useShellConnection({
   startupInputRef,
   hermesLaunchIdRef,
   permissionOverrideRef,
+  providerRef,
   onProcessCompleteRef,
   isInitialized,
   autoConnect,
@@ -273,7 +275,7 @@ export function useShellConnection({
 
             const provider = isPlainShellRef.current
               ? 'plain-shell'
-              : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude') as LLMProvider;
+              : (providerRef.current || selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude') as LLMProvider;
             const permissionOptions = resolveShellPermissionOptions(provider, permissionOverrideRef.current);
             const startupInputForCommand = typeof startupInputRef.current === 'string' && startupInputRef.current.trim()
               ? startupInputRef.current.trim()
@@ -341,6 +343,7 @@ export function useShellConnection({
       isConnecting,
       isPlainShellRef,
       permissionOverrideRef,
+      providerRef,
       selectedProjectRef,
       selectedSessionRef,
       setAuthUrl,

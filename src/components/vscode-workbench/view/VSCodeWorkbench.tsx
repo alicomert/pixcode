@@ -236,6 +236,18 @@ type WorkbenchCliProjectState = {
   updatedAt: number;
 };
 
+type WorkbenchCliTab = {
+  id: string;
+  provider: LLMProvider;
+  title: string;
+  session: ProjectSession | null;
+  runId: number;
+  forceNewSession: boolean;
+  startupInput: string | null;
+  hermesLaunchId: number | null;
+  permissionOverride: ShellPermissionOverride | null;
+};
+
 type WorkbenchEditorProjectState = {
   tabs: CodeEditorFile[];
   activePath: string | null;
@@ -3463,10 +3475,12 @@ function WorkbenchCliPanel({
   const [terminalStartupInput, setTerminalStartupInput] = useState<string | null>(null);
   const [terminalHermesLaunchId, setTerminalHermesLaunchId] = useState<number | null>(null);
   const [terminalPermissionOverride, setTerminalPermissionOverride] = useState<ShellPermissionOverride | null>(null);
-  const [terminalLaunch, setTerminalLaunch] = useState({
+  const [terminalLaunch] = useState({
     runId: 0,
     forceNewSession: false,
   });
+  const [cliTabs, setCliTabs] = useState<WorkbenchCliTab[]>([]);
+  const [activeCliTabId, setActiveCliTabId] = useState<string | null>(null);
   const [installState, setInstallState] = useState<ProviderInstallState>({
     provider: null,
     state: 'idle',
@@ -3481,12 +3495,58 @@ function WorkbenchCliPanel({
   const projectSessions = useMemo(() => getProjectCliSessions(project), [project]);
   const selectedProviderStatus = providerAuthStatus[selectedProvider];
   const sessionForShell = terminalSession?.__provider === selectedProvider ? terminalSession : null;
+  const activeCliTab = cliTabs.find((tab) => tab.id === activeCliTabId) || cliTabs[0] || null;
   const activeHistorySessionId = terminalSession?.id ?? session?.id ?? null;
   const canStartSelectedProvider = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
-  const canAutoConnect = Boolean(isTerminalOpen && terminalMode === 'provider' && canStartSelectedProvider);
+  const canAutoConnect = Boolean((isTerminalOpen || cliTabs.length > 0) && terminalMode === 'provider' && canStartSelectedProvider);
   const projectCliStateKey = useMemo(() => getProjectCliStateKey(project), [project]);
   const lastRestoredProjectKeyRef = useRef<string | null>(null);
   const lastHermesCliLaunchIdRef = useRef(0);
+
+  const createCliTabTitle = useCallback((provider: LLMProvider, currentTabs = cliTabs) => {
+    const base = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
+    const count = currentTabs.filter((tab) => tab.provider === provider).length + 1;
+    return `${base} #${count}`;
+  }, [cliTabs]);
+
+  const openCliTab = useCallback((input: Omit<WorkbenchCliTab, 'id' | 'title'> & { title?: string }) => {
+    const id = `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setCliTabs((currentTabs) => {
+      const nextTab: WorkbenchCliTab = {
+        ...input,
+        id,
+        title: input.title || createCliTabTitle(input.provider, currentTabs),
+      };
+      return [...currentTabs, nextTab];
+    });
+    setActiveCliTabId(id);
+    setIsTerminalOpen(true);
+    setTerminalMode('provider');
+    return id;
+  }, [createCliTabTitle]);
+
+  const renameCliTab = useCallback((tabId: string) => {
+    const tab = cliTabs.find((item) => item.id === tabId);
+    if (!tab) return;
+    const nextTitle = window.prompt('CLI tab name', tab.title)?.trim();
+    if (!nextTitle) return;
+    setCliTabs((currentTabs) => currentTabs.map((item) => (
+      item.id === tabId ? { ...item, title: nextTitle } : item
+    )));
+  }, [cliTabs]);
+
+  const closeCliTab = useCallback((tabId: string) => {
+    setCliTabs((currentTabs) => {
+      const nextTabs = currentTabs.filter((tab) => tab.id !== tabId);
+      if (activeCliTabId === tabId) {
+        setActiveCliTabId(nextTabs[nextTabs.length - 1]?.id || null);
+      }
+      if (nextTabs.length === 0) {
+        setIsTerminalOpen(false);
+      }
+      return nextTabs;
+    });
+  }, [activeCliTabId]);
 
   useEffect(() => {
     const providers = cliProviders.map((provider) => provider.id);
@@ -3503,6 +3563,8 @@ function WorkbenchCliPanel({
     setPendingFreshSession(false);
     setTerminalMode('provider');
     setTerminalPermissionOverride(null);
+    setCliTabs([]);
+    setActiveCliTabId(null);
 
     const savedState = readWorkbenchCliState(projectCliStateKey);
     if (!savedState) {
@@ -3513,17 +3575,23 @@ function WorkbenchCliPanel({
 
     setSelectedProvider(savedState.provider);
     window.localStorage.setItem('selected-provider', savedState.provider);
-    setTerminalSession(savedState.sessionId
+    const restoredSession = savedState.sessionId
       ? projectSessions.find((item) => item.id === savedState.sessionId && item.__provider === savedState.provider) ?? null
-      : null);
+      : null;
+    setTerminalSession(restoredSession);
     setIsTerminalOpen(savedState.isTerminalOpen);
     if (savedState.isTerminalOpen) {
-      setTerminalLaunch((current) => ({
-        runId: current.runId + 1,
+      openCliTab({
+        provider: savedState.provider,
+        session: restoredSession,
+        runId: Date.now(),
         forceNewSession: false,
-      }));
+        startupInput: null,
+        hermesLaunchId: null,
+        permissionOverride: null,
+      });
     }
-  }, [projectCliStateKey, projectSessions]);
+  }, [openCliTab, projectCliStateKey, projectSessions]);
 
   useEffect(() => {
     return () => {
@@ -3691,16 +3759,21 @@ function WorkbenchCliPanel({
     setPendingFreshSession(false);
     window.localStorage.setItem('selected-provider', selectedProvider);
     setIsTerminalOpen(true);
-    setTerminalLaunch((current) => ({
-      runId: current.runId + 1,
+    openCliTab({
+      provider: selectedProvider,
+      session: null,
+      runId: Date.now(),
       forceNewSession,
-    }));
+      startupInput: null,
+      hermesLaunchId: null,
+      permissionOverride: null,
+    });
     persistCliState({
       provider: selectedProvider,
       isTerminalOpen: true,
       sessionId: null,
     });
-  }, [canStartSelectedProvider, persistCliState, project, selectedProvider]);
+  }, [canStartSelectedProvider, openCliTab, persistCliState, project, selectedProvider]);
 
   const startSelectedCliSession = useCallback(() => {
     startTerminal({ forceNewSession: pendingFreshSession });
@@ -3734,16 +3807,24 @@ function WorkbenchCliPanel({
     setShowHistory(false);
     setPendingFreshSession(false);
     setIsTerminalOpen(true);
-    setTerminalLaunch((current) => ({
-      runId: current.runId + 1,
+    openCliTab({
+      provider,
+      session: null,
+      runId: Date.now(),
       forceNewSession: hermesCliLaunch.forceNewSession === true,
-    }));
+      startupInput: hermesCliLaunch.startupInput || null,
+      hermesLaunchId: hermesCliLaunch.id,
+      permissionOverride: launchPermissionMode || launchBypass ? {
+        permissionMode: launchPermissionMode,
+        skipPermissions: launchBypass,
+      } : null,
+    });
     persistCliState({
       provider,
       isTerminalOpen: true,
       sessionId: null,
     });
-  }, [hermesCliLaunch, persistCliState]);
+  }, [hermesCliLaunch, openCliTab, persistCliState]);
 
   const openNewCliSessionPicker = useCallback(() => {
     terminateCurrentCliSession(selectedProvider);
@@ -3763,6 +3844,10 @@ function WorkbenchCliPanel({
   }, [persistCliState, selectedProvider, terminateCurrentCliSession]);
 
   const closeTerminal = useCallback(() => {
+    if (activeCliTabId) {
+      closeCliTab(activeCliTabId);
+      return;
+    }
     setTerminalMode('provider');
     setTerminalStartupInput(null);
     setTerminalHermesLaunchId(null);
@@ -3775,7 +3860,7 @@ function WorkbenchCliPanel({
       isTerminalOpen: false,
       sessionId: terminalSession?.id ?? null,
     });
-  }, [persistCliState, selectedProvider, terminalSession?.id]);
+  }, [activeCliTabId, closeCliTab, persistCliState, selectedProvider, terminalSession?.id]);
 
   const handleHistorySessionSelect = useCallback((nextSession: ProjectSession) => {
     const provider = nextSession.__provider ?? 'claude';
@@ -3790,24 +3875,30 @@ function WorkbenchCliPanel({
     setShowHistory(false);
     setPendingFreshSession(false);
     setIsTerminalOpen(true);
-    setTerminalLaunch((current) => ({
-      runId: current.runId + 1,
+    openCliTab({
+      provider,
+      session: nextSession,
+      runId: Date.now(),
       forceNewSession: false,
-    }));
+      startupInput: null,
+      hermesLaunchId: null,
+      permissionOverride: null,
+      title: getSessionTitle(nextSession).slice(0, 32),
+    });
     persistCliState({
       provider,
       isTerminalOpen: true,
       sessionId: nextSession.id,
     });
-  }, [onSessionSelect, persistCliState]);
+  }, [onSessionSelect, openCliTab, persistCliState]);
 
-  if (isTerminalOpen) {
+  if (isTerminalOpen || cliTabs.length > 0) {
     return (
       <div className="relative flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
         <WorkbenchCliPanelToolbar
           project={project}
-          provider={selectedProvider}
-          session={sessionForShell}
+          provider={activeCliTab?.provider || selectedProvider}
+          session={activeCliTab?.session || sessionForShell}
           historyCount={projectSessions.length}
           historyOpen={showHistory}
           canStart={canStartSelectedProvider}
@@ -3816,6 +3907,56 @@ function WorkbenchCliPanel({
           onCloseTerminal={closeTerminal}
           t={t}
         />
+
+        {cliTabs.length > 0 && (
+          <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-gray-800 bg-gray-950 px-2">
+            {cliTabs.map((tab) => {
+              const isActive = tab.id === (activeCliTab?.id || activeCliTabId);
+              return (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    'group flex h-7 min-w-[112px] max-w-[220px] items-center gap-1.5 rounded border px-2 text-[11px]',
+                    isActive
+                      ? 'border-blue-500 bg-blue-500/15 text-blue-100'
+                      : 'border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-100',
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                    onClick={() => setActiveCliTabId(tab.id)}
+                    onDoubleClick={() => renameCliTab(tab.id)}
+                    title="Double-click to rename"
+                  >
+                    <SessionProviderLogo provider={tab.provider} className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{tab.title}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded p-0.5 opacity-60 hover:bg-gray-800 hover:opacity-100"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      closeCliTab(tab.id);
+                    }}
+                    aria-label="Close CLI tab"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-800 text-gray-300 hover:bg-gray-900"
+              disabled={!canStartSelectedProvider}
+              onClick={startSelectedCliSession}
+              title="New CLI tab"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {showHistory && (
           <div className="absolute inset-x-2 top-10 z-30 max-h-[48%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
@@ -3828,20 +3969,40 @@ function WorkbenchCliPanel({
           </div>
         )}
 
-        <div className="min-h-0 flex-1">
-          <StandaloneShell
-            key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalLaunch.runId}`}
-            project={project}
-            session={sessionForShell}
-            forceNewSession={terminalLaunch.forceNewSession}
-            startupInput={terminalStartupInput}
-            hermesLaunchId={terminalHermesLaunchId}
-            permissionOverride={terminalPermissionOverride}
-            showHeader
-            autoConnect={canAutoConnect}
-            isActive
-            onClose={closeTerminal}
-          />
+        <div className="relative min-h-0 flex-1">
+          {cliTabs.length === 0 ? (
+            <StandaloneShell
+              key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalLaunch.runId}`}
+              project={project}
+              session={sessionForShell}
+              provider={selectedProvider}
+              forceNewSession={terminalLaunch.forceNewSession}
+              startupInput={terminalStartupInput}
+              hermesLaunchId={terminalHermesLaunchId}
+              permissionOverride={terminalPermissionOverride}
+              showHeader
+              autoConnect={canAutoConnect}
+              isActive
+              onClose={closeTerminal}
+            />
+          ) : cliTabs.map((tab) => (
+            <div key={tab.id} className={cn('absolute inset-0', tab.id === activeCliTab?.id ? 'block' : 'hidden')}>
+              <StandaloneShell
+                key={`${tab.id}-${tab.runId}`}
+                project={project}
+                session={tab.session}
+                provider={tab.provider}
+                forceNewSession={tab.forceNewSession}
+                startupInput={tab.startupInput}
+                hermesLaunchId={tab.hermesLaunchId}
+                permissionOverride={tab.permissionOverride}
+                showHeader
+                autoConnect={canAutoConnect}
+                isActive={tab.id === activeCliTab?.id}
+                onClose={() => closeCliTab(tab.id)}
+              />
+            </div>
+          ))}
         </div>
       </div>
     );

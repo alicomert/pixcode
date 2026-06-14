@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import type { Project, ProjectSession } from '../../../types/app';
+import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { ShellPermissionOverride } from '../../shell/types/types';
 import Shell from '../../shell/view/Shell';
 
@@ -18,6 +18,7 @@ type StandaloneShellProps = {
   startupInput?: string | null;
   hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
+  provider?: LLMProvider | null;
   onComplete?: ((exitCode: number) => void) | null;
   onClose?: (() => void) | null;
   title?: string | null;
@@ -45,6 +46,7 @@ export default function StandaloneShell({
   startupInput = null,
   hermesLaunchId = null,
   permissionOverride = null,
+  provider = null,
 }: StandaloneShellProps) {
   const [isCompleted, setIsCompleted] = useState(false);
 
@@ -85,6 +87,7 @@ export default function StandaloneShell({
           startupInput={startupInput}
           hermesLaunchId={hermesLaunchId}
           permissionOverride={permissionOverride}
+          provider={provider}
           onClose={onClose}
         />
       </div>

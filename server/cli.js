@@ -988,7 +988,7 @@ async function main() {
 
     switch (command) {
         case 'start':
-            if (await runStartupUpdateGate()) {
+            if (process.env.PIXCODE_ENABLE_STARTUP_UPDATE === '1' && await runStartupUpdateGate()) {
                 break;
             }
             if (await maybeAutoDaemonStart(options)) {

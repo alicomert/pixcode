@@ -30,6 +30,10 @@ const buildInputPrefixes = [
   'public/',
 ];
 
+function commandName(command) {
+  return process.platform === 'win32' && command === 'npm' ? 'npm.cmd' : command;
+}
+
 function log(message) {
   process.stdout.write(`${message}\n`);
 }
@@ -42,8 +46,9 @@ function run(command, args, options = {}) {
   } = options;
 
   return new Promise((resolve, reject) => {
-    log(`$ ${[command, ...args].join(' ')}`);
-    const child = spawn(command, args, {
+    const executable = commandName(command);
+    log(`$ ${[executable, ...args].join(' ')}`);
+    const child = spawn(executable, args, {
       cwd: repoRoot,
       env,
       shell: false,

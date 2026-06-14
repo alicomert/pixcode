@@ -12,6 +12,7 @@ import {
 } from '../services/model-registry.js';
 import { parseFrontmatter } from '../utils/frontmatter.js';
 import { findAppRoot, getModuleDir } from '../utils/runtime-paths.js';
+import { isAdminUser, userHasProjectPathAccess } from '../services/platformization.js';
 
 const __dirname = getModuleDir(import.meta.url);
 // This route reads the top-level package.json for the status command, so it needs the real
@@ -428,7 +429,11 @@ router.post('/list', async (req, res) => {
 
     // Scan project-level commands (.claude/commands/)
     if (projectPath) {
-      const projectCommandsDir = path.join(projectPath, '.claude', 'commands');
+      const resolvedProjectPath = path.resolve(projectPath);
+      if (!userHasProjectPathAccess(req.user, { fullPath: resolvedProjectPath, path: resolvedProjectPath, projectPath: resolvedProjectPath }, resolvedProjectPath, 'viewFiles')) {
+        return res.status(403).json({ error: 'Project access denied.' });
+      }
+      const projectCommandsDir = path.join(resolvedProjectPath, '.claude', 'commands');
       const projectCommands = await scanCommandsDirectory(
         projectCommandsDir,
         projectCommandsDir,
@@ -437,15 +442,17 @@ router.post('/list', async (req, res) => {
       allCommands.push(...projectCommands);
     }
 
-    // Scan user-level commands (~/.claude/commands/)
-    const homeDir = os.homedir();
-    const userCommandsDir = path.join(homeDir, '.claude', 'commands');
-    const userCommands = await scanCommandsDirectory(
-      userCommandsDir,
-      userCommandsDir,
-      'user'
-    );
-    allCommands.push(...userCommands);
+    // User-level commands belong to the server OS account; expose them only to admins.
+    if (isAdminUser(req.user)) {
+      const homeDir = os.homedir();
+      const userCommandsDir = path.join(homeDir, '.claude', 'commands');
+      const userCommands = await scanCommandsDirectory(
+        userCommandsDir,
+        userCommandsDir,
+        'user'
+      );
+      allCommands.push(...userCommands);
+    }
 
     // Separate built-in and custom commands
     const customCommands = allCommands.filter(cmd => cmd.namespace !== 'builtin');
@@ -514,14 +521,18 @@ router.post('/execute', async (req, res) => {
     {
       const resolvedPath = path.resolve(commandPath);
       const userBase = path.resolve(path.join(os.homedir(), '.claude', 'commands'));
-      const projectBase = context?.projectPath
-        ? path.resolve(path.join(context.projectPath, '.claude', 'commands'))
+      const contextProjectPath = typeof context?.projectPath === 'string' ? path.resolve(context.projectPath) : null;
+      if (contextProjectPath && !userHasProjectPathAccess(req.user, { fullPath: contextProjectPath, path: contextProjectPath, projectPath: contextProjectPath }, resolvedPath, 'viewFiles')) {
+        return res.status(403).json({ error: 'Project access denied.' });
+      }
+      const projectBase = contextProjectPath
+        ? path.resolve(path.join(contextProjectPath, '.claude', 'commands'))
         : null;
       const isUnder = (base) => {
         const rel = path.relative(base, resolvedPath);
         return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
       };
-      if (!(isUnder(userBase) || (projectBase && isUnder(projectBase)))) {
+      if (!((isAdminUser(req.user) && isUnder(userBase)) || (projectBase && isUnder(projectBase)))) {
         return res.status(403).json({
           error: 'Access denied',
           message: 'Command must be in .claude/commands directory'

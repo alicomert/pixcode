@@ -61,10 +61,15 @@ export default function AboutTab() {
   // hook's `checkStatus` flips back to 'success' too quickly for the
   // user to register the response, especially on a fast connection.
   const [justChecked, setJustChecked] = useState(false);
+  const [checkFailed, setCheckFailed] = useState(false);
   const onCheckClick = async () => {
-    await manualCheck();
+    const result = await manualCheck();
+    setCheckFailed(!result);
     setJustChecked(true);
-    window.setTimeout(() => setJustChecked(false), 2500);
+    window.setTimeout(() => {
+      setJustChecked(false);
+      setCheckFailed(false);
+    }, 2500);
   };
 
   return (
@@ -138,7 +143,7 @@ export default function AboutTab() {
             >
               {checkStatus === 'checking' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : justChecked && !updateAvailable ? (
+              ) : justChecked && !updateAvailable && !checkFailed ? (
                 <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
@@ -147,9 +152,11 @@ export default function AboutTab() {
                 {checkStatus === 'checking'
                   ? t('about.checkingForUpdate', { defaultValue: 'Checking…' })
                   : justChecked
-                    ? (updateAvailable
-                        ? t('about.updateFound', { defaultValue: 'Update found' })
-                        : t('about.upToDate', { defaultValue: 'Up to date' }))
+                    ? checkFailed
+                      ? t('about.checkFailedShort', { defaultValue: 'Check failed' })
+                      : (updateAvailable
+                          ? t('about.updateFound', { defaultValue: 'Update found' })
+                          : t('about.upToDate', { defaultValue: 'Up to date' }))
                     : t('about.checkForUpdate', { defaultValue: 'Check for updates' })}
               </span>
             </button>

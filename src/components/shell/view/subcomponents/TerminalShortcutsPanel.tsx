@@ -1,4 +1,4 @@
-import { type MutableRefObject, useCallback, useState } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Terminal } from '@xterm/xterm';
 
@@ -62,6 +62,7 @@ export default function TerminalShortcutsPanel({
   const { t } = useTranslation('settings');
   const [ctrlActive, setCtrlActive] = useState(false);
   const [altActive, setAltActive] = useState(false);
+  const [pasteError, setPasteError] = useState(false);
 
   const sendInput = useCallback(
     (data: string) => {
@@ -76,18 +77,26 @@ export default function TerminalShortcutsPanel({
 
   const pasteFromClipboard = useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
+      setPasteError(true);
       return;
     }
 
     try {
       const text = await navigator.clipboard.readText();
+      setPasteError(false);
       if (text.length > 0) {
         sendInput(text);
       }
     } catch {
-      // Ignore clipboard permission errors.
+      setPasteError(true);
     }
   }, [sendInput]);
+
+  useEffect(() => {
+    if (!pasteError) return;
+    const timeoutId = window.setTimeout(() => setPasteError(false), 2500);
+    return () => window.clearTimeout(timeoutId);
+  }, [pasteError]);
 
   const handleKeyPress = useCallback(
     (seq: string) => {
@@ -111,6 +120,11 @@ export default function TerminalShortcutsPanel({
   return (
     <div className={`pointer-events-none fixed inset-x-0 ${bottomOffset} z-20 px-2 md:hidden`}>
       <div className="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-lg border border-gray-700/80 bg-gray-900/95 px-1.5 py-1.5 shadow-lg backdrop-blur-sm [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {pasteError && (
+          <span className="shrink-0 rounded-md border border-yellow-500/50 bg-yellow-500/15 px-2 py-1 text-[11px] text-yellow-100">
+            Clipboard blocked
+          </span>
+        )}
         <button
           type="button"
           onPointerDown={preventFocusSteal}

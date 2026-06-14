@@ -9,6 +9,7 @@ import {
   buildControlRoomSnapshot,
   buildMobileConsoleLayout,
 } from '../services/control-room.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ router.get('/config', (req, res) => {
   res.json({ success: true, connection: getPublicRemoteConnectionConfig() });
 });
 
-router.put('/config', (req, res) => {
+router.put('/config', requireAdmin, (req, res) => {
   try {
     const connection = saveRemoteConnectionConfig(req.body || {});
     res.json({ success: true, connection });

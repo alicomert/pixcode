@@ -2,7 +2,7 @@ import type { MutableRefObject, RefObject } from 'react';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
 
-import type { Project, ProjectSession } from '../../../types/app';
+import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 
 export type AuthCopyStatus = 'idle' | 'copied' | 'failed';
 
@@ -59,6 +59,7 @@ export type UseShellRuntimeOptions = {
   startupInput: string | null | undefined;
   hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
+  provider?: LLMProvider | null;
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
   onOutputRef?: MutableRefObject<(() => void) | null>;
@@ -77,6 +78,7 @@ export type ShellSharedRefs = {
   startupInputRef: MutableRefObject<string | null | undefined>;
   hermesLaunchIdRef: MutableRefObject<number | null | undefined>;
   permissionOverrideRef: MutableRefObject<ShellPermissionOverride | null | undefined>;
+  providerRef: MutableRefObject<LLMProvider | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
 };
 

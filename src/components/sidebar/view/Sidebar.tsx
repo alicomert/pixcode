@@ -5,6 +5,7 @@ import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck, type VersionCheckResult } from '../../../hooks/useVersionCheck';
 import { useUiPreferences, type HistoryViewMode } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
+import { authenticatedFetch } from '../../../utils/api';
 import type { Project, LLMProvider } from '../../../types/app';
 import type { SidebarProps } from '../types/types';
 import type { WorkspaceType } from '../../project-creation-wizard/types';
@@ -16,6 +17,7 @@ import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList
 import type { SidebarFlatSessionListProps } from './subcomponents/SidebarFlatSessionList';
 
 const VERSION_RELEASE_NOTES_SEEN_KEY = 'pixcode.version.releaseNotes.seenVersion';
+const UPDATE_RESTART_PROMPT_SEEN_KEY = 'pixcode.update.pendingRestart.seenJob';
 
 function Sidebar({
   projects,
@@ -149,6 +151,36 @@ function Sidebar({
     window.addEventListener(PIXCODE_UPDATE_AVAILABLE_EVENT, handleUpdateAvailable);
     return () => {
       window.removeEventListener(PIXCODE_UPDATE_AVAILABLE_EVENT, handleUpdateAvailable);
+    };
+  }, [setShowVersionModal]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkPendingRestart = async () => {
+      try {
+        const response = await authenticatedFetch('/api/system/update-state', { cache: 'no-store' });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const pending = payload?.state?.pendingRestart;
+        const promptKey = pending?.jobId || pending?.toVersion;
+        if (!pending || !promptKey || cancelled) return;
+
+        const seenPrompt = window.localStorage.getItem(UPDATE_RESTART_PROMPT_SEEN_KEY);
+        if (seenPrompt === promptKey) return;
+
+        window.localStorage.setItem(UPDATE_RESTART_PROMPT_SEEN_KEY, promptKey);
+        setVersionModalSnapshot(null);
+        setShowVersionModal(true);
+      } catch {
+        // Ignore transient auth/network failures; normal update check still runs.
+      }
+    };
+
+    void checkPendingRestart();
+    window.addEventListener('focus', checkPendingRestart);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', checkPendingRestart);
     };
   }, [setShowVersionModal]);
 

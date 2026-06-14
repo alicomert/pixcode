@@ -7,6 +7,7 @@ import { IS_PLATFORM } from '../constants/config.js';
 const JWT_SECRET = process.env.JWT_SECRET || appConfigDb.getOrCreateJwtSecret();
 const isPixcodeApiKey = (token) => typeof token === 'string' && (token.startsWith('px_') || token.startsWith('ck_'));
 const ADMIN_ROLES = new Set(['owner', 'admin']);
+const PLATFORM_AUTH_BYPASS_ENABLED = IS_PLATFORM && process.env.PIXCODE_ALLOW_PLATFORM_AUTH_BYPASS === '1';
 
 // Optional API key middleware
 const validateApiKey = (req, res, next) => {
@@ -25,7 +26,7 @@ const validateApiKey = (req, res, next) => {
 // JWT authentication middleware
 const authenticateToken = async (req, res, next) => {
   // Platform mode:  use single database user
-  if (IS_PLATFORM) {
+  if (PLATFORM_AUTH_BYPASS_ENABLED) {
     try {
       const user = userDb.getFirstUser();
       if (!user) {
@@ -113,7 +114,29 @@ const requireAdmin = (req, res, next) => {
     return res.status(403).json({ error: 'Admin access required.' });
   }
 
+  if (
+    req.user.api_key_id &&
+    !req.user.api_key_scopes?.includes('admin') &&
+    !req.user.api_key_scopes?.includes('system') &&
+    !req.user.api_key_scopes?.includes('*')
+  ) {
+    return res.status(403).json({ error: 'API key lacks admin scope.' });
+  }
+
   next();
+};
+
+const requireApiScope = (scope) => (req, res, next) => {
+  if (!req.user?.api_key_id) {
+    return next();
+  }
+
+  const scopes = Array.isArray(req.user.api_key_scopes) ? req.user.api_key_scopes : [];
+  if (scopes.includes('*') || scopes.includes(scope)) {
+    return next();
+  }
+
+  return res.status(403).json({ error: `API key lacks required scope: ${scope}` });
 };
 
 // Generate JWT token
@@ -132,7 +155,7 @@ const generateToken = (user) => {
 // WebSocket authentication function
 const authenticateWebSocket = (token) => {
   // Platform mode: bypass token validation, return first user
-  if (IS_PLATFORM) {
+  if (PLATFORM_AUTH_BYPASS_ENABLED) {
     try {
       const user = userDb.getFirstUser();
       if (user) {
@@ -184,6 +207,7 @@ export {
   validateApiKey,
   authenticateToken,
   requireAdmin,
+  requireApiScope,
   generateToken,
   authenticateWebSocket,
   JWT_SECRET

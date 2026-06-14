@@ -37,6 +37,16 @@ type DoneEvent = {
     alreadyLatest?: boolean;
 };
 
+type UpdateJob = {
+    id: string;
+    status: 'queued' | 'running' | 'completed' | 'failed';
+    toVersion?: string | null;
+    alreadyLatest?: boolean;
+    pendingRestart?: boolean;
+    error?: string | null;
+    logs?: Array<{ stream: string; chunk: string; timestamp?: string }>;
+};
+
 type RestartPhase = 'idle' | 'restarting' | 'waiting' | 'ready' | 'timeout' | 'error';
 
 export function VersionUpgradeModal({
@@ -56,6 +66,7 @@ export function VersionUpgradeModal({
     const [updateError, setUpdateError] = useState('');
     const [reloadCountdown, setReloadCountdown] = useState<number | null>(null);
     const [restartPhase, setRestartPhase] = useState<RestartPhase>('idle');
+    const [pendingRestartVersion, setPendingRestartVersion] = useState<string | null>(null);
     const outputRef = useRef<HTMLDivElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
     useGsapEntrance(modalRef, 'modal');
@@ -90,7 +101,44 @@ export function VersionUpgradeModal({
         setUpdateOutput(prev => prev + chunk);
     }, []);
 
-    const pollHealthUntilReady = useCallback(async (): Promise<boolean> => {
+    useEffect(() => {
+        if (!isOpen) return;
+        setUpdateOutput('');
+        setUpdateError('');
+        setReloadCountdown(null);
+        setRestartPhase('idle');
+        setPendingRestartVersion(null);
+    }, [currentVersion, isOpen, latestVersion]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        let cancelled = false;
+        void authenticatedFetch('/api/system/update-state', { cache: 'no-store' })
+            .then(async (response) => (response.ok ? response.json() : null))
+            .then((payload) => {
+                if (cancelled) return;
+                const pending = payload?.state?.pendingRestart;
+                if (pending?.toVersion) {
+                    setPendingRestartVersion(pending.toVersion);
+                    setRestartPhase('ready');
+                    setUpdateOutput(`Update to ${pending.toVersion} is ready. Restart when convenient to apply it.\n`);
+                    return;
+                }
+                const applied = payload?.state?.lastAppliedUpdate;
+                if (applied?.toVersion === currentVersion) {
+                    setUpdateOutput(`Pixcode was updated to ${applied.toVersion}.\n`);
+                }
+            })
+            .catch(() => {
+                // Non-fatal; release modal still works from GitHub metadata.
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [currentVersion, isOpen]);
+
+    const pollHealthUntilReady = useCallback(async (expectedVersion?: string | null): Promise<boolean> => {
         const deadline = Date.now() + HEALTH_POLL_TIMEOUT_MS;
         // Give the server a moment to actually exit before we start polling.
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -99,8 +147,10 @@ export function VersionUpgradeModal({
                 const response = await fetch('/health', { cache: 'no-store' });
                 if (response.ok) {
                     // Confirm we can parse the payload too.
-                    await response.json();
-                    return true;
+                    const payload = await response.json();
+                    if (!expectedVersion || payload?.version === expectedVersion) {
+                        return true;
+                    }
                 }
             } catch {
                 // Server still down — keep polling.
@@ -127,7 +177,7 @@ export function VersionUpgradeModal({
         }
 
         setRestartPhase('waiting');
-        const isBack = await pollHealthUntilReady();
+        const isBack = await pollHealthUntilReady(pendingRestartVersion || latestVersion);
         if (isBack) {
             appendOutput('\n✅ Server is back online. Reloading...\n');
             setRestartPhase('ready');
@@ -137,122 +187,59 @@ export function VersionUpgradeModal({
             appendOutput('Start it again manually (e.g. `pixcode` or your daemon/pm2), then refresh.\n');
             setRestartPhase('timeout');
         }
-    }, [appendOutput, pollHealthUntilReady]);
-
-    // Shared recovery path for "stream ended without done event" — used
-     // both by clean stream close and by mid-stream network errors (the
-     // `reader.read()` TypeError: Failed to fetch case when a daemon
-     // supervisor restarts the server after `npm install -g` swaps
-     // package files). Probes /health; if the server comes back on a
-     // different version than we started with, treat the interruption
-     // as a successful self-restart.
-    const recoverFromInterruptedStream = useCallback(async (
-        reason: 'clean-close' | 'network-error',
-        originalError?: unknown,
-    ): Promise<DoneEvent> => {
-        const hint = reason === 'network-error'
-            ? 'Stream dropped mid-update — this usually means the daemon restarted. Verifying via /health…'
-            : 'Stream closed early — verifying via /health…';
-        appendOutput(`\n${hint}\n`);
-        const isBack = await pollHealthUntilReady();
-        if (isBack) {
-            try {
-                const response = await fetch('/health', { cache: 'no-store' });
-                const data = response.ok ? await response.json() : null;
-                const reportedVersion = typeof data?.version === 'string' ? data.version : null;
-                if (reportedVersion && reportedVersion !== currentVersion) {
-                    appendOutput(`\n✅ Server came back on ${reportedVersion}. Treating as self-restart.\n`);
-                    return {
-                        success: true,
-                        version: reportedVersion,
-                        selfRestarting: true,
-                        message: 'Update completed. Server restarted automatically.',
-                    };
-                }
-            } catch {
-                // fall through to the error below
-            }
-        }
-        const base = reason === 'network-error'
-            ? 'Update stream dropped and the server did not come back on a newer version'
-            : 'Update stream ended without completion event — the server may have crashed';
-        const detail = originalError instanceof Error ? ` (${originalError.message})` : '';
-        throw new Error(`${base}${detail}. Please retry.`);
-    }, [appendOutput, currentVersion, pollHealthUntilReady]);
+    }, [appendOutput, latestVersion, pendingRestartVersion, pollHealthUntilReady]);
 
     const streamUpdate = useCallback(async (): Promise<DoneEvent> => {
-        let response: Response;
-        try {
-            response = await authenticatedFetch('/api/system/update', { method: 'POST' });
-        } catch (err) {
-            // The initial POST never made it to the server. This is almost
-            // never "network offline" (the click target is on the same
-            // origin that just rendered this modal) — it's the daemon
-            // having died between page load and click, or a reverse proxy
-            // dropping long-lived POSTs. Probe /health just in case the
-            // update actually got kicked off via some other path, but most
-            // of the time this returns a clean retry-able error.
-            return recoverFromInterruptedStream('network-error', err);
-        }
-        if (!response.ok || !response.body) {
-            throw new Error(`Update request failed (HTTP ${response.status})`);
+        const startResponse = await authenticatedFetch('/api/system/update-jobs', { method: 'POST' });
+        const startPayload = await startResponse.json().catch(() => null) as { job?: UpdateJob; error?: string } | null;
+        if (!startResponse.ok || !startPayload?.job) {
+            throw new Error(startPayload?.error || `Update job request failed (HTTP ${startResponse.status})`);
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let doneEvent: DoneEvent | null = null;
-        let readLoopError: unknown = null;
+        let job = startPayload.job;
+        appendOutput(`Background update job started: ${job.id}\n`);
+        let seenLogs = 0;
 
-        try {
-            for (;;) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-
-                for (;;) {
-                    const sepIdx = buffer.indexOf('\n\n');
-                    if (sepIdx === -1) break;
-                    const raw = buffer.slice(0, sepIdx);
-                    buffer = buffer.slice(sepIdx + 2);
-
-                    let eventName = 'message';
-                    const dataLines: string[] = [];
-                    for (const line of raw.split('\n')) {
-                        if (line.startsWith(':')) continue; // comment/heartbeat
-                        if (line.startsWith('event: ')) eventName = line.slice(7).trim();
-                        else if (line.startsWith('data: ')) dataLines.push(line.slice(6));
-                    }
-                    if (dataLines.length === 0) continue;
-
-                    try {
-                        const parsed = JSON.parse(dataLines.join('\n'));
-                        if (eventName === 'log' && typeof parsed.chunk === 'string') {
-                            appendOutput(parsed.chunk);
-                        } else if (eventName === 'done') {
-                            doneEvent = parsed as DoneEvent;
-                        }
-                    } catch {
-                        // Ignore malformed frames.
-                    }
-                }
+        for (;;) {
+            const logs = Array.isArray(job.logs) ? job.logs : [];
+            if (seenLogs > logs.length) {
+                seenLogs = 0;
             }
-        } catch (err) {
-            // Mid-stream drop. Most common on Linux with npm-global
-            // installs: the update swaps package files, systemd/pm2
-            // notices and kills the running daemon, and the browser's
-            // fetch reader throws "TypeError: Failed to fetch". The
-            // update is probably already on disk — treat this identically
-            // to the "no done event" case and let /health arbitrate.
-            readLoopError = err;
-        }
+            for (const entry of logs.slice(seenLogs)) {
+                appendOutput(entry.chunk || '');
+            }
+            seenLogs = logs.length;
 
-        if (doneEvent) return doneEvent;
-        return recoverFromInterruptedStream(
-            readLoopError ? 'network-error' : 'clean-close',
-            readLoopError,
-        );
-    }, [appendOutput, recoverFromInterruptedStream]);
+            if (job.status === 'completed') {
+                return {
+                    success: true,
+                    version: job.toVersion || latestVersion || undefined,
+                    alreadyLatest: Boolean(job.alreadyLatest),
+                    selfRestarting: false,
+                    message: job.pendingRestart
+                        ? 'Update is ready. Restart when convenient to apply it.'
+                        : 'Update completed.',
+                };
+            }
+
+            if (job.status === 'failed') {
+                return {
+                    success: false,
+                    error: job.error || 'Update failed',
+                };
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            const statusResponse = await authenticatedFetch(`/api/system/update-jobs/${encodeURIComponent(job.id)}`, {
+                cache: 'no-store',
+            });
+            const statusPayload = await statusResponse.json().catch(() => null) as { job?: UpdateJob; error?: string } | null;
+            if (!statusResponse.ok || !statusPayload?.job) {
+                throw new Error(statusPayload?.error || `Update job status failed (HTTP ${statusResponse.status})`);
+            }
+            job = statusPayload.job;
+        }
+    }, [appendOutput, latestVersion]);
 
     const waitForServerBackOnline = useCallback(async () => {
         // Skip the POST /api/system/restart step — the server already
@@ -308,18 +295,20 @@ export function VersionUpgradeModal({
                 // would only fail with a connection refused anyway.
                 await waitForServerBackOnline();
             } else {
-                await triggerRestart();
+                setPendingRestartVersion(result.version || latestVersion || null);
+                setRestartPhase('ready');
+                appendOutput('\nUpdate is ready. You can keep using Pixcode and restart when convenient.\n');
             }
         } catch (error: any) {
             setUpdateError(error.message);
             appendOutput(`\n❌ Update failed: ${error.message}\n`);
             setIsUpdating(false);
         }
-    }, [appendOutput, streamUpdate, triggerRestart, waitForServerBackOnline]);
+    }, [appendOutput, latestVersion, streamUpdate, waitForServerBackOnline]);
 
     if (!isOpen) return null;
 
-    const isBusy = isUpdating || restartPhase === 'restarting' || restartPhase === 'waiting';
+    const isBusy = restartPhase === 'restarting' || restartPhase === 'waiting';
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -431,6 +420,11 @@ export function VersionUpgradeModal({
                                 Waiting for server to come back online... this can take up to a minute.
                             </div>
                         )}
+                        {restartPhase === 'ready' && (
+                            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-200">
+                                Update is ready. Keep working, or restart now to apply {pendingRestartVersion || latestVersion || 'the new version'}.
+                            </div>
+                        )}
                         {restartPhase === 'timeout' && (
                             <div className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800 dark:border-yellow-900/40 dark:bg-yellow-900/20 dark:text-yellow-200">
                                 Server did not restart automatically. Start it again (daemon/pm2/your wrapper) and refresh the page.
@@ -452,7 +446,7 @@ export function VersionUpgradeModal({
                 )}
 
                 {/* Upgrade Instructions */}
-                {showUpdateActions && !isUpdating && !updateOutput && (
+                {showUpdateActions && !isUpdating && (updateError || !updateOutput) && restartPhase !== 'ready' && (
                     <div className="space-y-3">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('versionUpdate.manualUpgrade')}</h3>
                         <div className="rounded-lg border bg-gray-100 p-3 dark:bg-gray-800">
@@ -485,7 +479,15 @@ export function VersionUpgradeModal({
                             Refresh page
                         </button>
                     )}
-                    {showUpdateActions && !updateOutput && (
+                    {restartPhase === 'ready' && (
+                        <button
+                            onClick={triggerRestart}
+                            className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                        >
+                            Restart now
+                        </button>
+                    )}
+                    {showUpdateActions && (!updateOutput || updateError) && restartPhase !== 'ready' && (
                         <>
                             <button
                                 onClick={() => copyTextToClipboard(upgradeCommand)}

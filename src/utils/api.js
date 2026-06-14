@@ -1,5 +1,3 @@
-import { IS_PLATFORM } from "../constants/config";
-
 // Utility function for authenticated API calls
 export const authenticatedFetch = (url, options = {}) => {
   const token = localStorage.getItem('auth-token');
@@ -11,7 +9,7 @@ export const authenticatedFetch = (url, options = {}) => {
     defaultHeaders['Content-Type'] = 'application/json';
   }
 
-  if (!IS_PLATFORM && token) {
+  if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
 
