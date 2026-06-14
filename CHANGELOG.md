@@ -2,6 +2,27 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+
+## [1.51.3](https://github.com/alicomert/pixcode/compare/v1.51.2...v1.51.3) (2026-06-14)
+
+### New Features
+
+* add JsonEventA2AAdapter ([904f64f](https://github.com/alicomert/pixcode/commit/904f64ff32e9479e1899db3b88fe0ca21fc1b335))
+* add useExecutionState hook for task event streaming ([c27b73c](https://github.com/alicomert/pixcode/commit/c27b73cc10199248e3a028c18a42c66c2b6c9b10))
+* export JsonEventA2AAdapter from orchestration index ([0a4ab42](https://github.com/alicomert/pixcode/commit/0a4ab42eedaefbca5a5c3a0615e87d1b4c6877f1))
+* **hermes:** add control plane integration ([424d378](https://github.com/alicomert/pixcode/commit/424d3781026157e0c304053cfa004b392aed622b))
+* **hermes:** surface control plane in workbench ([0f49f47](https://github.com/alicomert/pixcode/commit/0f49f472bd3c0e34176c35044a051bc5f720abf0))
+* implement VerticalTimeline UI component for agent execution visualization ([a9600da](https://github.com/alicomert/pixcode/commit/a9600da0da9ff0c9eeb1f48ab9b8a3694f169b32))
+* register JsonEventA2AAdapter in server index ([a06cea5](https://github.com/alicomert/pixcode/commit/a06cea5f908b3175badcbdc3566cd7f1914964b4))
+
+### Refactoring
+
+* **tests:** migrate JsonEventA2AAdapter tests to node:test and improve event handling ([5b9281b](https://github.com/alicomert/pixcode/commit/5b9281b8b0228e38043ae62f5a744244db5984b5))
+
+### Tests
+
+* add tests for JsonEventA2AAdapter ([39f4d94](https://github.com/alicomert/pixcode/commit/39f4d940c2d67fd7a26d53e9bcfd66bfa8814db1))
+
 ## [1.51.2](https://github.com/alicomert/pixcode/compare/v1.51.1...v1.51.2) (2026-06-02)
 
 Pixcode 1.51.2 fixes OpenCode visible terminal startup with current OpenCode TUI builds.
