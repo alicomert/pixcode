@@ -4,6 +4,7 @@ import { EditorView } from '@codemirror/view';
 import type { EditorProps, OnMount } from '@monaco-editor/react';
 import type { Extension } from '@codemirror/state';
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
 import MarkdownPreview from './markdown/MarkdownPreview';
 
@@ -14,8 +15,21 @@ const MonacoEditor = lazy(async () => {
   ]);
 
   ensureLocalMonaco();
+  // Initialize the AMD loader eagerly so a missing/unreachable
+  // /vendor/monaco-editor bundle rejects this lazy import instead of leaving
+  // the editor surface permanently blank. The rejection is caught by the
+  // ErrorBoundary below, which falls back to CodeMirror.
+  await module.loader.init();
   return { default: module.Editor };
 });
+
+function EditorLoadingFallback() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-white text-sm text-gray-500 dark:bg-gray-900 dark:text-gray-400">
+      Loading editor…
+    </div>
+  );
+}
 
 type CodeEditorSurfaceProps = {
   content: string;
@@ -176,28 +190,7 @@ export default function CodeEditorSurface({
     );
   }
 
-  if (useMonacoEditor) {
-    return (
-      <div className="h-full min-h-0 w-full overflow-hidden">
-        <Suspense fallback={null}>
-          <MonacoEditor
-            value={content}
-            onChange={(nextValue) => onChange(nextValue ?? '')}
-            language={getMonacoLanguage(fileName)}
-            path={getMonacoModelPath(filePath, fileName)}
-            theme={isDarkMode ? 'vs-dark' : 'light'}
-            height="100%"
-            width="100%"
-            options={monacoOptions}
-            onMount={handleMonacoMount}
-            loading={null}
-          />
-        </Suspense>
-      </div>
-    );
-  }
-
-  return (
+  const codeMirrorEditor = (
     <CodeMirror
       value={content}
       onChange={onChange}
@@ -222,4 +215,34 @@ export default function CodeEditorSurface({
       }}
     />
   );
+
+  if (useMonacoEditor) {
+    return (
+      <div className="h-full min-h-0 w-full overflow-hidden">
+        <ErrorBoundary
+          fallback={codeMirrorEditor}
+          onError={(error) => {
+            console.error('Monaco editor failed to load; falling back to CodeMirror:', error);
+          }}
+        >
+          <Suspense fallback={<EditorLoadingFallback />}>
+            <MonacoEditor
+              value={content}
+              onChange={(nextValue) => onChange(nextValue ?? '')}
+              language={getMonacoLanguage(fileName)}
+              path={getMonacoModelPath(filePath, fileName)}
+              theme={isDarkMode ? 'vs-dark' : 'light'}
+              height="100%"
+              width="100%"
+              options={monacoOptions}
+              onMount={handleMonacoMount}
+              loading={<EditorLoadingFallback />}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      </div>
+    );
+  }
+
+  return codeMirrorEditor;
 }

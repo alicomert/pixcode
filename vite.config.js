@@ -51,6 +51,11 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': `http://${proxyHost}:${serverPort}`,
+        // Monaco assets are served by the backend (see MONACO_ASSETS_ROUTE in
+        // server/index.js). Without this proxy entry the dev server answers
+        // /vendor/* itself with index.html, the AMD loader never loads, and the
+        // code editor renders an empty surface even though the tab opens fine.
+        '/vendor': `http://${proxyHost}:${serverPort}`,
         '/ws': {
           target: `ws://${proxyHost}:${serverPort}`,
           ws: true

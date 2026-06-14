@@ -127,13 +127,25 @@ export default function AppContent() {
   }, [isConnected, selectedSession?.id, sendMessage]);
 
   useEffect(() => {
-    if (!latestMessage || latestMessage.type !== 'projects_updated') {
+    if (!latestMessage) {
       return;
     }
 
+    // `projects_updated` comes from the provider-folder watcher (~/.claude etc.);
+    // `project_files_updated` comes from the per-project workspace watcher that
+    // clients subscribe to via `watch-project`. Both feed the same window-event
+    // bridge so FileTree refreshes and highlights changed files uniformly.
+    if (latestMessage.type !== 'projects_updated' && latestMessage.type !== 'project_files_updated') {
+      return;
+    }
+
+    const eventProjectName = latestMessage.type === 'project_files_updated'
+      ? (typeof latestMessage.projectName === 'string' ? latestMessage.projectName : null)
+      : selectedProject?.name ?? null;
+
     window.dispatchEvent(new CustomEvent('pixcode:file-tree-refresh', {
       detail: {
-        projectName: selectedProject?.name ?? null,
+        projectName: eventProjectName,
         changedFile: typeof latestMessage.changedFile === 'string' ? latestMessage.changedFile : null,
       },
     }));

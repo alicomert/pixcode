@@ -14,7 +14,7 @@ export function useExecutionState(taskId: string | undefined) {
     if (!taskId) return;
 
     let mounted = true;
-    const es = new EventSource(\`/api/orchestration/tasks/\${taskId}/stream\`);
+    const es = new EventSource(`/api/orchestration/tasks/${taskId}/stream`);
 
     es.onmessage = (e) => {
       if (!mounted) return;

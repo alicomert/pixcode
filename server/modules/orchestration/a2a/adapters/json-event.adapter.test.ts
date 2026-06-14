@@ -1,55 +1,60 @@
-import { describe, it, expect, vi } from 'vitest';
-import { JsonEventA2AAdapter } from './json-event.adapter.js';
+import assert from 'node:assert/strict';
+import test, { beforeEach } from 'node:test';
+
 import { a2aBus } from '@/modules/orchestration/a2a/bus.js';
+import type { Task } from '@/modules/orchestration/a2a/types.js';
 
-vi.mock('@/modules/orchestration/a2a/bus.js', () => ({
-  a2aBus: {
-    publish: vi.fn(),
-  },
-}));
+import { JsonEventA2AAdapter } from './json-event.adapter.js';
+import type { AdapterContext } from './abstract-a2a.adapter.js';
 
-describe('JsonEventA2AAdapter', () => {
-  it('should initialize task state to working', async () => {
-    const adapter = new JsonEventA2AAdapter();
-    const task = { id: 'test-task', history: [], artifacts: [] } as any;
-    const ctx = { cwd: '/tmp' } as any;
+// Capture bus events by monkeypatching publish — the repo has no test runner
+// with module mocking (node:test style, see providers/tests/mcp.test.ts).
+const publishedEvents: any[] = [];
+const originalPublish = a2aBus.publish.bind(a2aBus);
+(a2aBus as any).publish = (event: any) => {
+  publishedEvents.push(event);
+};
 
-    await adapter.submitTask(task, ctx);
+void originalPublish; // retained for symmetry; process exits after tests
 
-    expect(a2aBus.publish).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'task-state',
-      taskId: 'test-task',
-      state: 'working',
-    }));
-  });
+beforeEach(() => {
+  publishedEvents.length = 0;
+});
 
-  it('should handle external text events', async () => {
-    const adapter = new JsonEventA2AAdapter();
-    const task = { id: 'test-task', history: [], artifacts: [] } as any;
-    await adapter.submitTask(task, {} as any);
+const makeTask = (id: string): Task => ({ id, history: [], artifacts: [] } as any);
+const ctx = { cwd: '/tmp' } as unknown as AdapterContext;
 
-    adapter.handleExternalEvent('test-task', { kind: 'text', text: 'Hello World' });
+test('JsonEventA2AAdapter initializes task state to working', async () => {
+  const adapter = new JsonEventA2AAdapter();
+  await adapter.submitTask(makeTask('test-task'), ctx);
 
-    expect(a2aBus.publish).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'message',
-      taskId: 'test-task',
-      message: expect.objectContaining({
-        parts: [{ kind: 'text', text: 'Hello World' }],
-      }),
-    }));
-  });
+  const stateEvent = publishedEvents.find((event) => event.kind === 'task-state');
+  assert.ok(stateEvent, 'expected a task-state event');
+  assert.equal(stateEvent.taskId, 'test-task');
+  assert.equal(stateEvent.state, 'working');
+});
 
-  it('should transition to completed on terminal event', async () => {
-    const adapter = new JsonEventA2AAdapter();
-    const task = { id: 'test-task', history: [], artifacts: [] } as any;
-    await adapter.submitTask(task, {} as any);
+test('JsonEventA2AAdapter handles external text events', async () => {
+  const adapter = new JsonEventA2AAdapter();
+  await adapter.submitTask(makeTask('test-task'), ctx);
 
-    adapter.handleExternalEvent('test-task', { kind: 'completed' });
+  adapter.handleExternalEvent('test-task', { kind: 'text', text: 'Hello World' });
 
-    expect(a2aBus.publish).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'task-state',
-      taskId: 'test-task',
-      state: 'completed',
-    }));
-  });
+  const messageEvent = publishedEvents.find((event) => event.kind === 'message');
+  assert.ok(messageEvent, 'expected a message event');
+  assert.equal(messageEvent.taskId, 'test-task');
+  assert.deepEqual(messageEvent.message.parts, [{ kind: 'text', text: 'Hello World' }]);
+});
+
+test('JsonEventA2AAdapter transitions to completed on terminal event', async () => {
+  const adapter = new JsonEventA2AAdapter();
+  await adapter.submitTask(makeTask('test-task'), ctx);
+
+  adapter.handleExternalEvent('test-task', { kind: 'completed' });
+
+  const completedEvent = publishedEvents.find(
+    (event) => event.kind === 'task-state' && event.state === 'completed',
+  );
+  assert.ok(completedEvent, 'expected a completed task-state event');
+  assert.equal(completedEvent.taskId, 'test-task');
 });

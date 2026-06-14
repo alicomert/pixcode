@@ -303,6 +303,117 @@ async function setupProjectsWatcher() {
     }
 }
 
+// ── Per-project workspace watchers (file explorer live refresh) ─────────────
+// setupProjectsWatcher() above only watches provider metadata folders
+// (~/.claude/projects etc.), so the file explorer never learned about changes
+// inside the actual project working directory. These watchers are created on
+// demand when a client sends `watch-project` over /ws and broadcast debounced
+// `project_files_updated` events to subscribed clients only, letting the
+// explorer refresh automatically without HTTP polling.
+const WORKSPACE_WATCHER_DEBOUNCE_MS = 800;
+const workspaceWatchers = new Map(); // projectName -> { watcher, subscribers, debounceTimer, pendingEvent, rootPath }
+
+async function subscribeToWorkspace(ws, projectName) {
+    if (!projectName || typeof projectName !== 'string') return;
+
+    const existing = workspaceWatchers.get(projectName);
+    if (existing) {
+        existing.subscribers.add(ws);
+        return;
+    }
+
+    let rootPath;
+    try {
+        rootPath = await extractProjectDirectory(projectName);
+        await fsPromises.access(rootPath);
+    } catch (error) {
+        console.warn(`[watcher] Cannot watch workspace for ${projectName}:`, error.message);
+        return;
+    }
+
+    const entry = {
+        watcher: null,
+        subscribers: new Set([ws]),
+        debounceTimer: null,
+        pendingEvent: null,
+        rootPath,
+    };
+    workspaceWatchers.set(projectName, entry);
+
+    const broadcastFileUpdate = (eventType, filePath) => {
+        entry.pendingEvent = { eventType, filePath };
+        if (entry.debounceTimer) {
+            clearTimeout(entry.debounceTimer);
+        }
+        entry.debounceTimer = setTimeout(() => {
+            entry.debounceTimer = null;
+            const pending = entry.pendingEvent || {};
+            entry.pendingEvent = null;
+            const message = JSON.stringify({
+                type: 'project_files_updated',
+                projectName,
+                changeType: pending.eventType || 'change',
+                changedFile: pending.filePath ? path.relative(rootPath, pending.filePath) : null,
+                timestamp: new Date().toISOString(),
+            });
+            entry.subscribers.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(message);
+                }
+            });
+        }, WORKSPACE_WATCHER_DEBOUNCE_MS);
+    };
+
+    try {
+        const chokidar = (await import('chokidar')).default;
+        const watcher = chokidar.watch(rootPath, {
+            ignored: WATCHER_IGNORED_PATTERNS,
+            persistent: true,
+            ignoreInitial: true,
+            followSymlinks: false,
+            depth: 10,
+            awaitWriteFinish: {
+                stabilityThreshold: 500,
+                pollInterval: 250
+            }
+        });
+
+        watcher
+            .on('add', (filePath) => broadcastFileUpdate('add', filePath))
+            .on('change', (filePath) => broadcastFileUpdate('change', filePath))
+            .on('unlink', (filePath) => broadcastFileUpdate('unlink', filePath))
+            .on('addDir', (dirPath) => broadcastFileUpdate('addDir', dirPath))
+            .on('unlinkDir', (dirPath) => broadcastFileUpdate('unlinkDir', dirPath))
+            .on('error', (error) => {
+                console.error(`[ERROR] Workspace watcher error for ${projectName}:`, error);
+            });
+
+        entry.watcher = watcher;
+    } catch (error) {
+        workspaceWatchers.delete(projectName);
+        console.error(`[ERROR] Failed to watch workspace for ${projectName}:`, error);
+    }
+}
+
+function unsubscribeFromWorkspace(ws, projectName = null) {
+    const entries = projectName
+        ? (workspaceWatchers.has(projectName) ? [[projectName, workspaceWatchers.get(projectName)]] : [])
+        : Array.from(workspaceWatchers.entries());
+
+    for (const [name, entry] of entries) {
+        entry.subscribers.delete(ws);
+        if (entry.subscribers.size === 0) {
+            if (entry.debounceTimer) {
+                clearTimeout(entry.debounceTimer);
+            }
+            workspaceWatchers.delete(name);
+            entry.watcher?.close().catch((error) => {
+                console.warn(`[watcher] Failed to close workspace watcher for ${name}:`, error?.message || error);
+            });
+        }
+    }
+}
+
 
 const app = express();
 const server = http.createServer(app);
@@ -317,7 +428,7 @@ import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAu
 function terminatePtySession(sessionKey, session, reason) {
     if (!session) return false;
 
-    console.log(`\u{1F9F9} Terminating PTY session (\${reason}):`, sessionKey);
+    console.log(`🧹 Terminating PTY session (${reason}):`, sessionKey);
     if (session.timeoutId) {
         clearTimeout(session.timeoutId);
     }
@@ -379,7 +490,7 @@ function detectProviderTerminalState(provider, output) {
         };
     }
 
-    const lastWeakBusy = getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*[\u2022*]\s*(?:Working|Running|Thinking)\b/giu);
+    const lastWeakBusy = getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*[•*]\s*(?:Working|Running|Thinking)\b/giu);
     const lastStrongBusy = Math.max(
         getLastRegexMatchIndex(cleanOutput, /\bWorking\s*\([^)]*esc to interrupt[^)]*\)/giu),
         getLastRegexMatchIndex(cleanOutput, /\bmsg=interrupt\b/giu),
@@ -388,8 +499,8 @@ function detectProviderTerminalState(provider, output) {
 
     if (provider === 'codex') {
         const lastPrompt = Math.max(
-            getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*\u203A(?:\s|$)/gu),
-            getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*\u276F(?:\s|$)/gu),
+            getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*›(?:\s|$)/gu),
+            getLastRegexMatchIndex(cleanOutput, /(?:^|\n)\s*❯(?:\s|$)/gu),
         );
 
         if (lastPrompt >= 0) {
@@ -463,7 +574,7 @@ function appendPtySessionBuffer(session, data) {
 }
 
 function normalizeTerminalStartupInput(input) {
-    return \`\\x15\${String(input || '').replace(/(?:\\r\\n|\\r|\\n)+$/u, '')}\\r\`;
+    return `\x15${String(input || '').replace(/(?:\r\n|\r|\n)+$/u, '')}\r`;
 }
 
 function readSessionOutputForState(session, maxChars = 12000) {
@@ -508,7 +619,7 @@ function processTerminalStartupInputQueue(session) {
         if (!readiness.retry || Date.now() - item.queuedAt > STARTUP_INPUT_READY_TIMEOUT_MS) {
             session.pendingStartupInputs.shift();
             session.startupInputTimerId = null;
-            const message = \`\\r\\n\\x1b[33m[Pixcode] Startup input was not sent because \${session.provider} is still \${readiness.terminalState || 'unavailable'}.\\x1b[0m\\r\\n\`;
+            const message = `\r\n\x1b[33m[Pixcode] Startup input was not sent because ${session.provider} is still ${readiness.terminalState || 'unavailable'}.\x1b[0m\r\n`;
             try {
                 session.ws?.send?.(JSON.stringify({ type: 'output', data: message }));
             } catch { /* websocket gone */ }
@@ -527,7 +638,7 @@ function processTerminalStartupInputQueue(session) {
     try {
         session.pty.write(normalizeTerminalStartupInput(item.startupInput));
         session.updatedAt = Date.now();
-        console.log(\`\u2328\uFE0F  Submitted startup input to visible PTY (\${item.reason})\`);
+        console.log(`⌨️  Submitted startup input to visible PTY (${item.reason})`);
     } catch (error) {
         console.warn('Failed to submit startup input to visible PTY:', error?.message || error);
     }
@@ -613,37 +724,37 @@ function buildProviderShellPermissionFlags(provider, permissionMode, skipPermiss
 
 function buildProviderShellCommand(command, permissionFlags = []) {
     const flags = Array.isArray(permissionFlags) ? permissionFlags.filter(Boolean) : [];
-    return flags.length > 0 ? \`\${command} \${flags.join(' ')}\` : command;
+    return flags.length > 0 ? `${command} ${flags.join(' ')}` : command;
 }
 
 function resolvePublicBaseUrl(request) {
     const headers = request?.headers || {};
     const forwardedProto = String(headers['x-forwarded-proto'] || '').split(',')[0].trim();
     const proto = forwardedProto || (request?.socket?.encrypted ? 'https' : 'http');
-    const host = headers['x-forwarded-host'] || headers.host || \`127.0.0.1:\${process.env.SERVER_PORT || process.env.PORT || '3001'}\`;
-    return \`\${proto}://\${String(host).split(',')[0].trim()}\`;
+    const host = headers['x-forwarded-host'] || headers.host || `127.0.0.1:${process.env.SERVER_PORT || process.env.PORT || '3001'}`;
+    return `${proto}://${String(host).split(',')[0].trim()}`;
 }
 
 function resolveHermesMcpBaseUrl() {
     const configured = process.env.PIXCODE_INTERNAL_BASE_URL || process.env.PIXCODE_HERMES_BASE_URL;
     if (configured) return configured.replace(/\/$/, '');
 
-    return \`http://127.0.0.1:\${process.env.SERVER_PORT || process.env.PORT || '3001'}\`;
+    return `http://127.0.0.1:${process.env.SERVER_PORT || process.env.PORT || '3001'}`;
 }
 
 function quoteBashArg(value) {
-    return \`'\${String(value).replace(/'/g, "'\\\\''")}'\`;
+    return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
 function quotePowerShellArg(value) {
-    return \`"\${String(value).replace(/\`/g, '\`\`').replace(/\\$/g, '\`$').replace(/"/g, '\`"')}"\`;
+    return `"${String(value).replace(/`/g, '``').replace(/\$/g, '`$').replace(/"/g, '`"')}"`;
 }
 
 function quoteShellArgForPlatform(value) {
     return os.platform() === 'win32' ? quotePowerShellArg(value) : quoteBashArg(value);
 }
 
-const HERMES_CLI_COMMAND_PATTERN = /^hermes(?:\\s+[A-Za-z0-9._:/=@+-]+)*\\s*$/;
+const HERMES_CLI_COMMAND_PATTERN = /^hermes(?:\s+[A-Za-z0-9._:/=@+-]+)*\s*$/;
 const HERMES_AGENT_API_SCOPES = [
     'auth:read',
     'auth:write',
@@ -687,10 +798,10 @@ function buildHermesCliCommand(command) {
     const hermesCommand = typeof command === 'string' && command.trim() ? command.trim() : 'hermes';
     const configureScript = path.join(APP_ROOT, 'scripts', 'hermes', 'configure-pixcode-mcp.mjs');
     if (os.platform() === 'win32') {
-        return \`& \${quotePowerShellArg(process.execPath)} \${quotePowerShellArg(configureScript)} *> $null; \${hermesCommand}\`;
+        return `& ${quotePowerShellArg(process.execPath)} ${quotePowerShellArg(configureScript)} *> $null; ${hermesCommand}`;
     }
 
-    return \`\${quoteBashArg(process.execPath)} \${quoteBashArg(configureScript)} >/dev/null 2>&1; exec \${hermesCommand}\`;
+    return `${quoteBashArg(process.execPath)} ${quoteBashArg(configureScript)} >/dev/null 2>&1; exec ${hermesCommand}`;
 }
 
 function getOrCreateHermesApiKey(userId) {
@@ -1030,7 +1141,7 @@ app.use(express.static(path.join(APP_ROOT, 'dist'), {
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
-        } else if (filePath.match(/\\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico)$/)) {
+        } else if (filePath.match(/\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico)$/)) {
             // Cache static assets for 1 year (they have hashed names)
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         }
@@ -1047,19 +1158,19 @@ app.use(express.static(path.join(APP_ROOT, 'public'), {
 // /api/config endpoint removed - no longer needed
 // Frontend now uses window.location for WebSocket URLs
 
-// System update endpoint \u2014 streams live output via Server-Sent Events so the
+// System update endpoint — streams live output via Server-Sent Events so the
 // UI sees npm/git progress in real time instead of waiting ~2 minutes for the
 // buffered response.
 //
 // Three update modes, picked in order of specificity:
-//   1. PIXCODE_RUNTIME_DIR set \u2192 "desktop wrapper" path. Pulls the latest
+//   1. PIXCODE_RUNTIME_DIR set → "desktop wrapper" path. Pulls the latest
 //      npm tarball, extracts it to the writable runtime dir, and triggers
 //      a server restart so the Electron wrapper respawns with new code.
 //      ~4 MB download, ~10 s; no npm/git/shell required on the host.
-//   2. installMode === 'git' \u2192 safe git updater script. It stashes dirty
+//   2. installMode === 'git' → safe git updater script. It stashes dirty
 //      checkout state before pulling so source installs do not fail on local
 //      modified files left by older releases or manual edits.
-//   3. fallback \u2192 \`npm install -g \u2026\` (classic npm-distributed install).
+//   3. fallback → `npm install -g …` (classic npm-distributed install).
 app.post('/api/system/update', authenticateToken, async (req, res) => {
     const projectRoot = APP_ROOT;
     console.log('Starting system update from directory:', projectRoot);
@@ -1070,7 +1181,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
     const updateCommand = IS_PLATFORM
         ? 'npm run update:platform'
         : installMode === 'git'
-            ? \`\${JSON.stringify(process.execPath)} \${JSON.stringify(gitUpdateScript)}\`
+            ? `${JSON.stringify(process.execPath)} ${JSON.stringify(gitUpdateScript)}`
             : 'npm install -g @pixelbyte-software/pixcode@latest';
     const updateCommandLabel = IS_PLATFORM
         ? 'Pixcode platform update'
@@ -1101,7 +1212,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
 
     // Single-source end guard. When spawn() fails with ENOENT both the
     // 'error' and 'close' handlers can fire on the child, and before this
-    // guard both would try to write a \`done\` event + call res.end(), which
+    // guard both would try to write a `done` event + call res.end(), which
     // crashed the process with ERR_HTTP_HEADERS_SENT.
     let ended = false;
     const endStream = () => {
@@ -1113,8 +1224,8 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
 
     const send = (event, payload) => {
         if (ended) return;
-        res.write(\`event: \${event}\\n\`);
-        res.write(\`data: \${JSON.stringify(payload)}\\n\\n\`);
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
 
     // Heartbeat keeps intermediate proxies from closing an idle connection
@@ -1122,32 +1233,32 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
     // can reference it, and guarded against writes after end.
     const heartbeat = setInterval(() => {
         if (ended) return;
-        res.write(': ping\\n\\n');
+        res.write(': ping\n\n');
     }, 15000);
 
-    // \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    // Runtime-dir mode \u2014 the desktop wrapper (pixcode-desktop) sets
+    // ────────────────────────────────────────────────────────────────
+    // Runtime-dir mode — the desktop wrapper (pixcode-desktop) sets
     // PIXCODE_RUNTIME_DIR to a writable directory it owns and forks this
     // server from there. Updates download the npm tarball directly and
     // swap it in-place, which is ~4 MB vs. ~85 MB for a full installer
     // re-download. No shell, npm, or git required on the host.
-    // \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    // ────────────────────────────────────────────────────────────────
     if (runtimeDir) {
-        send('log', { stream: 'meta', chunk: \`Update mode: runtime-dir\\n\` });
-        send('log', { stream: 'meta', chunk: \`Runtime: \${runtimeDir}\\n\` });
+        send('log', { stream: 'meta', chunk: `Update mode: runtime-dir\n` });
+        send('log', { stream: 'meta', chunk: `Runtime: ${runtimeDir}\n` });
 
         try {
             // 1. Resolve the latest version from the npm registry.
-            send('log', { stream: 'meta', chunk: 'Querying registry for latest version\u2026\\n' });
+            send('log', { stream: 'meta', chunk: 'Querying registry for latest version…\n' });
             const registryRes = await fetch('https://registry.npmjs.org/@pixelbyte-software/pixcode');
-            if (!registryRes.ok) throw new Error(\`Registry returned HTTP \${registryRes.status}\`);
+            if (!registryRes.ok) throw new Error(`Registry returned HTTP ${registryRes.status}`);
             const metadata = await registryRes.json();
             const latestVersion = metadata['dist-tags']?.latest;
             const latestEntry = latestVersion ? metadata.versions?.[latestVersion] : null;
             const tarballUrl = latestEntry?.dist?.tarball;
             if (!latestVersion || !tarballUrl) throw new Error('Registry response missing latest/tarball');
 
-            send('log', { stream: 'meta', chunk: \`Current: \${SERVER_VERSION} \u2192 Latest: \${latestVersion}\\n\` });
+            send('log', { stream: 'meta', chunk: `Current: ${SERVER_VERSION} → Latest: ${latestVersion}\n` });
 
             if (latestVersion === SERVER_VERSION) {
                 send('done', {
@@ -1162,12 +1273,12 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
 
             // 2. Download the tarball stream and pipe it through tar's
             //    extractor into a staging directory. Doing the extract
-            //    under \`.staging\` first means the live runtime stays
+            //    under `.staging` first means the live runtime stays
             //    intact if the download fails partway through.
-            send('log', { stream: 'meta', chunk: \`Downloading \${tarballUrl}\\n\` });
+            send('log', { stream: 'meta', chunk: `Downloading ${tarballUrl}\n` });
             const tarballRes = await fetch(tarballUrl);
             if (!tarballRes.ok || !tarballRes.body) {
-                throw new Error(\`Tarball fetch failed: HTTP \${tarballRes.status}\`);
+                throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
             }
 
             const stagingDir = path.join(runtimeDir, '.staging');
@@ -1180,7 +1291,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
             const tarExtract = tarModule.x || tarModule.default?.x;
             if (!tarExtract) throw new Error('tar extractor not available');
 
-            // npm tarballs always root at \`package/\` \u2014 strip:1 lifts the
+            // npm tarballs always root at `package/` — strip:1 lifts the
             // contents to the staging dir directly so paths match the
             // existing runtime layout.
             await new Promise((resolve, reject) => {
@@ -1195,7 +1306,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
                 nodeStream.on('error', reject);
             });
 
-            send('log', { stream: 'meta', chunk: 'Swapping runtime\u2026\\n' });
+            send('log', { stream: 'meta', chunk: 'Swapping runtime…\n' });
 
             // 3. Atomic swap: move every top-level entry from staging into
             //    the runtime, keeping a .previous snapshot for rollback.
@@ -1216,12 +1327,12 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
 
             // 3a. Reconcile node_modules with the NEW package.json.
             //     npm tarballs intentionally ship WITHOUT node_modules, so
-            //     if this release changed \`dependencies\` (e.g. bcrypt \u2192
+            //     if this release changed `dependencies` (e.g. bcrypt →
             //     bcryptjs in 1.32.0) the runtime dir now has new code
             //     importing packages that aren't installed. We fix that
-            //     by running \`npm install --production\` in-place.
+            //     by running `npm install --production` in-place.
             //     Skipped when the NEW package.json's dependency set is
-            //     identical to the .previous/ one \u2014 no need to pay the
+            //     identical to the .previous/ one — no need to pay the
             //     10-30 sec cost for pure-code updates.
             const depsChanged = (() => {
                 try {
@@ -1231,13 +1342,13 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
                     const nextDeps = JSON.stringify(nextPkg.dependencies || {});
                     return prevDeps !== nextDeps;
                 } catch {
-                    // Can't read either side \u2014 reconcile to be safe.
+                    // Can't read either side — reconcile to be safe.
                     return true;
                 }
             })();
 
             if (depsChanged) {
-                send('log', { stream: 'meta', chunk: 'Reconciling node_modules with new package.json\u2026\\n' });
+                send('log', { stream: 'meta', chunk: 'Reconciling node_modules with new package.json…\n' });
                 const npmOk = await new Promise((resolveInstall) => {
                     const npmChild = spawn('npm', ['install', '--production', '--no-audit', '--no-fund', '--no-save'], {
                         cwd: runtimeDir,
@@ -1255,28 +1366,28 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
                         send('log', { stream: 'stderr', chunk: chunk.toString() });
                     });
                     npmChild.on('error', (err) => {
-                        send('log', { stream: 'meta', chunk: \`npm install spawn failed: \${err.message}\\n\` });
+                        send('log', { stream: 'meta', chunk: `npm install spawn failed: ${err.message}\n` });
                         resolveInstall(false);
                     });
                     npmChild.on('close', (code) => {
                         if (code === 0) {
-                            send('log', { stream: 'meta', chunk: 'node_modules reconciled.\\n' });
+                            send('log', { stream: 'meta', chunk: 'node_modules reconciled.\n' });
                             resolveInstall(true);
                         } else {
-                            send('log', { stream: 'meta', chunk: \`npm install exited with code \${code}\\n\` });
+                            send('log', { stream: 'meta', chunk: `npm install exited with code ${code}\n` });
                             resolveInstall(false);
                         }
                     });
                 });
                 if (!npmOk) {
-                    // The swap already happened \u2014 rolling back is expensive
+                    // The swap already happened — rolling back is expensive
                     // and leaves node_modules in an uncertain state either
                     // way. Report failure with a clear remediation hint so
                     // the user knows what to do next (quit + run npm install
                     // manually, or reinstall from the .exe/.dmg/.deb).
                     send('done', {
                         success: false,
-                        error: \`Update downloaded to \${latestVersion} but \\\`npm install\\\` failed \u2014 node_modules may be missing packages. Quit Pixcode and run "npm install --production" in \${runtimeDir}, or reinstall from the latest installer.\`,
+                        error: `Update downloaded to ${latestVersion} but \`npm install\` failed — node_modules may be missing packages. Quit Pixcode and run "npm install --production" in ${runtimeDir}, or reinstall from the latest installer.`,
                     });
                     endStream();
                     return;
@@ -1286,15 +1397,15 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
             send('done', {
                 success: true,
                 version: latestVersion,
-                // \`selfRestarting\` tells the UI "don't POST /restart \u2014
+                // `selfRestarting` tells the UI "don't POST /restart —
                 // we're about to exit on our own, just poll /health until
                 // the wrapper brings us back". Without this flag the
                 // client sees the server disappear, gets a connection
                 // refused on /restart, and shows the user a spurious
-                // "Restart request failed" error \u2014 even though the
+                // "Restart request failed" error — even though the
                 // update actually succeeded.
                 selfRestarting: true,
-                message: \`Updated to \${latestVersion}. Restarting automatically\u2026\`,
+                message: `Updated to ${latestVersion}. Restarting automatically…`,
             });
             endStream();
 
@@ -1303,7 +1414,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
             //    SSE stream time to flush the done event + arrive at
             //    the client across slow loopback / virtual adapters.
             setTimeout(() => {
-                // Exit code 42 is a convention the wrapper watches for \u2014
+                // Exit code 42 is a convention the wrapper watches for —
                 // it means "clean update restart, please respawn".
                 console.log('[update] Restarting for runtime-dir update');
                 process.exit(42);
@@ -1325,13 +1436,13 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
     // the source branch or have a dirty checkout that needs normalization.
     if (!IS_PLATFORM && installMode === 'npm') {
         try {
-            send('log', { stream: 'meta', chunk: 'Querying registry for latest version\u2026\\n' });
+            send('log', { stream: 'meta', chunk: 'Querying registry for latest version…\n' });
             const registryRes = await fetch('https://registry.npmjs.org/@pixelbyte-software/pixcode');
             if (registryRes.ok) {
                 const metadata = await registryRes.json();
                 const latestVersion = metadata['dist-tags']?.latest;
                 if (latestVersion && latestVersion === SERVER_VERSION) {
-                    send('log', { stream: 'meta', chunk: \`Already on \${SERVER_VERSION} \u2014 nothing to do.\\n\` });
+                    send('log', { stream: 'meta', chunk: `Already on ${SERVER_VERSION} — nothing to do.\n` });
                     send('done', {
                         success: true,
                         version: SERVER_VERSION,
@@ -1343,18 +1454,18 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
                 }
             }
         } catch (err) {
-            // Registry unreachable \u2014 fall through to the install attempt
+            // Registry unreachable — fall through to the install attempt
             // rather than block the user. Log and continue.
             console.warn('[update] Registry precheck failed:', (err && err.message) || err);
         }
     }
 
-    send('log', { stream: 'meta', chunk: \`Running: \${updateCommandLabel}\\n\` });
+    send('log', { stream: 'meta', chunk: `Running: ${updateCommandLabel}\n` });
 
-    // Cross-platform shell invocation. \`detached: true\` + \`unref()\` below
+    // Cross-platform shell invocation. `detached: true` + `unref()` below
     // means the install child survives if this server process gets killed
-    // mid-install (which is common on Linux when \`npm install -g\`
-    // overwrites the running package's own files \u2014 the running process
+    // mid-install (which is common on Linux when `npm install -g`
+    // overwrites the running package's own files — the running process
     // can segfault or the supervisor kills it). Without detachment, a
     // killed parent tears down the npm child too and users end up with
     // a half-installed package and no server at all.
@@ -1366,7 +1477,7 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         stdio: ['ignore', 'pipe', 'pipe'],
     });
     // Don't hold a reference that keeps the event loop alive or ties the
-    // child's lifetime to ours \u2014 we want it to outlive a daemon restart.
+    // child's lifetime to ours — we want it to outlive a daemon restart.
     try { child.unref(); } catch { /* noop */ }
 
     let clientAborted = false;
@@ -1407,14 +1518,14 @@ app.post('/api/system/update', authenticateToken, async (req, res) => {
         } else {
             send('done', {
                 success: false,
-                error: \`Update command exited with code \${code}\`,
+                error: `Update command exited with code ${code}`,
             });
         }
         endStream();
     });
 });
 
-// Restart endpoint \u2014 exits the current process so an external wrapper
+// Restart endpoint — exits the current process so an external wrapper
 // (systemd/pm2/daemon manager) can bring the server back on the new code.
 // Foreground installs without a wrapper will simply stop; the UI reports this.
 app.post('/api/system/restart', authenticateToken, (req, res) => {
@@ -1426,7 +1537,7 @@ app.post('/api/system/restart', authenticateToken, (req, res) => {
 
     // Give the response time to flush before we exit.
     setTimeout(() => {
-        console.log('Restart requested via /api/system/restart \u2014 exiting process.');
+        console.log('Restart requested via /api/system/restart — exiting process.');
         process.exit(0);
     }, 250);
 });
@@ -1466,13 +1577,13 @@ app.put('/api/projects/:projectName/rename', authenticateToken, async (req, res)
 app.delete('/api/projects/:projectName/sessions/:sessionId', authenticateToken, async (req, res) => {
     try {
         const { projectName, sessionId } = req.params;
-        console.log(\`[API] Deleting session: \${sessionId} from project: \${projectName}\`);
+        console.log(`[API] Deleting session: ${sessionId} from project: ${projectName}`);
         await deleteSession(projectName, sessionId);
         sessionNamesDb.deleteName(sessionId, 'claude');
-        console.log(\`[API] Session \${sessionId} deleted successfully\`);
+        console.log(`[API] Session ${sessionId} deleted successfully`);
         res.json({ success: true });
     } catch (error) {
-        console.error(\`[API] Error deleting session \${req.params.sessionId}:\`, error);
+        console.error(`[API] Error deleting session ${req.params.sessionId}:`, error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1493,12 +1604,12 @@ app.put('/api/sessions/:sessionId/rename', authenticateToken, async (req, res) =
             return res.status(400).json({ error: 'Summary must not exceed 500 characters' });
         }
         if (!provider || !VALID_PROVIDERS.includes(provider)) {
-            return res.status(400).json({ error: \`Provider must be one of: \${VALID_PROVIDERS.join(', ')}\` });
+            return res.status(400).json({ error: `Provider must be one of: ${VALID_PROVIDERS.join(', ')}` });
         }
         sessionNamesDb.setName(safeSessionId, provider, summary.trim());
         res.json({ success: true });
     } catch (error) {
-        console.error(\`[API] Error renaming session \${req.params.sessionId}:\`, error);
+        console.error(`[API] Error renaming session ${req.params.sessionId}:`, error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1515,8 +1626,8 @@ app.delete('/api/projects/:projectName', authenticateToken, async (req, res) => 
         res.json({ success: true });
     } catch (error) {
         // "Cannot delete project with existing sessions" is a precondition
-        // failure, not a server fault \u2014 surface it as 409 so clients can
-        // catch it and prompt the user to pass \`?force=true\` (or clean
+        // failure, not a server fault — surface it as 409 so clients can
+        // catch it and prompt the user to pass `?force=true` (or clean
         // sessions first) instead of treating it like a crash.
         const conflict = typeof error?.message === 'string' && error.message.includes('existing sessions');
         res.status(conflict ? 409 : 500).json({ error: error.message });
@@ -1548,18 +1659,18 @@ app.get('/api/search/conversations', authenticateToken, async (req, res) => {
         await searchConversations(query, limit, ({ projectResult, totalMatches, scannedProjects, totalProjects }) => {
             if (closed) return;
             if (projectResult) {
-                res.write(\`event: result\\ndata: \${JSON.stringify({ projectResult, totalMatches, scannedProjects, totalProjects })}\\n\\n\`);
+                res.write(`event: result\ndata: ${JSON.stringify({ projectResult, totalMatches, scannedProjects, totalProjects })}\n\n`);
             } else {
-                res.write(\`event: progress\\ndata: \${JSON.stringify({ totalMatches, scannedProjects, totalProjects })}\\n\\n\`);
+                res.write(`event: progress\ndata: ${JSON.stringify({ totalMatches, scannedProjects, totalProjects })}\n\n`);
             }
         }, abortController.signal);
         if (!closed) {
-            res.write(\`event: done\\ndata: {}\\n\\n\`);
+            res.write(`event: done\ndata: {}\n\n`);
         }
     } catch (error) {
         console.error('Error searching conversations:', error);
         if (!closed) {
-            res.write(\`event: error\\ndata: \${JSON.stringify({ error: 'Search failed' })}\\n\\n\`);
+            res.write(`event: error\ndata: ${JSON.stringify({ error: 'Search failed' })}\n\n`);
         }
     } finally {
         if (!closed) {
@@ -1574,15 +1685,15 @@ const expandWorkspacePath = (inputPath) => {
 };
 
 // Filesystem browser uses a home-centric expansion rather than the
-// WORKSPACES_BASE-centric one above. The workspace-base treatment of \`~\`
+// WORKSPACES_BASE-centric one above. The workspace-base treatment of `~`
 // is right for NEW project creation (users say "my-app" and get it under
-// ~/pixcode/projects/my-app) but wrong for browsing \u2014 users want to pick
+// ~/pixcode/projects/my-app) but wrong for browsing — users want to pick
 // any folder on their disk, not be trapped inside the default base.
 const expandBrowsePath = (inputPath) => {
     if (!inputPath) return os.homedir();
     const trimmed = String(inputPath).trim();
     if (!trimmed || trimmed === '~') return os.homedir();
-    if (trimmed.startsWith('~/') || trimmed.startsWith('~\\\\')) {
+    if (trimmed.startsWith('~/') || trimmed.startsWith('~\\')) {
         return path.join(os.homedir(), trimmed.slice(2));
     }
     return path.resolve(trimmed);
@@ -1597,7 +1708,7 @@ app.get('/api/browse-filesystem', authenticateToken, async (req, res) => {
         console.log('[API] WORKSPACES_ROOT is:', WORKSPACES_ROOT);
         console.log('[API] WORKSPACES_BASE is:', WORKSPACES_BASE);
         // Default to the user's home directory so the picker feels natural
-        // \u2014 users can reach arbitrary drives/folders from there. The
+        // — users can reach arbitrary drives/folders from there. The
         // ~/pixcode/projects shortcut stays available as a suggestion.
         const defaultRoot = os.homedir();
         let targetPath = dirPath ? expandBrowsePath(dirPath) : defaultRoot;
@@ -1876,15 +1987,19 @@ app.get('/api/projects/:projectName/files', authenticateToken, async (req, res) 
             actualPath = await extractProjectDirectory(req.params.projectName);
         } catch (error) {
             console.error('Error extracting project directory:', error);
-            // Fallback to simple dash replacement
-            actualPath = req.params.projectName.replace(/-/g, '/');
+            // Do NOT fall back to projectName.replace(/-/g, '/') here: on Windows the
+            // dash-encoded name ("C--Users-...") decodes to a garbage path ("C//Users/...")
+            // that can never exist, so the old fallback just produced a confusing 404
+            // with a fabricated path. extractProjectDirectory already handles the
+            // POSIX-style decode internally; if it throws, the project is unknown.
+            return res.status(404).json({ error: `Project not found: ${req.params.projectName}` });
         }
 
         // Check if path exists
         try {
             await fsPromises.access(actualPath);
         } catch (e) {
-            return res.status(404).json({ error: \`Project path not found: \${actualPath}\` });
+            return res.status(404).json({ error: `Project path not found: ${actualPath}` });
         }
 
         const files = await getFileTree(actualPath, 10, 0, true);
@@ -1926,7 +2041,7 @@ function validateFilename(name) {
         return { valid: false, error: 'Filename cannot be empty' };
     }
     // Check for invalid characters (Windows + Unix)
-    const invalidChars = /[<>:"/\\\\|?*\\x00-\\x1f]/;
+    const invalidChars = /[<>:"/\\|?*\x00-\x1f]/;
     if (invalidChars.test(name)) {
         return { valid: false, error: 'Filename contains invalid characters' };
     }
@@ -1936,7 +2051,7 @@ function validateFilename(name) {
         return { valid: false, error: 'Filename is a reserved name' };
     }
     // Check for dots only
-    if (/^\\.+$/.test(name)) {
+    if (/^\.+$/.test(name)) {
         return { valid: false, error: 'Filename cannot be only dots' };
     }
     return { valid: true };
@@ -1981,7 +2096,7 @@ app.post('/api/projects/:projectName/files/create', authenticateToken, async (re
         // Check if already exists
         try {
             await fsPromises.access(resolvedPath);
-            return res.status(409).json({ error: \`\${type === 'file' ? 'File' : 'Directory'} already exists\` });
+            return res.status(409).json({ error: `${type === 'file' ? 'File' : 'Directory'} already exists` });
         } catch {
             // Doesn't exist, which is what we want
         }
@@ -2005,7 +2120,7 @@ app.post('/api/projects/:projectName/files/create', authenticateToken, async (re
             path: resolvedPath,
             name,
             type,
-            message: \`\${type === 'file' ? 'File' : 'Directory'} created successfully\`
+            message: `${type === 'file' ? 'File' : 'Directory'} created successfully`
         });
     } catch (error) {
         console.error('Error creating file/directory:', error);
@@ -2177,7 +2292,7 @@ const uploadFilesHandler = async (req, res) => {
                 // Note: file.originalname may contain path separators for folder uploads
                 const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
                 // For temp file, just use a safe unique name without the path
-                cb(null, \`upload-\${uniqueSuffix}\`);
+                cb(null, `upload-${uniqueSuffix}`);
             }
         }),
         limits: {
@@ -2304,7 +2419,7 @@ const uploadFilesHandler = async (req, res) => {
                 success: true,
                 files: uploadedFiles,
                 targetPath: resolvedTargetDir,
-                message: \`Uploaded \${uploadedFiles.length} file(s) successfully\`
+                message: `Uploaded ${uploadedFiles.length} file(s) successfully`
             });
         } catch (error) {
             console.error('Error uploading files:', error);
@@ -2342,10 +2457,10 @@ function handlePluginWsProxy(clientWs, pathname) {
         return;
     }
 
-    const upstream = new WebSocket(\`ws://127.0.0.1:\${port}/ws\`);
+    const upstream = new WebSocket(`ws://127.0.0.1:${port}/ws`);
 
     upstream.on('open', () => {
-        console.log(\`[Plugins] WS proxy connected to "\${pluginName}" on port \${port}\`);
+        console.log(`[Plugins] WS proxy connected to "${pluginName}" on port ${port}`);
     });
 
     // Relay messages bidirectionally
@@ -2361,7 +2476,7 @@ function handlePluginWsProxy(clientWs, pathname) {
     clientWs.on('close', () => { if (upstream.readyState === WebSocket.OPEN) upstream.close(); });
 
     upstream.on('error', (err) => {
-        console.error(\`[Plugins] WS proxy error for "\${pluginName}":\`, err.message);
+        console.error(`[Plugins] WS proxy error for "${pluginName}":`, err.message);
         if (clientWs.readyState === WebSocket.OPEN) clientWs.close(4502, 'Upstream error');
     });
     clientWs.on('error', () => {
@@ -2393,8 +2508,8 @@ wss.on('connection', (ws, request) => {
 /**
  * WebSocket Writer - Wrapper for WebSocket to match SSEStreamWriter interface
  *
- * Provider files use \`createNormalizedMessage()\` from \`shared/utils.js\` and
- * adapter \`normalizeMessage()\` to produce unified NormalizedMessage events.
+ * Provider files use `createNormalizedMessage()` from `shared/utils.js` and
+ * adapter `normalizeMessage()` to produce unified NormalizedMessage events.
  * The writer simply serialises and sends.
  */
 class WebSocketWriter {
@@ -2418,4 +2533,1459 @@ class WebSocketWriter {
     setSessionId(sessionId) {
         this.sessionId = sessionId;
     }
+
+    getSessionId() {
+        return this.sessionId;
+    }
 }
+
+// Handle chat WebSocket connections
+function handleChatConnection(ws, request) {
+    console.log('[INFO] Chat WebSocket connected');
+
+    // Add to connected clients for project updates
+    ws.userId = request?.user?.id ?? request?.user?.userId ?? null;
+    connectedClients.add(ws);
+
+    // Wrap WebSocket with writer for consistent interface with SSEStreamWriter
+    const writer = new WebSocketWriter(ws, request?.user?.id ?? request?.user?.userId ?? null);
+
+    ws.on('message', async (message) => {
+        try {
+            const data = JSON.parse(message);
+
+            // Per-submission logs removed from hot paths — gate behind
+            // CHAT_DEBUG so production stdout stays clean. Each keypress
+            // that triggers a submit was costing 4 synchronous writes.
+            const chatDebug = process.env.CHAT_DEBUG
+                ? (provider, d) => console.log(`[${provider}]`,
+                    d.command?.slice(0, 60) || '[resume]',
+                    d.options?.projectPath || d.options?.cwd || '',
+                    d.options?.sessionId ? 'resume' : 'new')
+                : () => {};
+
+            if (data.type === 'claude-command') {
+                chatDebug('claude', data);
+                // Use Claude Agents SDK
+                await queryClaudeSDK(data.command, data.options, writer);
+            } else if (data.type === 'cursor-command') {
+                chatDebug('cursor', data);
+                await spawnCursor(data.command, data.options, writer);
+            } else if (data.type === 'codex-command') {
+                chatDebug('codex', data);
+                await queryCodex(data.command, data.options, writer);
+            } else if (data.type === 'gemini-command') {
+                chatDebug('gemini', data);
+                await spawnGemini(data.command, data.options, writer);
+            } else if (data.type === 'qwen-command') {
+                chatDebug('qwen', data);
+                await spawnQwen(data.command, data.options, writer);
+            } else if (data.type === 'opencode-command') {
+                chatDebug('opencode', data);
+                await spawnOpencode(data.command, data.options, writer);
+            } else if (data.type === 'cursor-resume') {
+                // Backward compatibility: treat as cursor-command with resume and no prompt
+                console.log('[DEBUG] Cursor resume session (compat):', data.sessionId);
+                await spawnCursor('', {
+                    sessionId: data.sessionId,
+                    resume: true,
+                    cwd: data.options?.cwd
+                }, writer);
+            } else if (data.type === 'abort-session') {
+                console.log('[DEBUG] Abort session request:', data.sessionId);
+                const provider = data.provider || 'claude';
+                let success;
+
+                if (provider === 'cursor') {
+                    success = abortCursorSession(data.sessionId);
+                } else if (provider === 'codex') {
+                    success = abortCodexSession(data.sessionId);
+                } else if (provider === 'gemini') {
+                    success = abortGeminiSession(data.sessionId);
+                } else if (provider === 'qwen') {
+                    success = abortQwenSession(data.sessionId);
+                } else if (provider === 'opencode') {
+                    success = abortOpencodeSession(data.sessionId);
+                } else {
+                    // Use Claude Agents SDK
+                    success = await abortClaudeSDKSession(data.sessionId);
+                }
+
+                writer.send(createNormalizedMessage({ kind: 'complete', exitCode: success ? 0 : 1, aborted: true, success, sessionId: data.sessionId, provider }));
+            } else if (data.type === 'claude-permission-response') {
+                // Relay UI approval decisions back into the SDK control flow.
+                // This does not persist permissions; it only resolves the in-flight request,
+                // introduced so the SDK can resume once the user clicks Allow/Deny.
+                if (data.requestId) {
+                    resolveToolApproval(data.requestId, {
+                        allow: Boolean(data.allow),
+                        updatedInput: data.updatedInput,
+                        message: data.message,
+                        rememberEntry: data.rememberEntry
+                    });
+                }
+            } else if (data.type === 'cursor-abort') {
+                console.log('[DEBUG] Abort Cursor session:', data.sessionId);
+                const success = abortCursorSession(data.sessionId);
+                writer.send(createNormalizedMessage({ kind: 'complete', exitCode: success ? 0 : 1, aborted: true, success, sessionId: data.sessionId, provider: 'cursor' }));
+            } else if (data.type === 'check-session-status') {
+                // Check if a specific session is currently processing
+                const provider = data.provider || 'claude';
+                const sessionId = data.sessionId;
+                let isActive;
+
+                if (provider === 'cursor') {
+                    isActive = isCursorSessionActive(sessionId);
+                } else if (provider === 'codex') {
+                    isActive = isCodexSessionActive(sessionId);
+                } else if (provider === 'gemini') {
+                    isActive = isGeminiSessionActive(sessionId);
+                } else if (provider === 'qwen') {
+                    isActive = isQwenSessionActive(sessionId);
+                } else if (provider === 'opencode') {
+                    isActive = isOpencodeSessionActive(sessionId);
+                } else {
+                    // Use Claude Agents SDK
+                    isActive = isClaudeSDKSessionActive(sessionId);
+                    if (isActive) {
+                        // Reconnect the session's writer to the new WebSocket so
+                        // subsequent SDK output flows to the refreshed client.
+                        reconnectSessionWriter(sessionId, ws);
+                    }
+                }
+
+                writer.send({
+                    type: 'session-status',
+                    sessionId,
+                    provider,
+                    isProcessing: isActive
+                });
+            } else if (data.type === 'get-pending-permissions') {
+                // Return pending permission requests for a session
+                const sessionId = data.sessionId;
+                if (sessionId && isClaudeSDKSessionActive(sessionId)) {
+                    const pending = getPendingApprovalsForSession(sessionId);
+                    writer.send({
+                        type: 'pending-permissions-response',
+                        sessionId,
+                        data: pending
+                    });
+                }
+            } else if (data.type === 'watch-project') {
+                // Subscribe this client to live file-tree updates for a project
+                // workspace. The server pushes debounced `project_files_updated`
+                // events so the explorer refreshes without HTTP polling.
+                await subscribeToWorkspace(ws, data.projectName);
+            } else if (data.type === 'unwatch-project') {
+                unsubscribeFromWorkspace(ws, data.projectName || null);
+            } else if (data.type === 'get-active-sessions') {
+                // Get all currently active sessions
+                const activeSessions = {
+                    claude: getActiveClaudeSDKSessions(),
+                    cursor: getActiveCursorSessions(),
+                    codex: getActiveCodexSessions(),
+                    gemini: getActiveGeminiSessions(),
+                    qwen: getActiveQwenSessions(),
+                    opencode: getActiveOpencodeSessions()
+                };
+                writer.send({
+                    type: 'active-sessions',
+                    sessions: activeSessions
+                });
+            }
+        } catch (error) {
+            console.error('[ERROR] Chat WebSocket error:', error.message);
+            writer.send({
+                type: 'error',
+                error: error.message
+            });
+        }
+    });
+
+    ws.on('close', () => {
+        console.log('🔌 Chat client disconnected');
+        // Remove from connected clients
+        connectedClients.delete(ws);
+        // Drop any workspace watcher subscriptions held by this socket
+        unsubscribeFromWorkspace(ws);
+    });
+}
+
+// Handle shell WebSocket connections
+function handleShellConnection(ws, request) {
+    console.log('🐚 Shell client connected');
+    let shellProcess = null;
+    let ptySessionKey = null;
+    let urlDetectionBuffer = '';
+    const announcedAuthUrls = new Set();
+
+    ws.on('message', async (message) => {
+        try {
+            const data = JSON.parse(message);
+            // Per-message log would fire once per keystroke — gate behind
+            // SHELL_DEBUG so stdout isn't flooded during normal typing.
+            if (process.env.SHELL_DEBUG) {
+                console.log('[shell]', data.type);
+            }
+
+            if (data.type === 'init') {
+                // Fallback to the user's home directory (not process.cwd()).
+                // In the Electron wrapper, process.cwd() is the runtime dir
+                // under %APPDATA%\pixcode-desktop\pixcode-runtime — spawning a
+                // login terminal there shows the user a confusing path and
+                // sometimes trips up CLIs that expect a "normal" location
+                // (e.g. codex login exited 1 because the runtime dir is
+                // read-only-feeling / non-writable for cache paths). home
+                // is writable, has a git-friendly cwd, and matches where
+                // every provider already stores its config (~/.codex etc.).
+                const projectPath = data.projectPath || os.homedir();
+                const sessionId = data.sessionId;
+                const hasSession = data.hasSession;
+                const provider = data.provider || 'claude';
+                const initialCommand = data.initialCommand;
+                const startupInput = typeof data.startupInput === 'string' && data.startupInput.trim()
+                    ? data.startupInput.trim()
+                    : null;
+                const startupInputDelivery = data.startupInputDelivery === 'terminal' ? 'terminal' : 'command';
+                const commandStartupInput = startupInputDelivery === 'command' ? startupInput : null;
+                const terminalStartupInput = startupInputDelivery === 'terminal' ? startupInput : null;
+                const hermesLaunchId = Number.isFinite(Number(data.hermesLaunchId)) && Number(data.hermesLaunchId) > 0
+                    ? Number(data.hermesLaunchId)
+                    : null;
+                const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
+                const isHermesCliLaunch = isPlainShell && isHermesCliCommand(initialCommand);
+                const forceNewSession = Boolean(data.forceNewSession);
+                const shellPermissionMode = normalizeShellPermissionMode(data.permissionMode);
+                const shellSkipPermissions = Boolean(data.skipPermissions);
+                const shellPermissionFlags = buildProviderShellPermissionFlags(provider, shellPermissionMode, shellSkipPermissions);
+                const hermesApiKey = isHermesCliLaunch
+                    ? getOrCreateHermesApiKey(request.user?.id ?? request.user?.userId ?? null)
+                    : null;
+                urlDetectionBuffer = '';
+                announcedAuthUrls.clear();
+
+                // Login commands should never reuse cached sessions — each login
+                // is a fresh OAuth handshake with a new callback URL. Missing
+                // entries here used to cause "Process exited with code 1" on
+                // the second login attempt because the cached PTY from the
+                // first attempt was still alive and the CLI refused to
+                // re-bind its localhost callback port.
+                const isLoginCommand = initialCommand && (
+                    initialCommand.includes('setup-token') ||
+                    initialCommand.includes('cursor-agent login') ||
+                    initialCommand.includes('codex login') ||
+                    initialCommand.includes('qwen auth') ||
+                    initialCommand.includes('auth login')
+                );
+
+                // Include command hash in session key so different commands get separate sessions
+                const commandSuffix = isPlainShell && initialCommand
+                    ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
+                    : '';
+                // Include provider in the key so a fresh "new session" in OpenCode
+                // doesn't reattach to a cached Claude PTY for the same project (or
+                // vice versa). Before this, the key was just `${path}_default`,
+                // which collided across providers and made every disconnect →
+                // switch-provider flow reopen the previously-running CLI.
+                const providerSuffix = isPlainShell ? '' : `_${provider}`;
+                ptySessionKey = `${projectPath}_${sessionId || 'default'}${providerSuffix}${commandSuffix}`;
+
+                // Kill any existing login session before starting fresh
+                if (isLoginCommand) {
+                    const oldSession = ptySessionsMap.get(ptySessionKey);
+                    if (oldSession) {
+                        terminatePtySession(ptySessionKey, oldSession, 'fresh login');
+                    }
+                } else if (forceNewSession) {
+                    if (isPlainShell) {
+                        const oldSession = ptySessionsMap.get(ptySessionKey);
+                        if (oldSession) {
+                            terminatePtySession(ptySessionKey, oldSession, 'fresh plain shell session');
+                        }
+                    } else {
+                        const killedSessions = killProviderPtySessions(projectPath, provider);
+                        if (killedSessions > 0) {
+                            console.log(`🧹 Fresh ${provider} session requested; terminated ${killedSessions} cached PTY session(s).`);
+                        }
+                    }
+                }
+
+                const existingSession = (isLoginCommand || forceNewSession) ? null : ptySessionsMap.get(ptySessionKey);
+                if (existingSession) {
+                    if (!existingSession.pty || existingSession.lifecycleState === 'completed' || existingSession.lifecycleState === 'failed') {
+                        ptySessionsMap.delete(ptySessionKey);
+                    } else {
+                        console.log('♻️  Reconnecting to existing PTY session:', ptySessionKey);
+                        shellProcess = existingSession.pty;
+
+                        clearTimeout(existingSession.timeoutId);
+
+                        ws.send(JSON.stringify({
+                            type: 'output',
+                            data: `\x1b[36m[Reconnected to existing session]\x1b[0m\r\n`
+                        }));
+
+                        if (existingSession.buffer && existingSession.buffer.length > 0) {
+                            console.log(`📜 Sending ${existingSession.buffer.length} buffered messages`);
+                            existingSession.buffer.forEach(bufferedData => {
+                                ws.send(JSON.stringify({
+                                    type: 'output',
+                                    data: bufferedData
+                                }));
+                            });
+                        }
+
+                        existingSession.ws = ws;
+                        existingSession.hermesLaunchId = hermesLaunchId || existingSession.hermesLaunchId;
+                        existingSession.updatedAt = Date.now();
+                        if (terminalStartupInput && !isPlainShell) {
+                            writeTerminalStartupInput(existingSession, terminalStartupInput, 'reused provider session', 350);
+                        }
+
+                        return;
+                    }
+                }
+
+                console.log('[INFO] Starting shell in:', projectPath);
+                console.log('📋 Session info:', hasSession ? `Resume session ${sessionId}` : (isPlainShell ? 'Plain shell mode' : 'New session'));
+                console.log('🤖 Provider:', isPlainShell ? 'plain-shell' : provider);
+                if (initialCommand) {
+                    console.log('⚡ Initial command:', initialCommand || 'interactive shell');
+                }
+
+                // First send a welcome message
+                let welcomeMsg;
+                if (isPlainShell) {
+                    welcomeMsg = `\x1b[36mStarting terminal in: ${projectPath}\x1b[0m\r\n`;
+                } else {
+                    const providerName = provider === 'cursor' ? 'Cursor'
+                        : provider === 'codex' ? 'Codex'
+                        : provider === 'gemini' ? 'Gemini'
+                        : provider === 'qwen' ? 'Qwen Code'
+                        : provider === 'opencode' ? 'OpenCode'
+                        : 'Claude';
+                    welcomeMsg = hasSession ?
+                        `\x1b[36mResuming ${providerName} session ${sessionId} in: ${projectPath}\x1b[0m\r\n` :
+                        `\x1b[36mStarting new ${providerName} session in: ${projectPath}\x1b[0m\r\n`;
+                }
+
+                ws.send(JSON.stringify({
+                    type: 'output',
+                    data: welcomeMsg
+                }));
+
+                try {
+                    // Validate projectPath — resolve to absolute and verify it exists
+                    const resolvedProjectPath = path.resolve(projectPath);
+                    try {
+                        const stats = fs.statSync(resolvedProjectPath);
+                        if (!stats.isDirectory()) {
+                            throw new Error('Not a directory');
+                        }
+                    } catch (pathErr) {
+                        ws.send(JSON.stringify({ type: 'error', message: 'Invalid project path' }));
+                        return;
+                    }
+
+                    // Validate sessionId — only allow safe characters
+                    const safeSessionIdPattern = /^[a-zA-Z0-9_.\-:]+$/;
+                    if (sessionId && !safeSessionIdPattern.test(sessionId)) {
+                        ws.send(JSON.stringify({ type: 'error', message: 'Invalid session ID' }));
+                        return;
+                    }
+
+                    // Build shell command — use cwd for project path (never interpolate into shell string)
+                    let shellCommand;
+                    if (isPlainShell) {
+                        // Plain shell mode without an initial command must stay interactive.
+                        shellCommand = isHermesCliLaunch
+                            ? buildHermesCliCommand(initialCommand)
+                            : initialCommand || null;
+                    } else if (provider === 'cursor') {
+                        const command = buildProviderShellCommand('cursor-agent', shellPermissionFlags);
+                        if (hasSession && sessionId) {
+                            shellCommand = `${command} --resume="${sessionId}"`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else if (provider === 'codex') {
+                        // Use codex command; attempt to resume and fall back to a new session when the resume fails.
+                        const command = buildProviderShellCommand('codex', shellPermissionFlags);
+                        if (hasSession && sessionId) {
+                            if (os.platform() === 'win32') {
+                                // PowerShell syntax for fallback
+                                shellCommand = `${command} resume "${sessionId}"; if ($LASTEXITCODE -ne 0) { ${command} }`;
+                            } else {
+                                shellCommand = `${command} resume "${sessionId}" || ${command}`;
+                            }
+                        } else if (commandStartupInput) {
+                            shellCommand = `${command} ${quoteShellArgForPlatform(commandStartupInput)}`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else if (provider === 'gemini') {
+                        const command = buildProviderShellCommand(initialCommand || 'gemini', shellPermissionFlags);
+                        let resumeId = sessionId;
+                        if (hasSession && sessionId) {
+                            try {
+                                // Gemini CLI enforces its own native session IDs, unlike other agents that accept arbitrary string names.
+                                // The UI only knows about its internal generated `sessionId` (e.g. gemini_1234).
+                                // We must fetch the mapping from the backend session manager to pass the native `cliSessionId` to the shell.
+                                const sess = sessionManager.getSession(sessionId);
+                                if (sess && sess.cliSessionId) {
+                                    resumeId = sess.cliSessionId;
+                                    // Validate the looked-up CLI session ID too
+                                    if (!safeSessionIdPattern.test(resumeId)) {
+                                        resumeId = null;
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Failed to get Gemini CLI session ID:', err);
+                            }
+                        }
+
+                        if (hasSession && resumeId) {
+                            shellCommand = `${command} --resume "${resumeId}"`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else if (provider === 'qwen') {
+                        // Qwen Code shares Gemini CLI's --resume semantics (it's a fork),
+                        // so the resume path resolves the backend-tracked cliSessionId the
+                        // same way. Falls back to a fresh session when the ID can't be found.
+                        const command = buildProviderShellCommand(initialCommand || 'qwen', shellPermissionFlags);
+                        let resumeId = sessionId;
+                        if (hasSession && sessionId) {
+                            try {
+                                const sess = sessionManager.getSession(sessionId);
+                                if (sess && sess.cliSessionId) {
+                                    resumeId = sess.cliSessionId;
+                                    if (!safeSessionIdPattern.test(resumeId)) {
+                                        resumeId = null;
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Failed to get Qwen Code CLI session ID:', err);
+                            }
+                        }
+
+                        if (hasSession && resumeId) {
+                            shellCommand = `${command} --resume "${resumeId}"`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else if (provider === 'opencode') {
+                        // OpenCode uses `--session <id>` for resumption per the
+                        // 2026 CLI docs. The session IDs the TUI creates match
+                        // our `safeSessionIdPattern` regex (ulid/nanoid), so
+                        // we pass them straight through without a cliSessionId
+                        // mapping layer — OpenCode doesn't renumber IDs the way
+                        // Gemini does.
+                        const command = buildProviderShellCommand(initialCommand || 'opencode', shellPermissionFlags);
+                        if (hasSession && sessionId && safeSessionIdPattern.test(sessionId)) {
+                            shellCommand = `${command} --session "${sessionId}"`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else {
+                        // Claude (default provider)
+                        const command = buildProviderShellCommand(initialCommand || 'claude', shellPermissionFlags);
+                        if (hasSession && sessionId) {
+                            if (os.platform() === 'win32') {
+                                shellCommand = `${command} --resume "${sessionId}"; if ($LASTEXITCODE -ne 0) { ${command} }`;
+                            } else {
+                                shellCommand = `${command} --resume "${sessionId}" || ${command}`;
+                            }
+                        } else {
+                            shellCommand = command;
+                        }
+                    }
+
+                    console.log('🔧 Executing shell command:', shellCommand || 'interactive shell');
+
+                    // Use appropriate shell based on platform
+                    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+                    const shellArgs = isPlainShell && !initialCommand
+                        ? (os.platform() === 'win32' ? ['-NoLogo'] : ['-l'])
+                        : (os.platform() === 'win32' ? ['-Command', shellCommand] : ['-c', shellCommand]);
+
+                    // Use terminal dimensions from client if provided, otherwise use defaults
+                    const termCols = data.cols || 80;
+                    const termRows = data.rows || 24;
+                    console.log('📐 Using terminal dimensions:', termCols, 'x', termRows);
+                    const shellEnv = buildHermesPathEnv(process.env, {
+                        TERM: 'xterm-256color',
+                        COLORTERM: 'truecolor',
+                        FORCE_COLOR: '3',
+                        ...(isHermesCliLaunch ? {
+                            PIXCODE_BASE_URL: resolveHermesMcpBaseUrl(),
+                            PIXCODE_API_KEY: hermesApiKey || '',
+                            PIXCODE_APP_ROOT: APP_ROOT,
+                        } : {}),
+                    });
+
+                    shellProcess = pty.spawn(shell, shellArgs, {
+                        name: 'xterm-256color',
+                        cols: termCols,
+                        rows: termRows,
+                        cwd: resolvedProjectPath,
+                        env: shellEnv,
+                    });
+
+                    console.log('🟢 Shell process started with PTY, PID:', shellProcess.pid);
+
+                    ptySessionsMap.set(ptySessionKey, {
+                        pty: shellProcess,
+                        ws: ws,
+                        buffer: [],
+                        timeoutId: null,
+                        projectPath,
+                        sessionId,
+                        hermesLaunchId,
+                        provider,
+                        isPlainShell,
+                        lifecycleState: 'running',
+                        exitCode: null,
+                        exitSignal: null,
+                        completedAt: null,
+                        keepAliveUntilExit: false,
+                        pendingStartupInputs: [],
+                        startupInputTimerId: null,
+                        updatedAt: Date.now(),
+                    });
+                    const createdSession = ptySessionsMap.get(ptySessionKey);
+                    if (terminalStartupInput && !isPlainShell) {
+                        writeTerminalStartupInput(createdSession, terminalStartupInput, 'new provider session', 4500);
+                    }
+
+                    // Handle data output
+                    shellProcess.onData((data) => {
+                        const session = ptySessionsMap.get(ptySessionKey);
+                        if (!session) return;
+                        session.updatedAt = Date.now();
+
+                        appendPtySessionBuffer(session, data);
+
+                        if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+                            let outputData = data;
+
+                            const cleanChunk = stripAnsiSequences(data);
+                            urlDetectionBuffer = `${urlDetectionBuffer}${cleanChunk}`.slice(-SHELL_URL_PARSE_BUFFER_LIMIT);
+
+                            outputData = outputData.replace(
+                                /OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g,
+                                '[INFO] Opening in browser: $1'
+                            );
+
+                            const emitAuthUrl = (detectedUrl, autoOpen = false) => {
+                                const normalizedUrl = normalizeDetectedUrl(detectedUrl);
+                                if (!normalizedUrl) return;
+
+                                const isNewUrl = !announcedAuthUrls.has(normalizedUrl);
+                                if (isNewUrl) {
+                                    announcedAuthUrls.add(normalizedUrl);
+                                    session.ws.send(JSON.stringify({
+                                        type: 'auth_url',
+                                        url: normalizedUrl,
+                                        autoOpen
+                                    }));
+                                }
+
+                            };
+
+                            const normalizedDetectedUrls = extractUrlsFromText(urlDetectionBuffer)
+                                .map((url) => normalizeDetectedUrl(url))
+                                .filter(Boolean);
+
+                            // Prefer the most complete URL if shorter prefix variants are also present.
+                            const dedupedDetectedUrls = Array.from(new Set(normalizedDetectedUrls)).filter((url, _, urls) =>
+                                !urls.some((otherUrl) => otherUrl !== url && otherUrl.startsWith(url))
+                            );
+
+                            dedupedDetectedUrls.forEach((url) => emitAuthUrl(url, false));
+
+                            if (shouldAutoOpenUrlFromOutput(cleanChunk) && dedupedDetectedUrls.length > 0) {
+                                const bestUrl = dedupedDetectedUrls.reduce((longest, current) =>
+                                    current.length > longest.length ? current : longest
+                                );
+                                emitAuthUrl(bestUrl, true);
+                            }
+
+                            // Send regular output
+                            session.ws.send(JSON.stringify({
+                                type: 'output',
+                                data: outputData
+                            }));
+                        }
+                    });
+
+                    // Handle process exit
+                    shellProcess.onExit((exitCode) => {
+                        console.log('🔚 Shell process exited with code:', exitCode.exitCode, 'signal:', exitCode.signal);
+                        const session = ptySessionsMap.get(ptySessionKey);
+                        if (session?.pty && session.pty !== shellProcess) {
+                            console.log('↩️  Ignoring stale PTY exit for replacement session:', ptySessionKey);
+                            return;
+                        }
+
+                        const exitMessage = `\r\n\x1b[33mProcess exited with code ${exitCode.exitCode}${exitCode.signal ? ` (${exitCode.signal})` : ''}\x1b[0m\r\n`;
+                        if (session) {
+                            session.lifecycleState = exitCode.exitCode === 0 && !exitCode.signal ? 'completed' : 'failed';
+                            session.exitCode = typeof exitCode.exitCode === 'number' ? exitCode.exitCode : null;
+                            session.exitSignal = exitCode.signal || null;
+                            session.completedAt = new Date().toISOString();
+                            session.updatedAt = Date.now();
+                            if (session.startupInputTimerId) {
+                                clearTimeout(session.startupInputTimerId);
+                                session.startupInputTimerId = null;
+                            }
+                            session.pendingStartupInputs = [];
+                            session.pty = null;
+                            appendPtySessionBuffer(session, exitMessage);
+                        }
+                        if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
+                            session.ws.send(JSON.stringify({
+                                type: 'output',
+                                data: exitMessage
+                            }));
+                        }
+                        if (session && session.timeoutId) {
+                            clearTimeout(session.timeoutId);
+                        }
+                        if (session) {
+                            session.ws = null;
+                            session.timeoutId = setTimeout(() => {
+                                const current = ptySessionsMap.get(ptySessionKey);
+                                if (current && current.lifecycleState !== 'running') {
+                                    ptySessionsMap.delete(ptySessionKey);
+                                }
+                            }, COMPLETED_PTY_SESSION_TTL);
+                        } else {
+                            ptySessionsMap.delete(ptySessionKey);
+                        }
+                        shellProcess = null;
+                    });
+
+                } catch (spawnError) {
+                    console.error('[ERROR] Error spawning process:', spawnError);
+                    ws.send(JSON.stringify({
+                        type: 'output',
+                        data: `\r\n\x1b[31mError: ${spawnError.message}\x1b[0m\r\n`
+                    }));
+                }
+
+            } else if (data.type === 'input') {
+                // Send input to shell process
+                if (shellProcess && shellProcess.write) {
+                    try {
+                        shellProcess.write(data.data);
+                    } catch (error) {
+                        console.error('Error writing to shell:', error);
+                    }
+                } else {
+                    console.warn('No active shell process to send input to');
+                }
+            } else if (data.type === 'resize') {
+                // Handle terminal resize
+                if (shellProcess && shellProcess.resize) {
+                    console.log('Terminal resize requested:', data.cols, 'x', data.rows);
+                    shellProcess.resize(data.cols, data.rows);
+                }
+            }
+        } catch (error) {
+            console.error('[ERROR] Shell WebSocket error:', error.message);
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'output',
+                    data: `\r\n\x1b[31mError: ${error.message}\x1b[0m\r\n`
+                }));
+            }
+        }
+    });
+
+    ws.on('close', () => {
+        console.log('🔌 Shell client disconnected');
+
+        if (ptySessionKey) {
+            const session = ptySessionsMap.get(ptySessionKey);
+            if (session) {
+                if (session.keepAliveUntilExit) {
+                    console.log('⏳ PTY session kept alive until process exit:', ptySessionKey);
+                    session.ws = null;
+                    return;
+                }
+
+                console.log('⏳ PTY session kept alive, will timeout in 30 minutes:', ptySessionKey);
+                session.ws = null;
+
+                session.timeoutId = setTimeout(() => {
+                    console.log('⏰ PTY session timeout, killing process:', ptySessionKey);
+                    if (session.pty && session.pty.kill) {
+                        session.pty.kill();
+                    }
+                    ptySessionsMap.delete(ptySessionKey);
+                }, PTY_SESSION_TIMEOUT);
+            }
+        }
+    });
+
+    ws.on('error', (error) => {
+        console.error('[ERROR] Shell WebSocket error:', error);
+    });
+}
+// Image upload endpoint
+app.post('/api/projects/:projectName/upload-images', authenticateToken, async (req, res) => {
+    try {
+        const multer = (await import('multer')).default;
+        const path = (await import('path')).default;
+        const fs = (await import('fs')).promises;
+        const os = (await import('os')).default;
+
+        // Configure multer for image uploads
+        const storage = multer.diskStorage({
+            destination: async (req, file, cb) => {
+                const uploadDir = path.join(os.tmpdir(), 'claude-ui-uploads', String(req.user.id));
+                await fs.mkdir(uploadDir, { recursive: true });
+                cb(null, uploadDir);
+            },
+            filename: (req, file, cb) => {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+                cb(null, uniqueSuffix + '-' + sanitizedName);
+            }
+        });
+
+        const fileFilter = (req, file, cb) => {
+            const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+            if (allowedMimes.includes(file.mimetype)) {
+                cb(null, true);
+            } else {
+                cb(new Error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG are allowed.'));
+            }
+        };
+
+        const upload = multer({
+            storage,
+            fileFilter,
+            limits: {
+                fileSize: 5 * 1024 * 1024, // 5MB
+                files: 5
+            }
+        });
+
+        // Handle multipart form data
+        upload.array('images', 5)(req, res, async (err) => {
+            if (err) {
+                return res.status(400).json({ error: err.message });
+            }
+
+            if (!req.files || req.files.length === 0) {
+                return res.status(400).json({ error: 'No image files provided' });
+            }
+
+            try {
+                // Process uploaded images
+                const processedImages = await Promise.all(
+                    req.files.map(async (file) => {
+                        // Read file and convert to base64
+                        const buffer = await fs.readFile(file.path);
+                        const base64 = buffer.toString('base64');
+                        const mimeType = file.mimetype;
+
+                        // Clean up temp file immediately
+                        await fs.unlink(file.path);
+
+                        return {
+                            name: file.originalname,
+                            data: `data:${mimeType};base64,${base64}`,
+                            size: file.size,
+                            mimeType: mimeType
+                        };
+                    })
+                );
+
+                res.json({ images: processedImages });
+            } catch (error) {
+                console.error('Error processing images:', error);
+                // Clean up any remaining files
+                await Promise.all(req.files.map(f => fs.unlink(f.path).catch(() => { })));
+                res.status(500).json({ error: 'Failed to process images' });
+            }
+        });
+    } catch (error) {
+        console.error('Error in image upload endpoint:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get token usage for a specific session
+app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authenticateToken, async (req, res) => {
+    try {
+        const { projectName, sessionId } = req.params;
+        const { provider = 'claude' } = req.query;
+        const homeDir = os.homedir();
+
+        // Allow only safe characters in sessionId
+        const safeSessionId = String(sessionId).replace(/[^a-zA-Z0-9._-]/g, '');
+        if (!safeSessionId || safeSessionId !== String(sessionId)) {
+            return res.status(400).json({ error: 'Invalid sessionId' });
+        }
+
+        // Handle Cursor sessions - they use SQLite and don't have token usage info
+        if (provider === 'cursor') {
+            return res.json({
+                used: 0,
+                total: 0,
+                breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
+                unsupported: true,
+                message: 'Token usage tracking not available for Cursor sessions'
+            });
+        }
+
+        // Handle Gemini sessions - they are raw logs in our current setup
+        if (provider === 'gemini') {
+            return res.json({
+                used: 0,
+                total: 0,
+                breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
+                unsupported: true,
+                message: 'Token usage tracking not available for Gemini sessions'
+            });
+        }
+
+        // Qwen Code is a Gemini CLI fork and doesn't expose per-session token
+        // accounting either; treat it the same way.
+        if (provider === 'qwen') {
+            return res.json({
+                used: 0,
+                total: 0,
+                breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
+                unsupported: true,
+                message: 'Token usage tracking not available for Qwen Code sessions'
+            });
+        }
+
+        // Handle Codex sessions
+        if (provider === 'codex') {
+            const codexSessionsDir = path.join(homeDir, '.codex', 'sessions');
+
+            // Find the session file by searching for the session ID
+            const findSessionFile = async (dir) => {
+                try {
+                    const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+                    for (const entry of entries) {
+                        const fullPath = path.join(dir, entry.name);
+                        if (entry.isDirectory()) {
+                            const found = await findSessionFile(fullPath);
+                            if (found) return found;
+                        } else if (entry.name.includes(safeSessionId) && entry.name.endsWith('.jsonl')) {
+                            return fullPath;
+                        }
+                    }
+                } catch (error) {
+                    // Skip directories we can't read
+                }
+                return null;
+            };
+
+            const sessionFilePath = await findSessionFile(codexSessionsDir);
+
+            if (!sessionFilePath) {
+                return res.status(404).json({ error: 'Codex session file not found', sessionId: safeSessionId });
+            }
+
+            // Read and parse the Codex JSONL file
+            let fileContent;
+            try {
+                fileContent = await fsPromises.readFile(sessionFilePath, 'utf8');
+            } catch (error) {
+                if (error.code === 'ENOENT') {
+                    return res.status(404).json({ error: 'Session file not found', path: sessionFilePath });
+                }
+                throw error;
+            }
+            const lines = fileContent.trim().split('\n');
+            let totalTokens = 0;
+            let contextWindow = 200000; // Default for Codex/OpenAI
+
+            // Find the latest token_count event with info (scan from end)
+            for (let i = lines.length - 1; i >= 0; i--) {
+                try {
+                    const entry = JSON.parse(lines[i]);
+
+                    // Codex stores token info in event_msg with type: "token_count"
+                    if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
+                        const tokenInfo = entry.payload.info;
+                        if (tokenInfo.total_token_usage) {
+                            totalTokens = tokenInfo.total_token_usage.total_tokens || 0;
+                        }
+                        if (tokenInfo.model_context_window) {
+                            contextWindow = tokenInfo.model_context_window;
+                        }
+                        break; // Stop after finding the latest token count
+                    }
+                } catch (parseError) {
+                    // Skip lines that can't be parsed
+                    continue;
+                }
+            }
+
+            return res.json({
+                used: totalTokens,
+                total: contextWindow
+            });
+        }
+
+        // Handle Claude sessions (default)
+        // Extract actual project path
+        let projectPath;
+        try {
+            projectPath = await extractProjectDirectory(projectName);
+        } catch (error) {
+            console.error('Error extracting project directory:', error);
+            return res.status(500).json({ error: 'Failed to determine project path' });
+        }
+
+        // Construct the JSONL file path
+        // Claude stores session files in ~/.claude/projects/[encoded-project-path]/[session-id].jsonl
+        // The encoding replaces any non-alphanumeric character (except -) with -
+        const encodedPath = projectPath.replace(/[^a-zA-Z0-9-]/g, '-');
+        const projectDir = path.join(homeDir, '.claude', 'projects', encodedPath);
+
+        const jsonlPath = path.join(projectDir, `${safeSessionId}.jsonl`);
+
+        // Constrain to projectDir
+        const rel = path.relative(path.resolve(projectDir), path.resolve(jsonlPath));
+        if (rel.startsWith('..') || path.isAbsolute(rel)) {
+            return res.status(400).json({ error: 'Invalid path' });
+        }
+
+        // Read and parse the JSONL file
+        let fileContent;
+        try {
+            fileContent = await fsPromises.readFile(jsonlPath, 'utf8');
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                return res.status(404).json({ error: 'Session file not found', path: jsonlPath });
+            }
+            throw error; // Re-throw other errors to be caught by outer try-catch
+        }
+        const lines = fileContent.trim().split('\n');
+
+        const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
+        const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
+        let inputTokens = 0;
+        let cacheCreationTokens = 0;
+        let cacheReadTokens = 0;
+
+        // Find the latest assistant message with usage data (scan from end)
+        for (let i = lines.length - 1; i >= 0; i--) {
+            try {
+                const entry = JSON.parse(lines[i]);
+
+                // Only count assistant messages which have usage data
+                if (entry.type === 'assistant' && entry.message?.usage) {
+                    const usage = entry.message.usage;
+
+                    // Use token counts from latest assistant message only
+                    inputTokens = usage.input_tokens || 0;
+                    cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+                    cacheReadTokens = usage.cache_read_input_tokens || 0;
+
+                    break; // Stop after finding the latest assistant message
+                }
+            } catch (parseError) {
+                // Skip lines that can't be parsed
+                continue;
+            }
+        }
+
+        // Calculate total context usage (excluding output_tokens, as per ccusage)
+        const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
+
+        res.json({
+            used: totalUsed,
+            total: contextWindow,
+            breakdown: {
+                input: inputTokens,
+                cacheCreation: cacheCreationTokens,
+                cacheRead: cacheReadTokens
+            }
+        });
+    } catch (error) {
+        console.error('Error reading session token usage:', error);
+        res.status(500).json({ error: 'Failed to read session token usage' });
+    }
+});
+
+// Serve React app for all other routes (excluding static files).
+// Regex instead of the string '*' because path-to-regexp v8 rejects the
+// bare wildcard with "Missing parameter name at index 0". /.*/ works on
+// every version and does exactly what the old `'*'` used to do: match
+// everything that didn't hit a more specific route above.
+app.get(/.*/, (req, res) => {
+    // Skip requests for static assets (files with extensions)
+    if (path.extname(req.path)) {
+        return res.status(404).send('Not found');
+    }
+
+    // Never serve index.html for unmatched API / WS routes — returning HTML
+    // there gives the frontend a bogus 200 + `<!doctype ...` body, which
+    // then explodes `res.json()` as "Unexpected token '<'". Sending a real
+    // JSON 404 here means missing endpoints surface as a clear HTTP error
+    // instead of a misleading parse failure. Fixes the Settings → Agents →
+    // Configuration tab on hosts still running an older backend that
+    // predates `/api/providers/:p/config-files`.
+    if (req.path.startsWith('/api/') || req.path === '/api' ||
+        req.path.startsWith('/ws') || req.path.startsWith('/shell') ||
+        req.path === '/health') {
+        return res.status(404).json({
+            success: false,
+            error: {
+                code: 'ROUTE_NOT_FOUND',
+                message: `No handler for ${req.method} ${req.path}. The backend may be an older build — restart the server after an update.`,
+            },
+        });
+    }
+
+    // Only serve index.html for HTML routes, not for static assets
+    // Static assets should already be handled by express.static middleware above
+    const indexPath = path.join(APP_ROOT, 'dist', 'index.html');
+
+    // Check if dist/index.html exists (production build available)
+    if (fs.existsSync(indexPath)) {
+        // Set no-cache headers for HTML to prevent service worker issues
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.sendFile(indexPath);
+    } else {
+        // No dist — typically a mid-update swap window (the runtime-dir
+        // update endpoint moves dist/ under .previous/ and back). Instead
+        // of bouncing the browser to :5173 (the Vite dev port, which
+        // production users never have running), show a graceful "updating
+        // — will reload automatically" page with a short retry. Fixes the
+        // "page suddenly redirected to 5173" bug users hit mid-update.
+        res.status(503);
+        res.setHeader('Retry-After', '2');
+        res.setHeader('Cache-Control', 'no-store');
+        res.type('html').send(
+            '<!doctype html><html><head><meta charset="utf-8"><title>Pixcode</title>'
+            + '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0d1a;color:#e8ecf7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:center;padding:40px}h2{margin:0 0 8px;font-weight:600;letter-spacing:-.01em}p{color:#9aa3bf;font-size:14px;margin:0}.s{width:24px;height:24px;border:2px solid rgba(255,255,255,.14);border-top-color:#4f7bff;border-radius:50%;animation:r .9s linear infinite;margin:20px auto 0}@keyframes r{to{transform:rotate(360deg)}}</style>'
+            + '<meta http-equiv="refresh" content="2">'
+            + '</head><body><div><h2>Pixcode is finishing an update…</h2><p>This page will reload automatically.</p><div class="s"></div></div></body></html>'
+        );
+    }
+});
+
+// global error middleware must be last
+app.use((err, req, res, next) => {
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
+      success: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        details: err.details,
+      },
+    });
+  }
+
+  console.error(err);
+
+  return res.status(500).json({
+    success: false,
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'Internal server error',
+    },
+  });
+});
+
+// Helper function to convert permissions to rwx format
+function permToRwx(perm) {
+    const r = perm & 4 ? 'r' : '-';
+    const w = perm & 2 ? 'w' : '-';
+    const x = perm & 1 ? 'x' : '-';
+    return r + w + x;
+}
+
+async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true) {
+    // Using fsPromises from import
+    const items = [];
+
+    try {
+        const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+            // Debug: log all entries including hidden files
+
+
+            // Skip heavy build directories and VCS directories
+            if (entry.name === 'node_modules' ||
+                entry.name === 'dist' ||
+                entry.name === 'build' ||
+                entry.name === '.git' ||
+                entry.name === '.svn' ||
+                entry.name === '.hg') continue;
+
+            const itemPath = path.join(dirPath, entry.name);
+            const item = {
+                name: entry.name,
+                path: itemPath,
+                type: entry.isDirectory() ? 'directory' : 'file'
+            };
+
+            // Get file stats for additional metadata
+            try {
+                const stats = await fsPromises.stat(itemPath);
+                item.size = stats.size;
+                item.modified = stats.mtime.toISOString();
+
+                // Convert permissions to rwx format
+                const mode = stats.mode;
+                const ownerPerm = (mode >> 6) & 7;
+                const groupPerm = (mode >> 3) & 7;
+                const otherPerm = mode & 7;
+                item.permissions = ((mode >> 6) & 7).toString() + ((mode >> 3) & 7).toString() + (mode & 7).toString();
+                item.permissionsRwx = permToRwx(ownerPerm) + permToRwx(groupPerm) + permToRwx(otherPerm);
+            } catch (statError) {
+                // If stat fails, provide default values
+                item.size = 0;
+                item.modified = null;
+                item.permissions = '000';
+                item.permissionsRwx = '---------';
+            }
+
+            if (entry.isDirectory() && currentDepth < maxDepth) {
+                // Recursively get subdirectories but limit depth
+                try {
+                    // Check if we can access the directory before trying to read it
+                    await fsPromises.access(item.path, fs.constants.R_OK);
+                    item.children = await getFileTree(item.path, maxDepth, currentDepth + 1, showHidden);
+                } catch (e) {
+                    // Silently skip directories we can't access (permission denied, etc.)
+                    item.children = [];
+                }
+            }
+
+            items.push(item);
+        }
+    } catch (error) {
+        // Only log non-permission errors to avoid spam
+        if (error.code !== 'EACCES' && error.code !== 'EPERM') {
+            console.error('Error reading directory:', error);
+        }
+    }
+
+    return items.sort((a, b) => {
+        if (a.type !== b.type) {
+            return a.type === 'directory' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+    });
+}
+
+const SERVER_PORT = process.env.SERVER_PORT || 3001;
+const HOST = process.env.HOST || '0.0.0.0';
+const DISPLAY_HOST = getConnectableHost(HOST);
+const VITE_PORT = process.env.VITE_PORT || 5173;
+const SEPARATE_FRONTEND = process.env.PIXCODE_SEPARATE_FRONTEND === '1';
+
+async function isPortOpen(port, timeoutMs = 800) {
+    return await new Promise((resolve) => {
+        const socket = net.createConnection({ host: '127.0.0.1', port: Number(port) });
+        let settled = false;
+        const done = (value) => {
+            if (settled) return;
+            settled = true;
+            socket.destroy();
+            resolve(value);
+        };
+
+        socket.setTimeout(timeoutMs);
+        socket.once('connect', () => done(true));
+        socket.once('timeout', () => done(false));
+        socket.once('error', () => done(false));
+    });
+}
+
+async function waitForPortOpen(port, timeoutMs = 25000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (await isPortOpen(port)) {
+            return true;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    return false;
+}
+
+function printSystemDaemonActiveNotice(port) {
+    const effectivePort = Number(port) || 3001;
+    const statusCommand = buildDaemonCliCommand(
+        { subcommand: 'status', mode: 'system' },
+        DAEMON_COMMAND_CONTEXT
+    );
+    const stopCommand = buildDaemonCliCommand(
+        { subcommand: 'stop', mode: 'system' },
+        DAEMON_COMMAND_CONTEXT
+    );
+    const logsCommand = buildDaemonCliCommand(
+        { subcommand: 'logs', mode: 'system' },
+        DAEMON_COMMAND_CONTEXT
+    );
+    console.log(`${c.ok('[OK]')} System daemon is active and managing Pixcode.`);
+    console.log(`${c.info('[INFO]')} Health URL: ${c.bright(`http://localhost:${effectivePort}/health`)}`);
+    console.log(`${c.info('[INFO]')} Status: ${c.bright(statusCommand)}`);
+    console.log(`${c.info('[INFO]')} Stop: ${c.bright(stopCommand)}`);
+    console.log(`${c.info('[INFO]')} Logs: ${c.bright(logsCommand)}`);
+}
+
+function daemonFrontendArgs() {
+    return SEPARATE_FRONTEND
+        ? ['--frontend-port', String(VITE_PORT)]
+        : ['--single-port'];
+}
+
+function daemonInstallArgs(mode) {
+    return ['install', '--mode', mode, '--port', String(SERVER_PORT), ...daemonFrontendArgs()];
+}
+
+function printUserDaemonActiveNotice(port, frontendPort, frontendEnabled = SEPARATE_FRONTEND) {
+    const effectivePort = Number(port) || 3001;
+    const effectiveFrontendPort = Number(frontendPort) || 5173;
+    const statusCommand = buildDaemonCliCommand(
+        { subcommand: 'status', mode: 'user' },
+        DAEMON_COMMAND_CONTEXT
+    );
+    const stopCommand = buildDaemonCliCommand(
+        { subcommand: 'stop', mode: 'user' },
+        DAEMON_COMMAND_CONTEXT
+    );
+    const logsCommand = buildDaemonCliCommand(
+        { subcommand: 'logs', mode: 'user' },
+        DAEMON_COMMAND_CONTEXT
+    );
+    console.log(`${c.ok('[OK]')} User daemon is active for this account.`);
+    console.log(`${c.info('[INFO]')} App URL: ${c.bright(`http://localhost:${effectivePort}`)}`);
+    if (frontendEnabled) {
+        console.log(`${c.info('[INFO]')} Frontend: ${c.bright(`http://localhost:${effectiveFrontendPort}`)}`);
+    }
+    console.log(`${c.info('[INFO]')} Status: ${c.bright(statusCommand)}`);
+    console.log(`${c.info('[INFO]')} Stop: ${c.bright(stopCommand)}`);
+    console.log(`${c.info('[INFO]')} Logs: ${c.bright(logsCommand)}`);
+    console.log(`${c.tip('[TIP]')} For login/reboot persistence, enable linger once: ${c.bright(`sudo loginctl enable-linger ${os.userInfo().username}`)}`);
+}
+
+function isSystemPermissionError(error) {
+    const message = String(error?.message || error || '');
+    return /(access denied|permission denied|must be root|interactive authentication required|not permitted|failed to connect to bus|operation not permitted|authentication is required|polkit)/i.test(message);
+}
+
+async function maybeAutoDaemonBootstrapFromIndex() {
+    if (process.platform !== 'linux') return false;
+    if (process.env.PIXCODE_DAEMON_MANAGED === '1') return false;
+    if (process.env.PIXCODE_NO_DAEMON === '1') return false;
+    if (process.env.PIXCODE_DAEMON_ATTEMPTED === '1') return false;
+
+    process.env.PIXCODE_DAEMON_ATTEMPTED = '1';
+
+    const systemArgs = daemonInstallArgs('system');
+    const userArgs = daemonInstallArgs('user');
+
+    try {
+        console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for Pixcode...`);
+        await handleDaemonCommand(systemArgs, {
+            appRoot: APP_ROOT,
+            defaultPort: String(SERVER_PORT),
+            color: c,
+            cliEntry: path.join(APP_ROOT, 'server', 'cli.js'),
+        });
+        return true;
+    } catch (systemError) {
+        const healthySoon = await waitForPortOpen(SERVER_PORT);
+        if (healthySoon) {
+            console.log(`${c.warn('[WARN]')} System daemon health check was delayed, but port ${SERVER_PORT} is now reachable.`);
+            printSystemDaemonActiveNotice(SERVER_PORT);
+            return true;
+        }
+
+        if (!isSystemPermissionError(systemError)) {
+            const installSystemCommand = buildDaemonCliCommand(
+                {
+                    subcommand: 'install',
+                    mode: 'system',
+                    extraArgs: ['--port', String(SERVER_PORT), ...daemonFrontendArgs()],
+                },
+                DAEMON_COMMAND_CONTEXT
+            );
+            throw new Error(
+                `System daemon bootstrap failed.\n` +
+                `${systemError.message}\n` +
+                `Run with privileges: ${installSystemCommand}`
+            );
+        }
+
+        console.log(`${c.warn('[WARN]')} System daemon setup requires elevated privileges for this user.`);
+        console.log(`${c.info('[INFO]')} Falling back to user daemon mode for account "${os.userInfo().username}"...`);
+
+        try {
+            await handleDaemonCommand(userArgs, {
+                appRoot: APP_ROOT,
+                defaultPort: String(SERVER_PORT),
+                color: c,
+                cliEntry: path.join(APP_ROOT, 'server', 'cli.js'),
+            });
+            printUserDaemonActiveNotice(SERVER_PORT, VITE_PORT);
+            return true;
+        } catch (userError) {
+            const userHealthySoon = await waitForPortOpen(SERVER_PORT);
+            if (userHealthySoon) {
+                console.log(`${c.warn('[WARN]')} User daemon health check was delayed, but port ${SERVER_PORT} is now reachable.`);
+                printUserDaemonActiveNotice(SERVER_PORT, VITE_PORT);
+                return true;
+            }
+            const installSystemCommand = buildDaemonCliCommand(
+                {
+                    subcommand: 'install',
+                    mode: 'system',
+                    extraArgs: ['--port', String(SERVER_PORT), ...daemonFrontendArgs()],
+                },
+                DAEMON_COMMAND_CONTEXT
+            );
+            const installUserCommand = buildDaemonCliCommand(
+                {
+                    subcommand: 'install',
+                    mode: 'user',
+                    extraArgs: ['--port', String(SERVER_PORT), ...daemonFrontendArgs()],
+                },
+                DAEMON_COMMAND_CONTEXT
+            );
+            throw new Error(
+                `System daemon bootstrap failed.\n` +
+                `${systemError.message}\n\n` +
+                `User daemon fallback also failed.\n` +
+                `${userError.message}\n` +
+                `Try one of:\n` +
+                `1) ${installSystemCommand}\n` +
+                `2) ${installUserCommand}`
+            );
+        }
+    }
+}
+
+// Initialize database and start server
+async function startServer() {
+    try {
+        if (await maybeAutoDaemonBootstrapFromIndex()) {
+            return;
+        }
+
+        // Initialize authentication database
+        await initializeDatabase();
+
+        // Configure Web Push (VAPID keys)
+        configureWebPush();
+
+        // Load any provider API keys saved through the UI into process.env so
+        // the Claude/Codex SDKs pick them up automatically. Spawn-based
+        // adapters (Gemini, Qwen) layer their own env on top via buildSpawnEnv.
+        try {
+            await applyAllStoredCredentialsToEnv();
+        } catch (err) {
+            console.warn('[provider-credentials] Failed to apply stored credentials:', err?.message || err);
+        }
+
+        // Prepend the pixcode-managed CLI sandbox
+        // (~/.pixcode/cli-bin/node_modules/.bin) to PATH so any provider CLI
+        // installed via the in-app installer is instantly resolvable by
+        // cross-spawn calls in the provider adapters — no server restart
+        // required, no need to touch the user's shell PATH.
+        try {
+            primeCliBinPath();
+        } catch (err) {
+            console.warn('[install-jobs] Failed to prime CLI bin path:', err?.message || err);
+        }
+
+        // Prime Hermes' known install locations separately so the project
+        // terminal can resolve `hermes` even when Windows has not refreshed the
+        // user's PATH for the current Pixcode process.
+        try {
+            primeHermesPath();
+        } catch (err) {
+            console.warn('[install-jobs] Failed to prime Hermes bin path:', err?.message || err);
+        }
+
+        // Restore any previously-configured Telegram bot. This is best-effort:
+        // a bad token or network blip should warn, not crash the server.
+        restoreBotFromConfig().catch((err) => {
+            console.warn('[telegram] restore failed:', err?.message || err);
+        });
+
+        // Check if running in production mode (dist folder exists)
+        const distIndexPath = path.join(APP_ROOT, 'dist', 'index.html');
+        const isProduction = fs.existsSync(distIndexPath);
+
+        // Log Claude implementation mode
+        console.log(`${c.info('[INFO]')} Using Claude Agents SDK for Claude integration`);
+        console.log('');
+
+        if (isProduction) {
+            console.log(`${c.info('[INFO]')} To run in production mode, go to http://${DISPLAY_HOST}:${SERVER_PORT}`);            
+        }
+
+        if (SEPARATE_FRONTEND) {
+            console.log(`${c.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
+        }
+   
+        server.listen(SERVER_PORT, HOST, async () => {
+            const appInstallPath = APP_ROOT;
+
+            console.log('');
+            console.log(c.dim('═'.repeat(63)));
+            console.log(`  ${c.bright('Pixcode Server - Ready')}`);
+            console.log(c.dim('═'.repeat(63)));
+            console.log('');
+            console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
+            console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
+
+            // Print LAN IP + open inbound firewall port (Linux auto, Windows/Mac
+            // ask interactively once, then persist the decision). Non-fatal on
+            // any error — LAN access often works without a rule anyway.
+            try {
+                await ensurePortOpen(Number(SERVER_PORT));
+            } catch (err) {
+                console.log(`${c.dim('[INFO]')} Port-access helper failed: ${err?.message || err}`);
+            }
+
+            restoreRequestedTunnel({ port: Number(SERVER_PORT) }).catch((err) => {
+                console.warn('[external-access] tunnel restore failed:', err?.message || err);
+            });
+
+            console.log(`${c.tip('[TIP]')}  Run "pixcode status" for full configuration details`);
+            console.log('');
+
+            // Start watching the projects folder for changes
+            await setupProjectsWatcher();
+
+            // Start server-side plugin processes for enabled plugins
+            startEnabledPluginServers().catch(err => {
+                console.error('[Plugins] Error during startup:', err.message);
+            });
+        });
+
+        // Clean up plugin processes on shutdown
+        const shutdownPlugins = async () => {
+            await stopAllPlugins();
+            process.exit(0);
+        };
+        process.on('SIGTERM', () => void shutdownPlugins());
+        process.on('SIGINT', () => void shutdownPlugins());
+    } catch (error) {
+        console.error('[ERROR] Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+startServer();

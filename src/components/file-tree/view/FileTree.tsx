@@ -123,7 +123,7 @@ export default function FileTree({
     }
   }, [toast]);
 
-  const { files, loading, refreshFiles } = useFileTreeData(selectedProject);
+  const { files, loading, error: filesError, refreshFiles } = useFileTreeData(selectedProject);
   const { viewMode, changeViewMode } = useFileTreeViewMode();
   const { expandedDirs, toggleDirectory, expandDirectories, collapseAll } = useExpandedDirectories();
   const { searchQuery, setSearchQuery, filteredFiles } = useFileTreeSearch({
@@ -287,6 +287,23 @@ export default function FileTree({
 
   if (loading && files.length === 0) {
     return <FileTreeLoadingState />;
+  }
+
+  if (filesError && files.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-background p-4 text-center">
+        <AlertTriangle className="h-6 w-6 text-amber-500" />
+        <p className="text-sm text-muted-foreground">
+          {t('fileTree.loadError', 'Files could not be loaded.')}
+        </p>
+        <button
+          onClick={refreshFiles}
+          className="rounded-md bg-accent px-3 py-1.5 text-sm transition-colors hover:bg-accent/80"
+        >
+          {t('fileTree.retry', 'Retry')}
+        </button>
+      </div>
+    );
   }
 
   return (

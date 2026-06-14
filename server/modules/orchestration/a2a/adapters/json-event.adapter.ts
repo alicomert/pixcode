@@ -3,12 +3,13 @@
 // and translates them into the A2A bus protocol.
 
 import crypto from 'node:crypto';
+
 import { AbstractA2AAdapter } from '@/modules/orchestration/a2a/adapters/abstract-a2a.adapter.js';
 import type {
   AdapterContext,
   TaskHandle,
 } from '@/modules/orchestration/a2a/adapters/abstract-a2a.adapter.js';
-import type { AgentCard, Task, TaskState, TaskError, Message, Artifact } from '@/modules/orchestration/a2a/types.js';
+import type { AgentCard, Task } from '@/modules/orchestration/a2a/types.js';
 
 function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
