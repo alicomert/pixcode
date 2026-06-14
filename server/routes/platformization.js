@@ -15,6 +15,8 @@ import {
   getAuditLog,
   getPlatformizationState,
   getRemoteAccessState,
+  installTailscale,
+  loginTailscale,
   listSecrets,
   materializeScopedEnv,
   recordUsageEvent,
@@ -189,6 +191,22 @@ router.post('/remote-access/configs', (req, res) => {
 
 router.get('/remote-access/tailscale', async (_req, res) => {
   res.json({ success: true, tailscale: await detectTailscaleStatus() });
+});
+
+router.post('/remote-access/tailscale/install', async (req, res) => {
+  try {
+    res.json({ success: true, result: await installTailscale(userId(req)) });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/remote-access/tailscale/login', async (req, res) => {
+  try {
+    res.json({ success: true, result: await loginTailscale(userId(req)) });
+  } catch (error) {
+    handleError(res, error);
+  }
 });
 
 router.post('/remote-access/health', async (req, res) => {

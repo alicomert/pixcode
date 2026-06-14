@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import bcrypt from 'bcryptjs';
@@ -807,6 +807,63 @@ function normalizeAccessMode(mode) {
   return ['lan', 'tailscale', 'cloudflare_tunnel', 'custom_domain'].includes(mode) ? mode : 'lan';
 }
 
+function resolveTailscaleInstallPlan() {
+  const platform = os.platform();
+  if (platform === 'darwin') {
+    return {
+      platform,
+      command: 'brew',
+      args: ['install', 'tailscale'],
+      displayCommand: 'brew install tailscale',
+      docsUrl: 'https://tailscale.com/download/mac',
+      note: 'If Homebrew is not installed, open the download page and install the macOS app.',
+    };
+  }
+  if (platform === 'win32') {
+    return {
+      platform,
+      command: 'winget',
+      args: ['install', '--id', 'Tailscale.Tailscale', '-e', '--silent'],
+      displayCommand: 'winget install --id Tailscale.Tailscale -e --silent',
+      docsUrl: 'https://tailscale.com/download/windows',
+      note: 'If winget is unavailable, install from the Tailscale download page.',
+    };
+  }
+  return {
+    platform,
+    command: 'sh',
+    args: ['-c', 'curl -fsSL https://tailscale.com/install.sh | sh'],
+    displayCommand: 'curl -fsSL https://tailscale.com/install.sh | sh',
+    docsUrl: 'https://tailscale.com/download/linux',
+    note: 'Linux install may require root privileges. If this fails, run the command with sudo in a terminal.',
+  };
+}
+
+function extractFirstUrl(text = '') {
+  return String(text).match(/https?:\/\/[^\s]+/i)?.[0] || null;
+}
+
+function runTailscaleCommand(command, args, options = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      shell: false,
+      windowsHide: true,
+      env: process.env,
+      ...options,
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('error', (error) => {
+      resolve({ ok: false, code: null, stdout, stderr, error: error.message });
+    });
+    child.on('close', (code) => {
+      resolve({ ok: code === 0, code, stdout, stderr, error: code === 0 ? null : `${command} exited with code ${code}` });
+    });
+  });
+}
+
 function normalizePublicUrl(value) {
   const raw = typeof value === 'string' ? value.trim() : '';
   if (!raw) return null;
@@ -873,6 +930,7 @@ export function getRemoteAccessState() {
 }
 
 export async function detectTailscaleStatus() {
+  const installPlan = resolveTailscaleInstallPlan();
   try {
     const { stdout } = await execFileAsync('tailscale', ['status', '--json'], { timeout: 5000 });
     const status = JSON.parse(stdout || '{}');
@@ -887,6 +945,7 @@ export async function detectTailscaleStatus() {
       tailscaleIp: tailscaleIps[0] || null,
       pixcodeUrl: tailscaleIps[0] ? `http://${tailscaleIps[0]}:${process.env.SERVER_PORT || 3001}` : null,
       installUrl: 'https://tailscale.com/download',
+      installPlan,
       checkedAt: nowIso(),
       message: tailscaleIps[0] ? 'Tailscale is ready for private Pixcode access.' : 'Tailscale CLI is installed but no device IP was detected.',
     };
@@ -901,12 +960,52 @@ export async function detectTailscaleStatus() {
       tailscaleIp: null,
       pixcodeUrl: null,
       installUrl: 'https://tailscale.com/download',
+      installPlan,
       checkedAt: nowIso(),
       message: isMissing
         ? 'Tailscale is optional. Use the LAN links now, or install Tailscale from Settings > Access for private team access without a public domain.'
         : (error?.message || 'Tailscale status could not be read.'),
     };
   }
+}
+
+export async function installTailscale(actorId = null) {
+  const plan = resolveTailscaleInstallPlan();
+  const result = await runTailscaleCommand(plan.command, plan.args);
+  const store = readStore();
+  addAudit(store, 'remote.access.tailscale.install', actorId, {
+    platform: plan.platform,
+    ok: result.ok,
+    command: plan.displayCommand,
+  });
+  writeStore(store);
+  return {
+    ...result,
+    plan,
+    message: result.ok
+      ? 'Tailscale install command completed. Run login/connect next.'
+      : `Install command failed. ${plan.note}`,
+  };
+}
+
+export async function loginTailscale(actorId = null) {
+  const result = await runTailscaleCommand('tailscale', ['up']);
+  const combinedOutput = `${result.stdout || ''}\n${result.stderr || ''}`;
+  const authUrl = extractFirstUrl(combinedOutput);
+  const store = readStore();
+  addAudit(store, 'remote.access.tailscale.login', actorId, {
+    ok: result.ok,
+    authUrl: Boolean(authUrl),
+  });
+  writeStore(store);
+  return {
+    ...result,
+    authUrl,
+    message: result.ok
+      ? 'Tailscale is connected.'
+      : (authUrl ? 'Open the login URL to finish connecting this device.' : 'Tailscale login command failed.'),
+    tailscale: await detectTailscaleStatus(),
+  };
 }
 
 export async function checkRemoteAccessHealth(input = {}, actorId = null) {

@@ -61,12 +61,8 @@ export default function ChangesView({
       return;
     }
 
-    // Remove any selected files that no longer exist in the status
-    setSelectedFiles((prev) => {
-      const allFiles = new Set(getAllChangedFiles(gitStatus));
-      const next = new Set([...prev].filter((f) => allFiles.has(f)));
-      return next;
-    });
+    // Commit UX is intentionally direct: every changed file is included by default.
+    setSelectedFiles(new Set(getAllChangedFiles(gitStatus)));
   }, [gitStatus]);
 
   useEffect(() => {
@@ -129,28 +125,23 @@ export default function ChangesView({
 
   const commitSelectedFiles = useCallback(
     (message: string) => {
-      return onCommitChanges(message, Array.from(selectedFiles));
+      return onCommitChanges(message, changedFiles);
     },
-    [onCommitChanges, selectedFiles],
+    [changedFiles, onCommitChanges],
   );
 
   const generateMessageForSelection = useCallback(() => {
-    return onGenerateCommitMessage(Array.from(selectedFiles));
-  }, [onGenerateCommitMessage, selectedFiles]);
-
-  const unstagedFiles = useMemo(
-    () => new Set(changedFiles.filter((f) => !selectedFiles.has(f))),
-    [changedFiles, selectedFiles],
-  );
+    return onGenerateCommitMessage(changedFiles);
+  }, [changedFiles, onGenerateCommitMessage]);
 
   return (
     <>
       {!isFilesystemTracking && (
-        <CommitComposer
+          <CommitComposer
           isMobile={isMobile}
           compact={compact}
           projectPath={projectPath}
-          selectedFileCount={selectedFiles.size}
+          selectedFileCount={changedFiles.length}
           isHidden={hasExpandedFiles}
           onCommit={commitSelectedFiles}
           onGenerateMessage={generateMessageForSelection}
@@ -230,71 +221,26 @@ export default function ChangesView({
           </div>
         ) : (
           <div className={isMobile ? 'pb-4' : ''}>
-            {/* STAGED section */}
             <div className="flex items-center justify-between border-b border-border/60 bg-muted/30 px-3 py-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Staged ({selectedFiles.size})
+                Changes ({changedFiles.length})
               </span>
-              {selectedFiles.size > 0 && (
-                <button
-                  onClick={() => setSelectedFiles(new Set())}
-                  className="text-xs text-primary transition-colors hover:text-primary/80"
-                >
-                  Unstage All
-                </button>
-              )}
+              <span className="text-[11px] text-muted-foreground">All included in commit</span>
             </div>
-            {selectedFiles.size === 0 ? (
-              <div className="px-3 py-2 text-xs italic text-muted-foreground">No staged files</div>
-            ) : (
-              <FileChangeList
-                gitStatus={gitStatus}
-                gitDiff={gitDiff}
-                expandedFiles={expandedFiles}
-                selectedFiles={selectedFiles}
-                isMobile={isMobile}
-                wrapText={wrapText}
-                filePaths={selectedFiles}
-                onToggleSelected={toggleFileSelected}
-                onToggleExpanded={toggleFileExpanded}
-                onOpenFile={(filePath) => { void onOpenFile(filePath); }}
-                onToggleWrapText={() => onWrapTextChange(!wrapText)}
-                onRequestFileAction={requestFileAction}
-              />
-            )}
-
-            {/* CHANGES section */}
-            <div className="flex items-center justify-between border-b border-border/60 bg-muted/30 px-3 py-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Changes ({unstagedFiles.size})
-              </span>
-              {unstagedFiles.size > 0 && (
-                <button
-                  onClick={() => setSelectedFiles(new Set(changedFiles))}
-                  className="text-xs text-primary transition-colors hover:text-primary/80"
-                >
-                  Stage All
-                </button>
-              )}
-            </div>
-            {unstagedFiles.size === 0 ? (
-              <div className="px-3 py-2 text-xs italic text-muted-foreground">All changes staged</div>
-            ) : (
-              <FileChangeList
-                gitStatus={gitStatus}
-                gitDiff={gitDiff}
-                expandedFiles={expandedFiles}
-                selectedFiles={selectedFiles}
-                isMobile={isMobile}
-                wrapText={wrapText}
-                filePaths={unstagedFiles}
-                onToggleSelected={toggleFileSelected}
-                onToggleExpanded={toggleFileExpanded}
-                onOpenFile={(filePath) => { void onOpenFile(filePath); }}
-                onToggleWrapText={() => onWrapTextChange(!wrapText)}
-                onRequestFileAction={requestFileAction}
-              />
-            )}
+            <FileChangeList
+              gitStatus={gitStatus}
+              gitDiff={gitDiff}
+              expandedFiles={expandedFiles}
+              selectedFiles={selectedFiles}
+              isMobile={isMobile}
+              wrapText={wrapText}
+              hideSelection
+              onToggleSelected={toggleFileSelected}
+              onToggleExpanded={toggleFileExpanded}
+              onOpenFile={(filePath) => { void onOpenFile(filePath); }}
+              onToggleWrapText={() => onWrapTextChange(!wrapText)}
+              onRequestFileAction={requestFileAction}
+            />
           </div>
         )}
       </div>

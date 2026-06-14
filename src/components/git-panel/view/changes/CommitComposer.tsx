@@ -41,7 +41,7 @@ export default function CommitComposer({
 
   const [isCommitting, setIsCommitting] = useState(false);
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(isMobile || compact);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleCommit = async (message = commitMessage) => {
     const trimmedMessage = message.trim();

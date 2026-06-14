@@ -13,6 +13,7 @@ type FileChangeItemProps = {
   diff?: string;
   wrapText: boolean;
   readOnly?: boolean;
+  hideSelection?: boolean;
   onToggleSelected: (filePath: string) => void;
   onToggleExpanded: (filePath: string) => void;
   onOpenFile: (filePath: string) => void;
@@ -29,6 +30,7 @@ export default function FileChangeItem({
   diff,
   wrapText,
   readOnly = false,
+  hideSelection = false,
   onToggleSelected,
   onToggleExpanded,
   onOpenFile,
@@ -41,7 +43,7 @@ export default function FileChangeItem({
   return (
     <div className="border-b border-border last:border-0">
       <div className={`flex items-center transition-colors hover:bg-accent/50 ${isMobile ? 'px-2 py-1.5' : 'px-3 py-2'}`}>
-        {!readOnly && (
+        {!readOnly && !hideSelection && (
           <input
             type="checkbox"
             checked={isSelected}

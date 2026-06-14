@@ -60,7 +60,23 @@ type TailscaleState = {
   tailscaleIp?: string | null;
   pixcodeUrl?: string | null;
   installUrl?: string | null;
+  installPlan?: {
+    platform?: string;
+    displayCommand?: string;
+    docsUrl?: string;
+    note?: string;
+  } | null;
   message?: string;
+};
+
+type TailscaleActionResult = {
+  ok?: boolean;
+  stdout?: string;
+  stderr?: string;
+  error?: string | null;
+  authUrl?: string | null;
+  message?: string;
+  tailscale?: TailscaleState;
 };
 
 type HealthState = {
@@ -132,8 +148,10 @@ export default function AccessSettingsTab() {
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [tunnelBusy, setTunnelBusy] = useState(false);
+  const [tailscaleBusy, setTailscaleBusy] = useState<'install' | 'login' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [externalError, setExternalError] = useState<string | null>(null);
+  const [tailscaleAction, setTailscaleAction] = useState<TailscaleActionResult | null>(null);
   const [tunnelInstallHint, setTunnelInstallHint] = useState<TunnelInstallHint | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -329,6 +347,33 @@ export default function AccessSettingsTab() {
       setExternalError(err instanceof Error ? err.message : String(err));
     } finally {
       setTunnelBusy(false);
+    }
+  };
+
+  const runTailscaleAction = async (action: 'install' | 'login') => {
+    setTailscaleBusy(action);
+    setTailscaleAction(null);
+    setError(null);
+    try {
+      const data = await readJson<{ result: TailscaleActionResult }>(`/api/platformization/remote-access/tailscale/${action}`, {
+        method: 'POST',
+      });
+      setTailscaleAction(data.result);
+      if (data.result.tailscale) {
+        setTailscale(data.result.tailscale);
+        setTailscaleQr(data.result.tailscale.pixcodeUrl ? {
+          key: `tailscale:${data.result.tailscale.pixcodeUrl}`,
+          label: t('access.links.tailscale'),
+          url: data.result.tailscale.pixcodeUrl,
+          dataUrl: await renderQrDataUrl(data.result.tailscale.pixcodeUrl),
+        } : null);
+      } else {
+        await load();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTailscaleBusy(null);
     }
   };
 
@@ -562,7 +607,30 @@ export default function AccessSettingsTab() {
                   <li>{t('access.tailscale.steps.login')}</li>
                   <li>{t('access.tailscale.steps.refresh')}</li>
                 </ol>
+                {tailscale?.installPlan?.displayCommand && (
+                  <div className="mt-3 rounded-md border border-border/60 bg-muted/30 p-3">
+                    <div className="text-xs font-medium text-foreground">Install command</div>
+                    <code className="mt-1 block break-all font-mono text-[11px] text-muted-foreground">
+                      {tailscale.installPlan.displayCommand}
+                    </code>
+                    {tailscale.installPlan.note && (
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">{tailscale.installPlan.note}</p>
+                    )}
+                  </div>
+                )}
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {!tailscale?.installed && (
+                    <Button type="button" size="sm" onClick={() => void runTailscaleAction('install')} disabled={tailscaleBusy !== null}>
+                      {tailscaleBusy === 'install' && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                      Install on this device
+                    </Button>
+                  )}
+                  {tailscale?.installed && !tailscale?.loggedIn && (
+                    <Button type="button" size="sm" onClick={() => void runTailscaleAction('login')} disabled={tailscaleBusy !== null}>
+                      {tailscaleBusy === 'login' && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                      Sign in with Tailscale
+                    </Button>
+                  )}
                   {tailscale?.installUrl && (
                     <a
                       href={tailscale.installUrl}
@@ -579,6 +647,22 @@ export default function AccessSettingsTab() {
                     {t('access.refresh')}
                   </Button>
                 </div>
+                {tailscaleAction && (
+                  <div className="mt-3 rounded-md border border-border/60 bg-muted/20 p-3 text-xs">
+                    <div className="font-medium text-foreground">{tailscaleAction.message || (tailscaleAction.ok ? 'Done' : 'Needs attention')}</div>
+                    {tailscaleAction.authUrl && (
+                      <a href={tailscaleAction.authUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-medium text-primary underline">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Open Tailscale login
+                      </a>
+                    )}
+                    {(tailscaleAction.stdout || tailscaleAction.stderr || tailscaleAction.error) && (
+                      <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-background p-2 font-mono text-[11px] text-muted-foreground">
+                        {[tailscaleAction.stdout, tailscaleAction.stderr, tailscaleAction.error].filter(Boolean).join('\n')}
+                      </pre>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
