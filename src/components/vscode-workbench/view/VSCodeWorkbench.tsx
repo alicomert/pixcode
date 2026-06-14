@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
@@ -580,6 +581,7 @@ function VSCodeWorkbench({
   const [rightPaneWidth, setRightPaneWidth] = useState(RIGHT_DEFAULT_WIDTH);
   const [isLeftCollapsed, setIsLeftCollapsed] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [cliHeaderContent, setCliHeaderContent] = useState<ReactNode | null>(null);
   const [isBottomTerminalOpen, setIsBottomTerminalOpen] = useState(false);
   const [bottomTerminalMode, setBottomTerminalMode] = useState<WorkbenchBottomTerminalMode>('shell');
   const [bottomTerminalRunId, setBottomTerminalRunId] = useState(0);
@@ -1752,6 +1754,7 @@ function VSCodeWorkbench({
         session={selectedSession}
         hermesCliLaunch={hermesCliLaunch}
         onSessionSelect={sidebarProps.onSessionSelect}
+        onHeaderContentChange={setCliHeaderContent}
         t={t}
       />
     );
@@ -1924,11 +1927,15 @@ function VSCodeWorkbench({
               style={{ width: rightPaneWidth }}
             >
               <div className="flex h-10 items-center justify-between border-b border-border px-3">
-                <div className="flex min-w-0 items-center gap-1">
-                  <Bot className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t('vscodeWorkbench.panels.cli')}
-                  </span>
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  {cliHeaderContent || (
+                    <div className="flex min-w-0 items-center gap-1">
+                      <Bot className="h-4 w-4 text-muted-foreground" />
+                      <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {t('vscodeWorkbench.panels.cli')}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <button
@@ -3454,12 +3461,14 @@ function WorkbenchCliPanel({
   session,
   hermesCliLaunch,
   onSessionSelect,
+  onHeaderContentChange,
   t,
 }: {
   project: Project | null;
   session: ProjectSession | null;
   hermesCliLaunch: HermesTerminalLaunchEvent | null;
   onSessionSelect: (session: ProjectSession) => void;
+  onHeaderContentChange: (content: ReactNode | null) => void;
   t: TFunction<'common'>;
 }) {
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>(() => {
@@ -3468,6 +3477,7 @@ function WorkbenchCliPanel({
     return cliProviders.some((provider) => provider.id === saved) ? saved as LLMProvider : 'claude';
   });
   const [showHistory, setShowHistory] = useState(false);
+  const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [terminalSession, setTerminalSession] = useState<ProjectSession | null>(null);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [pendingFreshSession, setPendingFreshSession] = useState(false);
@@ -3548,6 +3558,78 @@ function WorkbenchCliPanel({
     });
   }, [activeCliTabId]);
 
+  const openProviderPickerForNewTab = useCallback(() => {
+    setShowHistory(false);
+    setShowProviderPicker(true);
+  }, []);
+
+  const cliHeaderTabs = useMemo(() => (
+    <div className="flex min-w-0 items-center gap-1">
+      {cliTabs.length === 0 && (
+        <div className="flex min-w-0 items-center gap-1 pr-1">
+          <Bot className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('vscodeWorkbench.panels.cli')}
+          </span>
+        </div>
+      )}
+      {cliTabs.length > 0 && (
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {cliTabs.map((tab) => {
+            const isActive = tab.id === (activeCliTab?.id || activeCliTabId);
+            return (
+              <div
+                key={tab.id}
+                className={cn(
+                  'group flex h-7 min-w-[112px] max-w-[200px] shrink-0 items-center gap-1.5 rounded border px-2 text-[11px]',
+                  isActive
+                    ? 'border-primary/50 bg-primary/10 text-foreground'
+                    : 'border-border/70 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+                )}
+              >
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                  onClick={() => setActiveCliTabId(tab.id)}
+                  onDoubleClick={() => renameCliTab(tab.id)}
+                  title="Double-click to rename"
+                >
+                  <SessionProviderLogo provider={tab.provider} className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{tab.title}</span>
+                </button>
+                <button
+                  type="button"
+                  className="rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeCliTab(tab.id);
+                  }}
+                  aria-label="Close CLI tab"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <button
+        type="button"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+        disabled={!project || installState.state === 'running'}
+        onClick={openProviderPickerForNewTab}
+        title="New CLI tab"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openProviderPickerForNewTab, project, renameCliTab, t]);
+
+  useEffect(() => {
+    onHeaderContentChange(cliHeaderTabs);
+    return () => onHeaderContentChange(null);
+  }, [cliHeaderTabs, onHeaderContentChange]);
+
   useEffect(() => {
     const providers = cliProviders.map((provider) => provider.id);
     void refreshProviderAuthStatuses(providers);
@@ -3605,20 +3687,6 @@ function WorkbenchCliPanel({
       updatedAt: Date.now(),
     });
   }, [projectCliStateKey]);
-
-  const terminateCurrentCliSession = useCallback((provider: LLMProvider) => {
-    if (!project) return;
-
-    void authenticatedFetch('/api/shell/sessions/terminate', {
-      method: 'POST',
-      body: JSON.stringify({
-        projectPath: project.fullPath || project.path || '',
-        provider,
-      }),
-    }).catch(() => {
-      // Starting the next session still asks the backend to kill stale PTYs.
-    });
-  }, [project]);
 
   const selectProvider = useCallback((provider: LLMProvider) => {
     const status = providerAuthStatus[provider];
@@ -3747,20 +3815,23 @@ function WorkbenchCliPanel({
     }
   }, [refreshProviderAuthStatuses, t]);
 
-  const startTerminal = useCallback(({ forceNewSession = false }: { forceNewSession?: boolean } = {}) => {
+  const startTerminalForProvider = useCallback((provider: LLMProvider, { forceNewSession = false }: { forceNewSession?: boolean } = {}) => {
     if (!project) return;
-    if (!canStartSelectedProvider) return;
+    const status = providerAuthStatus[provider];
+    if (status?.installed === false || installState.state === 'running') return;
     setTerminalMode('provider');
     setTerminalStartupInput(null);
     setTerminalHermesLaunchId(null);
     setTerminalPermissionOverride(null);
     setTerminalSession(null);
     setShowHistory(false);
+    setShowProviderPicker(false);
     setPendingFreshSession(false);
-    window.localStorage.setItem('selected-provider', selectedProvider);
+    setSelectedProvider(provider);
+    window.localStorage.setItem('selected-provider', provider);
     setIsTerminalOpen(true);
     openCliTab({
-      provider: selectedProvider,
+      provider,
       session: null,
       runId: Date.now(),
       forceNewSession,
@@ -3769,11 +3840,15 @@ function WorkbenchCliPanel({
       permissionOverride: null,
     });
     persistCliState({
-      provider: selectedProvider,
+      provider,
       isTerminalOpen: true,
       sessionId: null,
     });
-  }, [canStartSelectedProvider, openCliTab, persistCliState, project, selectedProvider]);
+  }, [installState.state, openCliTab, persistCliState, project, providerAuthStatus]);
+
+  const startTerminal = useCallback(({ forceNewSession = false }: { forceNewSession?: boolean } = {}) => {
+    startTerminalForProvider(selectedProvider, { forceNewSession });
+  }, [selectedProvider, startTerminalForProvider]);
 
   const startSelectedCliSession = useCallback(() => {
     startTerminal({ forceNewSession: pendingFreshSession });
@@ -3825,23 +3900,6 @@ function WorkbenchCliPanel({
       sessionId: null,
     });
   }, [hermesCliLaunch, openCliTab, persistCliState]);
-
-  const openNewCliSessionPicker = useCallback(() => {
-    terminateCurrentCliSession(selectedProvider);
-    setTerminalMode('provider');
-    setTerminalStartupInput(null);
-    setTerminalHermesLaunchId(null);
-    setTerminalPermissionOverride(null);
-    setTerminalSession(null);
-    setShowHistory(false);
-    setIsTerminalOpen(false);
-    setPendingFreshSession(true);
-    persistCliState({
-      provider: selectedProvider,
-      isTerminalOpen: false,
-      sessionId: null,
-    });
-  }, [persistCliState, selectedProvider, terminateCurrentCliSession]);
 
   const closeTerminal = useCallback(() => {
     if (activeCliTabId) {
@@ -3903,60 +3961,10 @@ function WorkbenchCliPanel({
           historyOpen={showHistory}
           canStart={canStartSelectedProvider}
           onToggleHistory={() => setShowHistory((previous) => !previous)}
-          onNewSession={openNewCliSessionPicker}
+          onNewSession={openProviderPickerForNewTab}
           onCloseTerminal={closeTerminal}
           t={t}
         />
-
-        {cliTabs.length > 0 && (
-          <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-gray-800 bg-gray-950 px-2">
-            {cliTabs.map((tab) => {
-              const isActive = tab.id === (activeCliTab?.id || activeCliTabId);
-              return (
-                <div
-                  key={tab.id}
-                  className={cn(
-                    'group flex h-7 min-w-[112px] max-w-[220px] items-center gap-1.5 rounded border px-2 text-[11px]',
-                    isActive
-                      ? 'border-blue-500 bg-blue-500/15 text-blue-100'
-                      : 'border-gray-800 bg-gray-900 text-gray-400 hover:border-gray-700 hover:text-gray-100',
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                    onClick={() => setActiveCliTabId(tab.id)}
-                    onDoubleClick={() => renameCliTab(tab.id)}
-                    title="Double-click to rename"
-                  >
-                    <SessionProviderLogo provider={tab.provider} className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{tab.title}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-0.5 opacity-60 hover:bg-gray-800 hover:opacity-100"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      closeCliTab(tab.id);
-                    }}
-                    aria-label="Close CLI tab"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              );
-            })}
-            <button
-              type="button"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-gray-800 text-gray-300 hover:bg-gray-900"
-              disabled={!canStartSelectedProvider}
-              onClick={startSelectedCliSession}
-              title="New CLI tab"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
 
         {showHistory && (
           <div className="absolute inset-x-2 top-10 z-30 max-h-[48%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
@@ -3966,6 +3974,52 @@ function WorkbenchCliPanel({
               onSessionSelect={handleHistorySessionSelect}
               t={t}
             />
+          </div>
+        )}
+
+        {showProviderPicker && (
+          <div className="absolute inset-x-2 top-10 z-30 max-h-[58%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
+            <div className="flex items-center justify-between border-b border-gray-800 px-2.5 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">New CLI tab</div>
+              <button type="button" className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100" onClick={() => setShowProviderPicker(false)}>
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="grid max-h-72 gap-1 overflow-y-auto p-2">
+              {cliProviders.map((provider) => {
+                const status = providerAuthStatus[provider.id];
+                const isLocked = status?.installed === false;
+                const isInstalling = installState.provider === provider.id && installState.state === 'running';
+                return (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    className={cn(
+                      'flex items-center gap-2 rounded border px-2 py-2 text-left transition-colors',
+                      isLocked
+                        ? 'border-amber-800/70 bg-amber-950/30 text-amber-100'
+                        : 'border-gray-800 bg-gray-900 text-gray-200 hover:border-blue-500/60 hover:bg-blue-500/10',
+                    )}
+                    onClick={() => {
+                      if (isLocked) {
+                        void startProviderInstall(provider.id);
+                        return;
+                      }
+                      startTerminalForProvider(provider.id, { forceNewSession: true });
+                    }}
+                  >
+                    <SessionProviderLogo provider={provider.id} className={cn('h-4 w-4 shrink-0', isLocked && 'opacity-70 grayscale')} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[11px] font-semibold">{provider.label}</span>
+                      <span className="block truncate text-[10px] text-gray-500">
+                        {isInstalling ? 'Installing...' : isLocked ? 'Install first' : 'Open new tab'}
+                      </span>
+                    </span>
+                    <Plus className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
