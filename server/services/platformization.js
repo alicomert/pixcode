@@ -121,6 +121,10 @@ function compact(text, max = 120) {
   return value.length > max ? value.slice(0, max).replace(/[-_\s]+$/g, '') : value;
 }
 
+function compactProjectIdentifier(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
 function slugify(value) {
   const slug = compact(value, 72)
     .toLowerCase()
@@ -142,6 +146,61 @@ function addAudit(store, action, actorId, details = {}) {
 
 function normalizeRole(role) {
   return TEAM_ROLES[role] ? role : 'viewer';
+}
+
+export function isAdminUser(user = {}) {
+  return user?.role === 'admin' || user?.role === 'owner';
+}
+
+function resolveUser(input = {}) {
+  const users = userDb.listUsers();
+  const userId = Number(input.userId);
+  if (Number.isFinite(userId)) {
+    return users.find((user) => user.id === userId && user.is_active) || null;
+  }
+
+  const userRef = compact(input.userRef || input.email || input.username || '').toLowerCase();
+  if (!userRef) return null;
+  return users.find((user) => user.is_active && String(user.username).toLowerCase() === userRef) || null;
+}
+
+function projectMatches(collaborator, project = {}) {
+  const projectName = compactProjectIdentifier(project.name || project.projectName || project);
+  const projectPath = compactProjectIdentifier(project.fullPath || project.path || project.projectPath || '');
+
+  return Boolean(
+    (projectName && collaborator.projectName === projectName) ||
+    (projectPath && collaborator.projectPath === projectPath)
+  );
+}
+
+export function userHasProjectAccess(user, project, capability = 'viewFiles') {
+  if (isAdminUser(user)) return true;
+  if (!user?.id && !user?.userId) return false;
+
+  const userId = Number(user.id ?? user.userId);
+  const username = String(user.username || '').toLowerCase();
+  const store = readStore();
+
+  return store.projectCollaborators.some((collaborator) => {
+    if (collaborator.status === 'disabled') return false;
+    if (!projectMatches(collaborator, project)) return false;
+
+    const sameUser = Number(collaborator.userId) === userId ||
+      String(collaborator.userRef || '').toLowerCase() === username;
+    if (!sameUser) return false;
+
+    if (capability === 'viewFiles') {
+      return collaborator.capabilities?.viewFiles !== false;
+    }
+
+    return collaborator.capabilities?.[capability] === true;
+  });
+}
+
+export function filterProjectsForUser(projects = [], user) {
+  if (isAdminUser(user)) return projects;
+  return projects.filter((project) => userHasProjectAccess(user, project, 'viewFiles'));
 }
 
 function normalizeScope(scope) {
@@ -339,11 +398,16 @@ export function updateAdminUser(userId, patch = {}, actorId = null) {
 }
 
 export function createProjectCollaborator(input = {}, actorId = null) {
-  const projectName = compact(input.projectName || input.project || '');
+  const projectName = compactProjectIdentifier(input.projectName || input.project || '');
   const projectPath = input.projectPath || null;
-  const userRef = compact(input.userRef || input.email || input.username || '');
+  const targetUser = resolveUser(input);
+  const userRef = compact(input.userRef || input.email || input.username || targetUser?.username || '');
   if (!projectName || !userRef) {
     throw new Error('Project collaborator requires a project name and user reference.');
+  }
+
+  if (!targetUser) {
+    throw new Error('Create the user account before assigning project access.');
   }
 
   const role = ['partner', 'worker', 'reviewer', 'viewer'].includes(input.role) ? input.role : 'worker';
@@ -360,6 +424,7 @@ export function createProjectCollaborator(input = {}, actorId = null) {
     id: crypto.randomUUID(),
     projectName,
     projectPath,
+    userId: targetUser.id,
     userRef,
     role,
     capabilities: {

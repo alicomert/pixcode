@@ -158,18 +158,6 @@ export function useShellTerminal({
       sendClipboardTextToTerminal(pastedText);
     };
 
-    const pasteFromNavigatorClipboard = async () => {
-      if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
-        return false;
-      }
-
-      try {
-        return sendClipboardTextToTerminal(await navigator.clipboard.readText());
-      } catch {
-        return false;
-      }
-    };
-
     const handleCopyPasteShortcut = (event: KeyboardEvent) => {
       if (event.type !== 'keydown' || event.altKey || (!event.ctrlKey && !event.metaKey)) {
         return false;
@@ -193,18 +181,11 @@ export function useShellTerminal({
         return true;
       }
 
-      if (key === 'v') {
-        event.preventDefault();
-        event.stopPropagation();
-        void pasteFromNavigatorClipboard();
-        return true;
-      }
-
       return false;
     };
 
     terminalContainer.addEventListener('copy', handleTerminalCopy);
-    terminalContainer.addEventListener('paste', handleTerminalPaste);
+    terminalContainer.addEventListener('paste', handleTerminalPaste, true);
     terminalContainer.addEventListener('keydown', handleCopyPasteShortcut, true);
 
     nextTerminal.attachCustomKeyEventHandler((event) => {
@@ -289,7 +270,7 @@ export function useShellTerminal({
 
     return () => {
       terminalContainer.removeEventListener('copy', handleTerminalCopy);
-      terminalContainer.removeEventListener('paste', handleTerminalPaste);
+      terminalContainer.removeEventListener('paste', handleTerminalPaste, true);
       terminalContainer.removeEventListener('keydown', handleCopyPasteShortcut, true);
       resizeObserver.disconnect();
       if (resizeTimeoutRef.current !== null) {

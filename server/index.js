@@ -131,7 +131,8 @@ import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './util
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, apiKeysDb } from './database/db.js';
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
 import { configureWebPush } from './services/vapid-keys.js';
-import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
+import { validateApiKey, authenticateToken, authenticateWebSocket, requireAdmin } from './middleware/auth.js';
+import { filterProjectsForUser, userHasProjectAccess } from './services/platformization.js';
 import { IS_PLATFORM } from './constants/config.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
@@ -139,6 +140,37 @@ import { getConnectableHost } from '../shared/networkHosts.js';
 import { buildDaemonCliCommand, handleDaemonCommand } from './daemon-manager.js';
 
 const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
+
+function requireProjectAccess(capability = 'viewFiles') {
+    return (req, res, next) => {
+        const projectName = req.params.projectName || req.query.project || req.body?.project;
+        if (!projectName) {
+            return next();
+        }
+
+        if (!userHasProjectAccess(req.user, { name: String(projectName), projectName: String(projectName) }, capability)) {
+            return res.status(403).json({ error: 'Project access denied.' });
+        }
+
+        next();
+    };
+}
+
+function requireProjectPathAccess(capability = 'viewFiles') {
+    return (req, res, next) => {
+        const projectPath = req.body?.projectPath || req.query.projectPath || os.homedir();
+        const resolvedProjectPath = path.resolve(String(projectPath));
+        if (!userHasProjectAccess(req.user, {
+            fullPath: resolvedProjectPath,
+            path: resolvedProjectPath,
+            projectPath: resolvedProjectPath,
+        }, capability)) {
+            return res.status(403).json({ error: 'Project access denied.' });
+        }
+
+        next();
+    };
+}
 
 // File system watchers for provider project/session folders
 const PROVIDER_WATCH_PATHS = [
@@ -230,19 +262,21 @@ async function setupProjectsWatcher() {
                 // Get updated projects list
                 const updatedProjects = await getProjects(broadcastProgress);
 
-                // Notify all connected clients about the project changes
-                const updateMessage = JSON.stringify({
+                const updatePayload = {
                     type: 'projects_updated',
-                    projects: updatedProjects,
                     timestamp: new Date().toISOString(),
                     changeType: eventType,
                     changedFile: path.relative(rootPath, filePath),
                     watchProvider: provider
-                });
+                };
 
+                // Notify all connected clients about project changes, scoped to their access.
                 connectedClients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
-                        client.send(updateMessage);
+                        client.send(JSON.stringify({
+                            ...updatePayload,
+                            projects: filterProjectsForUser(updatedProjects, client.user),
+                        }));
                     }
                 });
 
@@ -315,6 +349,7 @@ const workspaceWatchers = new Map(); // projectName -> { watcher, subscribers, d
 
 async function subscribeToWorkspace(ws, projectName) {
     if (!projectName || typeof projectName !== 'string') return;
+    if (!userHasProjectAccess(ws.user, { name: projectName, projectName }, 'viewFiles')) return;
 
     const existing = workspaceWatchers.get(projectName);
     if (existing) {
@@ -893,7 +928,7 @@ app.get('/health', (req, res) => {
 // Optional API key validation (if configured)
 app.use('/api', validateApiKey);
 
-app.post('/api/shell/sessions/terminate', authenticateToken, (req, res) => {
+app.post('/api/shell/sessions/terminate', authenticateToken, requireProjectPathAccess('useShell'), (req, res) => {
     const provider = req.body?.provider || 'claude';
     const projectPath = req.body?.projectPath || os.homedir();
 
@@ -905,7 +940,7 @@ app.post('/api/shell/sessions/terminate', authenticateToken, (req, res) => {
     res.json({ success: true, killedSessions });
 });
 
-app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => {
+app.get('/api/shell/sessions/provider-output', authenticateToken, requireProjectPathAccess('useShell'), (req, res) => {
     const provider = String(req.query.provider || 'claude');
     const projectPath = typeof req.query.projectPath === 'string' && req.query.projectPath.trim()
         ? req.query.projectPath.trim()
@@ -962,7 +997,7 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, (req, res) => 
     });
 });
 
-app.post('/api/shell/sessions/provider-input', authenticateToken, (req, res) => {
+app.post('/api/shell/sessions/provider-input', authenticateToken, requireProjectPathAccess('useShell'), (req, res) => {
     const provider = String(req.body?.provider || 'claude');
     const projectPath = typeof req.body?.projectPath === 'string' && req.body.projectPath.trim()
         ? req.body.projectPath.trim()
@@ -1082,8 +1117,8 @@ app.use('/api/webhooks', authenticateToken, webhooksRoutes);
 // Production agent loop APIs (protected)
 app.use('/api/production-agent-loop', authenticateToken, productionAgentLoopRoutes);
 
-// Platform control plane APIs (protected)
-app.use('/api/platformization', authenticateToken, platformizationRoutes);
+// Platform control plane APIs (admin-only)
+app.use('/api/platformization', authenticateToken, requireAdmin, platformizationRoutes);
 
 // Project Live View (protected control API + public share proxy)
 app.use('/api/live-view', authenticateToken, liveViewRoutes);
@@ -1545,13 +1580,13 @@ app.post('/api/system/restart', authenticateToken, (req, res) => {
 app.get('/api/projects', authenticateToken, async (req, res) => {
     try {
         const projects = await getProjects(broadcastProgress);
-        res.json(projects);
+        res.json(filterProjectsForUser(projects, req.user));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.get('/api/projects/:projectName/sessions', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectName/sessions', authenticateToken, requireProjectAccess('viewFiles'), async (req, res) => {
     try {
         const { limit = 5, offset = 0 } = req.query;
         const result = await getSessions(req.params.projectName, parseInt(limit), parseInt(offset));
@@ -1563,7 +1598,7 @@ app.get('/api/projects/:projectName/sessions', authenticateToken, async (req, re
 });
 
 // Rename project endpoint
-app.put('/api/projects/:projectName/rename', authenticateToken, async (req, res) => {
+app.put('/api/projects/:projectName/rename', authenticateToken, requireProjectAccess('manageProjectSettings'), async (req, res) => {
     try {
         const { displayName } = req.body;
         await renameProject(req.params.projectName, displayName);
@@ -1574,7 +1609,7 @@ app.put('/api/projects/:projectName/rename', authenticateToken, async (req, res)
 });
 
 // Delete session endpoint
-app.delete('/api/projects/:projectName/sessions/:sessionId', authenticateToken, async (req, res) => {
+app.delete('/api/projects/:projectName/sessions/:sessionId', authenticateToken, requireProjectAccess('editFiles'), async (req, res) => {
     try {
         const { projectName, sessionId } = req.params;
         console.log(`[API] Deleting session: ${sessionId} from project: ${projectName}`);
@@ -1617,7 +1652,7 @@ app.put('/api/sessions/:sessionId/rename', authenticateToken, async (req, res) =
 // Delete project endpoint
 // force=true to allow removal even when sessions exist
 // deleteData=true to also delete session/memory files on disk (destructive)
-app.delete('/api/projects/:projectName', authenticateToken, async (req, res) => {
+app.delete('/api/projects/:projectName', authenticateToken, requireProjectAccess('manageProjectSettings'), async (req, res) => {
     try {
         const { projectName } = req.params;
         const force = req.query.force === 'true';
@@ -1635,7 +1670,7 @@ app.delete('/api/projects/:projectName', authenticateToken, async (req, res) => 
 });
 
 // Search conversations content (SSE streaming)
-app.get('/api/search/conversations', authenticateToken, async (req, res) => {
+app.get('/api/search/conversations', authenticateToken, requireAdmin, async (req, res) => {
     const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const parsedLimit = Number.parseInt(String(req.query.limit), 10);
     const limit = Number.isNaN(parsedLimit) ? 50 : Math.max(1, Math.min(parsedLimit, 100));
@@ -1830,7 +1865,7 @@ app.post('/api/create-folder', authenticateToken, async (req, res) => {
 });
 
 // Read file content endpoint
-app.get('/api/projects/:projectName/file', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectName/file', authenticateToken, requireProjectAccess('viewFiles'), async (req, res) => {
     try {
         const { projectName } = req.params;
         const { filePath } = req.query;
@@ -1870,7 +1905,7 @@ app.get('/api/projects/:projectName/file', authenticateToken, async (req, res) =
 });
 
 // Serve raw file bytes for previews and downloads.
-app.get('/api/projects/:projectName/files/content', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectName/files/content', authenticateToken, requireProjectAccess('viewFiles'), async (req, res) => {
     try {
         const { projectName } = req.params;
         const { path: filePath } = req.query;
@@ -1927,7 +1962,7 @@ app.get('/api/projects/:projectName/files/content', authenticateToken, async (re
 });
 
 // Save file content endpoint
-app.put('/api/projects/:projectName/file', authenticateToken, async (req, res) => {
+app.put('/api/projects/:projectName/file', authenticateToken, requireProjectAccess('editFiles'), async (req, res) => {
     try {
         const { projectName } = req.params;
         const { filePath, content } = req.body;
@@ -1976,7 +2011,7 @@ app.put('/api/projects/:projectName/file', authenticateToken, async (req, res) =
     }
 });
 
-app.get('/api/projects/:projectName/files', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectName/files', authenticateToken, requireProjectAccess('viewFiles'), async (req, res) => {
     try {
 
         // Using fsPromises from import
@@ -2058,7 +2093,7 @@ function validateFilename(name) {
 }
 
 // POST /api/projects/:projectName/files/create - Create new file or directory
-app.post('/api/projects/:projectName/files/create', authenticateToken, async (req, res) => {
+app.post('/api/projects/:projectName/files/create', authenticateToken, requireProjectAccess('editFiles'), async (req, res) => {
     try {
         const { projectName } = req.params;
         const { path: parentPath, type, name } = req.body;
@@ -2135,7 +2170,7 @@ app.post('/api/projects/:projectName/files/create', authenticateToken, async (re
 });
 
 // PUT /api/projects/:projectName/files/rename - Rename file or directory
-app.put('/api/projects/:projectName/files/rename', authenticateToken, async (req, res) => {
+app.put('/api/projects/:projectName/files/rename', authenticateToken, requireProjectAccess('editFiles'), async (req, res) => {
     try {
         const { projectName } = req.params;
         const { oldPath, newName } = req.body;
@@ -2212,7 +2247,7 @@ app.put('/api/projects/:projectName/files/rename', authenticateToken, async (req
 });
 
 // DELETE /api/projects/:projectName/files - Delete file or directory
-app.delete('/api/projects/:projectName/files', authenticateToken, async (req, res) => {
+app.delete('/api/projects/:projectName/files', authenticateToken, requireProjectAccess('editFiles'), async (req, res) => {
     try {
         const { projectName } = req.params;
         const { path: targetPath, type } = req.body;
@@ -2438,7 +2473,7 @@ const uploadFilesHandler = async (req, res) => {
     });
 };
 
-app.post('/api/projects/:projectName/files/upload', authenticateToken, uploadFilesHandler);
+app.post('/api/projects/:projectName/files/upload', authenticateToken, requireProjectAccess('editFiles'), uploadFilesHandler);
 
 /**
  * Proxy an authenticated client WebSocket to a plugin's internal WS server.
@@ -2545,6 +2580,7 @@ function handleChatConnection(ws, request) {
 
     // Add to connected clients for project updates
     ws.userId = request?.user?.id ?? request?.user?.userId ?? null;
+    ws.user = request?.user ?? null;
     connectedClients.add(ws);
 
     // Wrap WebSocket with writer for consistent interface with SSEStreamWriter
@@ -2739,6 +2775,15 @@ function handleShellConnection(ws, request) {
                 // is writable, has a git-friendly cwd, and matches where
                 // every provider already stores its config (~/.codex etc.).
                 const projectPath = data.projectPath || os.homedir();
+                const requestedProjectPath = path.resolve(projectPath);
+                if (!userHasProjectAccess(request.user, {
+                    fullPath: requestedProjectPath,
+                    path: requestedProjectPath,
+                    projectPath: requestedProjectPath,
+                }, 'useShell')) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Shell access denied for this project' }));
+                    return;
+                }
                 const sessionId = data.sessionId;
                 const hasSession = data.hasSession;
                 const provider = data.provider || 'claude';
@@ -2876,7 +2921,7 @@ function handleShellConnection(ws, request) {
 
                 try {
                     // Validate projectPath — resolve to absolute and verify it exists
-                    const resolvedProjectPath = path.resolve(projectPath);
+                    const resolvedProjectPath = requestedProjectPath;
                     try {
                         const stats = fs.statSync(resolvedProjectPath);
                         if (!stats.isDirectory()) {
@@ -3234,7 +3279,7 @@ function handleShellConnection(ws, request) {
     });
 }
 // Image upload endpoint
-app.post('/api/projects/:projectName/upload-images', authenticateToken, async (req, res) => {
+app.post('/api/projects/:projectName/upload-images', authenticateToken, requireProjectAccess('editFiles'), async (req, res) => {
     try {
         const multer = (await import('multer')).default;
         const path = (await import('path')).default;
@@ -3319,7 +3364,7 @@ app.post('/api/projects/:projectName/upload-images', authenticateToken, async (r
 });
 
 // Get token usage for a specific session
-app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authenticateToken, requireProjectAccess('viewFiles'), async (req, res) => {
     try {
         const { projectName, sessionId } = req.params;
         const { provider = 'claude' } = req.query;

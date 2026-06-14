@@ -6,6 +6,7 @@ import { IS_PLATFORM } from '../constants/config.js';
 // Use env var if set, otherwise auto-generate a unique secret per installation
 const JWT_SECRET = process.env.JWT_SECRET || appConfigDb.getOrCreateJwtSecret();
 const isPixcodeApiKey = (token) => typeof token === 'string' && (token.startsWith('px_') || token.startsWith('ck_'));
+const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 // Optional API key middleware
 const validateApiKey = (req, res, next) => {
@@ -103,12 +104,25 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Access denied. No authenticated user.' });
+  }
+
+  if (!ADMIN_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'Admin access required.' });
+  }
+
+  next();
+};
+
 // Generate JWT token
 const generateToken = (user) => {
   return jwt.sign(
     {
       userId: user.id,
-      username: user.username
+      username: user.username,
+      role: user.role || null,
     },
     JWT_SECRET,
     { expiresIn: '7d' }
@@ -122,7 +136,7 @@ const authenticateWebSocket = (token) => {
     try {
       const user = userDb.getFirstUser();
       if (user) {
-        return { id: user.id, userId: user.id, username: user.username };
+        return { id: user.id, userId: user.id, username: user.username, role: user.role || null };
       }
       return null;
     } catch (error) {
@@ -145,7 +159,7 @@ const authenticateWebSocket = (token) => {
     try {
       const user = apiKeysDb.validateApiKey(token);
       if (!user) return null;
-      return { userId: user.id, username: user.username };
+      return { id: user.id, userId: user.id, username: user.username, role: user.role || null };
     } catch (error) {
       console.error('WebSocket API key validation error:', error);
       return null;
@@ -159,7 +173,7 @@ const authenticateWebSocket = (token) => {
     if (!user) {
       return null;
     }
-    return { userId: user.id, username: user.username };
+    return { id: user.id, userId: user.id, username: user.username, role: user.role || null };
   } catch (error) {
     console.error('WebSocket token verification error:', error);
     return null;
@@ -169,6 +183,7 @@ const authenticateWebSocket = (token) => {
 export {
   validateApiKey,
   authenticateToken,
+  requireAdmin,
   generateToken,
   authenticateWebSocket,
   JWT_SECRET

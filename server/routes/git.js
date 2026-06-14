@@ -7,6 +7,7 @@ import express from 'express';
 import { extractProjectDirectory } from '../projects.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
+import { userHasProjectAccess } from '../services/platformization.js';
 
 const router = express.Router();
 const COMMIT_DIFF_CHARACTER_LIMIT = 500_000;
@@ -29,6 +30,20 @@ const FILESYSTEM_SCAN_EXCLUDED_DIRS = new Set([
   '.cache',
   '.pixcode-dev',
 ]);
+
+router.use((req, res, next) => {
+  const project = req.query.project || req.body?.project;
+  if (!project) {
+    return next();
+  }
+
+  const capability = req.method === 'GET' ? 'viewFiles' : 'editFiles';
+  if (!userHasProjectAccess(req.user, { name: String(project), projectName: String(project) }, capability)) {
+    return res.status(403).json({ error: 'Project access denied.' });
+  }
+
+  next();
+});
 
 function isNotGitRepositoryMessage(message = '') {
   return message.includes('Not a git repository')

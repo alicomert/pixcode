@@ -318,7 +318,7 @@ const userDb = {
         role: row.role || null,
     })),
 
-    createUser: (username, passwordHash) => {
+    createUser: (username, passwordHash, metadata = {}) => {
         const row = store.insert('users', {
             username,
             password_hash: passwordHash,
@@ -328,8 +328,9 @@ const userDb = {
             git_name: null,
             git_email: null,
             has_completed_onboarding: false,
+            role: metadata.role || 'admin',
         });
-        return { id: row.id, username: row.username };
+        return { id: row.id, username: row.username, role: row.role || 'admin' };
     },
 
     createManagedUser: (username, passwordHash, metadata = {}) => {
@@ -427,6 +428,17 @@ const userDb = {
     },
 };
 
+function ensureAdminUser() {
+    const activeUsers = store.raw.users.filter((row) => row.is_active);
+    if (activeUsers.length === 0) return;
+    if (activeUsers.some((row) => row.role === 'admin' || row.role === 'owner')) return;
+
+    activeUsers[0].role = 'admin';
+    store.save();
+}
+
+ensureAdminUser();
+
 // ---------------------------------------------------------------------------
 // API key operations
 // ---------------------------------------------------------------------------
@@ -485,6 +497,7 @@ const apiKeysDb = {
         return {
             id: user.id,
             username: user.username,
+            role: user.role || null,
             api_key_id: key.id,
             api_key_scopes: apiKeysDb.normalizeScopes(key.scopes),
         };

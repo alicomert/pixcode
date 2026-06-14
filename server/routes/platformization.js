@@ -1,5 +1,6 @@
 import express from 'express';
 
+import { requireAdmin } from '../middleware/auth.js';
 import {
   checkRemoteAccessHealth,
   createAdminUser,
@@ -66,11 +67,11 @@ router.patch('/team/members/:id', (req, res) => {
   res.json({ success: true, member });
 });
 
-router.get('/admin/users', (_req, res) => {
+router.get('/admin/users', requireAdmin, (_req, res) => {
   res.json({ success: true, users: getPlatformizationState().adminUsers });
 });
 
-router.post('/admin/users', async (req, res) => {
+router.post('/admin/users', requireAdmin, async (req, res) => {
   try {
     res.status(201).json({ success: true, user: await createAdminUser(req.body || {}, userId(req)) });
   } catch (error) {
@@ -78,7 +79,7 @@ router.post('/admin/users', async (req, res) => {
   }
 });
 
-router.patch('/admin/users/:id', (req, res) => {
+router.patch('/admin/users/:id', requireAdmin, (req, res) => {
   const user = updateAdminUser(req.params.id, req.body || {}, userId(req));
   if (!user) {
     res.status(404).json({ success: false, error: 'Admin user not found.' });
@@ -87,11 +88,11 @@ router.patch('/admin/users/:id', (req, res) => {
   res.json({ success: true, user });
 });
 
-router.get('/project-collaborators', (_req, res) => {
+router.get('/project-collaborators', requireAdmin, (_req, res) => {
   res.json({ success: true, collaborators: getPlatformizationState().projectCollaborators });
 });
 
-router.post('/project-collaborators', (req, res) => {
+router.post('/project-collaborators', requireAdmin, (req, res) => {
   try {
     res.status(201).json({ success: true, collaborator: createProjectCollaborator(req.body || {}, userId(req)) });
   } catch (error) {
@@ -99,7 +100,7 @@ router.post('/project-collaborators', (req, res) => {
   }
 });
 
-router.patch('/project-collaborators/:id', (req, res) => {
+router.patch('/project-collaborators/:id', requireAdmin, (req, res) => {
   const collaborator = updateProjectCollaborator(req.params.id, req.body || {}, userId(req));
   if (!collaborator) {
     res.status(404).json({ success: false, error: 'Project collaborator not found.' });

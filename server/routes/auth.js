@@ -14,6 +14,14 @@ import {
 
 const router = express.Router();
 
+function publicUser(user) {
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role || 'member',
+  };
+}
+
 // Check auth status and setup requirements
 router.get('/status', async (req, res) => {
   try {
@@ -60,11 +68,11 @@ router.post('/register', async (req, res) => {
     // Use a transaction to prevent race conditions
     db.prepare('BEGIN').run();
     try {
-      // Check if users already exist (only allow one user)
+      // Check if users already exist. Additional accounts are created by admins.
       const hasUsers = userDb.hasUsers();
       if (hasUsers) {
         db.prepare('ROLLBACK').run();
-        return res.status(403).json({ error: 'User already exists. This is a single-user system.' });
+        return res.status(403).json({ error: 'Initial admin already exists. Ask an admin to create another account.' });
       }
       
       // Hash password
@@ -72,7 +80,7 @@ router.post('/register', async (req, res) => {
       const passwordHash = await bcrypt.hash(password, saltRounds);
       
       // Create user
-      const user = userDb.createUser(username, passwordHash);
+      const user = userDb.createUser(username, passwordHash, { role: 'admin' });
       
       // Generate token
       const token = generateToken(user);
@@ -84,7 +92,7 @@ router.post('/register', async (req, res) => {
 
       res.json({
         success: true,
-        user: { id: user.id, username: user.username },
+        user: publicUser(user),
         token
       });
     } catch (error) {
@@ -132,7 +140,7 @@ router.post('/login', async (req, res) => {
     
     res.json({
       success: true,
-      user: { id: user.id, username: user.username },
+      user: publicUser(user),
       token
     });
     

@@ -67,6 +67,7 @@ export function useGitPanelController({
 
   const clearOperationError = useCallback(() => setOperationError(null), []);
   const selectedProjectNameRef = useRef<string | null>(selectedProject?.name ?? null);
+  const remoteStatusRequestIdRef = useRef(0);
 
   useEffect(() => {
     selectedProjectNameRef.current = selectedProject?.name ?? null;
@@ -122,7 +123,10 @@ export function useGitPanelController({
 
     setIsLoading(true);
     try {
-      const response = await fetchWithAuth(`/api/git/status?project=${encodeURIComponent(projectName)}`, { signal });
+      const response = await fetchWithAuth(`/api/git/status?project=${encodeURIComponent(projectName)}`, {
+        cache: 'no-store',
+        signal,
+      });
       const data = await readJson<GitStatusResponse>(response, signal);
 
       if (
@@ -171,7 +175,9 @@ export function useGitPanelController({
     }
 
     try {
-      const response = await fetchWithAuth(`/api/git/branches?project=${encodeURIComponent(selectedProject.name)}`);
+      const response = await fetchWithAuth(`/api/git/branches?project=${encodeURIComponent(selectedProject.name)}`, {
+        cache: 'no-store',
+      });
       const data = await readJson<GitBranchesResponse>(response);
 
       if (!data.error && data.branches) {
@@ -197,9 +203,22 @@ export function useGitPanelController({
       return;
     }
 
+    const projectName = selectedProject.name;
+    const requestId = remoteStatusRequestIdRef.current + 1;
+    remoteStatusRequestIdRef.current = requestId;
+
     try {
-      const response = await fetchWithAuth(`/api/git/remote-status?project=${encodeURIComponent(selectedProject.name)}`);
+      const response = await fetchWithAuth(`/api/git/remote-status?project=${encodeURIComponent(projectName)}`, {
+        cache: 'no-store',
+      });
       const data = await readJson<GitRemoteStatus | GitApiErrorResponse>(response);
+
+      if (
+        selectedProjectNameRef.current !== projectName ||
+        remoteStatusRequestIdRef.current !== requestId
+      ) {
+        return;
+      }
 
       if (!data.error) {
         setRemoteStatus(data as GitRemoteStatus);
@@ -208,6 +227,13 @@ export function useGitPanelController({
 
       setRemoteStatus(null);
     } catch (error) {
+      if (
+        selectedProjectNameRef.current !== projectName ||
+        remoteStatusRequestIdRef.current !== requestId
+      ) {
+        return;
+      }
+
       console.error('Error fetching remote status:', error);
       setRemoteStatus(null);
     }
@@ -328,9 +354,7 @@ export function useGitPanelController({
 
       const data = await readJson<GitOperationResponse>(response);
       if (data.success) {
-        void fetchGitStatus();
-        void fetchRemoteStatus();
-        void fetchBranches();
+        await Promise.all([fetchGitStatus(), fetchRemoteStatus(), fetchBranches()]);
         return;
       }
 
@@ -359,8 +383,10 @@ export function useGitPanelController({
 
       const data = await readJson<GitOperationResponse>(response);
       if (data.success) {
-        void fetchGitStatus();
-        void fetchRemoteStatus();
+        await Promise.all([fetchGitStatus(), fetchRemoteStatus(), fetchBranches()]);
+        window.dispatchEvent(new CustomEvent('pixcode:file-tree-refresh', {
+          detail: { projectName: selectedProject.name },
+        }));
         return;
       }
 
@@ -370,7 +396,7 @@ export function useGitPanelController({
     } finally {
       setIsPulling(false);
     }
-  }, [fetchGitStatus, fetchRemoteStatus, selectedProject]);
+  }, [fetchBranches, fetchGitStatus, fetchRemoteStatus, selectedProject]);
 
   const handlePush = useCallback(async () => {
     if (!selectedProject) {

@@ -111,8 +111,8 @@ export default function SetupForm() {
   return (
     <AuthScreenLayout
       title="Welcome to Pixcode"
-      description="Set up your account to get started"
-      footerText="This is a single-user system. Only one account can be created."
+      description="Create the first admin account to get started"
+      footerText="The first account becomes admin and can add more users later."
       logo={<img src="/logo.svg" alt="Pixcode" className="h-16 w-16" />}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
