@@ -125,7 +125,7 @@ export function VersionUpgradeModal({
                     return;
                 }
                 const applied = payload?.state?.lastAppliedUpdate;
-                if (applied?.toVersion === currentVersion) {
+                if (applied?.toVersion === currentVersion && !isUpdateAvailable) {
                     setUpdateOutput(`Pixcode was updated to ${applied.toVersion}.\n`);
                 }
             })
@@ -136,7 +136,7 @@ export function VersionUpgradeModal({
         return () => {
             cancelled = true;
         };
-    }, [currentVersion, isOpen]);
+    }, [currentVersion, isOpen, isUpdateAvailable]);
 
     const pollHealthUntilReady = useCallback(async (expectedVersion?: string | null): Promise<boolean> => {
         const deadline = Date.now() + HEALTH_POLL_TIMEOUT_MS;
