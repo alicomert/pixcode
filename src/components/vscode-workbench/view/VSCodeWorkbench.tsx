@@ -26,6 +26,7 @@ import { cn } from '../../../lib/utils';
 import { authenticatedFetch } from '../../../utils/api';
 import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useAgentAutoDiff } from '../../../hooks/useAgentAutoDiff';
+import { useFilesystemDiffAutoOpener } from '../../../hooks/useFilesystemDiffAutoOpener';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import type { AppTab, LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { MainContentProps } from '../../main-content/types/types';
@@ -775,6 +776,24 @@ function VSCodeWorkbench({
       });
     },
     [],
+  );
+
+  const handleOpenFileWithDiff = useCallback(
+    (filePath: string, diffInfo: CodeEditorDiffInfo) => {
+      const isOpen = openEditorTabs.some((tab) => tab.path === filePath);
+      if (isOpen) {
+        applyAgentDiffToOpenTab(filePath, diffInfo);
+      } else {
+        handleFileOpen(filePath, diffInfo);
+      }
+    },
+    [openEditorTabs, applyAgentDiffToOpenTab, handleFileOpen],
+  );
+  useFilesystemDiffAutoOpener(
+    selectedProject,
+    uiPreferences.autoShowAgentDiff,
+    openEditorTabs.map((tab) => tab.path),
+    handleOpenFileWithDiff,
   );
 
   const clearDiffInfoForPath = useCallback((filePath: string) => {

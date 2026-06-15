@@ -17,6 +17,7 @@ import type { MainContentProps } from '../types/types';
 import type { AppTab } from '../../../types/app';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useAgentAutoDiff } from '../../../hooks/useAgentAutoDiff';
+import { useFilesystemDiffAutoOpener } from '../../../hooks/useFilesystemDiffAutoOpener';
 import { useChangedFilesMonitor, type ChangedFilesTrackingMode } from '../../../hooks/useChangedFilesMonitor';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
@@ -147,6 +148,12 @@ function MainContent({
     selectedProject,
     latestMessage,
     preferences.autoShowAgentDiff,
+  );
+  useFilesystemDiffAutoOpener(
+    selectedProject,
+    preferences.autoShowAgentDiff,
+    editingFile ? [editingFile.path] : [],
+    handleFileOpen,
   );
   const [focusedChangedFilePath, setFocusedChangedFilePath] = useState<string | null>(null);
   const lastHandledDetectedAtRef = useRef(0);
