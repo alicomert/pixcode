@@ -3,6 +3,20 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.51.9](https://github.com/alicomert/pixcode/compare/v1.51.8...v1.51.9) (2026-06-15)
+
+Pixcode 1.51.9 isolates every CLI and plain-terminal session by tab so multiple instances of the same provider can run side-by-side without PTY collisions, and adds multi-tab plain shell support in the workbench.
+
+### Features
+
+* isolate CLI/PTY sessions per tab using a unique tabId in the session key
+* add multi-tab plain shell support in VSCode workbench
+* batch PTY output to reduce WebSocket frame overhead
+
+### Fixes
+
+* prevent forceNewSession from killing sibling PTYs of the same provider
+
 ## [1.51.3](https://github.com/alicomert/pixcode/compare/v1.51.2...v1.51.3) (2026-06-14)
 
 ### New Features
