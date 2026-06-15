@@ -3,6 +3,18 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.52.3](https://github.com/alicomert/pixcode/compare/v1.52.2...v1.52.3) (2026-06-15)
+
+Pixcode 1.52.3 adds a **View → Quick Settings** menu item in the VSCode workbench layout and fixes inline diff not appearing when a diff is applied to an already-open editor tab.
+
+### Features
+
+* add **View → Quick Settings** menu item to open the panel from the top menu bar
+
+### Fixes
+
+* update `showDiff` state when `file.diffInfo` changes so agent/filesystem diffs appear on already-open tabs
+
 ## [1.52.2](https://github.com/alicomert/pixcode/compare/v1.52.1...v1.52.2) (2026-06-15)
 
 Pixcode 1.52.2 fixes the Quick Settings panel so it is reachable in the desktop VSCode workbench layout, allowing users to change the `Agent diff` preference to `Always`.

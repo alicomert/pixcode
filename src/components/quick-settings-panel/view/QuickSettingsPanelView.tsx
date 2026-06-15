@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
@@ -65,6 +65,16 @@ export default function QuickSettingsPanelView() {
     },
     [consumeSuppressedClick],
   );
+
+  useEffect(() => {
+    const openPanel = () => setIsOpen(true);
+    window.openQuickSettings = openPanel;
+    return () => {
+      if (window.openQuickSettings === openPanel) {
+        delete window.openQuickSettings;
+      }
+    };
+  }, []);
 
   return (
     <>
