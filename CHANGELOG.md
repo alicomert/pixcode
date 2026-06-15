@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.52.0](https://github.com/alicomert/pixcode/compare/v1.51.9...v1.52.0) (2026-06-15)
+
+Pixcode 1.52.0 surfaces agent file edits as inline diffs inside the code editor. When a CLI agent modifies a file that is already open, the editor switches to diff mode so additions and deletions are visible immediately.
+
+### Features
+
+* show agent file edits as inline diff in the code editor
+* add `autoShowAgentDiff` preference: off / open files only / always
+* apply agent diff to already-open editor tabs in both VSCode workbench and mobile layout
+
 ## [1.51.9](https://github.com/alicomert/pixcode/compare/v1.51.8...v1.51.9) (2026-06-15)
 
 Pixcode 1.51.9 isolates every CLI and plain-terminal session by tab so multiple instances of the same provider can run side-by-side without PTY collisions, and adds multi-tab plain shell support in the workbench.
