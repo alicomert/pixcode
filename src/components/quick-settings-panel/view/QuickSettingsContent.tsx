@@ -79,16 +79,17 @@ export default function QuickSettingsContent({
       </QuickSettingsSection>
 
       <QuickSettingsSection title={t('quickSettings.sections.agentDiff', 'Agent diff')}>
-        <div className={SETTING_ROW_CLASS}>
+        <div className={`${SETTING_ROW_CLASS} flex-wrap gap-3`}>
           <span className="text-sm text-gray-900 dark:text-white">
             {t('quickSettings.autoShowAgentDiff', 'Show agent edits as diff')}
           </span>
-          <PillBar>
+          <PillBar className="flex-wrap">
             {AUTO_SHOW_AGENT_DIFF_OPTIONS.map(({ value, labelKey }) => (
               <Pill
                 key={value}
                 isActive={preferences.autoShowAgentDiff === value}
                 onClick={() => onSelectChange('autoShowAgentDiff', value)}
+                className="whitespace-nowrap"
               >
                 {t(labelKey)}
               </Pill>

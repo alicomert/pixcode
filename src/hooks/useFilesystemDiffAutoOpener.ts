@@ -19,6 +19,7 @@ export function useFilesystemDiffAutoOpener(
   mode: AutoShowAgentDiffMode,
   openFilePaths: string[],
   onOpenFileWithDiff: (filePath: string, diffInfo: CodeEditorDiffInfo) => void,
+  sendMessage: (message: { type: string; projectName: string }) => void,
 ) {
   const debounceTimersRef = useRef<Map<string, number>>(new Map());
 
@@ -91,6 +92,11 @@ export function useFilesystemDiffAutoOpener(
       return undefined;
     }
 
+    // Subscribe to server-side workspace watching independently of the FileTree
+    // component so filesystem edits (e.g. from external CLI tools) are detected
+    // even when the explorer panel is not open.
+    sendMessage({ type: 'watch-project', projectName: selectedProject.name });
+
     const timers = debounceTimersRef.current;
 
     const handleFileTreeRefresh = (event: Event) => {
@@ -118,9 +124,10 @@ export function useFilesystemDiffAutoOpener(
     window.addEventListener('pixcode:file-tree-refresh', handleFileTreeRefresh);
 
     return () => {
+      sendMessage({ type: 'unwatch-project', projectName: selectedProject.name });
       window.removeEventListener('pixcode:file-tree-refresh', handleFileTreeRefresh);
       timers.forEach((timer) => window.clearTimeout(timer));
       timers.clear();
     };
-  }, [applyDiffToFile, mode, selectedProject]);
+  }, [applyDiffToFile, mode, selectedProject, sendMessage]);
 }

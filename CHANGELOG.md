@@ -3,6 +3,19 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.52.4](https://github.com/alicomert/pixcode/compare/v1.52.3...v1.52.4) (2026-06-15)
+
+Pixcode 1.52.4 fixes two issues that prevented filesystem edits (e.g. from `kimi`) from appearing as inline diffs: the workspace watcher was only subscribed when the FileTree explorer was open, and the diff visibility toggle did not update when a diff was applied to an already-open tab. The Quick Settings panel is also widened so the `Agent diff` selector fits.
+
+### Features
+
+* widen Quick Settings panel and allow the `Agent diff` PillBar to wrap
+
+### Fixes
+
+* subscribe to `watch-project` independently in `useFilesystemDiffAutoOpener` so external CLI edits are detected even when the explorer is closed
+* update `CodeEditor` `showDiff` state whenever `file.diffInfo` changes
+
 ## [1.52.3](https://github.com/alicomert/pixcode/compare/v1.52.2...v1.52.3) (2026-06-15)
 
 Pixcode 1.52.3 adds a **View → Quick Settings** menu item in the VSCode workbench layout and fixes inline diff not appearing when a diff is applied to an already-open editor tab.

@@ -153,6 +153,7 @@ function MainContent({
     preferences.autoShowAgentDiff,
     editingFile ? [editingFile.path] : [],
     handleFileOpen,
+    sendMessage,
   );
   const [focusedChangedFilePath, setFocusedChangedFilePath] = useState<string | null>(null);
   const lastHandledDetectedAtRef = useRef(0);

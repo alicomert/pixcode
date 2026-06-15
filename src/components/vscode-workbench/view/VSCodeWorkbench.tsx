@@ -577,6 +577,7 @@ function VSCodeWorkbench({
   activeTab,
   setActiveTab,
   latestMessage,
+  sendMessage,
   onMenuClick,
   isLoading,
   onShowSettings,
@@ -795,6 +796,7 @@ function VSCodeWorkbench({
     uiPreferences.autoShowAgentDiff,
     openEditorTabs.map((tab) => tab.path),
     handleOpenFileWithDiff,
+    sendMessage,
   );
 
   const clearDiffInfoForPath = useCallback((filePath: string) => {
