@@ -951,6 +951,8 @@
       "chooseDescription": "Choose a CLI, then start a full-height terminal.",
       "startSelected": "Start {{provider}}",
       "newSession": "New CLI session",
+      "plainTerminal": "Terminal",
+      "newPlainTerminal": "New terminal",
       "history": "History",
       "noHistory": "No sessions for this project yet.",
       "projectHistory": "Project history",

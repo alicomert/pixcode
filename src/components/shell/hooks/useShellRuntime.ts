@@ -9,6 +9,7 @@ import { useShellConnection } from './useShellConnection';
 import { useShellTerminal } from './useShellTerminal';
 
 export function useShellRuntime({
+  tabId,
   selectedProject,
   selectedSession,
   initialCommand,
@@ -32,6 +33,7 @@ export function useShellRuntime({
   const [authUrl, setAuthUrl] = useState('');
   const [authUrlVersion, setAuthUrlVersion] = useState(0);
 
+  const tabIdRef = useRef(tabId);
   const selectedProjectRef = useRef(selectedProject);
   const selectedSessionRef = useRef(selectedSession);
   const initialCommandRef = useRef(initialCommand);
@@ -47,6 +49,7 @@ export function useShellRuntime({
 
   // Keep mutable values in refs so websocket handlers always read current data.
   useEffect(() => {
+    tabIdRef.current = tabId;
     selectedProjectRef.current = selectedProject;
     selectedSessionRef.current = selectedSession;
     initialCommandRef.current = initialCommand;
@@ -57,7 +60,7 @@ export function useShellRuntime({
     permissionOverrideRef.current = permissionOverride;
     providerRef.current = provider;
     onProcessCompleteRef.current = onProcessComplete;
-  }, [selectedProject, selectedSession, initialCommand, isPlainShell, forceNewSession, startupInput, hermesLaunchId, permissionOverride, provider, onProcessComplete]);
+  }, [tabId, selectedProject, selectedSession, initialCommand, isPlainShell, forceNewSession, startupInput, hermesLaunchId, permissionOverride, provider, onProcessComplete]);
 
   const setCurrentAuthUrl = useCallback((nextAuthUrl: string) => {
     authUrlRef.current = nextAuthUrl;
@@ -126,6 +129,7 @@ export function useShellRuntime({
     wsRef,
     terminalRef,
     fitAddonRef,
+    tabIdRef,
     selectedProjectRef,
     selectedSessionRef,
     initialCommandRef,

@@ -100,7 +100,7 @@ type ProviderInstallState = {
   error: string | null;
 };
 
-type WorkbenchCliTerminalMode = 'provider';
+type WorkbenchCliTerminalMode = 'provider' | 'plain';
 
 type WorkbenchBottomTerminalMode = 'shell' | 'hermes' | 'hermes-install';
 
@@ -238,12 +238,14 @@ type WorkbenchCliProjectState = {
   updatedAt: number;
 };
 
-type WorkbenchCliTab = {
+type WorkbenchShellTab = {
   id: string;
-  provider: LLMProvider;
+  type: 'provider' | 'plain';
+  provider?: LLMProvider;
   title: string;
   session: ProjectSession | null;
   runId: number;
+  tabId: string;
   forceNewSession: boolean;
   startupInput: string | null;
   hermesLaunchId: number | null;
@@ -3499,7 +3501,7 @@ function WorkbenchCliPanel({
     runId: 0,
     forceNewSession: false,
   });
-  const [cliTabs, setCliTabs] = useState<WorkbenchCliTab[]>([]);
+  const [cliTabs, setCliTabs] = useState<WorkbenchShellTab[]>([]);
   const [activeCliTabId, setActiveCliTabId] = useState<string | null>(null);
   const [installState, setInstallState] = useState<ProviderInstallState>({
     provider: null,
@@ -3517,34 +3519,62 @@ function WorkbenchCliPanel({
   const selectedProviderStatus = providerAuthStatus[selectedProvider];
   const sessionForShell = terminalSession?.__provider === selectedProvider ? terminalSession : null;
   const activeCliTab = cliTabs.find((tab) => tab.id === activeCliTabId) || cliTabs[0] || null;
+  useEffect(() => {
+    if (activeCliTab) {
+      setTerminalMode(activeCliTab.type);
+    }
+  }, [activeCliTab]);
   const activeHistorySessionId = terminalSession?.id ?? session?.id ?? null;
   const canStartSelectedProvider = Boolean(project && selectedProviderStatus?.installed !== false && installState.state !== 'running');
-  const canAutoConnect = Boolean((isTerminalOpen || cliTabs.length > 0) && terminalMode === 'provider' && canStartSelectedProvider);
+  const canAutoConnect = Boolean(
+    project &&
+    (isTerminalOpen || cliTabs.length > 0) &&
+    (activeCliTab?.type === 'plain' || (terminalMode === 'provider' && canStartSelectedProvider)),
+  );
   const projectCliStateKey = useMemo(() => getProjectCliStateKey(project), [project]);
   const lastRestoredProjectKeyRef = useRef<string | null>(null);
   const lastHermesCliLaunchIdRef = useRef(0);
 
-  const createCliTabTitle = useCallback((provider: LLMProvider, currentTabs = cliTabs) => {
-    const base = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
-    const count = currentTabs.filter((tab) => tab.provider === provider).length + 1;
+  const createShellTabTitle = useCallback((type: WorkbenchShellTab['type'], provider: LLMProvider | undefined, currentTabs = cliTabs) => {
+    if (type === 'plain') {
+      const count = currentTabs.filter((tab) => tab.type === 'plain').length + 1;
+      return `Terminal #${count}`;
+    }
+    const base = provider && PROVIDER_DISPLAY_NAMES[provider] ? PROVIDER_DISPLAY_NAMES[provider] : (provider ?? 'CLI');
+    const count = currentTabs.filter((tab) => tab.type === 'provider' && tab.provider === provider).length + 1;
     return `${base} #${count}`;
   }, [cliTabs]);
 
-  const openCliTab = useCallback((input: Omit<WorkbenchCliTab, 'id' | 'title'> & { title?: string }) => {
+  const openCliTab = useCallback((input: Omit<WorkbenchShellTab, 'id' | 'title' | 'tabId'> & { title?: string }) => {
     const id = `cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tabId = `tab_${crypto.randomUUID()}`;
     setCliTabs((currentTabs) => {
-      const nextTab: WorkbenchCliTab = {
+      const nextTab: WorkbenchShellTab = {
         ...input,
         id,
-        title: input.title || createCliTabTitle(input.provider, currentTabs),
+        tabId,
+        title: input.title || createShellTabTitle(input.type, input.provider, currentTabs),
       };
       return [...currentTabs, nextTab];
     });
     setActiveCliTabId(id);
     setIsTerminalOpen(true);
-    setTerminalMode('provider');
+    setTerminalMode(input.type === 'plain' ? 'plain' : 'provider');
     return id;
-  }, [createCliTabTitle]);
+  }, [createShellTabTitle]);
+
+  const openPlainShellTab = useCallback(() => {
+    openCliTab({
+      type: 'plain',
+      provider: undefined,
+      session: null,
+      runId: Date.now(),
+      forceNewSession: true,
+      startupInput: null,
+      hermesLaunchId: null,
+      permissionOverride: null,
+    });
+  }, [openCliTab]);
 
   const renameCliTab = useCallback((tabId: string) => {
     const tab = cliTabs.find((item) => item.id === tabId);
@@ -3622,7 +3652,11 @@ function WorkbenchCliPanel({
                     onDoubleClick={() => renameCliTab(tab.id)}
                     title="Double-click to rename"
                   >
-                    <SessionProviderLogo provider={tab.provider} className="h-3.5 w-3.5 shrink-0" />
+                    {tab.type === 'plain' ? (
+                      <Terminal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <SessionProviderLogo provider={tab.provider ?? 'claude'} className="h-3.5 w-3.5 shrink-0" />
+                    )}
                     <span className="truncate">{tab.title}</span>
                   </button>
                   <button
@@ -3654,6 +3688,15 @@ function WorkbenchCliPanel({
       <button
         type="button"
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+        disabled={!project}
+        onClick={openPlainShellTab}
+        title="New terminal tab"
+      >
+        <Terminal className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
         disabled={!project || installState.state === 'running'}
         onClick={openProviderPickerForNewTab}
         title="New CLI tab"
@@ -3661,7 +3704,7 @@ function WorkbenchCliPanel({
         <Plus className="h-3.5 w-3.5" />
       </button>
     </div>
-  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openProviderPickerForNewTab, project, renameCliTab, scrollCliTabs, t]);
+  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openPlainShellTab, openProviderPickerForNewTab, project, renameCliTab, scrollCliTabs, t]);
 
   useEffect(() => {
     onHeaderContentChange(cliHeaderTabs);
@@ -3702,6 +3745,7 @@ function WorkbenchCliPanel({
     setIsTerminalOpen(savedState.isTerminalOpen);
     if (savedState.isTerminalOpen) {
       openCliTab({
+        type: 'provider',
         provider: savedState.provider,
         session: restoredSession,
         runId: Date.now(),
@@ -3869,6 +3913,7 @@ function WorkbenchCliPanel({
     window.localStorage.setItem('selected-provider', provider);
     setIsTerminalOpen(true);
     openCliTab({
+      type: 'provider',
       provider,
       session: null,
       runId: Date.now(),
@@ -3921,6 +3966,7 @@ function WorkbenchCliPanel({
     setPendingFreshSession(false);
     setIsTerminalOpen(true);
     openCliTab({
+      type: 'provider',
       provider,
       session: null,
       runId: Date.now(),
@@ -3972,6 +4018,7 @@ function WorkbenchCliPanel({
     setPendingFreshSession(false);
     setIsTerminalOpen(true);
     openCliTab({
+      type: 'provider',
       provider,
       session: nextSession,
       runId: Date.now(),
@@ -3993,6 +4040,7 @@ function WorkbenchCliPanel({
       <div className="relative flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
         <WorkbenchCliPanelToolbar
           project={project}
+          mode={activeCliTab?.type === 'plain' ? 'plain' : 'provider'}
           provider={activeCliTab?.provider || selectedProvider}
           session={activeCliTab?.session || sessionForShell}
           historyCount={projectSessions.length}
@@ -4000,6 +4048,7 @@ function WorkbenchCliPanel({
           canStart={canStartSelectedProvider}
           onToggleHistory={() => setShowHistory((previous) => !previous)}
           onNewSession={openProviderPickerForNewTab}
+          onNewPlainShell={openPlainShellTab}
           onCloseTerminal={closeTerminal}
           t={t}
         />
@@ -4065,6 +4114,7 @@ function WorkbenchCliPanel({
           {cliTabs.length === 0 ? (
             <StandaloneShell
               key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalLaunch.runId}`}
+              tabId={`fallback-${selectedProvider}-${terminalLaunch.runId}`}
               project={project}
               session={sessionForShell}
               provider={selectedProvider}
@@ -4081,9 +4131,11 @@ function WorkbenchCliPanel({
             <div key={tab.id} className={cn('absolute inset-0', tab.id === activeCliTab?.id ? 'block' : 'hidden')}>
               <StandaloneShell
                 key={`${tab.id}-${tab.runId}`}
+                tabId={tab.tabId}
                 project={project}
                 session={tab.session}
                 provider={tab.provider}
+                isPlainShell={tab.type === 'plain'}
                 forceNewSession={tab.forceNewSession}
                 startupInput={tab.startupInput}
                 hermesLaunchId={tab.hermesLaunchId}
@@ -4281,6 +4333,7 @@ function WorkbenchCliPanel({
 
 function WorkbenchCliPanelToolbar({
   project,
+  mode,
   provider,
   session,
   historyCount,
@@ -4288,10 +4341,12 @@ function WorkbenchCliPanelToolbar({
   canStart,
   onToggleHistory,
   onNewSession,
+  onNewPlainShell,
   onCloseTerminal,
   t,
 }: {
   project: Project | null;
+  mode: 'provider' | 'plain';
   provider: LLMProvider;
   session: ProjectSession | null;
   historyCount: number;
@@ -4299,16 +4354,24 @@ function WorkbenchCliPanelToolbar({
   canStart: boolean;
   onToggleHistory: () => void;
   onNewSession: () => void;
+  onNewPlainShell: () => void;
   onCloseTerminal: () => void;
   t: TFunction<'common'>;
 }) {
+  const isPlain = mode === 'plain';
   return (
     <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-gray-800 bg-gray-900/95 px-2">
       <div className="flex min-w-0 items-center gap-2">
-        <SessionProviderLogo provider={provider} className="h-4 w-4 shrink-0" />
+        {isPlain ? (
+          <Terminal className="h-4 w-4 shrink-0 text-gray-400" />
+        ) : (
+          <SessionProviderLogo provider={provider} className="h-4 w-4 shrink-0" />
+        )}
         <div className="min-w-0">
           <div className="truncate text-[11px] font-semibold text-gray-100">
-            {PROVIDER_DISPLAY_NAMES[provider] ?? provider}
+            {isPlain
+              ? t('vscodeWorkbench.cli.plainTerminal', { defaultValue: 'Terminal' })
+              : (PROVIDER_DISPLAY_NAMES[provider] ?? provider)}
           </div>
           <div className="truncate text-[10px] text-gray-500">
             {session
@@ -4319,34 +4382,48 @@ function WorkbenchCliPanelToolbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          className={cn(
-            'relative rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50',
-            historyOpen && 'bg-gray-800',
-          )}
-          disabled={!project}
-          onClick={onToggleHistory}
-          title={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
-          aria-label={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
-        >
-          <History className="h-3.5 w-3.5" />
-          {historyCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-blue-600 px-0.5 text-[8px] font-semibold text-white">
-              {Math.min(historyCount, 9)}
-            </span>
-          )}
-        </button>
+        {!isPlain && (
+          <button
+            type="button"
+            className={cn(
+              'relative rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50',
+              historyOpen && 'bg-gray-800',
+            )}
+            disabled={!project}
+            onClick={onToggleHistory}
+            title={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
+            aria-label={t('vscodeWorkbench.cli.history', { defaultValue: 'History' })}
+          >
+            <History className="h-3.5 w-3.5" />
+            {historyCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-blue-600 px-0.5 text-[8px] font-semibold text-white">
+                {Math.min(historyCount, 9)}
+              </span>
+            )}
+          </button>
+        )}
         <button
           type="button"
           className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
-          disabled={!canStart}
-          onClick={onNewSession}
-          title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
-          aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+          disabled={!project}
+          onClick={onNewPlainShell}
+          title={t('vscodeWorkbench.cli.newPlainTerminal', { defaultValue: 'New terminal' })}
+          aria-label={t('vscodeWorkbench.cli.newPlainTerminal', { defaultValue: 'New terminal' })}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Terminal className="h-3.5 w-3.5" />
         </button>
+        {!isPlain && (
+          <button
+            type="button"
+            className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+            disabled={!canStart}
+            onClick={onNewSession}
+            title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+            aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800"

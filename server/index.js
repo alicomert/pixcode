@@ -3283,7 +3283,77 @@ function handleShellConnection(ws, request) {
     let shellProcess = null;
     let ptySessionKey = null;
     let urlDetectionBuffer = '';
+    let outputBuffer = '';
+    let outputFlushTimer = null;
     const announcedAuthUrls = new Set();
+
+    function flushOutputBuffer() {
+        if (!outputBuffer || !ptySessionKey) {
+            outputFlushTimer = null;
+            return;
+        }
+        const rawData = outputBuffer;
+        outputBuffer = '';
+        outputFlushTimer = null;
+
+        const session = ptySessionsMap.get(ptySessionKey);
+        if (!session) return;
+        session.updatedAt = Date.now();
+
+        appendPtySessionBuffer(session, rawData);
+
+        if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+            let outputData = rawData;
+
+            const cleanChunk = stripAnsiSequences(rawData);
+            urlDetectionBuffer = `${urlDetectionBuffer}${cleanChunk}`.slice(-SHELL_URL_PARSE_BUFFER_LIMIT);
+
+            outputData = outputData.replace(
+                /OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g,
+                '[INFO] Opening in browser: $1'
+            );
+            outputData = hideProviderApprovalChoiceLines(outputData);
+
+            const emitAuthUrl = (detectedUrl, autoOpen = false) => {
+                const normalizedUrl = normalizeDetectedUrl(detectedUrl);
+                if (!normalizedUrl) return;
+
+                const isNewUrl = !announcedAuthUrls.has(normalizedUrl);
+                if (isNewUrl) {
+                    announcedAuthUrls.add(normalizedUrl);
+                    session.ws.send(JSON.stringify({
+                        type: 'auth_url',
+                        url: normalizedUrl,
+                        autoOpen
+                    }));
+                }
+            };
+
+            const normalizedDetectedUrls = extractUrlsFromText(urlDetectionBuffer)
+                .map((url) => normalizeDetectedUrl(url))
+                .filter(Boolean);
+
+            const dedupedDetectedUrls = Array.from(new Set(normalizedDetectedUrls)).filter((url, _, urls) =>
+                !urls.some((otherUrl) => otherUrl !== url && otherUrl.startsWith(url))
+            );
+
+            dedupedDetectedUrls.forEach((url) => emitAuthUrl(url, false));
+
+            if (shouldAutoOpenUrlFromOutput(cleanChunk) && dedupedDetectedUrls.length > 0) {
+                const bestUrl = dedupedDetectedUrls.reduce((longest, current) =>
+                    current.length > longest.length ? current : longest
+                );
+                emitAuthUrl(bestUrl, true);
+            }
+
+            if (outputData) {
+                session.ws.send(JSON.stringify({
+                    type: 'output',
+                    data: outputData
+                }));
+            }
+        }
+    }
 
     ws.on('message', async (message) => {
         try {
@@ -3353,18 +3423,17 @@ function handleShellConnection(ws, request) {
                     initialCommand.includes('auth login')
                 );
 
-                // Include command hash in session key so different commands get separate sessions
-                const commandSuffix = isPlainShell && initialCommand
-                    ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
-                    : '';
-                // Include provider in the key so a fresh "new session" in OpenCode
-                // doesn't reattach to a cached Claude PTY for the same project (or
-                // vice versa). Before this, the key was just `${path}_default`,
-                // which collided across providers and made every disconnect →
-                // switch-provider flow reopen the previously-running CLI.
-                const providerSuffix = isPlainShell ? '' : `_${provider}`;
+                // Every UI shell instance gets a unique tabId. This guarantees that
+                // multiple tabs of the same provider (e.g. two OpenCode windows) do
+                // not share or overwrite the same PTY session. If the client does not
+                // send a tabId (legacy callers), generate one on the backend so the
+                // key is still unique for this connection.
+                const tabId = typeof data.tabId === 'string' && data.tabId.trim()
+                    ? data.tabId.trim()
+                    : `tab_${crypto.randomUUID()}`;
+                const providerKey = isPlainShell ? 'plain' : provider;
                 const ownerUserId = request.user?.id ?? request.user?.userId ?? 'anonymous';
-                ptySessionKey = `${ownerUserId}_${projectPath}_${sessionId || 'default'}${providerSuffix}${commandSuffix}`;
+                ptySessionKey = `${ownerUserId}_${projectPath}_${providerKey}_${tabId}_${sessionId || 'new'}`;
 
                 // Kill any existing login session before starting fresh
                 if (isLoginCommand) {
@@ -3373,16 +3442,12 @@ function handleShellConnection(ws, request) {
                         terminatePtySession(ptySessionKey, oldSession, 'fresh login');
                     }
                 } else if (forceNewSession) {
-                    if (isPlainShell) {
-                        const oldSession = ptySessionsMap.get(ptySessionKey);
-                        if (oldSession) {
-                            terminatePtySession(ptySessionKey, oldSession, 'fresh plain shell session');
-                        }
-                    } else {
-                        const killedSessions = killProviderPtySessions(projectPath, provider, ownerUserId);
-                        if (killedSessions > 0) {
-                            console.log(`🧹 Fresh ${provider} session requested; terminated ${killedSessions} cached PTY session(s).`);
-                        }
+                    // Only terminate the PTY that belongs to this exact tabId, not
+                    // every session for the same provider. This lets users run
+                    // multiple OpenCode/Claude/etc. instances side-by-side.
+                    const oldSession = ptySessionsMap.get(ptySessionKey);
+                    if (oldSession) {
+                        terminatePtySession(ptySessionKey, oldSession, `fresh ${isPlainShell ? 'plain shell' : provider} session`);
                     }
                 }
 
@@ -3618,6 +3683,7 @@ function handleShellConnection(ws, request) {
                         userId: ownerUserId,
                         projectPath,
                         sessionId,
+                        tabId,
                         hermesLaunchId,
                         provider,
                         isPlainShell,
@@ -3635,73 +3701,24 @@ function handleShellConnection(ws, request) {
                         writeTerminalStartupInput(createdSession, terminalStartupInput, 'new provider session', 4500);
                     }
 
-                    // Handle data output
+                    // Handle data output — batch rapid chunks so high-volume CLI
+                    // output does not flood the WebSocket with one JSON frame per
+                    // keystroke-sized chunk.
                     shellProcess.onData((data) => {
-                        const session = ptySessionsMap.get(ptySessionKey);
-                        if (!session) return;
-                        session.updatedAt = Date.now();
-
-                        appendPtySessionBuffer(session, data);
-
-                        if (session.ws && session.ws.readyState === WebSocket.OPEN) {
-                            let outputData = data;
-
-                            const cleanChunk = stripAnsiSequences(data);
-                            urlDetectionBuffer = `${urlDetectionBuffer}${cleanChunk}`.slice(-SHELL_URL_PARSE_BUFFER_LIMIT);
-
-                            outputData = outputData.replace(
-                                /OPEN_URL:\s*(https?:\/\/[^\s\x1b\x07]+)/g,
-                                '[INFO] Opening in browser: $1'
-                            );
-                            outputData = hideProviderApprovalChoiceLines(outputData);
-
-                            const emitAuthUrl = (detectedUrl, autoOpen = false) => {
-                                const normalizedUrl = normalizeDetectedUrl(detectedUrl);
-                                if (!normalizedUrl) return;
-
-                                const isNewUrl = !announcedAuthUrls.has(normalizedUrl);
-                                if (isNewUrl) {
-                                    announcedAuthUrls.add(normalizedUrl);
-                                    session.ws.send(JSON.stringify({
-                                        type: 'auth_url',
-                                        url: normalizedUrl,
-                                        autoOpen
-                                    }));
-                                }
-
-                            };
-
-                            const normalizedDetectedUrls = extractUrlsFromText(urlDetectionBuffer)
-                                .map((url) => normalizeDetectedUrl(url))
-                                .filter(Boolean);
-
-                            // Prefer the most complete URL if shorter prefix variants are also present.
-                            const dedupedDetectedUrls = Array.from(new Set(normalizedDetectedUrls)).filter((url, _, urls) =>
-                                !urls.some((otherUrl) => otherUrl !== url && otherUrl.startsWith(url))
-                            );
-
-                            dedupedDetectedUrls.forEach((url) => emitAuthUrl(url, false));
-
-                            if (shouldAutoOpenUrlFromOutput(cleanChunk) && dedupedDetectedUrls.length > 0) {
-                                const bestUrl = dedupedDetectedUrls.reduce((longest, current) =>
-                                    current.length > longest.length ? current : longest
-                                );
-                                emitAuthUrl(bestUrl, true);
-                            }
-
-                            // Send regular output
-                            if (outputData) {
-                                session.ws.send(JSON.stringify({
-                                    type: 'output',
-                                    data: outputData
-                                }));
-                            }
+                        outputBuffer += data;
+                        if (!outputFlushTimer) {
+                            outputFlushTimer = setTimeout(flushOutputBuffer, 8);
                         }
                     });
 
                     // Handle process exit
                     shellProcess.onExit((exitCode) => {
                         console.log('🔚 Shell process exited with code:', exitCode.exitCode, 'signal:', exitCode.signal);
+                        if (outputFlushTimer) {
+                            clearTimeout(outputFlushTimer);
+                            outputFlushTimer = null;
+                        }
+                        flushOutputBuffer();
                         const session = ptySessionsMap.get(ptySessionKey);
                         if (session?.pty && session.pty !== shellProcess) {
                             console.log('↩️  Ignoring stale PTY exit for replacement session:', ptySessionKey);
@@ -3794,12 +3811,25 @@ function handleShellConnection(ws, request) {
     ws.on('close', () => {
         console.log('🔌 Shell client disconnected');
 
+        if (outputFlushTimer) {
+            clearTimeout(outputFlushTimer);
+            outputFlushTimer = null;
+        }
+
         if (ptySessionKey) {
             const session = ptySessionsMap.get(ptySessionKey);
             if (session) {
                 if (session.keepAliveUntilExit) {
                     console.log('⏳ PTY session kept alive until process exit:', ptySessionKey);
                     session.ws = null;
+                    return;
+                }
+
+                // Plain shells are cheap to recreate, so terminate them immediately
+                // instead of keeping a 30-minute zombie PTY around.
+                if (session.isPlainShell) {
+                    console.log('🧹 Terminating plain shell PTY on disconnect:', ptySessionKey);
+                    terminatePtySession(ptySessionKey, session, 'plain shell disconnect');
                     return;
                 }
 

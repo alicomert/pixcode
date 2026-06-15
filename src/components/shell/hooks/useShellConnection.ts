@@ -22,6 +22,7 @@ type UseShellConnectionOptions = {
   wsRef: MutableRefObject<WebSocket | null>;
   terminalRef: MutableRefObject<Terminal | null>;
   fitAddonRef: MutableRefObject<FitAddon | null>;
+  tabIdRef: MutableRefObject<string>;
   selectedProjectRef: MutableRefObject<Project | null | undefined>;
   selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>;
   initialCommandRef: MutableRefObject<string | null | undefined>;
@@ -161,6 +162,7 @@ export function useShellConnection({
   wsRef,
   terminalRef,
   fitAddonRef,
+  tabIdRef,
   selectedProjectRef,
   selectedSessionRef,
   initialCommandRef,
@@ -289,6 +291,7 @@ export function useShellConnection({
               type: 'init',
               projectPath: currentProject.fullPath || currentProject.path || '',
               sessionId: isPlainShellRef.current ? null : selectedSessionRef.current?.id || null,
+              tabId: tabIdRef.current,
               hasSession: isPlainShellRef.current ? false : Boolean(selectedSessionRef.current),
               provider,
               cols: currentTerminal.cols,
@@ -348,6 +351,7 @@ export function useShellConnection({
       selectedSessionRef,
       setAuthUrl,
       startupInputRef,
+      tabIdRef,
       terminalRef,
       wsRef,
     ],

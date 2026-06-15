@@ -26,6 +26,7 @@ import TerminalShortcutsPanel from './subcomponents/TerminalShortcutsPanel';
 type CliPromptOption = { number: string; label: string };
 
 type ShellProps = {
+  tabId: string;
   selectedProject?: Project | null;
   selectedSession?: ProjectSession | null;
   initialCommand?: string | null;
@@ -43,6 +44,7 @@ type ShellProps = {
 };
 
 export default function Shell({
+  tabId,
   selectedProject = null,
   selectedSession = null,
   initialCommand = null,
@@ -78,6 +80,7 @@ export default function Shell({
     openAuthUrlInBrowser,
     copyAuthUrlToClipboard,
   } = useShellRuntime({
+    tabId,
     selectedProject,
     selectedSession,
     initialCommand,

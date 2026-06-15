@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { ShellPermissionOverride } from '../../shell/types/types';
@@ -19,6 +19,7 @@ type StandaloneShellProps = {
   hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
   provider?: LLMProvider | null;
+  tabId?: string | null;
   onComplete?: ((exitCode: number) => void) | null;
   onClose?: (() => void) | null;
   title?: string | null;
@@ -47,8 +48,10 @@ export default function StandaloneShell({
   hermesLaunchId = null,
   permissionOverride = null,
   provider = null,
+  tabId: externalTabId = null,
 }: StandaloneShellProps) {
   const [isCompleted, setIsCompleted] = useState(false);
+  const tabId = useMemo(() => externalTabId || `tab_${crypto.randomUUID()}`, [externalTabId]);
 
   // Keep `compact` in the public API for compatibility with existing callers.
   void compact;
@@ -75,6 +78,7 @@ export default function StandaloneShell({
 
       <div className="min-h-0 w-full flex-1">
         <Shell
+          tabId={tabId}
           selectedProject={project}
           selectedSession={session}
           initialCommand={command}

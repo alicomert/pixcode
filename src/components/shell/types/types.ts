@@ -10,6 +10,7 @@ export type ShellInitMessage = {
   type: 'init';
   projectPath: string;
   sessionId: string | null;
+  tabId: string;
   hasSession: boolean;
   provider: string;
   cols: number;
@@ -49,6 +50,7 @@ export type ShellIncomingMessage =
   | { type: string; [key: string]: unknown };
 
 export type UseShellRuntimeOptions = {
+  tabId: string;
   selectedProject: Project | null | undefined;
   selectedSession: ProjectSession | null | undefined;
   initialCommand: string | null | undefined;
@@ -69,6 +71,7 @@ export type ShellSharedRefs = {
   wsRef: MutableRefObject<WebSocket | null>;
   terminalRef: MutableRefObject<Terminal | null>;
   fitAddonRef: MutableRefObject<FitAddon | null>;
+  tabIdRef: MutableRefObject<string>;
   authUrlRef: MutableRefObject<string>;
   selectedProjectRef: MutableRefObject<Project | null | undefined>;
   selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>;
