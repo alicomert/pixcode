@@ -12,7 +12,6 @@ import LiveViewPanel from '../../live-view/LiveViewPanel';
 import RemoteConsole from '../../remote-console/RemoteConsole';
 import ControlRoomPage from '../../control-room/ControlRoomPage';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
-import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
 import type { AppTab } from '../../../types/app';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
@@ -796,7 +795,6 @@ function MainContent({
           />
         )}
       </div>
-      <QuickSettingsPanel />
     </div>
   );
 }

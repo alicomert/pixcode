@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
 import VSCodeWorkbench from '../vscode-workbench/view/VSCodeWorkbench';
+import { QuickSettingsPanel } from '../quick-settings-panel';
 import InAppNotificationCenter from '../notifications/InAppNotificationCenter';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
@@ -257,6 +258,7 @@ export default function AppContent() {
         )}
       </div>
 
+      <QuickSettingsPanel />
       <InAppNotificationCenter latestMessage={latestMessage} />
     </div>
   );

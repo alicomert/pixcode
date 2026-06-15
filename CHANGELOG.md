@@ -3,6 +3,14 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.52.2](https://github.com/alicomert/pixcode/compare/v1.52.1...v1.52.2) (2026-06-15)
+
+Pixcode 1.52.2 fixes the Quick Settings panel so it is reachable in the desktop VSCode workbench layout, allowing users to change the `Agent diff` preference to `Always`.
+
+### Fixes
+
+* render Quick Settings panel at the app root so it appears in both VSCode workbench and mobile layouts
+
 ## [1.52.1](https://github.com/alicomert/pixcode/compare/v1.52.0...v1.52.1) (2026-06-15)
 
 Pixcode 1.52.1 extends inline diff surfacing to filesystem edits such as those made by external CLI tools (e.g. `kimi`). Files modified outside of Pixcode's agent stream now open in diff mode automatically when the preference is enabled.
