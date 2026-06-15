@@ -3,6 +3,15 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.52.1](https://github.com/alicomert/pixcode/compare/v1.52.0...v1.52.1) (2026-06-15)
+
+Pixcode 1.52.1 extends inline diff surfacing to filesystem edits such as those made by external CLI tools (e.g. `kimi`). Files modified outside of Pixcode's agent stream now open in diff mode automatically when the preference is enabled.
+
+### Features
+
+* auto-open filesystem edits as inline diff in the code editor
+* apply filesystem diff to already-open editor tabs
+
 ## [1.52.0](https://github.com/alicomert/pixcode/compare/v1.51.9...v1.52.0) (2026-06-15)
 
 Pixcode 1.52.0 surfaces agent file edits as inline diffs inside the code editor. When a CLI agent modifies a file that is already open, the editor switches to diff mode so additions and deletions are visible immediately.
