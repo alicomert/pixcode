@@ -300,7 +300,7 @@
   },
   "orchestration": {
     "title": "编排",
-    "subtitle": "在 {{project}} 中输入一个目标；选择 CLI 工作单元，需要时复制同一种 CLI，并直接分配任务或交给协调器拆分。",
+    "subtitle": "Pixcode 可以为 {{project}} 协调本地检查、测试、终端工作和项目操作。",
     "refresh": "刷新",
     "goal": "目标",
     "goalPlaceholder": "示例：修复认证界面以适配单端口部署，捕获错误，并用 lint 和 typecheck 验证。",
@@ -312,7 +312,7 @@
     "starting": "正在启动",
     "needAgent": "至少启用一个 CLI 工作单元。",
     "startFailed": "无法启动 workflow。",
-    "cliControl": "CLI 团队",
+    "cliControl": "CLI 团队控制",
     "enabledCount": "已启用 {{count}} 个",
     "enabled": "启用",
     "disabled": "禁用",
@@ -524,9 +524,7 @@
     "workspaceTargetHint": "智能体将在此目录运行：{{path}}",
     "autoDetect": "自动检测",
     "needWorkspacePath": "请输入自定义工作区路径。",
-    "hermesTitle": "Hermes Agent",
-    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
-    "hermesCliControl": "Hermes CLI control"
+    "quickWorkspaceCheck": "工作区检查"
   },
   "controlRoom": {
     "title": "控制室",
@@ -856,9 +854,6 @@
       "chooseDescription": "选择 CLI，然后启动全高终端。",
       "startSelected": "启动 {{provider}}",
       "newSession": "新建 CLI 会话",
-      "history": "历史",
-      "noHistory": "此项目还没有会话。",
-      "projectHistory": "项目历史",
       "checking": "检查中...",
       "ready": "就绪",
       "notInstalled": "未安装",
@@ -881,25 +876,6 @@
     "terminal": {
       "title": "终端",
       "close": "关闭终端"
-    },
-    "hermes": {
-      "title": "Hermes Agent",
-      "installTitle": "安装 Hermes Agent",
-      "description": "项目范围的代理终端。缺少 Hermes 时会先安装，然后在此工作区中打开。",
-      "start": "启动 Hermes",
-      "install": "安装",
-      "newSession": "新建 Hermes 会话",
-      "history": "Hermes 历史记录",
-      "connect": "连接 Hermes Agent",
-      "ready": "就绪",
-      "installRunning": "正在通过 Pixcode API 安装 Hermes...",
-      "installDone": "Hermes 已安装，Pixcode MCP 已配置。",
-      "installError": "Hermes 安装失败。",
-      "installReady": "已准备好安装 Hermes。",
-      "installWaiting": "正在等待 Hermes 安装日志...",
-      "retryInstall": "重试安装",
-      "installFailed": "Hermes 安装失败。",
-      "installStreamLost": "Hermes 安装流提前关闭。安装可能仍在运行。"
     }
   }
 }

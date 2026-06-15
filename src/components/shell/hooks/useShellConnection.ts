@@ -29,7 +29,6 @@ type UseShellConnectionOptions = {
   isPlainShellRef: MutableRefObject<boolean>;
   forceNewSessionRef: MutableRefObject<boolean>;
   startupInputRef: MutableRefObject<string | null | undefined>;
-  hermesLaunchIdRef: MutableRefObject<number | null | undefined>;
   permissionOverrideRef: MutableRefObject<ShellPermissionOverride | null | undefined>;
   providerRef: MutableRefObject<LLMProvider | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
@@ -169,7 +168,6 @@ export function useShellConnection({
   isPlainShellRef,
   forceNewSessionRef,
   startupInputRef,
-  hermesLaunchIdRef,
   permissionOverrideRef,
   providerRef,
   onProcessCompleteRef,
@@ -301,7 +299,6 @@ export function useShellConnection({
               forceNewSession: forceNewSessionRef.current,
               startupInput: startupInputForCommand,
               startupInputDelivery: handlesStartupInputInCommand ? 'command' : 'terminal',
-              hermesLaunchId: typeof hermesLaunchIdRef.current === 'number' ? hermesLaunchIdRef.current : null,
               permissionMode: permissionOptions.permissionMode,
               skipPermissions: permissionOptions.skipPermissions,
             });
@@ -339,7 +336,6 @@ export function useShellConnection({
       clearTerminalScreen,
       fitAddonRef,
       forceNewSessionRef,
-      hermesLaunchIdRef,
       handleSocketMessage,
       initialCommandRef,
       isConnected,

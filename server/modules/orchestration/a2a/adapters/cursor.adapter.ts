@@ -40,7 +40,7 @@ export class CursorA2AAdapter extends AbstractA2AAdapter {
   readonly agentCard: AgentCard = {
     name: 'pixcode-cursor',
     description: 'Cursor CLI, accessed via Pixcode',
-    url: '/hermes/agents/cursor',
+    url: '/api/orchestration/agents/cursor',
     version: '1.0.0',
     capabilities: ['streaming', 'fileEdit', 'commandExec'],
     skills: [

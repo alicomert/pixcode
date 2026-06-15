@@ -71,8 +71,29 @@ export function useFilesystemDiffAutoOpener(
       return;
     }
 
-    const normalizedOpenPaths = openFilePaths.map((path) => path.replace(/\\/g, '/'));
     const normalizedFilePath = filePath.replace(/\\/g, '/');
+
+    // Skip internal/meta paths
+    const topDir = normalizedFilePath.split('/')[0];
+    if (
+      normalizedFilePath.startsWith('.git/')
+      || normalizedFilePath.startsWith('node_modules/')
+      || normalizedFilePath.startsWith('.pixcode/')
+      || (topDir.startsWith('.') && topDir.length > 1)
+    ) {
+      return;
+    }
+
+    // Restrict to files inside the active project workspace
+    const projectRoot = (selectedProject.fullPath || selectedProject.path || '').replace(/\\/g, '/');
+    if (projectRoot && (filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath))) {
+      const normalizedProjectRoot = projectRoot.endsWith('/') ? projectRoot : `${projectRoot}/`;
+      if (!normalizedFilePath.startsWith(normalizedProjectRoot)) {
+        return;
+      }
+    }
+
+    const normalizedOpenPaths = openFilePaths.map((path) => path.replace(/\\/g, '/'));
     const isOpen = normalizedOpenPaths.includes(normalizedFilePath);
 
     if (!isOpen && mode !== 'always') {

@@ -1,5 +1,9 @@
 import express, { type Router } from 'express';
 
+import {
+  getA2ATask,
+  listA2AAgentCards,
+} from '@/modules/orchestration/a2a/task-dispatcher.js';
 import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
 
 export function createOrchestrationTaskRouter(): Router {
@@ -9,6 +13,19 @@ export function createOrchestrationTaskRouter(): Router {
   router.get('/tasks', (req, res) => {
     const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
     res.json({ tasks: orchestrationTaskService.list(projectId) });
+  });
+
+  router.get('/agents', (_req, res) => {
+    res.json({ agents: listA2AAgentCards() });
+  });
+
+  router.get('/agent-tasks/:id', (req, res) => {
+    const task = getA2ATask(req.params.id);
+    if (!task) {
+      res.status(404).json({ error: { code: 'TASK_NOT_FOUND', message: req.params.id } });
+      return;
+    }
+    res.json(task);
   });
 
   router.post('/tasks', (req, res) => {

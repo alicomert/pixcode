@@ -113,7 +113,7 @@
   },
   "orchestration": {
     "title": "Orkestrasyon",
-    "subtitle": "{{project}} içinde tek hedef ver; CLI çalışanlarını seç, gerekirse aynı CLI’dan birden fazla ekle, işi doğrudan yaz veya koordinatöre böldür.",
+    "subtitle": "Pixcode, {{project}} icin yerel kontrolleri, testleri, terminal islerini ve proje operasyonlarini koordine edebilir.",
     "refresh": "Yenile",
     "goal": "Hedef",
     "goalPlaceholder": "Örn: Auth ekranını tek port dağıtıma göre düzelt, hataları yakala, lint ve typecheck ile doğrula.",
@@ -142,7 +142,7 @@
         "prompt": "merhaba senden ufak bir proje yapmanı sonrasında bu projeyi 8024 portunda çalıştırmanı istiyorum. İstediğim proje ise binance ile bağlantılı fapi bağlantısıyla tradingview görünümünde güzel bir tasarım yap tradingview chartı ve solda yıldızlama sistemi olsun. işleri bölüştür mantıklı şekilde yap"
       }
     },
-    "cliControl": "CLI takımı",
+    "cliControl": "CLI ekip kontrolu",
     "enabledCount": "{{count}} açık",
     "enabled": "Açık",
     "disabled": "Kapalı",
@@ -378,9 +378,7 @@
     "workspaceTargetHint": "Ajanlar şu dizinde çalışacak: {{path}}",
     "autoDetect": "otomatik algı",
     "needWorkspacePath": "Özel çalışma alanı path bilgisini gir.",
-    "hermesTitle": "Hermes Agent",
-    "hermesSubtitle": "Hermes Pixcode icinde {{project}} icin calisiyor; local kontrolleri, testleri, terminal islerini ve proje operasyonlarini yonetebilir.",
-    "hermesCliControl": "Hermes CLI kontrolu"
+    "quickWorkspaceCheck": "Workspace kontrolu"
   },
   "fileTree": {
     "loading": "Dosyalar yükleniyor...",
@@ -875,7 +873,6 @@
       "projects": "Projeler",
       "sourceControl": "Kaynak Kontrolü",
       "terminal": "Terminal",
-      "hermes": "Hermes Agent",
       "showPanel": "Sol paneli göster",
       "hidePanel": "Sol paneli gizle"
     },
@@ -884,7 +881,6 @@
       "projects": "Projeler",
       "sourceControl": "Kaynak Kontrolü",
       "terminal": "Terminal",
-      "hermes": "Hermes Agent",
       "editor": "Editör",
       "cli": "CLI",
       "rightTerminal": "Terminal"
@@ -951,9 +947,6 @@
       "chooseDescription": "Bir CLI sec, sonra sag paneli tamamen terminal olarak baslat.",
       "startSelected": "{{provider}} baslat",
       "newSession": "Yeni CLI oturumu",
-      "history": "Gecmis",
-      "noHistory": "Bu projede henuz oturum yok.",
-      "projectHistory": "Proje gecmisi",
       "checking": "Kontrol ediliyor...",
       "ready": "Hazir",
       "notInstalled": "Kurulu degil",
@@ -976,48 +969,6 @@
     "terminal": {
       "title": "Terminal",
       "close": "Terminali kapat"
-    },
-    "hermes": {
-      "title": "Hermes Agent",
-      "installTitle": "Hermes Agent kur",
-      "description": "Projeye bagli ajan terminali. Hermes eksikse kurar, sonra bu workspace icinde acar.",
-      "start": "Hermes baslat",
-      "install": "Kur",
-      "newSession": "Yeni Hermes oturumu",
-      "history": "Hermes gecmisi",
-      "connect": "Hermes Agent bagla",
-      "ready": "Hazir",
-      "installRunning": "Hermes Pixcode API ile kuruluyor...",
-      "installDone": "Hermes kuruldu ve Pixcode MCP ayarlandi.",
-      "installError": "Hermes kurulumu basarisiz.",
-      "installReady": "Hermes kuruluma hazir.",
-      "installWaiting": "Hermes kurulum loglari bekleniyor...",
-      "retryInstall": "Kurulumu tekrar dene",
-      "installFailed": "Hermes kurulumu basarisiz.",
-      "installStreamLost": "Hermes kurulum akisi erken kapandi. Kurulum hala calisiyor olabilir.",
-      "controlPlaneFailed": "Hermes kontrol duzlemi okunamadi.",
-      "controlPlaneRepairFailed": "Hermes kontrol duzlemi onarilamadi.",
-      "controlReady": "Kontrol hazir",
-      "needsRepair": "Onarim gerekiyor",
-      "unknown": "Bilinmiyor",
-      "refreshControl": "Hermes kontrol duzlemini yenile",
-      "installState": "Kurulum",
-      "restGateway": "REST",
-      "mcpTools": "MCP araclari",
-      "mcpMissing": "{{count}} eksik",
-      "sessions": "Oturumlar",
-      "cronSummary": "{{count}}/{{total}} cron aktif",
-      "profile": "Profil",
-      "authReady": "Auth hazir",
-      "authMissing": "Auth eksik",
-      "modelNotSelected": "Model secilmedi",
-      "modelSettings": "Hermes model",
-      "cronJobs": "Hermes cron",
-      "deepStatus": "Hermes status",
-      "repairControl": "Kontrolu onar",
-      "capabilities": "Yetenekler",
-      "recentSessions": "Son oturumlar",
-      "recommendations": "Oneriler"
     }
   }
 }

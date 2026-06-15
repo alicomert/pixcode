@@ -104,7 +104,6 @@ import platformizationRoutes from './routes/platformization.js';
 import liveViewRoutes, { createLiveViewPublicRouter } from './routes/live-view.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import {
-  createHermesTaskRouter,
   adapterRegistry,
   ClaudeCodeA2AAdapter,
   CodexA2AAdapter,
@@ -115,7 +114,6 @@ import {
   JsonEventA2AAdapter,
   createPreviewProxyRouter,
   createOrchestrationTaskRouter,
-  createHermesRouter,
   createWorkflowRouter,
 } from './modules/orchestration/index.js';
 import networkRoutes from './routes/network.js';
@@ -127,9 +125,8 @@ import {
     applyAllStoredCredentialsToEnv,
 } from './services/provider-credentials.js';
 import { primeCliBinPath } from './services/install-jobs.js';
-import { buildHermesPathEnv, primeHermesPath } from './services/hermes-install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, apiKeysDb, appConfigDb } from './database/db.js';
+import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, appConfigDb } from './database/db.js';
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket, requireAdmin, requireApiScope } from './middleware/auth.js';
@@ -1143,13 +1140,6 @@ function resolvePublicBaseUrl(request) {
     return `${proto}://${String(host).split(',')[0].trim()}`;
 }
 
-function resolveHermesMcpBaseUrl() {
-    const configured = process.env.PIXCODE_INTERNAL_BASE_URL || process.env.PIXCODE_HERMES_BASE_URL;
-    if (configured) return configured.replace(/\/$/, '');
-
-    return `http://127.0.0.1:${process.env.SERVER_PORT || process.env.PORT || '3001'}`;
-}
-
 function quoteBashArg(value) {
     return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
@@ -1160,74 +1150,6 @@ function quotePowerShellArg(value) {
 
 function quoteShellArgForPlatform(value) {
     return os.platform() === 'win32' ? quotePowerShellArg(value) : quoteBashArg(value);
-}
-
-const HERMES_CLI_COMMAND_PATTERN = /^hermes(?:\s+[A-Za-z0-9._:/=@+-]+)*\s*$/;
-const HERMES_AGENT_API_SCOPES = [
-    'auth:read',
-    'auth:write',
-    'diagnostics:read',
-    'files:read',
-    'files:write',
-    'git:read',
-    'git:write',
-    'hermes:mcp',
-    'hermes:gateway',
-    'notifications:read',
-    'notifications:write',
-    'orchestration:read',
-    'orchestration:write',
-    'plugins:read',
-    'plugins:write',
-    'projects:read',
-    'projects:write',
-    'providers:read',
-    'providers:write',
-    'remote:read',
-    'remote:write',
-    'sessions:read',
-    'sessions:write',
-    'settings:read',
-    'settings:write',
-    'telegram:read',
-    'telegram:write',
-    'terminal:launch',
-    'updates:read',
-    'updates:write',
-    'webhooks:read',
-    'webhooks:write',
-];
-
-function isHermesCliCommand(command) {
-    return typeof command === 'string' && HERMES_CLI_COMMAND_PATTERN.test(command.trim());
-}
-
-function buildHermesCliCommand(command) {
-    const hermesCommand = typeof command === 'string' && command.trim() ? command.trim() : 'hermes';
-    const configureScript = path.join(APP_ROOT, 'scripts', 'hermes', 'configure-pixcode-mcp.mjs');
-    if (os.platform() === 'win32') {
-        return `& ${quotePowerShellArg(process.execPath)} ${quotePowerShellArg(configureScript)} *> $null; ${hermesCommand}`;
-    }
-
-    return `${quoteBashArg(process.execPath)} ${quoteBashArg(configureScript)} >/dev/null 2>&1; exec ${hermesCommand}`;
-}
-
-function getOrCreateHermesApiKey(userId) {
-    if (!userId) return null;
-
-    const existing = apiKeysDb
-        .getApiKeys(userId)
-        .find((key) => key.key_name === 'Hermes Agent MCP' && key.is_active);
-    if (existing?.api_key) {
-        const existingScopes = Array.isArray(existing.scopes) ? existing.scopes : [];
-        const missingScopes = HERMES_AGENT_API_SCOPES.filter((scope) => !existingScopes.includes(scope));
-        if (missingScopes.length > 0 && existing.id) {
-            apiKeysDb.updateApiKeyScopes(userId, existing.id, [...existingScopes, ...missingScopes]);
-        }
-        return existing.api_key;
-    }
-
-    return apiKeysDb.createApiKey(userId, 'Hermes Agent MCP', HERMES_AGENT_API_SCOPES).apiKey;
 }
 
 // Single WebSocket server that handles both paths
@@ -1321,8 +1243,6 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
     const projectPath = typeof req.query.projectPath === 'string' && req.query.projectPath.trim()
         ? req.query.projectPath.trim()
         : null;
-    const launchId = Number.parseInt(String(req.query.launchId || ''), 10);
-    const requestedLaunchId = Number.isFinite(launchId) && launchId > 0 ? launchId : null;
     const maxChars = Math.min(
         20000,
         Math.max(1000, Number.parseInt(String(req.query.maxChars || '12000'), 10) || 12000)
@@ -1341,8 +1261,7 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
             session?.provider === provider &&
             !session?.isPlainShell &&
             (canReadAnyShellSession || session?.userId === requestUserId) &&
-            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath) &&
-            (!requestedLaunchId || session.hermesLaunchId === requestedLaunchId)
+            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath)
         ) {
             if (!matchedSession || (session.updatedAt || 0) > (matchedSession.updatedAt || 0)) {
                 matchedSession = session;
@@ -1355,7 +1274,6 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
             active: false,
             provider,
             projectPath: requestedProjectPath,
-            launchId: requestedLaunchId,
             output: '',
             message: 'No active provider terminal session found for this project.',
         });
@@ -1369,7 +1287,6 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
         provider,
         projectPath: path.resolve(matchedSession.projectPath || os.homedir()),
         sessionId: matchedSession.sessionId || null,
-        launchId: matchedSession.hermesLaunchId || null,
         updatedAt: matchedSession.updatedAt || null,
         ...terminalState,
         output,
@@ -1381,8 +1298,6 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
     const projectPath = typeof req.body?.projectPath === 'string' && req.body.projectPath.trim()
         ? req.body.projectPath.trim()
         : null;
-    const launchId = Number.parseInt(String(req.body?.launchId || ''), 10);
-    const requestedLaunchId = Number.isFinite(launchId) && launchId > 0 ? launchId : null;
     const input = typeof req.body?.input === 'string' ? req.body.input : '';
     const submit = req.body?.submit !== false;
 
@@ -1401,8 +1316,7 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             session?.pty &&
             session.lifecycleState === 'running' &&
             (canWriteAnyShellSession || session?.userId === requestUserId) &&
-            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath) &&
-            (!requestedLaunchId || session.hermesLaunchId === requestedLaunchId)
+            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath)
         ) {
             if (!matchedSession || (session.updatedAt || 0) > (matchedSession.updatedAt || 0)) {
                 matchedSession = session;
@@ -1415,7 +1329,6 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             ok: false,
             provider,
             projectPath: requestedProjectPath,
-            launchId: requestedLaunchId,
             wrote: false,
             message: 'No running provider terminal session found for this project.',
         });
@@ -1430,7 +1343,6 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             provider,
             projectPath: path.resolve(matchedSession.projectPath || os.homedir()),
             sessionId: matchedSession.sessionId || null,
-            launchId: matchedSession.hermesLaunchId || null,
             wrote: true,
             submitted: submit,
             bytes: Buffer.byteLength(data),
@@ -1508,7 +1420,6 @@ app.use('/api/live-view', authenticateToken, liveViewRoutes);
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
 
-// Hermes internal task router has its own localhost/auth middleware; do not wrap with authenticateToken.
 adapterRegistry.register(new ClaudeCodeA2AAdapter());
 adapterRegistry.register(new CodexA2AAdapter());
 adapterRegistry.register(new CursorA2AAdapter());
@@ -1516,14 +1427,8 @@ adapterRegistry.register(new GeminiA2AAdapter());
 adapterRegistry.register(new QwenA2AAdapter());
 adapterRegistry.register(new OpenCodeA2AAdapter());
 adapterRegistry.register(new JsonEventA2AAdapter());
-app.use('/hermes', createHermesTaskRouter());
 app.use('/preview', authenticateToken, requireAdmin, createPreviewProxyRouter());
 app.use('/api/orchestration', authenticateToken, requireAdmin, createOrchestrationTaskRouter());
-app.use('/api/orchestration/hermes', authenticateToken, requireAdmin, createHermesRouter({
-    appRoot: APP_ROOT,
-    createHermesApiKey: getOrCreateHermesApiKey,
-    resolvePublicBaseUrl,
-}));
 app.use('/api/orchestration', authenticateToken, requireAdmin, createWorkflowRouter());
 app.use('/live', createLiveViewPublicRouter());
 
@@ -3394,18 +3299,11 @@ function handleShellConnection(ws, request) {
                 const startupInputDelivery = data.startupInputDelivery === 'terminal' ? 'terminal' : 'command';
                 const commandStartupInput = startupInputDelivery === 'command' ? startupInput : null;
                 const terminalStartupInput = startupInputDelivery === 'terminal' ? startupInput : null;
-                const hermesLaunchId = Number.isFinite(Number(data.hermesLaunchId)) && Number(data.hermesLaunchId) > 0
-                    ? Number(data.hermesLaunchId)
-                    : null;
                 const isPlainShell = data.isPlainShell || (!!initialCommand && !hasSession) || provider === 'plain-shell';
-                const isHermesCliLaunch = isPlainShell && isHermesCliCommand(initialCommand);
                 const forceNewSession = Boolean(data.forceNewSession);
                 const shellPermissionMode = normalizeShellPermissionMode(data.permissionMode);
                 const shellSkipPermissions = Boolean(data.skipPermissions);
                 const shellPermissionFlags = buildProviderShellPermissionFlags(provider, shellPermissionMode, shellSkipPermissions);
-                const hermesApiKey = isHermesCliLaunch
-                    ? getOrCreateHermesApiKey(request.user?.id ?? request.user?.userId ?? null)
-                    : null;
                 urlDetectionBuffer = '';
                 announcedAuthUrls.clear();
 
@@ -3477,7 +3375,6 @@ function handleShellConnection(ws, request) {
                         }
 
                         existingSession.ws = ws;
-                        existingSession.hermesLaunchId = hermesLaunchId || existingSession.hermesLaunchId;
                         existingSession.updatedAt = Date.now();
                         if (terminalStartupInput && !isPlainShell) {
                             writeTerminalStartupInput(existingSession, terminalStartupInput, 'reused provider session', 350);
@@ -3539,9 +3436,7 @@ function handleShellConnection(ws, request) {
                     let shellCommand;
                     if (isPlainShell) {
                         // Plain shell mode without an initial command must stay interactive.
-                        shellCommand = isHermesCliLaunch
-                            ? buildHermesCliCommand(initialCommand)
-                            : initialCommand || null;
+                        shellCommand = initialCommand || null;
                     } else if (provider === 'cursor') {
                         const command = buildProviderShellCommand('cursor-agent', shellPermissionFlags);
                         if (hasSession && sessionId) {
@@ -3654,16 +3549,12 @@ function handleShellConnection(ws, request) {
                     const termCols = data.cols || 80;
                     const termRows = data.rows || 24;
                     console.log('📐 Using terminal dimensions:', termCols, 'x', termRows);
-                    const shellEnv = buildHermesPathEnv(process.env, {
+                    const shellEnv = {
+                        ...process.env,
                         TERM: 'xterm-256color',
                         COLORTERM: 'truecolor',
                         FORCE_COLOR: '3',
-                        ...(isHermesCliLaunch ? {
-                            PIXCODE_BASE_URL: resolveHermesMcpBaseUrl(),
-                            PIXCODE_API_KEY: hermesApiKey || '',
-                            PIXCODE_APP_ROOT: APP_ROOT,
-                        } : {}),
-                    });
+                    };
 
                     shellProcess = pty.spawn(shell, shellArgs, {
                         name: 'xterm-256color',
@@ -3684,7 +3575,6 @@ function handleShellConnection(ws, request) {
                         projectPath,
                         sessionId,
                         tabId,
-                        hermesLaunchId,
                         provider,
                         isPlainShell,
                         lifecycleState: 'running',
@@ -4524,15 +4414,6 @@ async function startServer() {
             primeCliBinPath();
         } catch (err) {
             console.warn('[install-jobs] Failed to prime CLI bin path:', err?.message || err);
-        }
-
-        // Prime Hermes' known install locations separately so the project
-        // terminal can resolve `hermes` even when Windows has not refreshed the
-        // user's PATH for the current Pixcode process.
-        try {
-            primeHermesPath();
-        } catch (err) {
-            console.warn('[install-jobs] Failed to prime Hermes bin path:', err?.message || err);
         }
 
         // Restore any previously-configured Telegram bot. This is best-effort:

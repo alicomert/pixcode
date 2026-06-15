@@ -4,7 +4,6 @@ const API_GROUPS = [
   { id: 'sessions', title: 'Sessions and messages', basePath: '/api/sessions', scopes: ['sessions:read', 'sessions:write'] },
   { id: 'providers', title: 'CLI providers', basePath: '/api/providers', scopes: ['providers:read', 'providers:write'] },
   { id: 'terminal', title: 'Visible terminal sessions', basePath: '/api/shell/sessions', scopes: ['terminal:launch'] },
-  { id: 'hermes', title: 'Hermes Agent control', basePath: '/api/orchestration/hermes', scopes: ['hermes:mcp', 'hermes:gateway', 'terminal:launch'] },
   { id: 'orchestration', title: 'Orchestration runs', basePath: '/api/orchestration', scopes: ['orchestration:read', 'orchestration:write'] },
   { id: 'notifications', title: 'Notifications', basePath: '/api/settings/notifications', scopes: ['notifications:read', 'notifications:write'] },
   { id: 'files', title: 'Files', basePath: '/api/projects/:projectName/files', scopes: ['files:read', 'files:write'] },
@@ -45,10 +44,6 @@ export function buildPublicApiManifest({ baseUrl = '' } = {}) {
       {
         title: 'Fetch diagnostics bundle',
         curl: `curl -H "X-API-Key: px_your_key" ${origin || 'http://127.0.0.1:3001'}/api/diagnostics/bundle`,
-      },
-      {
-        title: 'Read Hermes control plane',
-        curl: `curl -H "X-API-Key: px_your_key" ${origin || 'http://127.0.0.1:3001'}/api/orchestration/hermes/control-plane`,
       },
       {
         title: 'Read the mobile remote control room',
@@ -138,10 +133,6 @@ export function buildCurlCookbook({ baseUrl = '' } = {}) {
       {
         title: 'List pending approvals',
         command: `curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/orchestration/workflows/approvals"`,
-      },
-      {
-        title: 'Read Hermes control plane',
-        command: `curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/orchestration/hermes/control-plane"`,
       },
       {
         title: 'Approve a pending action',

@@ -59,7 +59,6 @@ export function useShellTerminal({
 }: UseShellTerminalOptions): UseShellTerminalResult {
   const [isInitialized, setIsInitialized] = useState(false);
   const resizeTimeoutRef = useRef<number | null>(null);
-  const selectedProjectKey = selectedProject?.fullPath || selectedProject?.path || '';
   const hasSelectedProject = Boolean(selectedProject);
 
   useEffect(() => {
@@ -292,7 +291,6 @@ export function useShellTerminal({
     isRestarting,
     minimal,
     hasSelectedProject,
-    selectedProjectKey,
     terminalContainerRef,
     terminalRef,
     wsRef,

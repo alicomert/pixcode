@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 
 import { Badge, Button } from '../../shared/view/ui';
 
-import TaskStreamPanel from './TaskStreamPanel';
 import type { UnifiedTask } from './useOrchestrationTasks';
 
 import { GitBranch, Play, SquareIcon } from '@/lib/icons';
@@ -42,9 +41,6 @@ export default function TaskCard({ task, onDispatch, onCancel }: TaskCardProps) 
             {task.workspaceKind}
           </span>
         ) : null}
-      </div>
-      <div className="mt-3">
-        <TaskStreamPanel hermesTaskId={task.hermesTaskId} />
       </div>
       <div className="mt-3 flex justify-end gap-2">
         {canDispatch ? (

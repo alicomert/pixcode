@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '../../../../utils/api';
 
@@ -17,6 +18,7 @@ type DiagnosticsPayload = {
 };
 
 function StatusPill({ value }: { value: string }) {
+  const { t } = useTranslation('settings');
   const normalized = value || 'unknown';
   const tone = normalized === 'ok' || normalized === 'available' || normalized === 'configured'
     ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300'
@@ -24,10 +26,15 @@ function StatusPill({ value }: { value: string }) {
       ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
       : 'border-border bg-muted text-muted-foreground';
 
-  return <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone}`}>{normalized}</span>;
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone}`}>
+      {t(`diagnostics.status.${normalized}`, { defaultValue: normalized })}
+    </span>
+  );
 }
 
 export default function DiagnosticsSettingsTab() {
+  const { t } = useTranslation('settings');
   const [diagnostics, setDiagnostics] = useState<DiagnosticsPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,9 +76,9 @@ export default function DiagnosticsSettingsTab() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Diagnostics</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t('diagnostics.title')}</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Provider health, WebSocket state, notifications, active runs, and recent errors.
+            {t('diagnostics.description')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -82,7 +89,7 @@ export default function DiagnosticsSettingsTab() {
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('diagnostics.refresh')}
           </button>
           <button
             type="button"
@@ -91,7 +98,7 @@ export default function DiagnosticsSettingsTab() {
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted disabled:opacity-50"
           >
             <Clipboard className="h-4 w-4" />
-            {copied ? 'Copied' : 'Copy bundle'}
+            {copied ? t('diagnostics.copied') : t('diagnostics.copyBundle')}
           </button>
         </div>
       </div>
@@ -107,41 +114,41 @@ export default function DiagnosticsSettingsTab() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Server className="h-4 w-4" />
-              Runtime
+              {t('diagnostics.runtime')}
             </div>
             <StatusPill value={diagnostics?.status || 'loading'} />
           </div>
           <p className="mt-3 text-xs text-muted-foreground">v{diagnostics?.version || '...'}</p>
-          <p className="text-xs text-muted-foreground">{diagnostics?.timestamp || 'Waiting for diagnostics'}</p>
+          <p className="text-xs text-muted-foreground">{diagnostics?.timestamp || t('diagnostics.waiting')}</p>
         </div>
 
         <div className="rounded-lg border border-border/70 bg-muted/20 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Globe className="h-4 w-4" />
-            WebSocket
+            {t('diagnostics.websocket')}
           </div>
           <p className="mt-3 text-2xl font-semibold text-foreground">{diagnostics?.websocket?.clients ?? 0}</p>
-          <p className="text-xs text-muted-foreground">active clients</p>
+          <p className="text-xs text-muted-foreground">{t('diagnostics.activeClients')}</p>
         </div>
 
         <div className="rounded-lg border border-border/70 bg-muted/20 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Bug className="h-4 w-4" />
-            Recent errors
+            {t('diagnostics.recentErrors')}
           </div>
           <p className="mt-3 text-2xl font-semibold text-foreground">{diagnostics?.recentErrors?.length ?? 0}</p>
-          <p className="text-xs text-muted-foreground">redacted support bundle</p>
+          <p className="text-xs text-muted-foreground">{t('diagnostics.redactedBundle')}</p>
         </div>
       </div>
 
       <section className="rounded-lg border border-border/70 bg-background">
-        <div className="border-b border-border/70 px-4 py-3 text-sm font-semibold text-foreground">Providers</div>
+        <div className="border-b border-border/70 px-4 py-3 text-sm font-semibold text-foreground">{t('diagnostics.providers')}</div>
         <div className="divide-y divide-border/70">
           {providerEntries.map(([provider, health]) => (
             <div key={provider} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
               <div>
                 <div className="font-medium text-foreground">{provider}</div>
-                <div className="text-xs text-muted-foreground">{health.checkedAt || 'not checked'}</div>
+                <div className="text-xs text-muted-foreground">{health.checkedAt || t('diagnostics.notChecked')}</div>
               </div>
               <div className="flex items-center gap-2">
                 <StatusPill value={health.auth || 'unknown'} />
@@ -150,7 +157,7 @@ export default function DiagnosticsSettingsTab() {
             </div>
           ))}
           {providerEntries.length === 0 && (
-            <div className="px-4 py-6 text-sm text-muted-foreground">Provider health has not been collected yet.</div>
+            <div className="px-4 py-6 text-sm text-muted-foreground">{t('diagnostics.emptyProviders')}</div>
           )}
         </div>
       </section>

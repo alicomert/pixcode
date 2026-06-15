@@ -300,7 +300,7 @@
   },
   "orchestration": {
     "title": "オーケストレーション",
-    "subtitle": "{{project}} で1つの目標を入力し、CLIワーカーを選択します。必要なら同じCLIを複製し、直接割り当てるかコーディネーターに分担させます。",
+    "subtitle": "Pixcode は {{project}} のローカルチェック、テスト、ターミナル作業、プロジェクト操作を調整できます。",
     "refresh": "更新",
     "goal": "目標",
     "goalPlaceholder": "例: 認証画面を単一ポート配信に合わせて修正し、エラーを捕捉し、lint と typecheck で検証する。",
@@ -312,7 +312,7 @@
     "starting": "開始中",
     "needAgent": "少なくとも1つのCLIワーカーを有効にしてください。",
     "startFailed": "ワークフローを開始できませんでした。",
-    "cliControl": "CLIチーム",
+    "cliControl": "CLI チーム制御",
     "enabledCount": "{{count}} 有効",
     "enabled": "有効",
     "disabled": "無効",
@@ -524,9 +524,7 @@
     "workspaceTargetHint": "エージェントは次で実行されます: {{path}}",
     "autoDetect": "自動検出",
     "needWorkspacePath": "カスタムワークスペースのパスを入力してください。",
-    "hermesTitle": "Hermes Agent",
-    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
-    "hermesCliControl": "Hermes CLI control"
+    "quickWorkspaceCheck": "ワークスペース確認"
   },
   "controlRoom": {
     "title": "コントロールルーム",
@@ -856,9 +854,6 @@
       "chooseDescription": "CLI を選んでから、全高のターミナルを開始します。",
       "startSelected": "{{provider}} を開始",
       "newSession": "新しい CLI セッション",
-      "history": "履歴",
-      "noHistory": "このプロジェクトにはまだセッションがありません。",
-      "projectHistory": "プロジェクト履歴",
       "checking": "確認中...",
       "ready": "準備完了",
       "notInstalled": "未インストール",
@@ -881,25 +876,6 @@
     "terminal": {
       "title": "ターミナル",
       "close": "ターミナルを閉じる"
-    },
-    "hermes": {
-      "title": "Hermes Agent",
-      "installTitle": "Hermes Agent をインストール",
-      "description": "プロジェクト単位のエージェントターミナルです。Hermes がない場合はインストールして、このワークスペースで開きます。",
-      "start": "Hermes を開始",
-      "install": "インストール",
-      "newSession": "新しい Hermes セッション",
-      "history": "Hermes 履歴",
-      "connect": "Hermes Agent に接続",
-      "ready": "準備完了",
-      "installRunning": "Pixcode API で Hermes をインストールしています...",
-      "installDone": "Hermes がインストールされ、Pixcode MCP が設定されました。",
-      "installError": "Hermes のインストールに失敗しました。",
-      "installReady": "Hermes をインストールできます。",
-      "installWaiting": "Hermes インストールログを待機中...",
-      "retryInstall": "インストールを再試行",
-      "installFailed": "Hermes のインストールに失敗しました。",
-      "installStreamLost": "Hermes インストールストリームが早期に閉じました。インストールはまだ実行中の可能性があります。"
     }
   }
 }

@@ -11,7 +11,7 @@ export interface TaskRunGraphCriterion {
   id: string;
   label: string;
   status: TaskRunGraphCriterionStatus;
-  source: 'workflow' | 'hermes';
+  source: 'workflow' | 'agent';
 }
 
 export interface TaskRunGraphRunSummary {

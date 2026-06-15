@@ -16,7 +16,6 @@ type StandaloneShellProps = {
   autoConnect?: boolean;
   forceNewSession?: boolean;
   startupInput?: string | null;
-  hermesLaunchId?: number | null;
   permissionOverride?: ShellPermissionOverride | null;
   provider?: LLMProvider | null;
   tabId?: string | null;
@@ -45,7 +44,6 @@ export default function StandaloneShell({
   minimal = false,
   forceNewSession = false,
   startupInput = null,
-  hermesLaunchId = null,
   permissionOverride = null,
   provider = null,
   tabId: externalTabId = null,
@@ -89,7 +87,6 @@ export default function StandaloneShell({
           autoConnect={minimal ? true : autoConnect}
           forceNewSession={forceNewSession}
           startupInput={startupInput}
-          hermesLaunchId={hermesLaunchId}
           permissionOverride={permissionOverride}
           provider={provider}
           onClose={onClose}

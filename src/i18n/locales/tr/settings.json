@@ -118,7 +118,6 @@
   "mainTabs": {
     "label": "Ayarlar",
     "agents": "Ajanlar",
-    "hermes": "Hermes Agent",
     "appearance": "Görünüm",
     "git": "Git",
     "apiTokens": "API ve Token'lar",
@@ -495,7 +494,39 @@
       "button": "Giriş Yap",
       "reLoginButton": "Tekrar Giriş Yap"
     },
-    "error": "Hata: {{error}}"
+    "error": "Hata: {{error}}",
+    "providersLabel": "Saglayicilar",
+    "providerNames": {
+      "claude": "Claude",
+      "cursor": "Cursor",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "qwen": "Qwen Code",
+      "opencode": "OpenCode"
+    },
+    "install": {
+      "notInstalledTitle": "{{agent}} kurulu degil",
+      "notInstalledDescription": "Pixcode bu hostta {{binary}} binary dosyasini bulamadi. Once kur, sonra giris yapmak icin geri don.",
+      "installing": "Kuruluyor...",
+      "installNow": "Simdi kur",
+      "copyCommand": "Kurulum komutunu kopyala",
+      "copy": "Kopyala",
+      "copied": "Kopyalandi",
+      "qwenDocs": "Qwen Code dokumanlarini ac",
+      "complete": "Kurulum tamamlandi",
+      "failed": "Kurulum basarisiz",
+      "output": "Cikti",
+      "cancel": "Iptal",
+      "dismiss": "Kapat",
+      "doneHint": "Yeni kurulumu kontrol etmek icin bu sekmeyi yenile veya Giris yapmayi dene.",
+      "continueToLogin": "Girise devam et",
+      "errors": {
+        "missingJobId": "Sunucu job id dondurmedi",
+        "failedToStart": "Kurulum baslatilamadi",
+        "unreadableStatus": "Kurulum okunamayan bir durumla bitti",
+        "streamLost": "Kurulum akisi koptu. Kurulum sunucuda hala calisiyor olabilir."
+      }
+    }
   },
   "permissions": {
     "title": "İzin Ayarları",
@@ -645,7 +676,34 @@
     "upToDate": "Güncel",
     "lastChecked": "Son kontrol {{when}}",
     "notCheckedYet": "Güncelleme kontrolü henüz tamamlanmadı",
-    "checkFailed": "kontrol başarısız veya rate limit nedeniyle gecikti"
+    "checkFailed": "kontrol başarısız veya rate limit nedeniyle gecikti",
+    "tagline": "Acik kaynak AI kodlama asistani arayuzu",
+    "checkFailedShort": "Kontrol basarisiz",
+    "starOnGitHub": "GitHub’da yildizla",
+    "docs": "Dokumanlar",
+    "hosted": {
+      "title": "Pixcode Hosted dene",
+      "description": "Ekip isbirligi, paylasilan MCP ayarlari, ortamlar arasi ayar senkronizasyonu ve yonetilen altyapi.",
+      "learnMore": "Daha fazla bilgi"
+    },
+    "proFeatures": {
+      "title": "Pixcode Pro ozellikleri",
+      "syncSettings": {
+        "title": "Ayarlari senkronize et",
+        "description": "Tercihlerini, MCP ayarlarini ve temani tum ortamlarinda senkron tut."
+      },
+      "teamManagement": {
+        "title": "Ekip yonetimi",
+        "description": "Ekibin icin coklu kullanici, rol tabanli erisim ve paylasilan projeler."
+      }
+    },
+    "license": "AGPL-3.0 lisanslidir",
+    "relativeTime": {
+      "justNow": "az once",
+      "secondsAgo": "{{count}} sn once",
+      "minutesAgo": "{{count}} dk once",
+      "hoursAgo": "{{count}} sa once"
+    }
   },
   "pluginSettings": {
     "title": "Eklentiler",
@@ -768,7 +826,13 @@
         "installUserDevice": "Pixcode acacak telefon, laptop veya ekip arkadasi cihazina Tailscale kur.",
         "login": "Iki cihazda da ayni Tailscale hesabi veya ekibi ile giris yap.",
         "refresh": "Buraya donup Yenileye bas; hazir olunca Pixcode private URLyi gosterir."
-      }
+      },
+      "installCommand": "Kurulum komutu",
+      "installDevice": "Bu cihaza kur",
+      "signIn": "Tailscale ile giris yap",
+      "actionDone": "Tamamlandi",
+      "needsAttention": "Dikkat gerekiyor",
+      "openLogin": "Tailscale girisini ac"
     },
     "advanced": {
       "title": "Gelismis: sabit domain",
@@ -788,7 +852,8 @@
     "fields": {
       "label": "Etiket",
       "url": "URL",
-      "port": "Hedef port"
+      "port": "Hedef port",
+      "mode": "Mod"
     },
     "health": {
       "reachable": "Pixcode erisilebilir",
@@ -807,75 +872,29 @@
       "description": "Kullaniciyi Admin sisteminde olustur, Control Room icinde proje rolunu ata, sonra bu Access URLlerinden birini paylas. Atanmis projeye erismek icin global admin olmasi gerekmez."
     }
   },
-  "hermes": {
-    "title": "Hermes Agent",
-    "description": "Hermes Agenti Pixcode kontrolunde proje terminali olarak yonet; projelere, saglayici durumuna ve gorunur CLI acilislarina MCP erisimi verir.",
-    "statusTitle": "Kurulum durumu",
-    "statusFailed": "Hermes Agent kontrol edilemedi.",
-    "ready": "Hazir",
-    "notInstalled": "Kurulu degil",
-    "start": "Hermes baslat",
-    "install": "Kur",
-    "repair": "Komutu onar",
+  "diagnostics": {
+    "title": "Tanilar",
+    "description": "Saglayici sagligi, WebSocket durumu, bildirimler, aktif calismalar ve son hatalar.",
     "refresh": "Yenile",
-    "controlPlaneTitle": "Hermes kontrol duzlemi",
-    "controlPlaneDescription": "Hermes profilleri, REST gecidi, Pixcode MCP araclari, oturumlar, cron isleri ve gorunur CLI kontrolu icin masaustu tarzi kontrol katmani.",
-    "controlPlaneFailed": "Hermes kontrol duzlemi okunamadi.",
-    "controlPlaneRepairFailed": "Hermes kontrol duzlemi onarilamadi.",
-    "controlPlaneRepair": "Baglantiyi onar",
-    "controlPlaneProfiles": "Profiller",
-    "controlPlaneMcp": "MCP",
-    "controlPlaneMcpMissing": "{{count}} eksik",
-    "controlPlaneSessions": "Oturumlar",
-    "controlPlaneSessionHint": "Hermes state.db gecmisi",
-    "controlPlaneCron": "Cron",
-    "controlPlaneCronActive": "{{count}} aktif",
-    "gatewayTitle": "REST API gecidi",
-    "gatewayStatusFailed": "Hermes REST gecidi kontrol edilemedi.",
-    "gatewayStartFailed": "Hermes REST gecidi baslatilamadi.",
-    "gatewayStopFailed": "Hermes REST gecidi durdurulamadi.",
-    "gatewayProbeFailed": "Hermes REST testi basarisiz.",
-    "gatewayRunning": "REST gecidi calisiyor",
-    "gatewayStopped": "REST gecidi durdu",
-    "gatewayStart": "REST baslat",
-    "gatewayProbe": "REST test et",
-    "gatewayStop": "Durdur",
-    "gatewayProbeOk": "REST testi gecti: health, capabilities, models ve gercek prompt cevap verdi.",
-    "commandsTitle": "Hermes CLI ayarlari",
-    "commandsDescription": "Gercek Hermes terminal sihirbazlarini Pixcode icinden ac. Codex, OpenRouter, Anthropic, Gemini ve diger saglayicilari baglamak icin Model ve saglayici alanini kullan.",
-    "commandsInstallFirst": "CLI ayarlarini acmadan once Hermes'i kur.",
-    "commands": {
-      "cron": {
-        "title": "Cron isleri",
-        "description": "Scheduler durumunu incele, isleri listele ve tekrarlanan proje gorevlerinin Hermes gecidiyle calisabildigini dogrula."
-      },
-      "mcp": {
-        "title": "MCP sunuculari",
-        "description": "MCP sunucularini yonet ve arac ayarlari degistiginde Pixcode MCP'yi yeniden yukle."
-      },
-      "update": {
-        "title": "Hermes guncelle",
-        "description": "Etkilesimli soru olmadan en yeni Hermes duzeltmelerini cekip bagimliliklari yeniden kur."
-      }
-    },
-    "pixcodeControlTitle": "Pixcode kontrolu",
-    "pixcodeControlDescription": "Pixcode, baslatmadan once Hermes MCP sunucusunu ayarlar. Boylece Hermes workspaceleri inceleyebilir ve istediginde gorunur Pixcode UI icinde provider terminalleri acabilir.",
-    "diagnosticsTitle": "Entegrasyon tanilari",
-    "diagnosticsDescription": "Gizli bilgi gostermeden Hermes model/auth, native toolset, Pixcode MCP araclari, REST gecidi ve cron API baglantisini kontrol eder.",
-    "diagnosticsFailed": "Hermes tanilari okunamadi.",
-    "diagnosticsModel": "Model",
-    "diagnosticsTools": "Araclar",
-    "diagnosticsCron": "Cron",
-    "diagnosticsIssues": "Sorunlar",
-    "diagnosticsAuthReady": "Saglayici auth mevcut.",
-    "diagnosticsAuthMissing": "Saglayici auth dikkat istiyor.",
-    "diagnosticsMcpTools": "Pixcode MCP: {{count}} arac, {{missing}} eksik",
-    "diagnosticsCronReady": "Hermes cron toolset kullanilabilir.",
-    "diagnosticsCronMissing": "Hermes cron icin hermes-cli toolset gerekli.",
-    "diagnosticsCronApiReady": "Gateway /api/jobs cevap verdi.",
-    "diagnosticsCronApiFailed": "Gateway /api/jobs cevap vermedi.",
-    "diagnosticsNoIssues": "Engelleyici sorun bulunmadi.",
-    "diagnosticsIssueCount": "{{count}} sorun tespit edildi.",
-    "unknown": "Bilinmiyor"
+    "copyBundle": "Paketi kopyala",
+    "copied": "Kopyalandi",
+    "runtime": "Calisma ortami",
+    "waiting": "Tanilar bekleniyor",
+    "websocket": "WebSocket",
+    "activeClients": "aktif istemci",
+    "recentErrors": "Son hatalar",
+    "redactedBundle": "gizlenmis destek paketi",
+    "providers": "Saglayicilar",
+    "notChecked": "kontrol edilmedi",
+    "emptyProviders": "Saglayici sagligi henuz toplanmadi.",
+    "status": {
+      "unknown": "bilinmiyor",
+      "loading": "yukleniyor",
+      "ok": "tamam",
+      "available": "kullanilabilir",
+      "configured": "yapilandirildi",
+      "missing": "eksik",
+      "failed": "basarisiz"
+    }
   }
 }

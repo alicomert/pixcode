@@ -8,7 +8,6 @@ import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
 import AppearanceSettingsTab from '../view/tabs/AppearanceSettingsTab';
 import CredentialsSettingsTab from '../view/tabs/api-settings/CredentialsSettingsTab';
 import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
-import HermesSettingsTab from '../view/tabs/HermesSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
 import MobileSettingsTab from '../view/tabs/mobile-settings/MobileSettingsTab';
@@ -157,8 +156,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   projects={projects}
                 />
               )}
-
-              {activeTab === 'hermes' && <HermesSettingsTab onClose={onClose} />}
 
             {activeTab === 'notifications' && (
               <NotificationsSettingsTab

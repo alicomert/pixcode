@@ -5,10 +5,6 @@ import type { LLMProvider } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';
 import { persistLocalNotificationPreferences } from '../../../utils/localNotifications';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
-import {
-  DEFAULT_CODE_EDITOR_SETTINGS,
-  DEFAULT_CURSOR_PERMISSIONS,
-} from '../constants/constants';
 import type {
   AgentProvider,
   ClaudePermissionsState,
@@ -63,7 +59,19 @@ type NotificationPreferencesResponse = {
 
 type ActiveLoginProvider = LLMProvider | '';
 
-const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'hermes', 'access', 'appearance', 'git', 'api', 'notifications', 'plugins', 'mobile', 'telegram', 'diagnostics', 'about'];
+const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'access', 'appearance', 'git', 'api', 'notifications', 'plugins', 'mobile', 'telegram', 'diagnostics', 'about'];
+const DEFAULT_CODE_EDITOR_SETTINGS: CodeEditorSettingsState = {
+  theme: 'light',
+  wordWrap: false,
+  showMinimap: true,
+  lineNumbers: true,
+  fontSize: '14',
+};
+const DEFAULT_CURSOR_PERMISSIONS: CursorPermissionsState = {
+  allowedCommands: [],
+  disallowedCommands: [],
+  skipPermissions: false,
+};
 
 const normalizeMainTab = (tab: string): SettingsMainTab => {
   // Keep backwards compatibility with older callers that still pass "tools".

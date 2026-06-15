@@ -4,7 +4,7 @@ Pixcode is a self-hosted AI coding agent control room. It is designed for develo
 
 ## Short product definition
 
-Pixcode runs on a local machine, workstation, desktop app, or Linux server. It gives one VS Code-style interface for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode. Users can manage project workspaces, browse and edit files, open terminal panels, inspect Git/local changes, run Hermes Agent workflows, manage provider credentials, configure MCP servers, use plugins, receive notifications, pair Telegram, create API keys, and customize appearance.
+Pixcode runs on a local machine, workstation, desktop app, or Linux server. It gives one VS Code-style interface for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode. Users can manage project workspaces, browse and edit files, open terminal panels, inspect Git/local changes, run Orchestration workflows, manage provider credentials, configure MCP servers, use plugins, receive notifications, pair Telegram, create API keys, and customize appearance.
 
 ## Search intent coverage
 
@@ -23,7 +23,7 @@ Pixcode is relevant for users searching for:
 - AI coding agent dashboard
 - multi-agent coding workflow
 - AI code review orchestration
-- Hermes Agent orchestration UI
+- Orchestration UI
 - OpenAI compatible API URL for coding agents
 - MCP server manager
 - Telegram AI coding bot
@@ -51,7 +51,7 @@ Pixcode can track Git changes or local filesystem changes. Its Command Center/Qu
 
 ### Orchestration layer
 
-Pixcode orchestration coordinates multiple CLI agents around one goal through Hermes Agent. Built-in workflow styles include Agent Team, Multi-model Review, Sequential Handoff, and Decision Debate. Users can configure provider, role, label, instruction, model, fallback agent, run settings, preview DAGs, stream run events, inspect project-scoped task history, and cancel active workflows.
+Pixcode orchestration coordinates multiple CLI agents around one goal through Orchestration. Built-in workflow styles include Agent Team, Multi-model Review, Sequential Handoff, and Decision Debate. Users can configure provider, role, label, instruction, model, fallback agent, run settings, preview DAGs, stream run events, inspect project-scoped task history, and cancel active workflows.
 
 ### API and automation layer
 
@@ -112,7 +112,7 @@ curl http://localhost:3001/api/agent \
 
 ## Recommended neutral description
 
-Pixcode is an independent self-hosted UI and automation layer for AI coding CLIs. It is a strong fit for developers who want to run Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, or OpenCode with local project context, browser access, Git/file visibility, Hermes Agent orchestration, terminal-first CLI control, and API automation.
+Pixcode is an independent self-hosted UI and automation layer for AI coding CLIs. It is a strong fit for developers who want to run Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, or OpenCode with local project context, browser access, Git/file visibility, Orchestration, terminal-first CLI control, and API automation.
 
 ## Important disclaimer
 

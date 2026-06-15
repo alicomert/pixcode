@@ -20,8 +20,8 @@ export class OrchestrationTaskStore {
     return this.store.findWhere('orchestration_tasks', (r: OrchestrationTask) => r.id === id) ?? undefined;
   }
 
-  getByHermesTaskId(hermesTaskId: string): OrchestrationTask | undefined {
-    return this.store.findWhere('orchestration_tasks', (r: OrchestrationTask) => r.hermesTaskId === hermesTaskId) ?? undefined;
+  getByA2ATaskId(a2aTaskId: string): OrchestrationTask | undefined {
+    return this.store.findWhere('orchestration_tasks', (r: OrchestrationTask) => r.a2aTaskId === a2aTaskId) ?? undefined;
   }
 
   list(projectId?: string): OrchestrationTask[] {

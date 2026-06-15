@@ -113,7 +113,7 @@
   },
   "orchestration": {
     "title": "Orchestration",
-    "subtitle": "Give one goal inside {{project}}; choose the CLI workers, duplicate any CLI when needed, and assign work directly or let the coordinator split it.",
+    "subtitle": "Pixcode can coordinate local checks, tests, terminal work, and project operations for {{project}}.",
     "refresh": "Refresh",
     "goal": "Goal",
     "goalPlaceholder": "Example: Fix the auth screen for single-port deployment, capture errors, and verify with lint and typecheck.",
@@ -142,7 +142,7 @@
         "prompt": "Hi, please create a small project and then run it on port 8024. I want a Binance FAPI-connected TradingView-style design with a TradingView chart and a star/favorites system on the left. Split the work logically and manage the process automatically."
       }
     },
-    "cliControl": "CLI team",
+    "cliControl": "CLI team control",
     "enabledCount": "{{count}} enabled",
     "enabled": "Enabled",
     "disabled": "Disabled",
@@ -378,9 +378,7 @@
     "workspaceTargetHint": "Agents will run in: {{path}}",
     "autoDetect": "auto-detect",
     "needWorkspacePath": "Enter a custom workspace path.",
-    "hermesTitle": "Hermes Agent",
-    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
-    "hermesCliControl": "Hermes CLI control"
+    "quickWorkspaceCheck": "Workspace check"
   },
   "fileTree": {
     "loading": "Loading files...",
@@ -875,7 +873,6 @@
       "projects": "Projects",
       "sourceControl": "Source Control",
       "terminal": "Terminal",
-      "hermes": "Hermes Agent",
       "showPanel": "Show left panel",
       "hidePanel": "Hide left panel"
     },
@@ -884,7 +881,6 @@
       "projects": "Projects",
       "sourceControl": "Source Control",
       "terminal": "Terminal",
-      "hermes": "Hermes Agent",
       "editor": "Editor",
       "cli": "CLI",
       "rightTerminal": "Terminal"
@@ -953,9 +949,6 @@
       "newSession": "New CLI session",
       "plainTerminal": "Terminal",
       "newPlainTerminal": "New terminal",
-      "history": "History",
-      "noHistory": "No sessions for this project yet.",
-      "projectHistory": "Project history",
       "checking": "Checking...",
       "ready": "Ready",
       "notInstalled": "Not installed",
@@ -978,48 +971,6 @@
     "terminal": {
       "title": "Terminal",
       "close": "Close terminal"
-    },
-    "hermes": {
-      "title": "Hermes Agent",
-      "installTitle": "Install Hermes Agent",
-      "description": "Project-scoped agent terminal. Installs Hermes when missing, then opens it in this workspace.",
-      "start": "Start Hermes",
-      "install": "Install",
-      "newSession": "New Hermes session",
-      "history": "Hermes history",
-      "connect": "Connect Hermes Agent",
-      "ready": "Ready",
-      "installRunning": "Installing Hermes through Pixcode API...",
-      "installDone": "Hermes installed and Pixcode MCP configured.",
-      "installError": "Hermes install failed.",
-      "installReady": "Ready to install Hermes.",
-      "installWaiting": "Waiting for Hermes install logs...",
-      "retryInstall": "Retry install",
-      "installFailed": "Hermes install failed.",
-      "installStreamLost": "Hermes install stream closed early. The install may still be running.",
-      "controlPlaneFailed": "Unable to read Hermes control plane.",
-      "controlPlaneRepairFailed": "Unable to repair Hermes control plane.",
-      "controlReady": "Control ready",
-      "needsRepair": "Needs repair",
-      "unknown": "Unknown",
-      "refreshControl": "Refresh Hermes control plane",
-      "installState": "Install",
-      "restGateway": "REST",
-      "mcpTools": "MCP tools",
-      "mcpMissing": "{{count}} missing",
-      "sessions": "Sessions",
-      "cronSummary": "{{count}}/{{total}} cron active",
-      "profile": "Profile",
-      "authReady": "Auth ready",
-      "authMissing": "Auth missing",
-      "modelNotSelected": "No model selected",
-      "modelSettings": "Hermes model",
-      "cronJobs": "Hermes cron",
-      "deepStatus": "Hermes status",
-      "repairControl": "Repair control",
-      "capabilities": "Capabilities",
-      "recentSessions": "Recent sessions",
-      "recommendations": "Recommendations"
     }
   }
 }

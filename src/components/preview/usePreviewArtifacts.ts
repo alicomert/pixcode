@@ -28,7 +28,7 @@ export function usePreviewArtifacts(taskId?: string) {
 
     let cancelled = false;
     const load = async () => {
-      const response = await authenticatedFetch(`/api/orchestration/hermes/tasks/${encodeURIComponent(taskId)}`);
+      const response = await authenticatedFetch(`/api/orchestration/agent-tasks/${encodeURIComponent(taskId)}`);
       if (!response.ok || cancelled) return;
       const task = await response.json() as { artifacts?: PreviewArtifact[] };
       setArtifacts((task.artifacts ?? []).filter((artifact) => artifact.type === 'preview-url'));

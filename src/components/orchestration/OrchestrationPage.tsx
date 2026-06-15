@@ -1003,12 +1003,12 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Workflow className="h-4 w-4" />
-              {t('orchestration.hermesTitle', { defaultValue: 'Hermes Agent' })}
+              {t('orchestration.title', { defaultValue: 'Orchestration' })}
             </div>
             <div className="mt-1 truncate text-xs text-muted-foreground">
-              {t('orchestration.hermesSubtitle', {
+              {t('orchestration.subtitle', {
                 project: selectedProject.displayName,
-                defaultValue: 'Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.',
+                defaultValue: 'Pixcode can coordinate local checks, tests, terminal work, and project operations for {{project}}.',
               })}
             </div>
           </div>
@@ -1175,7 +1175,7 @@ export default function OrchestrationPage({ selectedProject }: OrchestrationPage
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Users className="h-4 w-4" />
-                {t('orchestration.hermesCliControl', { defaultValue: 'Hermes CLI control' })}
+                {t('orchestration.cliControl', { defaultValue: 'CLI team control' })}
               </div>
               <Badge variant="outline">
                 {t('orchestration.activeCount', { active: enabledAgents.length, total: settings.agents.length })}

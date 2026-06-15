@@ -6,11 +6,11 @@
     <title>Pixcode - Self-hosted AI Coding Agent Control Plane</title>
     <meta
       name="description"
-      content="Pixcode is a self-hosted AI coding control plane for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, VS Code-style workspaces, Monaco editing, terminal panels, Git, Hermes orchestration, Telegram, MCP, plugins, and API automation."
+      content="Pixcode is a self-hosted AI coding control plane for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, VS Code-style workspaces, Monaco editing, terminal panels, Git, orchestration, Telegram, MCP, plugins, and API automation."
     />
     <meta
       name="keywords"
-      content="Pixcode, AI coding agent UI, self hosted coding agent, Claude Code UI, OpenAI Codex UI, Cursor CLI UI, Gemini CLI UI, Qwen Code UI, OpenCode UI, Hermes Agent, coding agent orchestration, MCP manager, Telegram coding bot, local AI development workspace, AI coding dashboard"
+      content="Pixcode, AI coding agent UI, self hosted coding agent, Claude Code UI, OpenAI Codex UI, Cursor CLI UI, Gemini CLI UI, Qwen Code UI, OpenCode UI, Orchestration, coding agent orchestration, MCP manager, Telegram coding bot, local AI development workspace, AI coding dashboard"
     />
     <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
     <meta name="author" content="Pixcode Contributors" />
@@ -21,7 +21,7 @@
     <meta property="og:title" content="Pixcode - Self-hosted AI Coding Agent Control Plane" />
     <meta
       property="og:description"
-      content="Run AI coding CLIs, inspect files, manage terminal sessions and Git, orchestrate agent teams with Hermes, and automate everything from your own machine or server."
+      content="Run AI coding CLIs, inspect files, manage terminal sessions and Git, orchestrate agent teams, and automate everything from your own machine or server."
     />
     <meta property="og:url" content="https://alicomert.github.io/pixcode/landing.html" />
     <meta property="og:image" content="https://alicomert.github.io/pixcode/logo.png" />
@@ -34,7 +34,7 @@
         "name": "Pixcode",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Windows, macOS, Linux, Web",
-        "description": "Self-hosted control plane for AI coding agents, coding CLIs, files, terminal panels, Git, Hermes orchestration, Telegram, MCP, plugins, and API automation.",
+        "description": "Self-hosted control plane for AI coding agents, coding CLIs, files, terminal panels, Git, orchestration, Telegram, MCP, plugins, and API automation.",
         "softwareVersion": "1.48.0",
         "codeRepository": "https://github.com/alicomert/pixcode",
         "downloadUrl": "https://www.npmjs.com/package/@pixelbyte-software/pixcode",
@@ -48,7 +48,7 @@
           "Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode workspace",
           "VS Code-style project workspaces, Monaco editor tabs, terminal sessions, files, and source control",
           "Git and local changed-file command center",
-          "Hermes multi-agent orchestration with roles, models, fallbacks, and handoffs",
+          "Multi-agent orchestration with roles, models, fallbacks, and handoffs",
           "REST and WebSocket API automation with px_ API keys",
           "Telegram bridge, browser notifications, MCP management, plugin support, and themes"
         ],
@@ -68,7 +68,7 @@
       <div class="nav-links">
         <a href="#what">What it does</a>
         <a href="#capabilities">Capabilities</a>
-        <a href="#hermes">Hermes Agent</a>
+        <a href="#orchestration">Orchestration</a>
         <a href="#install">Install</a>
         <a href="docs.html">Docs</a>
         <a href="https://github.com/alicomert/pixcode">GitHub</a>
@@ -81,7 +81,7 @@
         <h1>Run every coding agent from one place.</h1>
         <p class="lead">
           Pixcode turns your machine or server into a live workspace for AI coding CLIs.
-          It keeps project workspaces, Monaco editor tabs, terminal panels, Git/local changes, Hermes orchestration,
+          It keeps project workspaces, Monaco editor tabs, terminal panels, Git/local changes, orchestration,
           Telegram, notifications, MCP, plugins, and API automation in one browser or desktop app.
         </p>
         <div class="actions">
@@ -106,7 +106,7 @@ open http://localhost:3001</code></pre>
           <span class="chip">Gemini CLI</span>
           <span class="chip">Qwen Code</span>
           <span class="chip">OpenCode</span>
-          <span class="chip">Hermes Agent</span>
+          <span class="chip">Orchestration</span>
           <span class="chip">MCP</span>
           <span class="chip">Telegram</span>
           <span class="chip">px_ API keys</span>
@@ -156,7 +156,7 @@ open http://localhost:3001</code></pre>
           </article>
           <article class="capability-card">
             <span>05</span>
-            <h3>Run Hermes Agent</h3>
+            <h3>Run Orchestration</h3>
             <p>Route background review, verification, and workflow tasks through project-aware CLI adapters.</p>
           </article>
           <article class="capability-card">
@@ -197,21 +197,21 @@ open http://localhost:3001</code></pre>
         </div>
       </section>
 
-      <section id="hermes" class="section warm">
+      <section id="orchestration" class="section warm">
         <div class="split">
           <div>
-            <div class="eyebrow">Hermes Agent APIs</div>
+            <div class="eyebrow">Orchestration APIs</div>
             <h2>Let Pixcode coordinate background agent work.</h2>
             <p class="sublead">
-              Hermes runs inside Pixcode, knows the selected project, and exposes
-              authenticated endpoints for status, agent routing, task history, streamed
+              Pixcode runs orchestration inside the current instance, knows the selected project, and exposes
+              authenticated endpoints for agent routing, workflow state, streamed
               output, and artifacts.
             </p>
           </div>
           <div class="code-panel">
-            <pre><code>GET /api/orchestration/hermes/status
-GET /api/orchestration/hermes/agents
-GET /api/orchestration/hermes/tasks/:id</code></pre>
+            <pre><code>GET /api/orchestration/agents
+GET /api/orchestration/tasks
+GET /api/orchestration/workflows/runs/:runId</code></pre>
           </div>
         </div>
       </section>

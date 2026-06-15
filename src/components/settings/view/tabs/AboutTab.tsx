@@ -6,7 +6,7 @@ import { useVersionCheck } from '../../../../hooks/useVersionCheck';
 import { UPDATE_CHECK_FREQUENCY_OPTIONS, type UpdateCheckFrequency } from '../../../../utils/updateCheckPreferences';
 import PremiumFeatureCard from '../PremiumFeatureCard';
 
-import { CheckCircle, ExternalLink, Loader2, MessageSquare, RefreshCw, Star, Cloud, Users  } from '@/lib/icons';
+import { CheckCircle, ExternalLink, Loader2, MessageSquare, RefreshCw, Star, Cloud, Users } from '@/lib/icons';
 
 const GITHUB_REPO_URL = 'https://github.com/alicomert/pixcode';
 const DISCORD_URL = 'https://discord.gg/buxwujPNRE';
@@ -31,15 +31,15 @@ function DiscordIcon({ className }: { className?: string }) {
 
 // Format an ISO/ms timestamp as a friendly "just now / Nm ago / Nh ago"
 // string. Used by the About tab to surface when the last update check ran.
-function formatRelativeTime(ts: number | null): string {
+function formatRelativeTime(ts: number | null, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (!ts) return '';
   const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
-  if (diffSec < 5) return 'just now';
-  if (diffSec < 60) return `${diffSec}s ago`;
+  if (diffSec < 5) return t('about.relativeTime.justNow');
+  if (diffSec < 60) return t('about.relativeTime.secondsAgo', { count: diffSec });
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 60) return t('about.relativeTime.minutesAgo', { count: diffMin });
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffHr < 24) return t('about.relativeTime.hoursAgo', { count: diffHr });
   return new Date(ts).toLocaleString();
 }
 
@@ -103,7 +103,7 @@ export default function AboutTab() {
             )}
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Open-source AI coding assistant interface
+            {t('about.tagline')}
           </p>
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function AboutTab() {
             >
               <GitHubIcon className="h-4 w-4" />
               <Star className="h-3.5 w-3.5" />
-              <span>Star on GitHub</span>
+              <span>{t('about.starOnGitHub')}</span>
             </a>
           </div>
         </div>
@@ -180,7 +180,7 @@ export default function AboutTab() {
           {lastCheckedAt
             ? t('about.lastChecked', {
                 defaultValue: 'Last checked {{when}}',
-                when: formatRelativeTime(lastCheckedAt),
+                when: formatRelativeTime(lastCheckedAt, t),
               })
             : t('about.notCheckedYet', { defaultValue: 'Update check has not completed yet' })}
           {checkStatus === 'error' && (
@@ -218,7 +218,7 @@ export default function AboutTab() {
           className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
         >
           <ExternalLink className="h-3.5 w-3.5" />
-          Docs
+          {t('about.docs')}
         </a>
         <a
           href={PIXCODE_URL}
@@ -234,9 +234,9 @@ export default function AboutTab() {
       {/* Hosted CTA (OSS mode only) */}
       {!IS_PLATFORM && (
         <div className="rounded-xl border border-primary/10 bg-primary/5 p-4">
-          <h4 className="text-sm font-medium text-foreground">Try Pixcode Hosted</h4>
+          <h4 className="text-sm font-medium text-foreground">{t('about.hosted.title')}</h4>
           <p className="mt-1 text-xs text-muted-foreground">
-            Team collaboration, shared MCP configs, settings sync across environments, and managed infrastructure.
+            {t('about.hosted.description')}
           </p>
           <a
             href={PIXCODE_URL}
@@ -244,7 +244,7 @@ export default function AboutTab() {
             rel="noopener noreferrer"
             className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:underline"
           >
-            Learn more
+            {t('about.hosted.learnMore')}
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -253,16 +253,16 @@ export default function AboutTab() {
       {/* Premium feature placeholders (OSS mode only) */}
       {!IS_PLATFORM && (
         <div className="space-y-4 border-t border-border/50 pt-6">
-          <h3 className="text-sm font-medium text-foreground">Pixcode Pro Features</h3>
+          <h3 className="text-sm font-medium text-foreground">{t('about.proFeatures.title')}</h3>
           <PremiumFeatureCard
             icon={<Cloud className="h-5 w-5" />}
-            title="Sync Settings"
-            description="Keep your preferences, MCP configs, and theme in sync across all your environments."
+            title={t('about.proFeatures.syncSettings.title')}
+            description={t('about.proFeatures.syncSettings.description')}
           />
           <PremiumFeatureCard
             icon={<Users className="h-5 w-5" />}
-            title="Team Management"
-            description="Multiple users, role-based access, and shared projects for your team."
+            title={t('about.proFeatures.teamManagement.title')}
+            description={t('about.proFeatures.teamManagement.description')}
           />
         </div>
       )}
@@ -270,7 +270,7 @@ export default function AboutTab() {
       {/* License */}
       <div className="border-t border-border/50 pt-4">
         <p className="text-xs text-muted-foreground/60">
-          Licensed under AGPL-3.0
+          {t('about.license')}
         </p>
       </div>
     </div>

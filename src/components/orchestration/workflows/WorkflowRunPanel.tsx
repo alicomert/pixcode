@@ -20,7 +20,7 @@ type WorkflowNodeRun = {
   stage?: string;
   internal?: boolean;
   status: string;
-  hermesTaskId?: string;
+  a2aTaskId?: string;
   startedAt?: number;
   finishedAt?: number;
   error?: string;

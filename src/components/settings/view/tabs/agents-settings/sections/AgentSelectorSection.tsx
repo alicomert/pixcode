@@ -1,16 +1,9 @@
+import { useTranslation } from 'react-i18next';
+
 import { PillBar, Pill } from '../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../llm-logo-provider/SessionProviderLogo';
-import type { AgentProvider } from '../../../../types/types';
+import { PROVIDER_DISPLAY_NAMES } from '../../../../../provider-auth/types';
 import type { AgentSelectorSectionProps } from '../types';
-
-const AGENT_NAMES: Record<AgentProvider, string> = {
-  claude: 'Claude',
-  cursor: 'Cursor',
-  codex: 'Codex',
-  gemini: 'Gemini',
-  qwen: 'Qwen Code',
-  opencode: 'OpenCode',
-};
 
 export default function AgentSelectorSection({
   agents,
@@ -18,6 +11,8 @@ export default function AgentSelectorSection({
   onSelectAgent,
   agentContextById,
 }: AgentSelectorSectionProps) {
+  const { t } = useTranslation('settings');
+
   return (
     <div className="flex-shrink-0 border-b border-border px-3 py-2 md:px-4 md:py-3">
       {/* Horizontal scroll container — with 5 providers (soon 6 with
@@ -28,7 +23,7 @@ export default function AgentSelectorSection({
       <div
         className="-mx-1 overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
-        aria-label="Providers"
+        aria-label={t('agents.providersLabel')}
       >
         <PillBar className="w-max">
           {agents.map((agent) => {
@@ -47,7 +42,7 @@ export default function AgentSelectorSection({
                 className="whitespace-nowrap"
               >
                 <SessionProviderLogo provider={agent} className="h-4 w-4 flex-shrink-0" />
-                <span>{AGENT_NAMES[agent]}</span>
+                <span>{t(`agents.providerNames.${agent}`, { defaultValue: PROVIDER_DISPLAY_NAMES[agent] ?? agent })}</span>
                 {agentContextById[agent].authStatus.authenticated && (
                   <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor}`} />
                 )}

@@ -5,7 +5,7 @@ import { cn } from '../../../lib/utils';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import type { SettingsMainTab } from '../types/types';
 
-import { Bell, Bot, Bug, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone, Workflow } from '@/lib/icons';
+import { Bell, Bot, Bug, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone } from '@/lib/icons';
 
 type SettingsSidebarProps = {
   activeTab: SettingsMainTab;
@@ -20,7 +20,6 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'agents', labelKey: 'mainTabs.agents', icon: Bot },
-  { id: 'hermes', labelKey: 'mainTabs.hermes', icon: Workflow },
   { id: 'access', labelKey: 'mainTabs.access', icon: Globe },
   { id: 'appearance', labelKey: 'mainTabs.appearance', icon: Palette },
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },
@@ -65,8 +64,8 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
       </aside>
 
       {/* Mobile horizontal nav — pill bar */}
-      <div className="flex-shrink-0 border-b border-border px-3 py-2 md:hidden">
-        <PillBar className="scrollbar-hide w-full overflow-x-auto">
+      <div className="relative flex-shrink-0 border-b border-border px-3 py-2 md:hidden">
+        <PillBar className="scrollbar-hide w-full overflow-x-auto pr-8">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
 
@@ -83,6 +82,7 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
             );
           })}
         </PillBar>
+        <div className="pointer-events-none absolute inset-y-2 right-0 w-10 bg-gradient-to-l from-background to-transparent" />
       </div>
     </>
   );

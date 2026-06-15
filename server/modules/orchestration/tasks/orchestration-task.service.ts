@@ -1,6 +1,7 @@
 import { OrchestrationTaskStore } from '@/modules/orchestration/tasks/orchestration-task-store.js';
 import type { CreateOrchestrationTaskInput, DispatchOrchestrationTaskInput, OrchestrationTask } from '@/modules/orchestration/tasks/orchestration-task.types.js';
 import { a2aBus } from '@/modules/orchestration/a2a/bus.js';
+import { submitA2ATask } from '@/modules/orchestration/a2a/task-dispatcher.js';
 import type { TaskState } from '@/modules/orchestration/a2a/types.js';
 import type { WorkflowNodeRun, WorkflowRun } from '@/modules/orchestration/workflows/workflow.types.js';
 
@@ -93,35 +94,26 @@ class OrchestrationTaskService {
     const task = this.store.get(taskId);
     if (!task) throw new Error('TASK_NOT_FOUND');
 
-    const a2aResponse = await fetch(`http://127.0.0.1:${process.env.SERVER_PORT ?? '3001'}/hermes/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adapterId: input.adapterId,
-        message: {
-          messageId: newId('msg'),
-          role: 'user',
-          parts: [{ kind: 'text', text: `${task.title}\n\n${task.description ?? ''}` }],
+    const a2aTask = await submitA2ATask({
+      adapterId: input.adapterId,
+      message: {
+        messageId: newId('msg'),
+        role: 'user',
+        parts: [{ kind: 'text', text: `${task.title}\n\n${task.description ?? ''}` }],
+      },
+      metadata: {
+        isolation: input.isolation ?? 'worktree',
+        model: input.model,
+        permissionMode: input.permissionMode,
+        workspace: {
+          kind: input.isolation ?? 'worktree',
+          projectPath: input.projectPath,
         },
-        metadata: {
-          isolation: input.isolation ?? 'worktree',
-          model: input.model,
-          permissionMode: input.permissionMode,
-          workspace: {
-            kind: input.isolation ?? 'worktree',
-            projectPath: input.projectPath,
-          },
-          orchestrationTaskId: task.id,
-        },
-      }),
+        orchestrationTaskId: task.id,
+      },
     });
 
-    const body = await a2aResponse.json().catch(() => null) as { id?: string; error?: { message?: string } } | null;
-    if (!a2aResponse.ok || typeof body?.id !== 'string') {
-      throw new Error(body?.error?.message ?? 'DISPATCH_FAILED');
-    }
-
-    task.hermesTaskId = body.id;
+    task.a2aTaskId = a2aTask.id;
     task.adapterId = input.adapterId;
     task.adapterSelector = input.adapterId;
     task.workspaceKind = input.isolation ?? 'worktree';
@@ -181,7 +173,7 @@ class OrchestrationTaskService {
       if (event.kind !== 'task-state') return;
       if (!TERMINAL_A2A_STATES.includes(event.state)) return;
 
-      const orchTask = this.store.getByHermesTaskId(event.taskId);
+      const orchTask = this.store.getByA2ATaskId(event.taskId);
       if (!orchTask) return;
       if (orchTask.state === 'done' || orchTask.state === 'failed' || orchTask.state === 'canceled') return;
 

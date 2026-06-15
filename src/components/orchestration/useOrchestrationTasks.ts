@@ -4,7 +4,7 @@ import { authenticatedFetch } from '../../utils/api';
 
 export type OrchestrationTask = {
   id: string;
-  hermesTaskId?: string;
+  a2aTaskId?: string;
   projectId: string;
   title: string;
   description?: string;
@@ -53,7 +53,7 @@ export function useOrchestrationTasks(projectId = 'default') {
   }, [refresh]);
 
   useEffect(() => {
-    void authenticatedFetch('/api/orchestration/hermes/agents')
+    void authenticatedFetch('/api/orchestration/agents')
       .then((response) => response.ok ? response.json() : Promise.resolve({ agents: [] }))
       .then((data: { agents?: AgentCard[] }) => setAgents(data.agents ?? []));
   }, []);

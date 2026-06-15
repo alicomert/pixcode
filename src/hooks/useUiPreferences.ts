@@ -47,7 +47,7 @@ const DEFAULTS: UiPreferences = {
   changeAwareness: false,
   sidebarVisible: true,
   historyView: 'flat',
-  autoShowAgentDiff: 'openOnly',
+  autoShowAgentDiff: 'always',
 };
 
 const HISTORY_VIEW_VALUES: HistoryViewMode[] = ['flat', 'grouped'];

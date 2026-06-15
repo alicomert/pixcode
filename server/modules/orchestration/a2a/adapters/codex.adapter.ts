@@ -40,7 +40,7 @@ export class CodexA2AAdapter extends AbstractA2AAdapter {
   readonly agentCard: AgentCard = {
     name: 'pixcode-codex',
     description: 'OpenAI Codex, accessed via Pixcode',
-    url: '/hermes/agents/codex',
+    url: '/api/orchestration/agents/codex',
     version: '1.0.0',
     capabilities: ['streaming', 'fileEdit', 'commandExec', 'webSearch', 'mcp'],
     skills: [

@@ -21,7 +21,7 @@ export class JsonEventA2AAdapter extends AbstractA2AAdapter {
   readonly agentCard: AgentCard = {
     name: 'pixcode-json-event',
     description: 'JSON Event Stream Adapter for Pixcode Orchestration',
-    url: '/hermes/agents/json-event',
+    url: '/api/orchestration/agents/json-event',
     version: '1.0.0',
     capabilities: ['streaming', 'event-driven'],
     skills: [

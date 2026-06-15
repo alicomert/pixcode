@@ -61,9 +61,9 @@ export default function TaskBoard() {
             <Plus />
             {t('orchestration.addTask')}
           </Button>
-          <Button type="button" variant="outline" onClick={() => void createTask('Hermes check', 'Review the active Pixcode workspace and suggest the next safe action.')}>
+          <Button type="button" variant="outline" onClick={() => void createTask('Workspace check', 'Review the active Pixcode workspace and suggest the next safe action.')}>
             <RefreshCw />
-            {t('orchestration.hermesTitle', { defaultValue: 'Hermes Agent' })}
+            {t('orchestration.quickWorkspaceCheck', { defaultValue: 'Workspace check' })}
           </Button>
         </div>
       </header>

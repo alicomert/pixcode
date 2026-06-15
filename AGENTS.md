@@ -57,7 +57,7 @@ Config: `eslint.config.js` (flat config, two blocks).
 
 ## Backend layout
 
-- `server/index.js` — Express app, route mounting, static serving of `public/` + `dist/`, WS setup. Single large file. All `/api/*` routes pass `validateApiKey`, most also `authenticateToken`. Mounts provider routes under `/api/providers`, orchestration under `/api/orchestration` (+ `/api/orchestration/hermes`), legacy per-provider routes under `/api/{codex,cursor,gemini,qwen,...}`.
+- `server/index.js` — Express app, route mounting, static serving of `public/` + `dist/`, WS setup. Single large file. All `/api/*` routes pass `validateApiKey`, most also `authenticateToken`. Mounts provider routes under `/api/providers`, orchestration under `/api/orchestration`, legacy per-provider routes under `/api/{codex,cursor,gemini,qwen,...}`.
 - `server/cli.js` — CLI (`start`, `daemon`, `sandbox`, `status`, `version`, ...). Installed as `pixcode`.
 - `server/daemon/manager.js` + `server/daemon-manager.js` — systemd-based daemon management (Linux focus).
 - `server/modules/providers/` — provider code:
@@ -66,7 +66,7 @@ Config: `eslint.config.js` (flat config, two blocks).
   - `provider.registry.ts` — registry wiring
   - `provider.routes.ts` — router mounted at `/api/providers`
   - `shared/base/abstract.provider.ts` + `shared/mcp/mcp.provider.ts` — base classes
-- `server/modules/orchestration/` — multi-agent orchestration module: `a2a/` (A2A protocol + per-provider adapters), `workflows/` (runner, templates, traces), `tasks/`, `workspace/` (docker + git-worktree workspaces), `hermes/`, `preview/`.
+- `server/modules/orchestration/` — multi-agent orchestration module: `a2a/` (A2A protocol + per-provider adapters), `workflows/` (runner, templates, traces), `tasks/`, `workspace/` (docker + git-worktree workspaces), `preview/`.
 - `server/shared/{types,interfaces,utils}.ts` — shared TypeScript contracts (see boundaries rules above).
 - `server/routes/*.js` — legacy routes (auth, projects, git, mcp-utils, codex, cursor, gemini, qwen, plugins, agent, commands, settings, user, messages, telegram, remote, webhooks, live-view, diagnostics, network, platformization, production-agent-loop, public-api).
 - `server/database/{db.js,json-store.js}` — `better-sqlite3` auth/user/token storage (`backend-legacy-runtime`).

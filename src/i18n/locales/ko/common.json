@@ -300,7 +300,7 @@
   },
   "orchestration": {
     "title": "오케스트레이션",
-    "subtitle": "{{project}} 안에서 하나의 목표를 입력하고 CLI 워커를 선택하세요. 필요하면 같은 CLI를 여러 개 만들고 직접 배정하거나 코디네이터가 나누게 할 수 있습니다.",
+    "subtitle": "Pixcode는 {{project}}의 로컬 점검, 테스트, 터미널 작업, 프로젝트 작업을 조율할 수 있습니다.",
     "refresh": "새로고침",
     "goal": "목표",
     "goalPlaceholder": "예: 인증 화면을 단일 포트 배포에 맞게 수정하고 오류를 수집한 뒤 lint와 typecheck로 검증합니다.",
@@ -312,7 +312,7 @@
     "starting": "시작 중",
     "needAgent": "CLI 워커를 하나 이상 활성화하세요.",
     "startFailed": "워크플로를 시작할 수 없습니다.",
-    "cliControl": "CLI 팀",
+    "cliControl": "CLI 팀 제어",
     "enabledCount": "{{count}}개 활성",
     "enabled": "활성",
     "disabled": "비활성",
@@ -524,9 +524,7 @@
     "workspaceTargetHint": "에이전트 실행 위치: {{path}}",
     "autoDetect": "자동 감지",
     "needWorkspacePath": "사용자 지정 작업 영역 경로를 입력하세요.",
-    "hermesTitle": "Hermes Agent",
-    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
-    "hermesCliControl": "Hermes CLI control"
+    "quickWorkspaceCheck": "워크스페이스 점검"
   },
   "controlRoom": {
     "title": "컨트롤 룸",
@@ -856,9 +854,6 @@
       "chooseDescription": "CLI를 선택한 뒤 전체 높이 터미널을 시작합니다.",
       "startSelected": "{{provider}} 시작",
       "newSession": "새 CLI 세션",
-      "history": "기록",
-      "noHistory": "이 프로젝트에는 아직 세션이 없습니다.",
-      "projectHistory": "프로젝트 기록",
       "checking": "확인 중...",
       "ready": "준비됨",
       "notInstalled": "설치되지 않음",
@@ -881,25 +876,6 @@
     "terminal": {
       "title": "터미널",
       "close": "터미널 닫기"
-    },
-    "hermes": {
-      "title": "Hermes Agent",
-      "installTitle": "Hermes Agent 설치",
-      "description": "프로젝트 범위 에이전트 터미널입니다. Hermes가 없으면 설치한 뒤 이 워크스페이스에서 엽니다.",
-      "start": "Hermes 시작",
-      "install": "설치",
-      "newSession": "새 Hermes 세션",
-      "history": "Hermes 기록",
-      "connect": "Hermes Agent 연결",
-      "ready": "준비됨",
-      "installRunning": "Pixcode API로 Hermes를 설치하는 중...",
-      "installDone": "Hermes가 설치되었고 Pixcode MCP가 구성되었습니다.",
-      "installError": "Hermes 설치에 실패했습니다.",
-      "installReady": "Hermes 설치 준비 완료.",
-      "installWaiting": "Hermes 설치 로그를 기다리는 중...",
-      "retryInstall": "설치 다시 시도",
-      "installFailed": "Hermes 설치에 실패했습니다.",
-      "installStreamLost": "Hermes 설치 스트림이 일찍 닫혔습니다. 설치가 아직 실행 중일 수 있습니다."
     }
   }
 }

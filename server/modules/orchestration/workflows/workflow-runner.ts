@@ -36,6 +36,11 @@ import {
 } from '@/modules/orchestration/workflows/workspace-target.js';
 import { workflowStore } from '@/modules/orchestration/workflows/workflow-store.js';
 import { orchestrationTaskService } from '@/modules/orchestration/tasks/orchestration-task.service.js';
+import {
+  cancelA2ATask,
+  getA2ATask,
+  submitA2ATask,
+} from '@/modules/orchestration/a2a/task-dispatcher.js';
 // @ts-ignore — plain-JS service
 import {
   getDefaultProviderModel,
@@ -101,10 +106,6 @@ function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
 }
 
-function localHermesBaseUrl(): string {
-  return `http://127.0.0.1:${process.env.SERVER_PORT ?? process.env.PORT ?? '3001'}/hermes`;
-}
-
 function validateWorkflow(workflow: Workflow): void {
   if (workflow.nodes.length > 64) {
     throw new Error('Workflow node limit exceeded.');
@@ -133,6 +134,7 @@ type TaskResult = {
 };
 
 type RawTask = {
+  id: string;
   state?: string;
   error?: { code?: string; message?: string };
   history?: Array<{ role?: string; parts?: Array<{ kind?: string; text?: string; data?: Record<string, unknown> }> }>;
@@ -505,7 +507,7 @@ function handoffPrompt(agent: AgentAssignment, role: AgentRole): string {
   return [
     `You are ${agent.label} in a Pixcode CLI team.`,
     `Your inferred stage is: ${role}.`,
-    'This is a bounded Hermes handoff task, not the full implementation.',
+    'This is a bounded Pixcode handoff task, not the full implementation.',
     'Read the original user goal and coordinator plan, then publish a compact contract for downstream agents.',
     agent.instruction ? `Your explicit assignment from the user is: ${agent.instruction}` : '',
     handoffArtifactInstructions('ready'),
@@ -1102,10 +1104,6 @@ function expandWorkflowForRun(workflow: Workflow, metadata?: Record<string, unkn
   };
 }
 
-async function cancelHermesTask(taskId: string): Promise<void> {
-  await fetch(`${localHermesBaseUrl()}/tasks/${taskId}/cancel`, { method: 'POST' }).catch(() => undefined);
-}
-
 function readTaskResult(task: RawTask): TaskResult {
   const messages = (task.history ?? []).map((message) => ({
     role: typeof message.role === 'string' ? message.role : 'agent',
@@ -1156,8 +1154,10 @@ async function waitForTask(
     if (deadline && Date.now() >= deadline) {
       throw new WorkflowNodeTimeoutError(timeout ?? 0);
     }
-    const response = await fetch(`${localHermesBaseUrl()}/tasks/${taskId}`);
-    const task = await response.json() as RawTask;
+    const task = getA2ATask(taskId);
+    if (!task) {
+      throw new Error(`Agent task ${taskId} was not found.`);
+    }
     const snapshot = readTaskResult(task);
     onSnapshot?.(snapshot);
     if (task.state && TERMINAL.has(task.state)) {
@@ -1307,13 +1307,13 @@ class WorkflowRunner {
 
     this.cancelingRuns.add(run.id);
     const taskIds = run.nodeRuns
-      .filter((node) => node.hermesTaskId && (node.status === 'running' || node.status === 'queued'))
-      .map((node) => node.hermesTaskId as string);
+      .filter((node) => node.a2aTaskId && (node.status === 'running' || node.status === 'queued'))
+      .map((node) => node.a2aTaskId as string);
 
     this.markCanceled(run);
     workflowStore.setRun(run);
 
-    await Promise.all(taskIds.map((taskId) => cancelHermesTask(taskId)));
+    await Promise.all(taskIds.map((taskId) => cancelA2ATask(taskId)));
 
     return workflowStore.getRun(run.id) ?? run;
   }
@@ -1836,52 +1836,44 @@ class WorkflowRunner {
       }
       throw new Error(permissionDecision.message);
     }
-    let body: { id?: string; error?: { message?: string } };
+    let submittedTask: RawTask;
     try {
-      const submit = await fetch(`${localHermesBaseUrl()}/tasks`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          adapterId: node.adapterId,
-          contextId: run.contextId,
-          message: {
-            messageId: newId('msg'),
-            role: 'user',
-            parts: [{ kind: 'text', text: prompt }],
-          },
-          metadata: {
-            workflowRunId: run.id,
-            workflowNodeId: node.id,
-            agentInstanceId: node.agentInstanceId,
+      submittedTask = await submitA2ATask({
+        adapterId: node.adapterId,
+        contextId: run.contextId,
+        message: {
+          messageId: newId('msg'),
+          role: 'user',
+          parts: [{ kind: 'text', text: prompt }],
+        },
+        metadata: {
+          workflowRunId: run.id,
+          workflowNodeId: node.id,
+          agentInstanceId: node.agentInstanceId,
+          agentLabel: node.agentLabel,
+          assignment: node.assignment,
+          model: effectiveModel,
+          permissionMode: effectivePermissionMode,
+          permissionPolicy,
+          permissionPolicyContext: {
+            runId: run.id,
+            nodeId: node.id,
+            workflowId: run.workflowId,
+            adapterId: node.adapterId,
             agentLabel: node.agentLabel,
-            assignment: node.assignment,
-            model: effectiveModel,
-            permissionMode: effectivePermissionMode,
-            permissionPolicy,
-            permissionPolicyContext: {
-              runId: run.id,
-              nodeId: node.id,
-              workflowId: run.workflowId,
-              adapterId: node.adapterId,
-              agentLabel: node.agentLabel,
-              userId: readNotificationUserId(run.metadata),
-            },
-            toolsSettings: node.toolsSettings,
-            projectPath,
-            workspaceTarget: workspaceTargetMetadata(workspaceTarget),
-            workspace: {
-              kind: isolation,
-              projectPath,
-              baseRef,
-              keepAfterCompletion,
-            },
+            userId: readNotificationUserId(run.metadata),
           },
-        }),
+          toolsSettings: node.toolsSettings,
+          projectPath,
+          workspaceTarget: workspaceTargetMetadata(workspaceTarget),
+          workspace: {
+            kind: isolation,
+            projectPath,
+            baseRef,
+            keepAfterCompletion,
+          },
+        },
       });
-      body = await submit.json() as { id?: string; error?: { message?: string } };
-      if (!submit.ok || !body.id) {
-        throw new Error(body.error?.message ?? `Workflow node ${node.id} submit failed.`);
-      }
     } catch (error) {
       nodeRun.finishedAt = Date.now();
       nodeRun.status = 'failed';
@@ -1910,11 +1902,11 @@ class WorkflowRunner {
       }
       throw error;
     }
-    nodeRun.hermesTaskId = body.id;
+    nodeRun.a2aTaskId = submittedTask.id;
     workflowStore.setRun(run);
 
     if (this.isCanceling(run.id)) {
-      await cancelHermesTask(body.id);
+      await cancelA2ATask(submittedTask.id);
       nodeRun.status = 'canceled';
       nodeRun.finishedAt = Date.now();
       workflowStore.setRun(run);
@@ -1924,7 +1916,7 @@ class WorkflowRunner {
     let result: TaskResult;
     try {
       result = await waitForTask(
-        body.id,
+        submittedTask.id,
         () => this.isCanceling(run.id),
         (snapshot) => {
           nodeRun.outputText = snapshot.text || nodeRun.outputText;
@@ -1940,7 +1932,7 @@ class WorkflowRunner {
         throw error;
       }
 
-      await cancelHermesTask(body.id);
+      await cancelA2ATask(submittedTask.id);
       nodeRun.finishedAt = Date.now();
       nodeRun.status = 'failed';
       nodeRun.error = error.message;
@@ -2037,7 +2029,7 @@ class WorkflowRunner {
     }
 
     nodeRun.status = 'failed';
-    nodeRun.error = result.error ?? `Hermes task ended with ${result.state}`;
+    nodeRun.error = result.error ?? `Agent task ended with ${result.state}`;
     workflowStore.setRun(run);
     if (isExternalDirectoryPermissionError(`${nodeRun.error}\n${nodeRun.outputText ?? ''}`)) {
       completeNodeWithPermissionFallback(nodeRun, node, outputs, completed, nodeRun.error, workspaceTarget);

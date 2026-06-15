@@ -40,7 +40,7 @@ export class GeminiA2AAdapter extends AbstractA2AAdapter {
   readonly agentCard: AgentCard = {
     name: 'pixcode-gemini',
     description: 'Google Gemini CLI, accessed via Pixcode',
-    url: '/hermes/agents/gemini',
+    url: '/api/orchestration/agents/gemini',
     version: '1.0.0',
     capabilities: ['streaming', 'fileEdit', 'commandExec', 'mcp'],
     skills: [

@@ -609,7 +609,7 @@ export default function AccessSettingsTab() {
                 </ol>
                 {tailscale?.installPlan?.displayCommand && (
                   <div className="mt-3 rounded-md border border-border/60 bg-muted/30 p-3">
-                    <div className="text-xs font-medium text-foreground">Install command</div>
+                    <div className="text-xs font-medium text-foreground">{t('access.tailscale.installCommand')}</div>
                     <code className="mt-1 block break-all font-mono text-[11px] text-muted-foreground">
                       {tailscale.installPlan.displayCommand}
                     </code>
@@ -622,13 +622,13 @@ export default function AccessSettingsTab() {
                   {!tailscale?.installed && (
                     <Button type="button" size="sm" onClick={() => void runTailscaleAction('install')} disabled={tailscaleBusy !== null}>
                       {tailscaleBusy === 'install' && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                      Install on this device
+                      {t('access.tailscale.installDevice')}
                     </Button>
                   )}
                   {tailscale?.installed && !tailscale?.loggedIn && (
                     <Button type="button" size="sm" onClick={() => void runTailscaleAction('login')} disabled={tailscaleBusy !== null}>
                       {tailscaleBusy === 'login' && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                      Sign in with Tailscale
+                      {t('access.tailscale.signIn')}
                     </Button>
                   )}
                   {tailscale?.installUrl && (
@@ -649,11 +649,11 @@ export default function AccessSettingsTab() {
                 </div>
                 {tailscaleAction && (
                   <div className="mt-3 rounded-md border border-border/60 bg-muted/20 p-3 text-xs">
-                    <div className="font-medium text-foreground">{tailscaleAction.message || (tailscaleAction.ok ? 'Done' : 'Needs attention')}</div>
+                    <div className="font-medium text-foreground">{tailscaleAction.message || (tailscaleAction.ok ? t('access.tailscale.actionDone') : t('access.tailscale.needsAttention'))}</div>
                     {tailscaleAction.authUrl && (
                       <a href={tailscaleAction.authUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-medium text-primary underline">
                         <ExternalLink className="h-3.5 w-3.5" />
-                        Open Tailscale login
+                        {t('access.tailscale.openLogin')}
                       </a>
                     )}
                     {(tailscaleAction.stdout || tailscaleAction.stderr || tailscaleAction.error) && (
@@ -675,16 +675,28 @@ export default function AccessSettingsTab() {
           badge={t('access.advanced.badge')}
         >
           <div className="grid gap-3 md:grid-cols-2">
-            <select
-              value={form.mode}
-              onChange={(event) => setForm({ ...form, mode: event.target.value })}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {accessModes.map((mode) => <option key={mode} value={mode}>{t(`access.modes.${mode}`)}</option>)}
-            </select>
-            <Input placeholder={t('access.fields.label')} value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} />
-            <Input placeholder={t('access.fields.url')} value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
-            <Input placeholder={t('access.fields.port')} value={form.targetPort} onChange={(event) => setForm({ ...form, targetPort: event.target.value })} />
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">{t('access.fields.mode')}</span>
+              <select
+                value={form.mode}
+                onChange={(event) => setForm({ ...form, mode: event.target.value })}
+                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {accessModes.map((mode) => <option key={mode} value={mode}>{t(`access.modes.${mode}`)}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">{t('access.fields.label')}</span>
+              <Input placeholder={t('access.fields.label')} value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">{t('access.fields.url')}</span>
+              <Input placeholder={t('access.fields.url')} value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground">{t('access.fields.port')}</span>
+              <Input placeholder={t('access.fields.port')} value={form.targetPort} onChange={(event) => setForm({ ...form, targetPort: event.target.value })} />
+            </label>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" onClick={() => void saveAccessPath()} disabled={saving || !form.url.trim()}>

@@ -300,7 +300,7 @@
   },
   "orchestration": {
     "title": "Orchestrazione",
-    "subtitle": "Dai un obiettivo in {{project}}; scegli i worker CLI, duplica qualsiasi CLI se serve e assegna il lavoro direttamente o lascialo dividere al coordinatore.",
+    "subtitle": "Pixcode puo coordinare controlli locali, test, lavoro nel terminale e operazioni di progetto per {{project}}.",
     "refresh": "Aggiorna",
     "goal": "Obiettivo",
     "goalPlaceholder": "Esempio: correggi la schermata auth per il deployment su porta singola, cattura gli errori e verifica con lint e typecheck.",
@@ -312,7 +312,7 @@
     "starting": "Avvio in corso",
     "needAgent": "Abilita almeno un worker CLI.",
     "startFailed": "Impossibile avviare il workflow.",
-    "cliControl": "Team CLI",
+    "cliControl": "Controllo team CLI",
     "enabledCount": "{{count}} attivi",
     "enabled": "Attivo",
     "disabled": "Disattivo",
@@ -524,9 +524,7 @@
     "workspaceTargetHint": "Gli agenti verranno eseguiti in: {{path}}",
     "autoDetect": "rilevamento automatico",
     "needWorkspacePath": "Inserisci un percorso workspace personalizzato.",
-    "hermesTitle": "Hermes Agent",
-    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
-    "hermesCliControl": "Hermes CLI control"
+    "quickWorkspaceCheck": "Controllo workspace"
   },
   "controlRoom": {
     "title": "Sala di controllo",
@@ -856,9 +854,6 @@
       "chooseDescription": "Scegli una CLI, poi avvia un terminale a tutta altezza.",
       "startSelected": "Avvia {{provider}}",
       "newSession": "Nuova sessione CLI",
-      "history": "Cronologia",
-      "noHistory": "Nessuna sessione per questo progetto.",
-      "projectHistory": "Cronologia progetto",
       "checking": "Controllo...",
       "ready": "Pronto",
       "notInstalled": "Non installato",
@@ -881,25 +876,6 @@
     "terminal": {
       "title": "Terminale",
       "close": "Chiudi terminale"
-    },
-    "hermes": {
-      "title": "Hermes Agent",
-      "installTitle": "Installa Hermes Agent",
-      "description": "Terminale agente legato al progetto. Installa Hermes se manca, poi lo apre in questo workspace.",
-      "start": "Avvia Hermes",
-      "install": "Installa",
-      "newSession": "Nuova sessione Hermes",
-      "history": "Cronologia Hermes",
-      "connect": "Connetti Hermes Agent",
-      "ready": "Pronto",
-      "installRunning": "Installazione di Hermes tramite API Pixcode...",
-      "installDone": "Hermes installato e Pixcode MCP configurato.",
-      "installError": "Installazione Hermes non riuscita.",
-      "installReady": "Pronto per installare Hermes.",
-      "installWaiting": "In attesa dei log di installazione Hermes...",
-      "retryInstall": "Riprova installazione",
-      "installFailed": "Installazione Hermes non riuscita.",
-      "installStreamLost": "Lo stream di installazione Hermes si è chiuso in anticipo. L installazione potrebbe essere ancora in corso."
     }
   }
 }

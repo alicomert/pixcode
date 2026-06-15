@@ -2,6 +2,26 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.53.0](https://github.com/alicomert/pixcode/compare/v1.52.4...v1.53.0) (2026-06-15)
+
+Pixcode 1.53.0 makes agent diffs visible by default, keeps workbench CLI tabs stable across workspace switches, removes the old Hermes control plane, and polishes Settings copy/accessibility.
+
+### Features
+
+* default `Agent diff` to `Always` for new preference stores
+* persist workbench CLI/plain-terminal tabs per workspace without auto-opening provider tabs on startup
+* dispatch orchestration tasks directly through in-process A2A adapters instead of the removed Hermes HTTP router
+
+### Fixes
+
+* remove duplicate CLI toolbar creation buttons and the old CLI History control
+* restrict filesystem auto-diff to workspace files and skip internal paths such as `.git/`, `node_modules/`, and `.pixcode/`
+* translate high-visibility Settings UI text and add visible labels for advanced access inputs
+
+### Removed
+
+* remove Hermes backend services, routes, scripts, smoke tests, settings UI, i18n keys, public docs, and public API manifest entries
+
 
 ## [1.52.4](https://github.com/alicomert/pixcode/compare/v1.52.3...v1.52.4) (2026-06-15)
 

@@ -270,7 +270,7 @@
   },
   "orchestration": {
     "title": "Оркестрация",
-    "subtitle": "Задайте одну цель в {{project}}; выберите CLI-исполнителей, при необходимости дублируйте любой CLI и назначьте работу напрямую или дайте координатору разделить ее.",
+    "subtitle": "Pixcode может координировать локальные проверки, тесты, работу в терминале и операции проекта для {{project}}.",
     "refresh": "Обновить",
     "goal": "Цель",
     "goalPlaceholder": "Например: исправить экран auth для развертывания на одном порту, собрать ошибки и проверить через lint и typecheck.",
@@ -282,7 +282,7 @@
     "starting": "Запуск",
     "needAgent": "Включите хотя бы одного CLI-исполнителя.",
     "startFailed": "Не удалось запустить workflow.",
-    "cliControl": "CLI-команда",
+    "cliControl": "Управление CLI-командой",
     "enabledCount": "{{count}} включено",
     "enabled": "Включено",
     "disabled": "Отключено",
@@ -494,9 +494,7 @@
     "workspaceTargetHint": "Агенты будут запущены в: {{path}}",
     "autoDetect": "автоопределение",
     "needWorkspacePath": "Введите пользовательский путь рабочей области.",
-    "hermesTitle": "Hermes Agent",
-    "hermesSubtitle": "Hermes is running inside Pixcode for {{project}} and can coordinate local checks, tests, terminal work, and project operations.",
-    "hermesCliControl": "Hermes CLI control"
+    "quickWorkspaceCheck": "Проверка workspace"
   },
   "controlRoom": {
     "title": "Пульт управления",
@@ -826,9 +824,6 @@
       "chooseDescription": "Выберите CLI, затем запустите терминал на всю высоту.",
       "startSelected": "Запустить {{provider}}",
       "newSession": "Новая CLI-сессия",
-      "history": "История",
-      "noHistory": "Для этого проекта еще нет сессий.",
-      "projectHistory": "История проекта",
       "checking": "Проверка...",
       "ready": "Готово",
       "notInstalled": "Не установлено",
@@ -851,25 +846,6 @@
     "terminal": {
       "title": "Терминал",
       "close": "Закрыть терминал"
-    },
-    "hermes": {
-      "title": "Hermes Agent",
-      "installTitle": "Установить Hermes Agent",
-      "description": "Проектный терминал агента. Устанавливает Hermes, если он отсутствует, затем открывает его в этом workspace.",
-      "start": "Запустить Hermes",
-      "install": "Установить",
-      "newSession": "Новая сессия Hermes",
-      "history": "История Hermes",
-      "connect": "Подключить Hermes Agent",
-      "ready": "Готово",
-      "installRunning": "Hermes устанавливается через API Pixcode...",
-      "installDone": "Hermes установлен, Pixcode MCP настроен.",
-      "installError": "Установка Hermes не удалась.",
-      "installReady": "Готово к установке Hermes.",
-      "installWaiting": "Ожидание логов установки Hermes...",
-      "retryInstall": "Повторить установку",
-      "installFailed": "Установка Hermes не удалась.",
-      "installStreamLost": "Поток установки Hermes закрылся раньше времени. Установка может еще выполняться."
     }
   }
 }

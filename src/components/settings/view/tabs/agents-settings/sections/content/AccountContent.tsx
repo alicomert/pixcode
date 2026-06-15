@@ -97,6 +97,7 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
 type InstallState = 'idle' | 'running' | 'done' | 'error';
 
 function useInstaller(agent: AgentProvider, onDone?: () => void | Promise<void>) {
+  const { t } = useTranslation('settings');
   const [state, setState] = useState<InstallState>('idle');
   const [log, setLog] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -136,10 +137,10 @@ function useInstaller(agent: AgentProvider, onDone?: () => void | Promise<void>)
         throw new Error(body?.error || `HTTP ${response.status}`);
       }
       jobId = body.data?.jobId;
-      if (!jobId) throw new Error('Server did not return a job id');
+      if (!jobId) throw new Error(t('agents.install.errors.missingJobId'));
       jobIdRef.current = jobId;
     } catch (err: any) {
-      setError(err?.message || 'Install failed to start');
+      setError(err?.message || t('agents.install.errors.failedToStart'));
       setState('error');
       return;
     }
@@ -175,11 +176,11 @@ function useInstaller(agent: AgentProvider, onDone?: () => void | Promise<void>)
           // parent's authStatus snapshot was taken before install ran.
           try { void onDoneRef.current?.(); } catch { /* non-fatal */ }
         } else {
-          setError(payload.error || 'Install failed');
+          setError(payload.error || t('agents.install.failed'));
           setState('error');
         }
       } catch {
-        setError('Install ended with an unreadable status');
+        setError(t('agents.install.errors.unreadableStatus'));
         setState('error');
       }
       try { es.close(); } catch { /* noop */ }
@@ -192,7 +193,7 @@ function useInstaller(agent: AgentProvider, onDone?: () => void | Promise<void>)
       // to CLOSED without ever producing a `done` — the callback above
       // normally transitions state before we get here.
       if (es.readyState === EventSource.CLOSED && state !== 'done' && state !== 'error') {
-        setError('Lost connection to install stream. The install may still be running on the server.');
+        setError(t('agents.install.errors.streamLost'));
         setState('error');
         esRef.current = null;
       }
@@ -283,11 +284,10 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
             <div className="min-w-0 flex-1 space-y-3">
               <div>
                 <div className="font-medium text-amber-900 dark:text-amber-100">
-                  {displayName} is not installed
+                  {t('agents.install.notInstalledTitle', { agent: displayName })}
                 </div>
                 <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-200/80">
-                  Pixcode couldn&apos;t find the <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-xs text-amber-900 dark:bg-amber-900/50 dark:text-amber-200">{agent === 'cursor' ? 'cursor-agent' : agent}</code> binary
-                  on this host. Install it first and then come back to log in.
+                  {t('agents.install.notInstalledDescription', { binary: agent === 'cursor' ? 'cursor-agent' : agent })}
                 </p>
               </div>
 
@@ -303,7 +303,7 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
-                    {installer.state === 'running' ? 'Installing…' : 'Install now'}
+                    {installer.state === 'running' ? t('agents.install.installing') : t('agents.install.installNow')}
                   </button>
                 )}
                 <div className="flex flex-1 items-stretch overflow-hidden rounded-md border border-amber-300/60 bg-white dark:border-amber-800/60 dark:bg-gray-900">
@@ -313,10 +313,10 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                   <button
                     onClick={() => void copyCommand()}
                     className="flex items-center gap-1.5 border-l border-amber-300/60 bg-amber-100/70 px-3 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-                    aria-label="Copy install command"
+                    aria-label={t('agents.install.copyCommand')}
                   >
                     {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? 'Copied' : 'Copy'}
+                    {copied ? t('agents.install.copied') : t('agents.install.copy')}
                   </button>
                 </div>
               </div>
@@ -328,7 +328,7 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-amber-800 hover:underline dark:text-amber-200"
                 >
-                  View the Qwen Code docs
+                  {t('agents.install.qwenDocs')}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
@@ -339,12 +339,12 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/80 dark:text-amber-200/80">
                       {installer.state === 'running'
-                        ? 'Installing…'
+                        ? t('agents.install.installing')
                         : installer.state === 'done'
-                          ? 'Install complete'
+                          ? t('agents.install.complete')
                           : installer.state === 'error'
-                            ? 'Install failed'
-                            : 'Output'}
+                            ? t('agents.install.failed')
+                            : t('agents.install.output')}
                     </div>
                     <div className="flex items-center gap-2">
                       {installer.state === 'running' && (
@@ -352,14 +352,14 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                           onClick={installer.cancel}
                           className="text-xs text-amber-800 hover:underline dark:text-amber-200"
                         >
-                          Cancel
+                          {t('agents.install.cancel')}
                         </button>
                       )}
                       {(installer.state === 'done' || installer.state === 'error') && (
                         <button
                           onClick={installer.reset}
                           className="text-amber-800 dark:text-amber-200"
-                          aria-label="Dismiss"
+                          aria-label={t('agents.install.dismiss')}
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -370,13 +370,13 @@ export default function AccountContent({ agent, authStatus, onLogin, onRefreshAu
                   {installer.state === 'done' && (
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-xs text-emerald-700 dark:text-emerald-300">
-                        Refresh this tab or try Login to check the new install.
+                        {t('agents.install.doneHint')}
                       </div>
                       <button
                         onClick={() => { installer.reset(); onLogin(); }}
                         className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
                       >
-                        Continue to Login
+                        {t('agents.install.continueToLogin')}
                       </button>
                     </div>
                   )}

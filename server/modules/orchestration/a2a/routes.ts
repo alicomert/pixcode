@@ -1,6 +1,6 @@
 // server/modules/orchestration/a2a/routes.ts
-// Internal Hermes task router. The adapter primitives still live in this legacy
-// folder, but the public mount is /hermes.
+// Internal A2A task router. The adapter primitives stay in this folder while
+// orchestration uses the in-process dispatcher by default.
 
 import crypto from 'node:crypto';
 
@@ -583,8 +583,4 @@ function createA2ARouter(): Router {
   });
 
   return router;
-}
-
-export function createHermesTaskRouter(): Router {
-  return createA2ARouter();
 }

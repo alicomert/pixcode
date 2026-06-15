@@ -144,21 +144,21 @@ Orchestration controls include:
 - streamed step output and final report,
 - resizable setup/output panes.
 
-### Hermes Agent orchestration
+### Background orchestration
 
-Pixcode uses Hermes Agent as the orchestration control plane for background
-agent work. Hermes runs inside the current Pixcode instance, understands the
-active project context, and can route bounded tasks to Claude Code, Codex,
-Cursor, Gemini, Qwen, or OpenCode through terminal-first CLI adapters.
+Pixcode includes a project-aware orchestration control plane for background
+agent work. It runs inside the current Pixcode instance, understands the active
+project context, and can route bounded tasks to Claude Code, Codex, Cursor,
+Gemini, Qwen, or OpenCode through terminal-first CLI adapters.
 
-Hermes controls include:
+Orchestration controls include:
 
 - project-scoped task context,
 - provider/model routing,
 - streamed task status and artifacts,
 - workflow run coordination,
 - background checks and previews,
-- authenticated local APIs under `/api/orchestration/hermes`.
+- authenticated local APIs under `/api/orchestration`.
 
 ### API-first automation
 
@@ -328,7 +328,7 @@ only for separate Vite frontend development.
 2. Add the project folders you want to manage.
 3. Connect the CLI providers you actually use.
 4. Open Settings and check provider install/auth/model status.
-5. Use Hermes Agent if you want background workflow and review flows.
+5. Use orchestration if you want background workflow and review flows.
 6. Generate a `px_` API key for external automation.
 7. Pair Telegram if you want remote prompts and completion notifications.
 8. Pick your theme palette under Appearance.
@@ -357,8 +357,7 @@ Important development notes:
 - `src/` - React + Vite frontend.
 - `server/` - Express, WebSocket, CLI adapters, routes, auth, daemon,
   notifications.
-- `server/modules/orchestration/` - Hermes-backed multi-agent workflow engine
-  and CLI adapters.
+- `server/modules/orchestration/` - multi-agent workflow engine and CLI adapters.
 - `server/modules/providers/` - provider auth, MCP, sessions, model and install
   endpoints.
 - `shared/` - contracts shared by frontend and backend.

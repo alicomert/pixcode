@@ -49,7 +49,7 @@ export class ClaudeCodeA2AAdapter extends AbstractA2AAdapter {
   readonly agentCard: AgentCard = {
     name: 'pixcode-claude-code',
     description: 'Anthropic Claude Code, accessed via Pixcode',
-    url: '/hermes/agents/claude-code',
+    url: '/api/orchestration/agents/claude-code',
     version: '1.0.0',
     capabilities: ['streaming', 'fileEdit', 'commandExec', 'mcp'],
     skills: [

@@ -111,7 +111,6 @@
   "mainTabs": {
     "label": "Настройки",
     "agents": "Агенты",
-    "hermes": "Hermes Agent",
     "appearance": "Внешний вид",
     "git": "Git",
     "apiTokens": "API и токены",
@@ -321,7 +320,39 @@
       "button": "Войти",
       "reLoginButton": "Войти снова"
     },
-    "error": "Ошибка: {{error}}"
+    "error": "Ошибка: {{error}}",
+    "providersLabel": "Providers",
+    "providerNames": {
+      "claude": "Claude",
+      "cursor": "Cursor",
+      "codex": "Codex",
+      "gemini": "Gemini",
+      "qwen": "Qwen Code",
+      "opencode": "OpenCode"
+    },
+    "install": {
+      "notInstalledTitle": "{{agent}} is not installed",
+      "notInstalledDescription": "Pixcode couldn't find the {{binary}} binary on this host. Install it first and then come back to log in.",
+      "installing": "Installing...",
+      "installNow": "Install now",
+      "copyCommand": "Copy install command",
+      "copy": "Copy",
+      "copied": "Copied",
+      "qwenDocs": "View the Qwen Code docs",
+      "complete": "Install complete",
+      "failed": "Install failed",
+      "output": "Output",
+      "cancel": "Cancel",
+      "dismiss": "Dismiss",
+      "doneHint": "Refresh this tab or try Login to check the new install.",
+      "continueToLogin": "Continue to Login",
+      "errors": {
+        "missingJobId": "Server did not return a job id",
+        "failedToStart": "Install failed to start",
+        "unreadableStatus": "Install ended with an unreadable status",
+        "streamLost": "Lost connection to install stream. The install may still be running on the server."
+      }
+    }
   },
   "permissions": {
     "title": "Настройки разрешений",
@@ -569,7 +600,13 @@
         "installUserDevice": "Ustanovite Tailscale na telefon, noutbuk ili ustroistvo uchastnika.",
         "login": "Voidite v odin akkaunt ili komandu Tailscale na oboih ustroistvah.",
         "refresh": "Vernites syuda i nazhmite Obnovit; Pixcode pokazhet privatnyi URL."
-      }
+      },
+      "installCommand": "Install command",
+      "installDevice": "Install on this device",
+      "signIn": "Sign in with Tailscale",
+      "actionDone": "Done",
+      "needsAttention": "Needs attention",
+      "openLogin": "Open Tailscale login"
     },
     "advanced": {
       "title": "Dopolnitelno: stabilnyi domen",
@@ -589,7 +626,8 @@
     "fields": {
       "label": "Metka",
       "url": "URL",
-      "port": "Tselevoi port"
+      "port": "Tselevoi port",
+      "mode": "Mode"
     },
     "health": {
       "reachable": "Pixcode dostupen",
@@ -608,63 +646,58 @@
       "description": "Sozdaite polzovatelya v Admin system, naznachte rol proekta v Control Room i otdajte Access URL. Globalnye prava admina dlya naznachennogo proekta ne nuzhny."
     }
   },
-  "hermes": {
-    "title": "Hermes Agent",
-    "description": "Управляйте Hermes Agent как проектным терминалом под контролем Pixcode с MCP-доступом к проектам, статусу провайдеров и видимым CLI-запускам.",
-    "statusTitle": "Статус установки",
-    "statusFailed": "Не удалось проверить Hermes Agent.",
-    "ready": "Готово",
-    "notInstalled": "Не установлен",
-    "start": "Запустить Hermes",
-    "install": "Установить",
-    "repair": "Исправить команду",
-    "refresh": "Обновить",
-    "gatewayTitle": "REST API gateway",
-    "gatewayStatusFailed": "Не удалось проверить Hermes REST gateway.",
-    "gatewayStartFailed": "Не удалось запустить Hermes REST gateway.",
-    "gatewayStopFailed": "Не удалось остановить Hermes REST gateway.",
-    "gatewayProbeFailed": "Проверка Hermes REST не удалась.",
-    "gatewayRunning": "REST gateway запущен",
-    "gatewayStopped": "REST gateway остановлен",
-    "gatewayStart": "Запустить REST",
-    "gatewayProbe": "Тест REST",
-    "gatewayStop": "Остановить",
-    "gatewayProbeOk": "REST probe passed: health, capabilities, models, and a real prompt responded.",
-    "commandsTitle": "Настройки Hermes CLI",
-    "commandsDescription": "Открывайте настоящие терминальные мастера Hermes из Pixcode. Используйте Модель и провайдер, чтобы подключить Codex, OpenRouter, Anthropic, Gemini и другие провайдеры.",
-    "commandsInstallFirst": "Установите Hermes перед открытием настроек CLI.",
-    "commands": {
-      "cron": {
-        "title": "Cron jobs",
-        "description": "Inspect the scheduler, list jobs, and confirm recurring project tasks can run through the Hermes gateway."
+  "diagnostics": {
+    "title": "Diagnostics",
+    "description": "Provider health, WebSocket state, notifications, active runs, and recent errors.",
+    "refresh": "Refresh",
+    "copyBundle": "Copy bundle",
+    "copied": "Copied",
+    "runtime": "Runtime",
+    "waiting": "Waiting for diagnostics",
+    "websocket": "WebSocket",
+    "activeClients": "active clients",
+    "recentErrors": "Recent errors",
+    "redactedBundle": "redacted support bundle",
+    "providers": "Providers",
+    "notChecked": "not checked",
+    "emptyProviders": "Provider health has not been collected yet.",
+    "status": {
+      "unknown": "unknown",
+      "loading": "loading",
+      "ok": "ok",
+      "available": "available",
+      "configured": "configured",
+      "missing": "missing",
+      "failed": "failed"
+    }
+  },
+  "about": {
+    "tagline": "Open-source AI coding assistant interface",
+    "checkFailedShort": "Check failed",
+    "starOnGitHub": "Star on GitHub",
+    "docs": "Docs",
+    "hosted": {
+      "title": "Try Pixcode Hosted",
+      "description": "Team collaboration, shared MCP configs, settings sync across environments, and managed infrastructure.",
+      "learnMore": "Learn more"
+    },
+    "proFeatures": {
+      "title": "Pixcode Pro Features",
+      "syncSettings": {
+        "title": "Sync Settings",
+        "description": "Keep your preferences, MCP configs, and theme in sync across all your environments."
       },
-      "mcp": {
-        "title": "MCP servers",
-        "description": "Manage MCP servers and reload Pixcode MCP when tool configuration changes."
-      },
-      "update": {
-        "title": "Update Hermes",
-        "description": "Pull the latest Hermes fixes and reinstall dependencies without interactive prompts."
+      "teamManagement": {
+        "title": "Team Management",
+        "description": "Multiple users, role-based access, and shared projects for your team."
       }
     },
-    "pixcodeControlTitle": "Управление Pixcode",
-    "pixcodeControlDescription": "Pixcode настраивает MCP-сервер Hermes перед запуском, поэтому Hermes может просматривать workspace и открывать терминалы провайдеров внутри интерфейса Pixcode.",
-    "diagnosticsTitle": "Integration diagnostics",
-    "diagnosticsDescription": "Checks Hermes model/auth, native toolsets, Pixcode MCP tools, REST gateway, and cron API wiring without exposing secrets.",
-    "diagnosticsFailed": "Unable to read Hermes diagnostics.",
-    "diagnosticsModel": "Model",
-    "diagnosticsTools": "Tools",
-    "diagnosticsCron": "Cron",
-    "diagnosticsIssues": "Issues",
-    "diagnosticsAuthReady": "Provider auth is present.",
-    "diagnosticsAuthMissing": "Provider auth needs attention.",
-    "diagnosticsMcpTools": "Pixcode MCP: {{count}} tools, {{missing}} missing",
-    "diagnosticsCronReady": "Hermes cron toolset is available.",
-    "diagnosticsCronMissing": "Hermes cron needs hermes-cli toolset.",
-    "diagnosticsCronApiReady": "Gateway /api/jobs responded.",
-    "diagnosticsCronApiFailed": "Gateway /api/jobs did not respond.",
-    "diagnosticsNoIssues": "No blocking issue detected.",
-    "diagnosticsIssueCount": "{{count}} issue(s) detected.",
-    "unknown": "Unknown"
+    "license": "Licensed under AGPL-3.0",
+    "relativeTime": {
+      "justNow": "just now",
+      "secondsAgo": "{{count}}s ago",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago"
+    }
   }
 }
