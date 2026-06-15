@@ -77,7 +77,7 @@ function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
-function normalizePath(value: unknown): string {
+export function normalizePath(value: unknown): string {
   return String(value || '').replace(/\\/g, '/').trim();
 }
 

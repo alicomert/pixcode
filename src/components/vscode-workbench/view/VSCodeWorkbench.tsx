@@ -25,6 +25,8 @@ import { DarkModeToggle } from '../../../shared/view/ui';
 import { cn } from '../../../lib/utils';
 import { authenticatedFetch } from '../../../utils/api';
 import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck } from '../../../hooks/useVersionCheck';
+import { useAgentAutoDiff } from '../../../hooks/useAgentAutoDiff';
+import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import type { AppTab, LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { MainContentProps } from '../../main-content/types/types';
 
@@ -572,6 +574,7 @@ function VSCodeWorkbench({
   selectedSession,
   activeTab,
   setActiveTab,
+  latestMessage,
   onMenuClick,
   isLoading,
   onShowSettings,
@@ -608,6 +611,12 @@ function VSCodeWorkbench({
   const [hermesControlPlaneError, setHermesControlPlaneError] = useState<string | null>(null);
   const [hasPendingRestartUpdate, setHasPendingRestartUpdate] = useState(false);
   const versionCheck = useVersionCheck('alicomert', 'pixcode');
+  const { preferences: uiPreferences } = useUiPreferences();
+  const { latestDetectedFile: latestAgentEditedFile } = useAgentAutoDiff(
+    selectedProject,
+    latestMessage,
+    uiPreferences.autoShowAgentDiff,
+  );
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>('projects');
   const [resizeTarget, setResizeTarget] = useState<ResizeTarget | null>(null);
   const [openEditorTabs, setOpenEditorTabs] = useState<CodeEditorFile[]>([]);
@@ -746,6 +755,91 @@ function VSCodeWorkbench({
     },
     [selectedProject?.name, setActiveTab],
   );
+
+  const applyAgentDiffToOpenTab = useCallback(
+    (filePath: string, diffInfo: CodeEditorDiffInfo) => {
+      const normalizedPath = filePath.replace(/\\/g, '/');
+
+      setOpenEditorTabs((currentTabs) => {
+        const existingIndex = currentTabs.findIndex((tab) => tab.path === normalizedPath);
+        if (existingIndex === -1) {
+          return currentTabs;
+        }
+
+        const nextTabs = [...currentTabs];
+        nextTabs[existingIndex] = {
+          ...nextTabs[existingIndex],
+          diffInfo,
+        };
+        return nextTabs;
+      });
+    },
+    [],
+  );
+
+  const clearDiffInfoForPath = useCallback((filePath: string) => {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+
+    setOpenEditorTabs((currentTabs) => {
+      const existingIndex = currentTabs.findIndex((tab) => tab.path === normalizedPath);
+      if (existingIndex === -1) {
+        return currentTabs;
+      }
+
+      const tab = currentTabs[existingIndex];
+      if (!tab.diffInfo) {
+        return currentTabs;
+      }
+
+      const nextTabs = [...currentTabs];
+      nextTabs[existingIndex] = {
+        ...tab,
+        diffInfo: null,
+      };
+      return nextTabs;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!latestAgentEditedFile) {
+      return;
+    }
+
+    if (uiPreferences.autoShowAgentDiff === 'off') {
+      return;
+    }
+
+    const { path, diffInfo } = latestAgentEditedFile;
+    const isOpen = openEditorTabs.some((tab) => tab.path === path);
+
+    if (isOpen) {
+      applyAgentDiffToOpenTab(path, diffInfo);
+      return;
+    }
+
+    if (uiPreferences.autoShowAgentDiff === 'always') {
+      handleFileOpen(path, diffInfo);
+    }
+  }, [latestAgentEditedFile, uiPreferences.autoShowAgentDiff, openEditorTabs, applyAgentDiffToOpenTab, handleFileOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleFileSaved = (event: Event) => {
+      const detail = (event as CustomEvent<{ path?: string }>).detail;
+      if (typeof detail?.path === 'string' && detail.path) {
+        clearDiffInfoForPath(detail.path);
+      }
+    };
+
+    window.addEventListener('pixcode:file-saved', handleFileSaved);
+
+    return () => {
+      window.removeEventListener('pixcode:file-saved', handleFileSaved);
+    };
+  }, [clearDiffInfoForPath]);
 
   const handleCloseEditorTab = useCallback((filePath: string) => {
     setOpenEditorTabs((currentTabs) => {

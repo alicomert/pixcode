@@ -16,6 +16,7 @@ import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { MainContentProps } from '../types/types';
 import type { AppTab } from '../../../types/app';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
+import { useAgentAutoDiff } from '../../../hooks/useAgentAutoDiff';
 import { useChangedFilesMonitor, type ChangedFilesTrackingMode } from '../../../hooks/useChangedFilesMonitor';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
@@ -142,8 +143,14 @@ function MainContent({
     latestDetectedFile,
     refresh: refreshChangedFiles,
   } = useChangedFilesMonitor(selectedProject, Boolean(selectedProject), latestMessage, changeTrackingMode);
+  const { latestDetectedFile: latestAgentEditedFile } = useAgentAutoDiff(
+    selectedProject,
+    latestMessage,
+    preferences.autoShowAgentDiff,
+  );
   const [focusedChangedFilePath, setFocusedChangedFilePath] = useState<string | null>(null);
   const lastHandledDetectedAtRef = useRef(0);
+  const lastAgentEditDetectedAtRef = useRef(0);
   const changedFilePaths = useMemo(() => changedFiles.map((file) => file.path), [changedFiles]);
 
   const hydrateChangedFileDiffInfo = useCallback(async (file: ChangedFileEntry) => {
@@ -503,6 +510,39 @@ function MainContent({
     lastHandledDetectedAtRef.current = latestDetectedFile.detectedAt;
     setFocusedChangedFilePath(latestDetectedFile.path);
   }, [latestDetectedFile]);
+
+  useEffect(() => {
+    if (!latestAgentEditedFile) {
+      return;
+    }
+
+    if (latestAgentEditedFile.detectedAt === lastAgentEditDetectedAtRef.current) {
+      return;
+    }
+
+    lastAgentEditDetectedAtRef.current = latestAgentEditedFile.detectedAt;
+
+    if (preferences.autoShowAgentDiff === 'off') {
+      return;
+    }
+
+    const { path, diffInfo } = latestAgentEditedFile;
+    const normalizedEditingPath = editingFile?.path?.replace(/\\/g, '/');
+    const normalizedDetectedPath = path.replace(/\\/g, '/');
+
+    if (normalizedEditingPath === normalizedDetectedPath) {
+      handleFileOpen(path, diffInfo);
+      return;
+    }
+
+    if (preferences.autoShowAgentDiff === 'always') {
+      handleFileOpen(path, diffInfo);
+      if (!isMobile && canUseSidePanelSplit) {
+        setSidePanelMode('split');
+      }
+      setActiveTab('files');
+    }
+  }, [latestAgentEditedFile, preferences.autoShowAgentDiff, editingFile?.path, handleFileOpen, isMobile, canUseSidePanelSplit, setActiveTab]);
 
   useEffect(() => {
     if (!focusedChangedFilePath) {

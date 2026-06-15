@@ -57,6 +57,7 @@
       "appearance": "Görünüm",
       "toolDisplay": "Araç Gösterimi",
       "viewOptions": "Görünüm Seçenekleri",
+      "agentDiff": "Ajan diff'i",
       "inputSettings": "Girdi Ayarları",
       "changeAwareness": "Hakimiyet"
     },
@@ -67,6 +68,10 @@
     "autoScrollToBottom": "Otomatik en alta kaydır",
     "sendByCtrlEnter": "Ctrl+Enter ile gönder",
     "sendByCtrlEnterDescription": "Etkinleştirildiğinde, Ctrl+Enter'a basmak yalnız Enter yerine mesajı gönderir. IME (girdi metot düzenleyici) kullananlar için yanlışlıkla göndermeyi önler.",
+    "autoShowAgentDiff": "Ajan düzenlemelerini diff olarak göster",
+    "autoShowAgentDiffOff": "Kapalı",
+    "autoShowAgentDiffOpenOnly": "Açık dosyalar",
+    "autoShowAgentDiffAlways": "Her zaman",
     "changeAwareness": "Hakimiyet",
     "changedFiles": {
       "title": "Değişen dosyalar",

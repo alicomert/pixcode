@@ -100,6 +100,10 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
+
+      window.dispatchEvent(new CustomEvent('pixcode:file-saved', {
+        detail: { path: filePath },
+      }));
     } catch (error) {
       const message = getErrorMessage(error);
       console.error('Error saving file:', error);

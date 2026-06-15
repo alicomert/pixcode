@@ -57,6 +57,7 @@
       "appearance": "Appearance",
       "toolDisplay": "Tool Display",
       "viewOptions": "View Options",
+      "agentDiff": "Agent diff",
       "inputSettings": "Input Settings",
       "changeAwareness": "Command Center"
     },
@@ -67,6 +68,10 @@
     "autoScrollToBottom": "Auto-scroll to bottom",
     "sendByCtrlEnter": "Send by Ctrl+Enter",
     "sendByCtrlEnterDescription": "When enabled, pressing Ctrl+Enter will send the message instead of just Enter. This is useful for IME users to avoid accidental sends.",
+    "autoShowAgentDiff": "Show agent edits as diff",
+    "autoShowAgentDiffOff": "Off",
+    "autoShowAgentDiffOpenOnly": "Open files",
+    "autoShowAgentDiffAlways": "Always",
     "changeAwareness": "Command Center",
     "changedFiles": {
       "title": "Changed files",

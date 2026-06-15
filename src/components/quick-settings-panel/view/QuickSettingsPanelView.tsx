@@ -5,7 +5,7 @@ import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useQuickSettingsDrag } from '../hooks/useQuickSettingsDrag';
-import type { PreferenceToggleKey, QuickSettingsPreferences } from '../types';
+import type { AutoShowAgentDiffMode, PreferenceToggleKey, QuickSettingsPreferences } from '../types';
 
 import QuickSettingsContent from './QuickSettingsContent';
 import QuickSettingsHandle from './QuickSettingsHandle';
@@ -29,16 +29,25 @@ export default function QuickSettingsPanelView() {
     showThinking: preferences.showThinking,
     autoScrollToBottom: preferences.autoScrollToBottom,
     sendByCtrlEnter: preferences.sendByCtrlEnter,
+    autoShowAgentDiff: preferences.autoShowAgentDiff,
   }), [
     preferences.autoExpandTools,
     preferences.autoScrollToBottom,
     preferences.sendByCtrlEnter,
     preferences.showRawParameters,
     preferences.showThinking,
+    preferences.autoShowAgentDiff,
   ]);
 
   const handlePreferenceChange = useCallback(
     (key: PreferenceToggleKey, value: boolean) => {
+      setPreference(key, value);
+    },
+    [setPreference],
+  );
+
+  const handleSelectChange = useCallback(
+    (key: 'autoShowAgentDiff', value: AutoShowAgentDiffMode) => {
       setPreference(key, value);
     },
     [setPreference],
@@ -77,6 +86,7 @@ export default function QuickSettingsPanelView() {
             isDarkMode={isDarkMode}
             preferences={quickSettingsPreferences}
             onPreferenceChange={handlePreferenceChange}
+            onSelectChange={handleSelectChange}
           />
         </div>
       </div>

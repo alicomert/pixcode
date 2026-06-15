@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { DarkModeToggle } from '../../../shared/view/ui';
+import { DarkModeToggle, Pill, PillBar } from '../../../shared/view/ui';
 import LanguageSelector from '../../../shared/view/ui/LanguageSelector';
 import {
   INPUT_SETTING_TOGGLES,
@@ -9,6 +9,7 @@ import {
   VIEW_OPTION_TOGGLES,
 } from '../constants';
 import type {
+  AutoShowAgentDiffMode,
   PreferenceToggleItem,
   PreferenceToggleKey,
   QuickSettingsPreferences,
@@ -23,12 +24,20 @@ type QuickSettingsContentProps = {
   isDarkMode: boolean;
   preferences: QuickSettingsPreferences;
   onPreferenceChange: (key: PreferenceToggleKey, value: boolean) => void;
+  onSelectChange: (key: 'autoShowAgentDiff', value: AutoShowAgentDiffMode) => void;
 };
+
+const AUTO_SHOW_AGENT_DIFF_OPTIONS: { value: AutoShowAgentDiffMode; labelKey: string }[] = [
+  { value: 'off', labelKey: 'quickSettings.autoShowAgentDiffOff' },
+  { value: 'openOnly', labelKey: 'quickSettings.autoShowAgentDiffOpenOnly' },
+  { value: 'always', labelKey: 'quickSettings.autoShowAgentDiffAlways' },
+];
 
 export default function QuickSettingsContent({
   isDarkMode,
   preferences,
   onPreferenceChange,
+  onSelectChange,
 }: QuickSettingsContentProps) {
   const { t } = useTranslation('settings');
 
@@ -67,6 +76,25 @@ export default function QuickSettingsContent({
 
       <QuickSettingsSection title={t('quickSettings.sections.viewOptions')}>
         {renderToggleRows(VIEW_OPTION_TOGGLES)}
+      </QuickSettingsSection>
+
+      <QuickSettingsSection title={t('quickSettings.sections.agentDiff', 'Agent diff')}>
+        <div className={SETTING_ROW_CLASS}>
+          <span className="text-sm text-gray-900 dark:text-white">
+            {t('quickSettings.autoShowAgentDiff', 'Show agent edits as diff')}
+          </span>
+          <PillBar>
+            {AUTO_SHOW_AGENT_DIFF_OPTIONS.map(({ value, labelKey }) => (
+              <Pill
+                key={value}
+                isActive={preferences.autoShowAgentDiff === value}
+                onClick={() => onSelectChange('autoShowAgentDiff', value)}
+              >
+                {t(labelKey)}
+              </Pill>
+            ))}
+          </PillBar>
+        </div>
       </QuickSettingsSection>
 
       <QuickSettingsSection title={t('quickSettings.sections.inputSettings')}>

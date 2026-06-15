@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef } from 'react';
 
 export type HistoryViewMode = 'flat' | 'grouped';
+export type AutoShowAgentDiffMode = 'always' | 'openOnly' | 'off';
 
 type UiPreferences = {
   autoExpandTools: boolean;
@@ -11,6 +12,7 @@ type UiPreferences = {
   changeAwareness: boolean;
   sidebarVisible: boolean;
   historyView: HistoryViewMode;
+  autoShowAgentDiff: AutoShowAgentDiffMode;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
@@ -45,11 +47,16 @@ const DEFAULTS: UiPreferences = {
   changeAwareness: false,
   sidebarVisible: true,
   historyView: 'flat',
+  autoShowAgentDiff: 'openOnly',
 };
 
 const HISTORY_VIEW_VALUES: HistoryViewMode[] = ['flat', 'grouped'];
 const isHistoryViewMode = (value: unknown): value is HistoryViewMode =>
   typeof value === 'string' && (HISTORY_VIEW_VALUES as string[]).includes(value);
+
+const AUTO_SHOW_AGENT_DIFF_VALUES: AutoShowAgentDiffMode[] = ['always', 'openOnly', 'off'];
+const isAutoShowAgentDiffMode = (value: unknown): value is AutoShowAgentDiffMode =>
+  typeof value === 'string' && (AUTO_SHOW_AGENT_DIFF_VALUES as string[]).includes(value);
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
 const VALID_KEYS = new Set<UiPreferenceKey>(PREFERENCE_KEYS); // prevents unknown keys from being written
@@ -82,6 +89,9 @@ const coercePreferenceValue = <K extends UiPreferenceKey>(
   if (key === 'historyView') {
     // historyView is a string enum, not a boolean. Fall back to default if invalid.
     return (isHistoryViewMode(rawValue) ? rawValue : fallback) as UiPreferences[K];
+  }
+  if (key === 'autoShowAgentDiff') {
+    return (isAutoShowAgentDiffMode(rawValue) ? rawValue : fallback) as UiPreferences[K];
   }
   // All other preferences are booleans.
   return parseBoolean(rawValue, fallback as boolean) as UiPreferences[K];
