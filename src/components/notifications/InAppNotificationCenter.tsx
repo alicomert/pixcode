@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Bell, BellRing, X } from '@/lib/icons';
 import { notifyLocalEventOnce } from '@/utils/localNotifications';
@@ -115,6 +116,7 @@ function formatTime(createdAt?: string) {
 }
 
 export default function InAppNotificationCenter({ latestMessage }: InAppNotificationCenterProps) {
+  const { t } = useTranslation('common');
   const [items, setItems] = useState<NotificationItem[]>(() => (
     typeof window === 'undefined' ? [] : readStoredNotifications()
   ));
@@ -203,13 +205,34 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
   }
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] flex-col items-end gap-3">
+    <div className="pointer-events-none fixed right-3 top-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-col items-end gap-2">
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen((value) => !value);
+          if (!isOpen) {
+            markAllRead();
+          }
+        }}
+        className="pointer-events-auto relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background/95 text-foreground shadow-md shadow-black/10 backdrop-blur transition-colors hover:bg-muted"
+        aria-label={t('notifications.open', { defaultValue: 'Open notifications' })}
+      >
+        <Bell className="h-4 w-4" />
+        {unreadCount > 0 && (
+          <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
       {isOpen && (
-        <div className="pointer-events-auto w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover shadow-xl shadow-black/10">
+        <div className="pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-popover shadow-xl shadow-black/10">
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
               <BellRing className="h-4 w-4 flex-shrink-0 text-primary" />
-              <span className="truncate text-sm font-medium text-popover-foreground">Notifications</span>
+              <span className="truncate text-sm font-medium text-popover-foreground">
+                {t('notifications.title', { defaultValue: 'Notifications' })}
+              </span>
               {unreadCount > 0 && (
                 <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
                   {unreadCount}
@@ -222,13 +245,13 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
                 onClick={markAllRead}
                 className="rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
-                Read
+                {t('notifications.markRead', { defaultValue: 'Read' })}
               </button>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
                 className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Close notifications"
+                aria-label={t('notifications.close', { defaultValue: 'Close notifications' })}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -255,7 +278,7 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
                     type="button"
                     onClick={() => dismiss(item.id)}
                     className="rounded p-1 opacity-60 transition-opacity hover:opacity-100"
-                    aria-label="Dismiss notification"
+                    aria-label={t('notifications.dismiss', { defaultValue: 'Dismiss notification' })}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -265,25 +288,6 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
           </div>
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => {
-          setIsOpen((value) => !value);
-          if (!isOpen) {
-            markAllRead();
-          }
-        }}
-        className="pointer-events-auto relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-card-foreground shadow-lg shadow-black/10 transition-transform hover:scale-105"
-        aria-label="Open notifications"
-      >
-        <Bell className="h-5 w-5" />
-        {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold text-primary-foreground">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
     </div>
   );
 }

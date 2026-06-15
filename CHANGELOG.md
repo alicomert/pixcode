@@ -2,6 +2,18 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.53.1](https://github.com/alicomert/pixcode/compare/v1.53.0...v1.53.1) (2026-06-15)
+
+Pixcode 1.53.1 fixes the first 1.53.0 workbench regressions around inline agent diffs, CLI tab persistence, and compact workbench chrome.
+
+### Fixes
+
+* fix filesystem auto-diff path normalization so absolute watcher paths are converted to project-relative paths before opening editor diffs
+* align `file-with-diff` with git index semantics so staged-new plus unstaged edits show only the actual new line instead of the whole file as added
+* keep CLI and plain-shell PTY sessions reusable across workspace switches and CLI panel hide/show by not persisting one-shot fresh-session flags
+* compact the code editor diff badge and remove redundant workbench/CLI scroll/header controls
+* move in-app notifications to a top-right dropdown and translate Remote Console / Control Room primary UI text
+
 ## [1.53.0](https://github.com/alicomert/pixcode/compare/v1.52.4...v1.53.0) (2026-06-15)
 
 Pixcode 1.53.0 makes agent diffs visible by default, keeps workbench CLI tabs stable across workspace switches, removes the old Hermes control plane, and polishes Settings copy/accessibility.

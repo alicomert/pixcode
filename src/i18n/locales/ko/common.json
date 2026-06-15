@@ -266,7 +266,12 @@
           "title": "에이전트 알림"
         }
       }
-    }
+    },
+    "open": "알림 열기",
+    "title": "알림",
+    "markRead": "읽음",
+    "close": "알림 닫기",
+    "dismiss": "알림 닫기"
   },
   "versionUpdate": {
     "title": "업데이트 가능",
@@ -553,11 +558,24 @@
       "issueRuns": "Issue-to-PR runs",
       "reviewItems": "Review items",
       "subUsers": "Sub-users",
-      "collaborators": "Project collaborators",
+      "collaborators": "Collaborators",
       "secrets": "Scoped secrets",
-      "marketplace": "Marketplace entries",
-      "evalRuns": "Evaluation runs",
-      "securityAudits": "Security audits"
+      "marketplace": "Marketplace",
+      "evalRuns": "Eval runs",
+      "securityAudits": "Security audits",
+      "attention": "Attention",
+      "running": "Running",
+      "needsAttention": "Needs attention",
+      "runningNow": "Running now",
+      "reviews": "Reviews",
+      "checkpoints": "Checkpoints",
+      "roles": "Roles",
+      "auditEvents": "Audit events",
+      "scopedSecrets": "Scoped secrets",
+      "auditRuns": "Audit runs",
+      "findings": "Findings",
+      "usageRows": "Usage rows",
+      "evalSuites": "Eval suites"
     },
     "sections": {
       "production": {
@@ -770,6 +788,119 @@
       "usageSummary": "Usage appears here after provider or workflow events are recorded.",
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
+    },
+    "groups": {
+      "operations": {
+        "label": "Operations",
+        "description": "Runs, reviews, approvals, scheduler, checkpoints"
+      },
+      "people": {
+        "label": "People",
+        "description": "Admins, collaborators, roles, activity"
+      },
+      "access": {
+        "label": "Access",
+        "description": "LAN, Tailscale, tunnel, domain guidance"
+      },
+      "security": {
+        "label": "Security",
+        "description": "Secrets, permission risk, audit checks"
+      },
+      "insights": {
+        "label": "Insights",
+        "description": "Usage, evaluations, marketplace health"
+      }
+    },
+    "context": {
+      "title": "What this means",
+      "recommendedNextStep": "Recommended next step",
+      "runTimeline": "Run timeline",
+      "runTimelineDescription": "Readable activity feed for agents, reviewers, checkpoints, and audit events.",
+      "emptyTimelineTitle": "No run timeline yet",
+      "emptyTimelineDescription": "Run activity appears here after issue runs, reviews, checkpoints, or audit events are recorded.",
+      "serverSignal": "Server signal",
+      "serverSignalDescription": "The first screen avoids raw backend sections and shows only current status."
+    },
+    "operations": {
+      "runTimeline": "Run timeline",
+      "runTimelineDescription": "Readable actor, action, and result history without raw JSON.",
+      "noActivityTitle": "No activity yet",
+      "noActivityDescription": "Issue runs, review decisions, checkpoints, and audit events will appear here as a vertical timeline.",
+      "actionQueue": "Action queue",
+      "actionQueueDescription": "Review items are shown as mobile-friendly rows instead of a cramped table.",
+      "noReviewItemsTitle": "No review items",
+      "noReviewItemsDescription": "Create a review item when changed files need an accept/fix decision.",
+      "reviewRequested": "Review requested",
+      "changedFiles": "{{count}} changed files",
+      "accept": "Accept"
+    },
+    "people": {
+      "projectCollaborators": "Project collaborators",
+      "projectCollaboratorsDescription": "Project partners and workers are not global admins. They get scoped access to assigned projects.",
+      "noCollaboratorsTitle": "No collaborators yet",
+      "noCollaboratorsDescription": "Create a sub-user first, then assign that person to a project role.",
+      "project": "Project",
+      "roleScoped": "role scoped",
+      "auditLog": "Audit log",
+      "auditLogDescription": "Search what sub-users, project partners, and workers changed without opening a raw database view.",
+      "searchAudit": "Search actor, action, project, or detail",
+      "noAuditMatchTitle": "No audit events match",
+      "noAuditMatchDescription": "User and project access activity appears here after actions are recorded.",
+      "system": "system",
+      "auditEvent": "Audit event",
+      "advancedTitle": "Advanced people management",
+      "advancedDescription": "Create users and assign project roles only when needed."
+    },
+    "access": {
+      "openSettings": "Open Settings > Access",
+      "lanTitle": "LAN and local",
+      "lanDescription": "Use when the browser is on the same machine or network. Start here before private or public tunnels.",
+      "tailscaleTitle": "Tailscale private access",
+      "tailscaleDescription": "Best when a team needs private access without exposing Pixcode publicly. The UI should guide install, login, and URL sharing.",
+      "cloudflareTitle": "Cloudflare or custom domain",
+      "cloudflareDescription": "Best when users need a stable HTTPS URL. Configure the tunnel/domain once and share it with assigned users.",
+      "howUsersConnect": "How users connect",
+      "howUsersConnectDescription": "This keeps Access understandable for non-technical users.",
+      "stepUserTitle": "Create the user",
+      "stepUserDescription": "Add them in People so the server knows who they are.",
+      "stepRoleTitle": "Assign project role",
+      "stepRoleDescription": "Give them project access{{projectSuffix}}.",
+      "stepUrlTitle": "Share one URL",
+      "stepUrlDescription": "Use a LAN, Tailscale, Cloudflare Tunnel, or custom domain URL from Settings > Access."
+    },
+    "security": {
+      "secretVault": "Secret vault",
+      "secretVaultDescription": "Rows show scope, target, and redacted env names. Values stay hidden.",
+      "noSecretsTitle": "No secrets stored",
+      "noSecretsDescription": "Store provider, project, workflow, Telegram, or API env values from the advanced form.",
+      "global": "global",
+      "advancedTitle": "Advanced security actions",
+      "advancedDescription": "Store scoped env values or queue audit checks."
+    },
+    "insights": {
+      "usageSummary": "Usage summary",
+      "usageSummaryDescription": "Provider metrics are stacked as cards on mobile instead of forcing a wide table.",
+      "noUsageTitle": "No usage events yet",
+      "noUsageDescription": "Usage appears after provider or workflow events are recorded.",
+      "provider": "provider",
+      "usageRowDescription": "{{tokens}} tokens - {{cost}} - {{latency}}ms avg",
+      "errorRate": "{{rate}}% errors",
+      "marketplaceHealth": "Marketplace health",
+      "marketplaceHealthDescription": "MCP servers, workflow templates, provider adapters, and notification channels stay visible without crowding the overview.",
+      "noMarketplaceTitle": "No marketplace entries",
+      "noMarketplaceDescription": "Register entries only when a plugin or workflow template is ready to install.",
+      "noSourceConfigured": "No source configured",
+      "unknown": "unknown",
+      "advancedTitle": "Advanced insight actions",
+      "advancedDescription": "Record usage, create evaluation suites, or register marketplace entries."
+    },
+    "recommendations": {
+      "attention": "Open Operations first. Clear reviews, errors, failed evals, or security findings before starting new work.",
+      "access": "Open Settings > Access and save the one URL your users should use. Then assign project roles in People.",
+      "people": "Create sub-users first, assign project roles second, then share an access path.",
+      "security": "Store secrets with the smallest scope that works, then run a permission or secret scan.",
+      "insights": "Compare provider cost, latency, and eval pass rate before changing model defaults.",
+      "operations": "Review Running now and the timeline. If nothing needs attention, start the next issue-to-PR or scheduled job."
     }
   },
   "vscodeWorkbench": {
@@ -876,6 +1007,48 @@
     "terminal": {
       "title": "터미널",
       "close": "터미널 닫기"
+    }
+  },
+  "remoteConsole": {
+    "title": "원격 콘솔",
+    "notSynced": "동기화 안 됨",
+    "refresh": "새로 고침",
+    "runId": "실행 {{id}}",
+    "metrics": {
+      "projects": "프로젝트",
+      "activeRuns": "활성 실행",
+      "approvalQueue": "승인 대기열",
+      "webhooks": "웹훅"
+    },
+    "sections": {
+      "projects": "다중 프로젝트 컨트롤룸",
+      "approvals": "승인 대기열",
+      "webhooks": "웹훅 상태"
+    },
+    "badges": {
+      "active": "{{count}}개 활성",
+      "approvals": "{{count}}개 승인"
+    },
+    "projectStats": {
+      "sessions": "{{count}}개 세션",
+      "failedRuns": "{{count}}개 실패한 실행",
+      "recentRuns": "{{count}}개 최근 실행"
+    },
+    "actions": {
+      "allow": "허용",
+      "deny": "거부"
+    },
+    "webhook": {
+      "on": "켜짐",
+      "off": "꺼짐",
+      "ok": "ok",
+      "failed": "실패",
+      "noDelivery": "아직 전송 없음"
+    },
+    "empty": {
+      "projects": "사용 가능한 프로젝트가 없습니다.",
+      "approvals": "대기 중인 승인이 없습니다.",
+      "webhooks": "구성된 웹훅이 없습니다."
     }
   }
 }

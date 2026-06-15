@@ -34,27 +34,27 @@ export default function ShellHeader({
   disableRestart,
 }: ShellHeaderProps) {
   return (
-    <div className="flex-shrink-0 border-b border-gray-700 bg-gray-800 px-3 py-2">
+    <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/95 px-2 py-1">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
 
           {hasSession && sessionDisplayNameShort && (
-            <span className="truncate text-xs text-blue-300">({sessionDisplayNameShort}...)</span>
+            <span className="truncate text-[11px] text-blue-300">({sessionDisplayNameShort}...)</span>
           )}
 
-          {!hasSession && <span className="text-xs text-gray-400">{statusNewSessionText}</span>}
+          {!hasSession && <span className="text-[11px] text-gray-400">{statusNewSessionText}</span>}
 
-          {!isInitialized && <span className="text-xs text-yellow-400">{statusInitializingText}</span>}
+          {!isInitialized && <span className="text-[11px] text-yellow-400">{statusInitializingText}</span>}
 
-          {isRestarting && <span className="text-xs text-blue-400">{statusRestartingText}</span>}
+          {isRestarting && <span className="text-[11px] text-blue-400">{statusRestartingText}</span>}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
           {isConnected && (
             <button
               onClick={onDisconnect}
-              className="flex h-7 w-7 items-center justify-center rounded bg-red-600 text-white hover:bg-red-700"
+              className="flex h-6 w-6 items-center justify-center rounded text-gray-400 transition-colors hover:bg-red-500/15 hover:text-red-200"
               title={disconnectTitle}
               aria-label={disconnectLabel}
             >
@@ -67,7 +67,7 @@ export default function ShellHeader({
           <button
             onClick={onRestart}
             disabled={disableRestart}
-            className="flex h-7 w-7 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-6 w-6 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             title={restartTitle}
             aria-label={restartLabel}
           >

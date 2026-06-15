@@ -36,8 +36,6 @@ import {
   Bot,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Code2,
   Columns,
   Copy,
@@ -374,15 +372,6 @@ function createWorkspaceTab(project: Project, label: string): WorkbenchWorkspace
   };
 }
 
-function getSessionTitle(session: ProjectSession) {
-  return (
-    (typeof session.summary === 'string' && session.summary)
-    || (typeof session.title === 'string' && session.title)
-    || (typeof session.name === 'string' && session.name)
-    || session.id
-  );
-}
-
 function VSCodeWorkbench({
   sidebarProps,
   selectedProject,
@@ -707,13 +696,6 @@ function VSCodeWorkbench({
       filePath,
       x: event.clientX,
       y: event.clientY,
-    });
-  }, []);
-
-  const scrollEditorTabs = useCallback((direction: 'left' | 'right') => {
-    editorTabStripRef.current?.scrollBy({
-      left: direction === 'left' ? -180 : 180,
-      behavior: 'smooth',
     });
   }, []);
 
@@ -1046,15 +1028,6 @@ function VSCodeWorkbench({
       return (
         <div className="flex h-full min-h-0 flex-col bg-background">
           <div className="flex h-9 shrink-0 items-center border-b border-border bg-muted/20">
-            <button
-              type="button"
-              className="flex h-full w-8 shrink-0 items-center justify-center border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={() => scrollEditorTabs('left')}
-              aria-label={t('vscodeWorkbench.editor.scrollLeft', { defaultValue: 'Scroll tabs left' })}
-              title={t('vscodeWorkbench.editor.scrollLeft', { defaultValue: 'Scroll tabs left' })}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </button>
             <div
               ref={editorTabStripRef}
               className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -1099,15 +1072,6 @@ function VSCodeWorkbench({
                 );
               })}
             </div>
-            <button
-              type="button"
-              className="flex h-full w-8 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={() => scrollEditorTabs('right')}
-              aria-label={t('vscodeWorkbench.editor.scrollRight', { defaultValue: 'Scroll tabs right' })}
-              title={t('vscodeWorkbench.editor.scrollRight', { defaultValue: 'Scroll tabs right' })}
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
             <button
               type="button"
               className="flex h-full w-8 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1665,28 +1629,12 @@ function WorkbenchWorkspaceTabs({
     });
   };
 
-  const scrollWorkspaceTabs = (direction: 'left' | 'right') => {
-    workspaceTabStripRef.current?.scrollBy({
-      left: direction === 'left' ? -220 : 220,
-      behavior: 'smooth',
-    });
-  };
-
   const contextMenuEntry = contextMenu
     ? tabsWithProjects.find((entry) => entry.tab.id === contextMenu.tabId) ?? null
     : null;
 
   return (
     <div className="relative flex h-9 shrink-0 items-center border-b border-border bg-background text-xs">
-      <button
-        type="button"
-        className="flex h-full w-8 shrink-0 items-center justify-center border-r border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-        onClick={() => scrollWorkspaceTabs('left')}
-        aria-label={t('vscodeWorkbench.workspace.scrollLeft', { defaultValue: 'Scroll workspaces left' })}
-        title={t('vscodeWorkbench.workspace.scrollLeft', { defaultValue: 'Scroll workspaces left' })}
-      >
-        <ChevronLeft className="h-3.5 w-3.5" />
-      </button>
       <div
         ref={workspaceTabStripRef}
         className="flex h-full min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -1782,15 +1730,6 @@ function WorkbenchWorkspaceTabs({
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
-      <button
-        type="button"
-        className="flex h-full w-8 shrink-0 items-center justify-center border-l border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-        onClick={() => scrollWorkspaceTabs('right')}
-        aria-label={t('vscodeWorkbench.workspace.scrollRight', { defaultValue: 'Scroll workspaces right' })}
-        title={t('vscodeWorkbench.workspace.scrollRight', { defaultValue: 'Scroll workspaces right' })}
-      >
-        <ChevronRight className="h-3.5 w-3.5" />
-      </button>
       <button
         type="button"
         className={cn(
@@ -2463,7 +2402,7 @@ function WorkbenchCliPanel({
       provider: undefined,
       session: null,
       runId: Date.now(),
-      forceNewSession: true,
+      forceNewSession: false,
       startupInput: null,
       permissionOverride: null,
     });
@@ -2496,13 +2435,6 @@ function WorkbenchCliPanel({
     setShowProviderPicker(true);
   }, []);
 
-  const scrollCliTabs = useCallback((direction: 'left' | 'right') => {
-    cliTabStripRef.current?.scrollBy({
-      left: direction === 'left' ? -180 : 180,
-      behavior: 'smooth',
-    });
-  }, []);
-
   const cliHeaderTabs = useMemo(() => (
     <div className="flex min-w-0 items-center gap-1">
       {cliTabs.length === 0 && (
@@ -2514,68 +2446,48 @@ function WorkbenchCliPanel({
         </div>
       )}
       {cliTabs.length > 0 && (
-        <>
-          <button
-            type="button"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={() => scrollCliTabs('left')}
-            aria-label="Scroll CLI tabs left"
-            title="Scroll CLI tabs left"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <div ref={cliTabStripRef} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {cliTabs.map((tab) => {
-              const isActive = tab.id === (activeCliTab?.id || activeCliTabId);
-              return (
-                <div
-                  key={tab.id}
-                  className={cn(
-                    'group flex h-7 min-w-[112px] max-w-[200px] shrink-0 items-center gap-1.5 rounded border px-2 text-[11px]',
-                    isActive
-                      ? 'border-primary/50 bg-primary/10 text-foreground'
-                      : 'border-border/70 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground',
-                  )}
+        <div ref={cliTabStripRef} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {cliTabs.map((tab) => {
+            const isActive = tab.id === (activeCliTab?.id || activeCliTabId);
+            return (
+              <div
+                key={tab.id}
+                className={cn(
+                  'group flex h-7 min-w-[112px] max-w-[200px] shrink-0 items-center gap-1.5 rounded border px-2 text-[11px]',
+                  isActive
+                    ? 'border-primary/50 bg-primary/10 text-foreground'
+                    : 'border-border/70 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+                )}
+              >
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                  onClick={() => setActiveCliTabId(tab.id)}
+                  onDoubleClick={() => renameCliTab(tab.id)}
+                  title="Double-click to rename"
                 >
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-                    onClick={() => setActiveCliTabId(tab.id)}
-                    onDoubleClick={() => renameCliTab(tab.id)}
-                    title="Double-click to rename"
-                  >
-                    {tab.type === 'plain' ? (
-                      <Terminal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <SessionProviderLogo provider={tab.provider ?? 'claude'} className="h-3.5 w-3.5 shrink-0" />
-                    )}
-                    <span className="truncate">{tab.title}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      closeCliTab(tab.id);
-                    }}
-                    aria-label="Close CLI tab"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={() => scrollCliTabs('right')}
-            aria-label="Scroll CLI tabs right"
-            title="Scroll CLI tabs right"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </>
+                  {tab.type === 'plain' ? (
+                    <Terminal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <SessionProviderLogo provider={tab.provider ?? 'claude'} className="h-3.5 w-3.5 shrink-0" />
+                  )}
+                  <span className="truncate">{tab.title}</span>
+                </button>
+                <button
+                  type="button"
+                  className="rounded p-0.5 opacity-60 hover:bg-muted hover:opacity-100"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeCliTab(tab.id);
+                  }}
+                  aria-label="Close CLI tab"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
       <button
         type="button"
@@ -2596,7 +2508,7 @@ function WorkbenchCliPanel({
         <Plus className="h-3.5 w-3.5" />
       </button>
     </div>
-  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openPlainShellTab, openProviderPickerForNewTab, project, renameCliTab, scrollCliTabs, t]);
+  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openPlainShellTab, openProviderPickerForNewTab, project, renameCliTab, t]);
 
   useEffect(() => {
     onHeaderContentChange(cliHeaderTabs);
@@ -2641,7 +2553,7 @@ function WorkbenchCliPanel({
         title: tab.title,
         session: restoredSession,
         runId: tab.runId,
-        forceNewSession: tab.forceNewSession,
+        forceNewSession: false,
         startupInput: tab.startupInput,
         permissionOverride: tab.permissionOverride,
       };
@@ -2671,7 +2583,7 @@ function WorkbenchCliPanel({
         title: tab.title,
         sessionId: tab.session?.id ?? null,
         runId: tab.runId,
-        forceNewSession: tab.forceNewSession,
+        forceNewSession: false,
         startupInput: tab.startupInput,
         permissionOverride: tab.permissionOverride,
       })),
@@ -2804,6 +2716,7 @@ function WorkbenchCliPanel({
 
   const startTerminalForProvider = useCallback((provider: LLMProvider, { forceNewSession = false }: { forceNewSession?: boolean } = {}) => {
     if (!project) return;
+    void forceNewSession;
     const status = providerAuthStatus[provider];
     if (status?.installed === false || installState.state === 'running') return;
     setTerminalMode('provider');
@@ -2820,7 +2733,7 @@ function WorkbenchCliPanel({
       provider,
       session: null,
       runId: Date.now(),
-      forceNewSession,
+      forceNewSession: false,
       startupInput: null,
       permissionOverride: null,
     });
@@ -2849,17 +2762,8 @@ function WorkbenchCliPanel({
   if (isTerminalOpen || cliTabs.length > 0) {
     return (
       <div className="relative flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
-        <WorkbenchCliPanelToolbar
-          project={project}
-          mode={activeCliTab?.type === 'plain' ? 'plain' : 'provider'}
-          provider={activeCliTab?.provider || selectedProvider}
-          session={activeCliTab?.session || sessionForShell}
-          onCloseTerminal={closeTerminal}
-          t={t}
-        />
-
         {showProviderPicker && (
-          <div className="absolute inset-x-2 top-10 z-30 max-h-[58%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
+          <div className="absolute inset-x-2 top-2 z-30 max-h-[58%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
             <div className="flex items-center justify-between border-b border-gray-800 px-2.5 py-2">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">New CLI tab</div>
               <button type="button" className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100" onClick={() => setShowProviderPicker(false)}>
@@ -3085,59 +2989,6 @@ function WorkbenchCliPanel({
             provider: PROVIDER_DISPLAY_NAMES[selectedProvider] ?? selectedProvider,
             defaultValue: 'Start {{provider}}',
           })}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function WorkbenchCliPanelToolbar({
-  project,
-  mode,
-  provider,
-  session,
-  onCloseTerminal,
-  t,
-}: {
-  project: Project | null;
-  mode: 'provider' | 'plain';
-  provider: LLMProvider;
-  session: ProjectSession | null;
-  onCloseTerminal: () => void;
-  t: TFunction<'common'>;
-}) {
-  const isPlain = mode === 'plain';
-  return (
-    <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-gray-800 bg-gray-900/95 px-2">
-      <div className="flex min-w-0 items-center gap-2">
-        {isPlain ? (
-          <Terminal className="h-4 w-4 shrink-0 text-gray-400" />
-        ) : (
-          <SessionProviderLogo provider={provider} className="h-4 w-4 shrink-0" />
-        )}
-        <div className="min-w-0">
-          <div className="truncate text-[11px] font-semibold text-gray-100">
-            {isPlain
-              ? t('vscodeWorkbench.cli.plainTerminal', { defaultValue: 'Terminal' })
-              : (PROVIDER_DISPLAY_NAMES[provider] ?? provider)}
-          </div>
-          <div className="truncate text-[10px] text-gray-500">
-            {session
-              ? getSessionTitle(session)
-              : project?.displayName || project?.name || t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI session' })}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          className="rounded border border-gray-700 p-1.5 text-gray-200 hover:bg-gray-800"
-          onClick={onCloseTerminal}
-          title={t('vscodeWorkbench.cli.closeTerminal', { defaultValue: 'Close CLI terminal' })}
-          aria-label={t('vscodeWorkbench.cli.closeTerminal', { defaultValue: 'Close CLI terminal' })}
-        >
-          <X className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

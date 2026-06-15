@@ -11,7 +11,7 @@
   },
   "loading": "{{fileName}} yükleniyor...",
   "header": {
-    "showingChanges": "Değişiklikler gösteriliyor"
+    "showingChanges": "Diff"
   },
   "actions": {
     "download": "Dosyayı indir",

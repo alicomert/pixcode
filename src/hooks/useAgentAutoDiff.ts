@@ -29,7 +29,7 @@ function normalizeFileForProject(
   file: ChangedFileEntry,
   selectedProject: Project | null,
 ): ChangedFileEntry {
-  const projectPath = selectedProject?.path?.replace(/\\/g, '/').replace(/\/+$/, '');
+  const projectPath = (selectedProject?.fullPath || selectedProject?.path || '').replace(/\\/g, '/').replace(/\/+$/, '');
   const filePath = normalizePath(file.path);
 
   if (!projectPath) {

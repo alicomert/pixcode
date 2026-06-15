@@ -380,6 +380,27 @@ function normalizeRepositoryRelativeFilePath(filePath) {
     .trim();
 }
 
+function normalizeRequestedRepositoryFilePath(repositoryRootPath, filePath) {
+  const rawFilePath = String(filePath || '').replace(/\\/g, '/').trim();
+  if (!rawFilePath) {
+    return '';
+  }
+
+  if (path.isAbsolute(rawFilePath)) {
+    const resolvedFilePath = path.resolve(rawFilePath);
+    const resolvedRepositoryRoot = path.resolve(repositoryRootPath);
+    const relativePath = path.relative(resolvedRepositoryRoot, resolvedFilePath);
+
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      throw new Error('Invalid file path: outside repository');
+    }
+
+    return normalizeRepositoryRelativeFilePath(relativePath);
+  }
+
+  return normalizeRepositoryRelativeFilePath(rawFilePath);
+}
+
 function parseStatusFilePaths(statusOutput) {
   return statusOutput
     .split('\n')
@@ -394,7 +415,7 @@ function parseStatusFilePaths(statusOutput) {
 }
 
 function buildFilePathCandidates(projectPath, repositoryRootPath, filePath) {
-  const normalizedFilePath = normalizeRepositoryRelativeFilePath(filePath);
+  const normalizedFilePath = normalizeRequestedRepositoryFilePath(repositoryRootPath, filePath);
   const projectRelativePath = normalizeRepositoryRelativeFilePath(path.relative(repositoryRootPath, projectPath));
   const candidates = [normalizedFilePath];
 
@@ -629,53 +650,93 @@ router.get('/file-with-diff', async (req, res) => {
       repositoryRelativeFilePath,
     } = await resolveRepositoryFilePath(projectPath, file);
 
+    const readFileFromIndex = async () => {
+      const { stdout } = await spawnAsync(
+        'git',
+        ['show', `:${repositoryRelativeFilePath}`],
+        { cwd: repositoryRootPath },
+      );
+      return stdout;
+    };
+    const readFileFromHead = async () => {
+      const { stdout } = await spawnAsync(
+        'git',
+        ['show', `HEAD:${repositoryRelativeFilePath}`],
+        { cwd: repositoryRootPath },
+      );
+      return stdout;
+    };
+
     // Check file status
     const { stdout: statusOutput } = await spawnAsync(
       'git',
       ['status', '--porcelain', '--', repositoryRelativeFilePath],
       { cwd: repositoryRootPath },
     );
-    const isUntracked = statusOutput.startsWith('??');
-    const isDeleted = statusOutput.trim().startsWith('D ') || statusOutput.trim().startsWith(' D');
+    const statusLine = statusOutput.split('\n').find((line) => line.trim()) || '';
+    const indexStatus = statusLine[0] || ' ';
+    const worktreeStatus = statusLine[1] || ' ';
+    const isUntracked = statusLine.startsWith('??');
+    const hasUnstagedChange = !isUntracked && worktreeStatus !== ' ';
+    const hasStagedChange = !isUntracked && indexStatus !== ' ';
+    const isDeleted = worktreeStatus === 'D' || (!hasUnstagedChange && indexStatus === 'D');
 
     let currentContent = '';
     let oldContent = '';
 
-    if (isDeleted) {
-      // For deleted files, get content from HEAD
-      const { stdout: headContent } = await spawnAsync(
-        'git',
-        ['show', `HEAD:${repositoryRelativeFilePath}`],
-        { cwd: repositoryRootPath },
-      );
-      oldContent = headContent;
-      currentContent = headContent; // Show the deleted content in editor
-    } else {
-      // Get current file content
+    if (hasUnstagedChange) {
+      try {
+        oldContent = await readFileFromIndex();
+      } catch {
+        oldContent = '';
+      }
+
+      if (worktreeStatus === 'D') {
+        currentContent = '';
+      } else {
+        const filePath = path.join(repositoryRootPath, repositoryRelativeFilePath);
+        const stats = await fs.stat(filePath);
+        if (stats.isDirectory()) {
+          return res.status(400).json({ error: 'Cannot show diff for directories' });
+        }
+        currentContent = await fs.readFile(filePath, 'utf-8');
+      }
+    } else if (hasStagedChange) {
+      try {
+        oldContent = await readFileFromHead();
+      } catch {
+        // A staged add has no HEAD copy; showing the whole file as added is correct.
+        oldContent = '';
+      }
+
+      if (indexStatus === 'D') {
+        currentContent = '';
+      } else {
+        try {
+          currentContent = await readFileFromIndex();
+        } catch {
+          currentContent = '';
+        }
+      }
+    } else if (isUntracked) {
       const filePath = path.join(repositoryRootPath, repositoryRelativeFilePath);
       const stats = await fs.stat(filePath);
 
       if (stats.isDirectory()) {
-        // Cannot show content for directories
         return res.status(400).json({ error: 'Cannot show diff for directories' });
       }
 
       currentContent = await fs.readFile(filePath, 'utf-8');
+    } else {
+      const filePath = path.join(repositoryRootPath, repositoryRelativeFilePath);
+      const stats = await fs.stat(filePath);
 
-      if (!isUntracked) {
-        // Get the old content from HEAD for tracked files
-        try {
-          const { stdout: headContent } = await spawnAsync(
-            'git',
-            ['show', `HEAD:${repositoryRelativeFilePath}`],
-            { cwd: repositoryRootPath },
-          );
-          oldContent = headContent;
-        } catch (error) {
-          // File might be newly added to git (staged but not committed)
-          oldContent = '';
-        }
+      if (stats.isDirectory()) {
+        return res.status(400).json({ error: 'Cannot show diff for directories' });
       }
+
+      currentContent = await fs.readFile(filePath, 'utf-8');
+      oldContent = currentContent;
     }
 
     res.json({

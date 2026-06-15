@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Badge, Button } from '../../shared/view/ui';
 import { authenticatedFetch } from '../../utils/api';
@@ -91,6 +92,7 @@ async function readJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export default function RemoteConsole() {
+  const { t } = useTranslation('common');
   const [snapshot, setSnapshot] = useState<ControlRoomSnapshot | null>(null);
   const [approvals, setApprovals] = useState<ApprovalQueueItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -133,15 +135,17 @@ export default function RemoteConsole() {
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Smartphone className="h-4 w-4" />
-            Remote console
+            {t('remoteConsole.title', { defaultValue: 'Remote console' })}
           </div>
           <div className="mt-0.5 truncate text-xs text-muted-foreground">
-            {snapshot?.generatedAt ? new Date(snapshot.generatedAt).toLocaleString() : 'Not synced'}
+            {snapshot?.generatedAt
+              ? new Date(snapshot.generatedAt).toLocaleString()
+              : t('remoteConsole.notSynced', { defaultValue: 'Not synced' })}
           </div>
         </div>
         <Button size="sm" variant="outline" onClick={() => { void refresh(); }} disabled={loading}>
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('remoteConsole.refresh', { defaultValue: 'Refresh' })}
         </Button>
       </div>
 
@@ -153,15 +157,15 @@ export default function RemoteConsole() {
         )}
 
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Projects" value={totals?.projects ?? 0} icon={Workflow} />
-          <Metric label="Active runs" value={totals?.activeRuns ?? 0} icon={Clock} />
-          <Metric label="Approval queue" value={approvals.length} icon={ShieldAlert} />
-          <Metric label="Webhooks" value={`${totals?.enabledWebhooks ?? 0}/${totals?.webhooks ?? 0}`} icon={Zap} />
+          <Metric label={t('remoteConsole.metrics.projects', { defaultValue: 'Projects' })} value={totals?.projects ?? 0} icon={Workflow} />
+          <Metric label={t('remoteConsole.metrics.activeRuns', { defaultValue: 'Active runs' })} value={totals?.activeRuns ?? 0} icon={Clock} />
+          <Metric label={t('remoteConsole.metrics.approvalQueue', { defaultValue: 'Approval queue' })} value={approvals.length} icon={ShieldAlert} />
+          <Metric label={t('remoteConsole.metrics.webhooks', { defaultValue: 'Webhooks' })} value={`${totals?.enabledWebhooks ?? 0}/${totals?.webhooks ?? 0}`} icon={Zap} />
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
           <section className="min-w-0 rounded-md border border-border/60">
-            <SectionHeader title="Multi-project control room" />
+            <SectionHeader title={t('remoteConsole.sections.projects', { defaultValue: 'Multi-project control room' })} />
             <div className="divide-y divide-border/50">
               {(snapshot?.projects ?? []).map((project) => (
                 <div key={project.id} className="px-3 py-3">
@@ -171,69 +175,89 @@ export default function RemoteConsole() {
                       <div className="truncate text-xs text-muted-foreground">{project.path}</div>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      <Badge variant="secondary">{project.activeRunCount} active</Badge>
-                      {project.pendingApprovalCount > 0 && <Badge variant="destructive">{project.pendingApprovalCount} approvals</Badge>}
+                      <Badge variant="secondary">
+                        {t('remoteConsole.badges.active', { count: project.activeRunCount, defaultValue: '{{count}} active' })}
+                      </Badge>
+                      {project.pendingApprovalCount > 0 && (
+                        <Badge variant="destructive">
+                          {t('remoteConsole.badges.approvals', { count: project.pendingApprovalCount, defaultValue: '{{count}} approvals' })}
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-                    <span>{project.sessionCount} sessions</span>
-                    <span>{project.failedRunCount} failed runs</span>
-                    <span>{project.latestRuns.length} recent runs</span>
+                    <span>{t('remoteConsole.projectStats.sessions', { count: project.sessionCount, defaultValue: '{{count}} sessions' })}</span>
+                    <span>{t('remoteConsole.projectStats.failedRuns', { count: project.failedRunCount, defaultValue: '{{count}} failed runs' })}</span>
+                    <span>{t('remoteConsole.projectStats.recentRuns', { count: project.latestRuns.length, defaultValue: '{{count}} recent runs' })}</span>
                   </div>
                 </div>
               ))}
               {snapshot && snapshot.projects.length === 0 && (
-                <div className="px-3 py-6 text-sm text-muted-foreground">No projects available.</div>
+                <div className="px-3 py-6 text-sm text-muted-foreground">
+                  {t('remoteConsole.empty.projects', { defaultValue: 'No projects available.' })}
+                </div>
               )}
             </div>
           </section>
 
           <section className="min-w-0 rounded-md border border-border/60">
-            <SectionHeader title="Approval queue" />
+            <SectionHeader title={t('remoteConsole.sections.approvals', { defaultValue: 'Approval queue' })} />
             <div className="divide-y divide-border/50">
               {approvals.map((approval) => (
                 <div key={approval.id} className="px-3 py-3">
                   <div className="text-sm font-medium text-foreground">{compact(approval.summary || approval.reason || approval.id)}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Run {approval.runId}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t('remoteConsole.runId', { id: approval.runId, defaultValue: 'Run {{id}}' })}
+                  </div>
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" onClick={() => { void decideApproval(approval.id, true); }}>
                       <CheckCircle className="h-3.5 w-3.5" />
-                      Allow
+                      {t('remoteConsole.actions.allow', { defaultValue: 'Allow' })}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => { void decideApproval(approval.id, false); }}>
-                      Deny
+                      {t('remoteConsole.actions.deny', { defaultValue: 'Deny' })}
                     </Button>
                   </div>
                 </div>
               ))}
               {approvals.length === 0 && (
-                <div className="px-3 py-6 text-sm text-muted-foreground">No pending approvals.</div>
+                <div className="px-3 py-6 text-sm text-muted-foreground">
+                  {t('remoteConsole.empty.approvals', { defaultValue: 'No pending approvals.' })}
+                </div>
               )}
             </div>
           </section>
         </div>
 
         <section className="mt-4 rounded-md border border-border/60">
-          <SectionHeader title="Webhook health" />
+          <SectionHeader title={t('remoteConsole.sections.webhooks', { defaultValue: 'Webhook health' })} />
           <div className="divide-y divide-border/50">
             {(snapshot?.webhooks ?? []).map((webhook) => (
               <div key={webhook.id} className="grid gap-2 px-3 py-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.6fr)]">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium text-foreground">{webhook.name}</span>
-                    <Badge variant={webhook.enabled ? 'default' : 'secondary'}>{webhook.enabled ? 'on' : 'off'}</Badge>
+                    <Badge variant={webhook.enabled ? 'default' : 'secondary'}>
+                      {webhook.enabled
+                        ? t('remoteConsole.webhook.on', { defaultValue: 'on' })
+                        : t('remoteConsole.webhook.off', { defaultValue: 'off' })}
+                    </Badge>
                   </div>
                   <div className="truncate text-xs text-muted-foreground">{webhook.url}</div>
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {webhook.lastDelivery
-                    ? `${webhook.lastDelivery.ok ? 'ok' : 'failed'} ${webhook.lastDelivery.eventType || ''} ${webhook.lastDelivery.status || ''}`
-                    : 'No delivery yet'}
+                    ? `${webhook.lastDelivery.ok
+                      ? t('remoteConsole.webhook.ok', { defaultValue: 'ok' })
+                      : t('remoteConsole.webhook.failed', { defaultValue: 'failed' })} ${webhook.lastDelivery.eventType || ''} ${webhook.lastDelivery.status || ''}`
+                    : t('remoteConsole.webhook.noDelivery', { defaultValue: 'No delivery yet' })}
                 </div>
               </div>
             ))}
             {snapshot && snapshot.webhooks.length === 0 && (
-              <div className="px-3 py-6 text-sm text-muted-foreground">No webhooks configured.</div>
+              <div className="px-3 py-6 text-sm text-muted-foreground">
+                {t('remoteConsole.empty.webhooks', { defaultValue: 'No webhooks configured.' })}
+              </div>
             )}
           </div>
         </section>

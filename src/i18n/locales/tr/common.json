@@ -537,7 +537,12 @@
           "title": "Ajan Bildirimi"
         }
       }
-    }
+    },
+    "open": "Bildirimleri aç",
+    "title": "Bildirimler",
+    "markRead": "Okundu",
+    "close": "Bildirimleri kapat",
+    "dismiss": "Bildirimi kapat"
   },
   "versionUpdate": {
     "title": "Güncelleme Mevcut",
@@ -646,11 +651,24 @@
       "issueRuns": "Issue-to-PR çalışmaları",
       "reviewItems": "Review öğeleri",
       "subUsers": "Alt kullanıcılar",
-      "collaborators": "Proje ortakları",
+      "collaborators": "Ortaklar",
       "secrets": "Scope env sırları",
-      "marketplace": "Market kayıtları",
+      "marketplace": "Market",
       "evalRuns": "Değerlendirme çalışmaları",
-      "securityAudits": "Güvenlik denetimleri"
+      "securityAudits": "Güvenlik denetimleri",
+      "attention": "Dikkat",
+      "running": "Çalışıyor",
+      "needsAttention": "Dikkat gerekenler",
+      "runningNow": "Şu an çalışanlar",
+      "reviews": "İncelemeler",
+      "checkpoints": "Checkpointler",
+      "roles": "Roller",
+      "auditEvents": "Denetim olayları",
+      "scopedSecrets": "Kapsamlı sırlar",
+      "auditRuns": "Denetimler",
+      "findings": "Bulgular",
+      "usageRows": "Kullanım satırları",
+      "evalSuites": "Değerlendirme paketleri"
     },
     "sections": {
       "production": {
@@ -863,6 +881,119 @@
       "usageSummary": "Usage appears here after provider or workflow events are recorded.",
       "noSecurityAudits": "No security audits yet.",
       "noAuditMatches": "No audit entries match the current filter."
+    },
+    "groups": {
+      "operations": {
+        "label": "Operasyonlar",
+        "description": "Çalışmalar, incelemeler, onaylar, zamanlayıcı ve checkpointler"
+      },
+      "people": {
+        "label": "Kişiler",
+        "description": "Yöneticiler, ortaklar, roller ve aktivite"
+      },
+      "access": {
+        "label": "Erişim",
+        "description": "LAN, Tailscale, tünel ve domain yönlendirmesi"
+      },
+      "security": {
+        "label": "Güvenlik",
+        "description": "Sırlar, izin riski ve denetim kontrolleri"
+      },
+      "insights": {
+        "label": "İçgörüler",
+        "description": "Kullanım, değerlendirmeler ve market sağlığı"
+      }
+    },
+    "context": {
+      "title": "Bu ne anlama geliyor?",
+      "recommendedNextStep": "Önerilen sonraki adım",
+      "runTimeline": "Çalışma zaman çizelgesi",
+      "runTimelineDescription": "Agent, reviewer, checkpoint ve denetim olayları için okunabilir aktivite akışı.",
+      "emptyTimelineTitle": "Henüz çalışma zaman çizelgesi yok",
+      "emptyTimelineDescription": "Issue çalışmaları, review kararları, checkpointler veya denetim olayları kaydedilince burada görünür.",
+      "serverSignal": "Sunucu sinyali",
+      "serverSignalDescription": "İlk ekran ham backend bölümlerini gizler ve yalnızca güncel durumu gösterir."
+    },
+    "operations": {
+      "runTimeline": "Çalışma zaman çizelgesi",
+      "runTimelineDescription": "Ham JSON açmadan aktör, aksiyon ve sonuç geçmişi.",
+      "noActivityTitle": "Henüz aktivite yok",
+      "noActivityDescription": "Issue çalışmaları, review kararları, checkpointler ve denetim olayları burada dikey zaman çizelgesi olarak görünür.",
+      "actionQueue": "Aksiyon kuyruğu",
+      "actionQueueDescription": "Review öğeleri sıkışık tablo yerine mobil uyumlu satırlar olarak gösterilir.",
+      "noReviewItemsTitle": "Review öğesi yok",
+      "noReviewItemsDescription": "Değişen dosyalar için kabul/düzelt kararı gerektiğinde review öğesi oluştur.",
+      "reviewRequested": "Review istendi",
+      "changedFiles": "{{count}} değişen dosya",
+      "accept": "Kabul et"
+    },
+    "people": {
+      "projectCollaborators": "Proje ortakları",
+      "projectCollaboratorsDescription": "Proje partnerleri ve çalışanları global admin değildir; atanmış projelere kapsamlı erişim alır.",
+      "noCollaboratorsTitle": "Henüz ortak yok",
+      "noCollaboratorsDescription": "Önce alt kullanıcı oluştur, ardından o kişiyi proje rolüne ata.",
+      "project": "Proje",
+      "roleScoped": "role bağlı",
+      "auditLog": "Denetim kaydı",
+      "auditLogDescription": "Ham veritabanı görünümü açmadan alt kullanıcıların, proje partnerlerinin ve çalışanların ne değiştirdiğini ara.",
+      "searchAudit": "Aktör, aksiyon, proje veya detay ara",
+      "noAuditMatchTitle": "Eşleşen denetim olayı yok",
+      "noAuditMatchDescription": "Kullanıcı ve proje erişim aktiviteleri aksiyonlardan sonra burada görünür.",
+      "system": "sistem",
+      "auditEvent": "Denetim olayı",
+      "advancedTitle": "Gelişmiş kişi yönetimi",
+      "advancedDescription": "Kullanıcı oluştur ve proje rollerini yalnızca gerektiğinde ata."
+    },
+    "access": {
+      "openSettings": "Ayarlar > Erişim aç",
+      "lanTitle": "LAN ve yerel",
+      "lanDescription": "Tarayıcı aynı makinede veya aynı ağdayken kullanılır. Özel ya da public tünellerden önce buradan başla.",
+      "tailscaleTitle": "Tailscale özel erişim",
+      "tailscaleDescription": "Pixcode’u public açmadan ekip erişimi gerektiğinde en uygun seçenektir. UI kurulum, giriş ve URL paylaşımını yönlendirmelidir.",
+      "cloudflareTitle": "Cloudflare veya özel domain",
+      "cloudflareDescription": "Sabit HTTPS URL gerektiğinde uygundur. Tünel/domain bir kez yapılandırılır ve atanmış kullanıcılarla paylaşılır.",
+      "howUsersConnect": "Kullanıcılar nasıl bağlanır?",
+      "howUsersConnectDescription": "Bu bölüm Erişim akışını teknik olmayan kullanıcılar için anlaşılır tutar.",
+      "stepUserTitle": "Kullanıcıyı oluştur",
+      "stepUserDescription": "Sunucunun kullanıcıyı tanıması için Kişiler bölümünden ekle.",
+      "stepRoleTitle": "Proje rolü ata",
+      "stepRoleDescription": "Kullanıcıya{{projectSuffix}} proje erişimi ver.",
+      "stepUrlTitle": "Tek URL paylaş",
+      "stepUrlDescription": "Ayarlar > Erişim içindeki LAN, Tailscale, Cloudflare Tunnel veya özel domain URL’sini kullan."
+    },
+    "security": {
+      "secretVault": "Sır kasası",
+      "secretVaultDescription": "Satırlar kapsamı, hedefi ve maskelenmiş env adlarını gösterir. Değerler gizli kalır.",
+      "noSecretsTitle": "Kayıtlı sır yok",
+      "noSecretsDescription": "Provider, proje, workflow, Telegram veya API env değerlerini gelişmiş formdan sakla.",
+      "global": "global",
+      "advancedTitle": "Gelişmiş güvenlik aksiyonları",
+      "advancedDescription": "Kapsamlı env değerleri sakla veya denetim kontrollerini kuyruğa al."
+    },
+    "insights": {
+      "usageSummary": "Kullanım özeti",
+      "usageSummaryDescription": "Provider metrikleri mobilde geniş tablo yerine kartlar olarak gösterilir.",
+      "noUsageTitle": "Henüz kullanım olayı yok",
+      "noUsageDescription": "Provider veya workflow olayları kaydedildikten sonra kullanım burada görünür.",
+      "provider": "provider",
+      "usageRowDescription": "{{tokens}} token - {{cost}} - ort. {{latency}}ms",
+      "errorRate": "%{{rate}} hata",
+      "marketplaceHealth": "Market sağlığı",
+      "marketplaceHealthDescription": "MCP sunucuları, workflow şablonları, provider adapterleri ve bildirim kanalları genel görünümü sıkıştırmadan görünür kalır.",
+      "noMarketplaceTitle": "Market kaydı yok",
+      "noMarketplaceDescription": "Bir plugin veya workflow şablonu kuruluma hazır olduğunda kayıt ekle.",
+      "noSourceConfigured": "Kaynak yapılandırılmamış",
+      "unknown": "bilinmiyor",
+      "advancedTitle": "Gelişmiş içgörü aksiyonları",
+      "advancedDescription": "Kullanım kaydet, değerlendirme paketleri oluştur veya market kayıtları ekle."
+    },
+    "recommendations": {
+      "attention": "Önce Operasyonlar bölümünü aç. Yeni işe başlamadan önce review, hata, başarısız değerlendirme veya güvenlik bulgularını temizle.",
+      "access": "Ayarlar > Erişim bölümünü aç ve kullanıcıların kullanacağı tek URL’yi kaydet. Ardından Kişiler içinde proje rolleri ata.",
+      "people": "Önce alt kullanıcıları oluştur, ikinci adımda proje rollerini ata, sonra erişim yolunu paylaş.",
+      "security": "Sırları işe yarayan en küçük kapsamla sakla, ardından izin veya secret scan çalıştır.",
+      "insights": "Model varsayılanlarını değiştirmeden önce provider maliyeti, gecikme ve değerlendirme başarı oranını karşılaştır.",
+      "operations": "Şu an çalışanları ve zaman çizelgesini incele. Dikkat gereken bir şey yoksa sonraki issue-to-PR veya zamanlanmış işi başlat."
     }
   },
   "vscodeWorkbench": {
@@ -969,6 +1100,48 @@
     "terminal": {
       "title": "Terminal",
       "close": "Terminali kapat"
+    }
+  },
+  "remoteConsole": {
+    "title": "Uzak konsol",
+    "notSynced": "Senkronize değil",
+    "refresh": "Yenile",
+    "runId": "Çalışma {{id}}",
+    "metrics": {
+      "projects": "Projeler",
+      "activeRuns": "Aktif çalışmalar",
+      "approvalQueue": "Onay kuyruğu",
+      "webhooks": "Webhooklar"
+    },
+    "sections": {
+      "projects": "Çoklu proje kontrol odası",
+      "approvals": "Onay kuyruğu",
+      "webhooks": "Webhook durumu"
+    },
+    "badges": {
+      "active": "{{count}} aktif",
+      "approvals": "{{count}} onay"
+    },
+    "projectStats": {
+      "sessions": "{{count}} oturum",
+      "failedRuns": "{{count}} başarısız çalışma",
+      "recentRuns": "{{count}} son çalışma"
+    },
+    "actions": {
+      "allow": "İzin ver",
+      "deny": "Reddet"
+    },
+    "webhook": {
+      "on": "açık",
+      "off": "kapalı",
+      "ok": "başarılı",
+      "failed": "başarısız",
+      "noDelivery": "Henüz teslim yok"
+    },
+    "empty": {
+      "projects": "Kullanılabilir proje yok.",
+      "approvals": "Bekleyen onay yok.",
+      "webhooks": "Yapılandırılmış webhook yok."
     }
   }
 }

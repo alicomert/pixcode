@@ -320,6 +320,8 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
   const cr = useCallback((key: string, defaultValue: string, values?: Record<string, unknown>) => (
     t(`controlRoom.${key}`, { defaultValue, ...values })
   ), [t]);
+  const activeGroupLabel = cr(`groups.${activeGroupMeta.id}.label`, activeGroupMeta.label);
+  const activeGroupDescription = cr(`groups.${activeGroupMeta.id}.description`, activeGroupMeta.description);
 
   useGsapEntrance(pageRef, 'fade-up');
   useGsapSurfaceTransition(surfaceRef, activeGroup);
@@ -404,7 +406,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
         <nav className="hidden border-r border-border/60 bg-muted/15 p-3 lg:block">
           <div className="space-y-2">
             {CONTROL_ROOM_GROUPS.map((group) => (
-              <GroupButton key={group.id} group={group} isActive={activeGroup === group.id} onClick={() => setActiveGroup(group.id)} />
+              <GroupButton key={group.id} group={group} isActive={activeGroup === group.id} onClick={() => setActiveGroup(group.id)} cr={cr} />
             ))}
           </div>
         </nav>
@@ -425,7 +427,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                   )}
                 >
                   <group.icon className="h-4 w-4" />
-                  {group.label}
+                  {cr(`groups.${group.id}.label`, group.label)}
                 </button>
               ))}
             </div>
@@ -445,7 +447,7 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
                     {cr('overview.commandSurfaceDescription', 'Six cards, one decision: what should you look at next?')}
                   </p>
                 </div>
-                <Badge variant="secondary">{cr('overview.currentGroup', 'Current group')}: {activeGroupMeta.label}</Badge>
+                <Badge variant="secondary">{cr('overview.currentGroup', 'Current group')}: {activeGroupLabel}</Badge>
               </div>
               <div ref={listRef} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {OVERVIEW_CARDS.map((card) => (
@@ -540,21 +542,21 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
 
         <ContextDrawer
           className="hidden min-h-0 overflow-auto rounded-none border-y-0 border-r-0 lg:block"
-          title="What this means"
-          description={activeGroupMeta.description}
+          title={cr('context.title', 'What this means')}
+          description={activeGroupDescription}
         >
           <GuidanceCard
-            title="Recommended next step"
-            description={getRecommendedNextStep(activeGroup, totals)}
+            title={cr('context.recommendedNextStep', 'Recommended next step')}
+            description={getRecommendedNextStep(activeGroup, totals, cr)}
           />
           <ControlRoomPanel
-            title="Run timeline"
-            description="Readable activity feed for agents, reviewers, checkpoints, and audit events."
+            title={cr('context.runTimeline', 'Run timeline')}
+            description={cr('context.runTimelineDescription', 'Readable activity feed for agents, reviewers, checkpoints, and audit events.')}
           >
             <div className="space-y-3">
               <ResponsiveDataList
                 items={timeline.slice(0, 5)}
-                empty={<EmptyGuidance title="No run timeline yet" description="Run activity appears here after issue runs, reviews, checkpoints, or audit events are recorded." />}
+                empty={<EmptyGuidance title={cr('context.emptyTimelineTitle', 'No run timeline yet')} description={cr('context.emptyTimelineDescription', 'Run activity appears here after issue runs, reviews, checkpoints, or audit events are recorded.')} />}
                 render={(entry) => (
                   <TimelineItem
                     key={entry.id}
@@ -568,10 +570,10 @@ export default function ControlRoomPage({ selectedProject }: ControlRoomPageProp
               />
             </div>
           </ControlRoomPanel>
-          <ControlRoomPanel title="Server signal" description="The first screen avoids raw backend sections and shows only current status.">
+          <ControlRoomPanel title={cr('context.serverSignal', 'Server signal')} description={cr('context.serverSignalDescription', 'The first screen avoids raw backend sections and shows only current status.')}>
             <div className="grid grid-cols-2 gap-2">
-              <SummaryCard label="Attention" value={totals.attention} icon={AlertTriangle} tone={totals.attention ? 'warning' : 'success'} />
-              <SummaryCard label="Running" value={totals.running} icon={Clock} tone="info" />
+              <SummaryCard label={cr('metrics.attention', 'Attention')} value={totals.attention} icon={AlertTriangle} tone={totals.attention ? 'warning' : 'success'} />
+              <SummaryCard label={cr('metrics.running', 'Running')} value={totals.running} icon={Clock} tone="info" />
             </div>
           </ControlRoomPanel>
         </ContextDrawer>
@@ -584,10 +586,12 @@ function GroupButton({
   group,
   isActive,
   onClick,
+  cr,
 }: {
   group: (typeof CONTROL_ROOM_GROUPS)[number];
   isActive: boolean;
   onClick: () => void;
+  cr: (key: string, defaultValue: string, values?: Record<string, unknown>) => string;
 }) {
   return (
     <button
@@ -602,8 +606,10 @@ function GroupButton({
     >
       <group.icon className="mt-0.5 h-4 w-4 shrink-0" />
       <span className="min-w-0">
-        <span className="block text-sm font-medium">{group.label}</span>
-        <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">{group.description}</span>
+        <span className="block text-sm font-medium">{cr(`groups.${group.id}.label`, group.label)}</span>
+        <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
+          {cr(`groups.${group.id}.description`, group.description)}
+        </span>
       </span>
     </button>
   );
@@ -652,20 +658,20 @@ function OperationsGroup({
         description={cr('guidance.operations', 'Use Operations when something is actively running, waiting for review, or needs repair. Forms stay hidden until you intentionally open them.')}
       />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Needs attention" value={totals.attention} icon={AlertTriangle} tone={totals.attention ? 'warning' : 'success'} />
-        <SummaryCard label="Running now" value={totals.running} icon={Clock} tone="info" />
-        <SummaryCard label="Reviews" value={totals.reviews} icon={FileCode} />
-        <SummaryCard label="Checkpoints" value={snapshot.production.checkpoints?.length || 0} icon={CheckCircle} tone="success" />
+        <SummaryCard label={cr('metrics.needsAttention', 'Needs attention')} value={totals.attention} icon={AlertTriangle} tone={totals.attention ? 'warning' : 'success'} />
+        <SummaryCard label={cr('metrics.runningNow', 'Running now')} value={totals.running} icon={Clock} tone="info" />
+        <SummaryCard label={cr('metrics.reviews', 'Reviews')} value={totals.reviews} icon={FileCode} />
+        <SummaryCard label={cr('metrics.checkpoints', 'Checkpoints')} value={snapshot.production.checkpoints?.length || 0} icon={CheckCircle} tone="success" />
       </div>
 
       <ControlRoomPanel
-        title="Run timeline"
-        description="Readable actor, action, and result history without raw JSON."
+        title={cr('operations.runTimeline', 'Run timeline')}
+        description={cr('operations.runTimelineDescription', 'Readable actor, action, and result history without raw JSON.')}
       >
         <div className="space-y-3">
           <ResponsiveDataList
             items={timeline}
-            empty={<EmptyGuidance title="No activity yet" description="Issue runs, review decisions, checkpoints, and audit events will appear here as a vertical timeline." />}
+            empty={<EmptyGuidance title={cr('operations.noActivityTitle', 'No activity yet')} description={cr('operations.noActivityDescription', 'Issue runs, review decisions, checkpoints, and audit events will appear here as a vertical timeline.')} />}
             render={(entry) => (
               <TimelineItem
                 key={entry.id}
@@ -682,15 +688,15 @@ function OperationsGroup({
         </div>
       </ControlRoomPanel>
 
-      <ControlRoomPanel title="Action queue" description="Review items are shown as mobile-friendly rows instead of a cramped table.">
+      <ControlRoomPanel title={cr('operations.actionQueue', 'Action queue')} description={cr('operations.actionQueueDescription', 'Review items are shown as mobile-friendly rows instead of a cramped table.')}>
         <ResponsiveDataList
           items={snapshot.production.reviewQueue || []}
-          empty={<EmptyGuidance title="No review items" description="Create a review item when changed files need an accept/fix decision." />}
+          empty={<EmptyGuidance title={cr('operations.noReviewItemsTitle', 'No review items')} description={cr('operations.noReviewItemsDescription', 'Create a review item when changed files need an accept/fix decision.')} />}
           render={(item) => (
             <ActionRow
               key={item.id}
-              title={item.title || 'Review requested'}
-              description={`${item.changedFiles?.length || 0} changed files`}
+              title={item.title || cr('operations.reviewRequested', 'Review requested')}
+              description={cr('operations.changedFiles', '{{count}} changed files', { count: item.changedFiles?.length || 0 })}
               status={item.status || 'review_requested'}
               action={(
                 <Button size="sm" variant="outline" onClick={() => { void action('Review marked accepted.', async () => {
@@ -699,7 +705,7 @@ function OperationsGroup({
                     body: JSON.stringify({ status: 'accepted' }),
                   });
                 }); }}>
-                  Accept
+                  {cr('operations.accept', 'Accept')}
                 </Button>
               )}
             />
@@ -823,49 +829,49 @@ function PeopleGroup({
     <section className="space-y-4">
       <GuidanceCard description={cr('guidance.people', 'People is for who can enter the self-hosted server and what they can do inside each project.')} />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Sub-users" value={snapshot.platform.adminUsers?.length || 0} icon={Users} />
-        <SummaryCard label="Collaborators" value={snapshot.platform.projectCollaborators?.length || 0} icon={Users} tone="info" />
-        <SummaryCard label="Roles" value={Object.keys(snapshot.platform.roles || {}).length} icon={Lock} />
-        <SummaryCard label="Audit events" value={snapshot.platform.auditLog?.length || 0} icon={FileCode} />
+        <SummaryCard label={cr('metrics.subUsers', 'Sub-users')} value={snapshot.platform.adminUsers?.length || 0} icon={Users} />
+        <SummaryCard label={cr('metrics.collaborators', 'Collaborators')} value={snapshot.platform.projectCollaborators?.length || 0} icon={Users} tone="info" />
+        <SummaryCard label={cr('metrics.roles', 'Roles')} value={Object.keys(snapshot.platform.roles || {}).length} icon={Lock} />
+        <SummaryCard label={cr('metrics.auditEvents', 'Audit events')} value={snapshot.platform.auditLog?.length || 0} icon={FileCode} />
       </div>
 
-      <ControlRoomPanel title="Project collaborators" description="Project partners and workers are not global admins. They get scoped access to assigned projects.">
+      <ControlRoomPanel title={cr('people.projectCollaborators', 'Project collaborators')} description={cr('people.projectCollaboratorsDescription', 'Project partners and workers are not global admins. They get scoped access to assigned projects.')}>
         <ResponsiveDataList
           items={snapshot.platform.projectCollaborators || []}
-          empty={<EmptyGuidance title="No collaborators yet" description="Create a sub-user first, then assign that person to a project role." />}
+          empty={<EmptyGuidance title={cr('people.noCollaboratorsTitle', 'No collaborators yet')} description={cr('people.noCollaboratorsDescription', 'Create a sub-user first, then assign that person to a project role.')} />}
           render={(collaborator) => (
             <ActionRow
               key={collaborator.id}
               title={collaborator.userRef}
-              description={`${collaborator.projectName || 'Project'} - ${Object.keys(collaborator.capabilities || {}).filter((key) => collaborator.capabilities[key]).join(', ') || 'role scoped'}`}
+              description={`${collaborator.projectName || cr('people.project', 'Project')} - ${Object.keys(collaborator.capabilities || {}).filter((key) => collaborator.capabilities[key]).join(', ') || cr('people.roleScoped', 'role scoped')}`}
               status={collaborator.role}
             />
           )}
         />
       </ControlRoomPanel>
 
-      <ControlRoomPanel title="Audit log" description="Search what sub-users, project partners, and workers changed without opening a raw database view.">
+      <ControlRoomPanel title={cr('people.auditLog', 'Audit log')} description={cr('people.auditLogDescription', 'Search what sub-users, project partners, and workers changed without opening a raw database view.')}>
         <Input
           className="mb-3 h-11"
-          placeholder="Search actor, action, project, or detail"
+          placeholder={cr('people.searchAudit', 'Search actor, action, project, or detail')}
           value={auditQuery}
           onChange={(event) => setAuditQuery(event.target.value)}
         />
         <ResponsiveDataList
           items={filteredAudit}
-          empty={<EmptyGuidance title="No audit events match" description="User and project access activity appears here after actions are recorded." />}
+          empty={<EmptyGuidance title={cr('people.noAuditMatchTitle', 'No audit events match')} description={cr('people.noAuditMatchDescription', 'User and project access activity appears here after actions are recorded.')} />}
           render={(entry) => (
             <ActionRow
               key={entry.id}
-              title={entry.actorId || 'system'}
-              description={`${entry.action || 'Audit event'} - ${formatDate(entry.createdAt)}`}
+              title={entry.actorId || cr('people.system', 'system')}
+              description={`${entry.action || cr('people.auditEvent', 'Audit event')} - ${formatDate(entry.createdAt)}`}
               status={entry.resource || entry.target || 'audit'}
             />
           )}
         />
       </ControlRoomPanel>
 
-      <AdvancedDisclosure title="Advanced people management" description="Create users and assign project roles only when needed.">
+      <AdvancedDisclosure title={cr('people.advancedTitle', 'Advanced people management')} description={cr('people.advancedDescription', 'Create users and assign project roles only when needed.')}>
         <div className="grid gap-4 xl:grid-cols-2">
           <FormPanel title="Create sub-user">
             <Input placeholder="Username or email" value={adminForm.username} onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })} />
@@ -928,20 +934,20 @@ function AccessGroup({ cr, selectedProject }: { cr: (key: string, defaultValue: 
         description={cr('guidance.access', 'Access explains how people reach Pixcode. The actual server-wide setup belongs in Settings > Access because it affects every project and user.')}
         action={(
           <Button className="min-h-[44px]" variant="outline" onClick={() => (window as any).openSettings?.('access')}>
-            Open Settings &gt; Access
+            {cr('access.openSettings', 'Open Settings > Access')}
           </Button>
         )}
       />
       <div className="grid gap-3 md:grid-cols-3">
-        <GuidanceCard title="LAN and local" description="Use when the browser is on the same machine or network. Start here before private or public tunnels." />
-        <GuidanceCard title="Tailscale private access" description="Best when a team needs private access without exposing Pixcode publicly. The UI should guide install, login, and URL sharing." />
-        <GuidanceCard title="Cloudflare or custom domain" description="Best when users need a stable HTTPS URL. Configure the tunnel/domain once and share it with assigned users." />
+        <GuidanceCard title={cr('access.lanTitle', 'LAN and local')} description={cr('access.lanDescription', 'Use when the browser is on the same machine or network. Start here before private or public tunnels.')} />
+        <GuidanceCard title={cr('access.tailscaleTitle', 'Tailscale private access')} description={cr('access.tailscaleDescription', 'Best when a team needs private access without exposing Pixcode publicly. The UI should guide install, login, and URL sharing.')} />
+        <GuidanceCard title={cr('access.cloudflareTitle', 'Cloudflare or custom domain')} description={cr('access.cloudflareDescription', 'Best when users need a stable HTTPS URL. Configure the tunnel/domain once and share it with assigned users.')} />
       </div>
-      <ControlRoomPanel title="How users connect" description="This keeps Access understandable for non-technical users.">
+      <ControlRoomPanel title={cr('access.howUsersConnect', 'How users connect')} description={cr('access.howUsersConnectDescription', 'This keeps Access understandable for non-technical users.')}>
         <div className="grid gap-3 md:grid-cols-3">
-          <NumberedStep number="1" title="Create the user" description="Add them in People so the server knows who they are." />
-          <NumberedStep number="2" title="Assign project role" description={`Give them project access${selectedProject?.displayName ? ` for ${selectedProject.displayName}` : ''}.`} />
-          <NumberedStep number="3" title="Share one URL" description="Use a LAN, Tailscale, Cloudflare Tunnel, or custom domain URL from Settings > Access." />
+          <NumberedStep number="1" title={cr('access.stepUserTitle', 'Create the user')} description={cr('access.stepUserDescription', 'Add them in People so the server knows who they are.')} />
+          <NumberedStep number="2" title={cr('access.stepRoleTitle', 'Assign project role')} description={cr('access.stepRoleDescription', 'Give them project access{{projectSuffix}}.', { projectSuffix: selectedProject?.displayName ? ` for ${selectedProject.displayName}` : '' })} />
+          <NumberedStep number="3" title={cr('access.stepUrlTitle', 'Share one URL')} description={cr('access.stepUrlDescription', 'Use a LAN, Tailscale, Cloudflare Tunnel, or custom domain URL from Settings > Access.')} />
         </div>
       </ControlRoomPanel>
     </section>
@@ -973,28 +979,28 @@ function SecurityGroup({
     <section className="space-y-4">
       <GuidanceCard description={cr('guidance.security', 'Security keeps sensitive values, permission checks, and audit risk visible without exposing raw secrets.')} tone="warning" />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Scoped secrets" value={snapshot.platform.secrets?.length || 0} icon={Key} />
-        <SummaryCard label="Audit runs" value={snapshot.platform.securityAuditRuns?.length || 0} icon={ShieldAlert} tone="warning" />
-        <SummaryCard label="Findings" value={(snapshot.platform.securityAuditRuns || []).reduce((total, run) => total + (run.findings?.length || 0), 0)} icon={AlertTriangle} tone="danger" />
-        <SummaryCard label="Audit events" value={snapshot.platform.auditLog?.length || 0} icon={FileCode} />
+        <SummaryCard label={cr('metrics.scopedSecrets', 'Scoped secrets')} value={snapshot.platform.secrets?.length || 0} icon={Key} />
+        <SummaryCard label={cr('metrics.auditRuns', 'Audit runs')} value={snapshot.platform.securityAuditRuns?.length || 0} icon={ShieldAlert} tone="warning" />
+        <SummaryCard label={cr('metrics.findings', 'Findings')} value={(snapshot.platform.securityAuditRuns || []).reduce((total, run) => total + (run.findings?.length || 0), 0)} icon={AlertTriangle} tone="danger" />
+        <SummaryCard label={cr('metrics.auditEvents', 'Audit events')} value={snapshot.platform.auditLog?.length || 0} icon={FileCode} />
       </div>
 
-      <ControlRoomPanel title="Secret vault" description="Rows show scope, target, and redacted env names. Values stay hidden.">
+      <ControlRoomPanel title={cr('security.secretVault', 'Secret vault')} description={cr('security.secretVaultDescription', 'Rows show scope, target, and redacted env names. Values stay hidden.')}>
         <ResponsiveDataList
           items={snapshot.platform.secrets || []}
-          empty={<EmptyGuidance title="No secrets stored" description="Store provider, project, workflow, Telegram, or API env values from the advanced form." />}
+          empty={<EmptyGuidance title={cr('security.noSecretsTitle', 'No secrets stored')} description={cr('security.noSecretsDescription', 'Store provider, project, workflow, Telegram, or API env values from the advanced form.')} />}
           render={(secret) => (
             <ActionRow
               key={secret.id}
               title={secret.envName}
-              description={`${secret.name} - ${secret.target || 'global'} - ${secret.redacted}`}
+              description={`${secret.name} - ${secret.target || cr('security.global', 'global')} - ${secret.redacted}`}
               status={secret.scope}
             />
           )}
         />
       </ControlRoomPanel>
 
-      <AdvancedDisclosure title="Advanced security actions" description="Store scoped env values or queue audit checks.">
+      <AdvancedDisclosure title={cr('security.advancedTitle', 'Advanced security actions')} description={cr('security.advancedDescription', 'Store scoped env values or queue audit checks.')}>
         <div className="grid gap-4 xl:grid-cols-2">
           <FormPanel title="Create secret">
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1064,43 +1070,43 @@ function InsightsGroup({
     <section className="space-y-4">
       <GuidanceCard description={cr('guidance.insights', 'Insights is for model/runtime decisions: cost, latency, eval quality, and marketplace health.')} tone="success" />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Usage rows" value={snapshot.platform.usageSummary?.length || 0} icon={BarChart3} />
-        <SummaryCard label="Eval runs" value={snapshot.platform.evaluationRuns?.length || 0} icon={Workflow} tone="success" />
-        <SummaryCard label="Eval suites" value={snapshot.platform.evaluationSuites?.length || 0} icon={CheckCircle} />
-        <SummaryCard label="Marketplace" value={snapshot.platform.marketplacePlugins?.length || 0} icon={Server} tone="info" />
+        <SummaryCard label={cr('metrics.usageRows', 'Usage rows')} value={snapshot.platform.usageSummary?.length || 0} icon={BarChart3} />
+        <SummaryCard label={cr('metrics.evalRuns', 'Eval runs')} value={snapshot.platform.evaluationRuns?.length || 0} icon={Workflow} tone="success" />
+        <SummaryCard label={cr('metrics.evalSuites', 'Eval suites')} value={snapshot.platform.evaluationSuites?.length || 0} icon={CheckCircle} />
+        <SummaryCard label={cr('metrics.marketplace', 'Marketplace')} value={snapshot.platform.marketplacePlugins?.length || 0} icon={Server} tone="info" />
       </div>
 
-      <ControlRoomPanel title="Usage summary" description="Provider metrics are stacked as cards on mobile instead of forcing a wide table.">
+      <ControlRoomPanel title={cr('insights.usageSummary', 'Usage summary')} description={cr('insights.usageSummaryDescription', 'Provider metrics are stacked as cards on mobile instead of forcing a wide table.')}>
         <ResponsiveDataList
           items={snapshot.platform.usageSummary || []}
-          empty={<EmptyGuidance title="No usage events yet" description="Usage appears after provider or workflow events are recorded." />}
+          empty={<EmptyGuidance title={cr('insights.noUsageTitle', 'No usage events yet')} description={cr('insights.noUsageDescription', 'Usage appears after provider or workflow events are recorded.')} />}
           render={(row, index) => (
             <ActionRow
               key={`${row.provider}-${row.model}-${row.workflow}-${index}`}
-              title={`${row.provider || 'provider'} ${row.model || ''}`.trim()}
-              description={`${formatNumber(row.totalTokens)} tokens - ${formatCurrency(row.costUsd)} - ${row.averageLatencyMs || 0}ms avg`}
-              status={`${row.errorRate || 0}% errors`}
+              title={`${row.provider || cr('insights.provider', 'provider')} ${row.model || ''}`.trim()}
+              description={cr('insights.usageRowDescription', '{{tokens}} tokens - {{cost}} - {{latency}}ms avg', { tokens: formatNumber(row.totalTokens), cost: formatCurrency(row.costUsd), latency: row.averageLatencyMs || 0 })}
+              status={cr('insights.errorRate', '{{rate}}% errors', { rate: row.errorRate || 0 })}
             />
           )}
         />
       </ControlRoomPanel>
 
-      <ControlRoomPanel title="Marketplace health" description="MCP servers, workflow templates, provider adapters, and notification channels stay visible without crowding the overview.">
+      <ControlRoomPanel title={cr('insights.marketplaceHealth', 'Marketplace health')} description={cr('insights.marketplaceHealthDescription', 'MCP servers, workflow templates, provider adapters, and notification channels stay visible without crowding the overview.')}>
         <ResponsiveDataList
           items={snapshot.platform.marketplacePlugins || []}
-          empty={<EmptyGuidance title="No marketplace entries" description="Register entries only when a plugin or workflow template is ready to install." />}
+          empty={<EmptyGuidance title={cr('insights.noMarketplaceTitle', 'No marketplace entries')} description={cr('insights.noMarketplaceDescription', 'Register entries only when a plugin or workflow template is ready to install.')} />}
           render={(plugin) => (
             <ActionRow
               key={plugin.id}
               title={plugin.name}
-              description={plugin.source || 'No source configured'}
-              status={`${plugin.type} - ${plugin.health?.status || 'unknown'}`}
+              description={plugin.source || cr('insights.noSourceConfigured', 'No source configured')}
+              status={`${plugin.type} - ${plugin.health?.status || cr('insights.unknown', 'unknown')}`}
             />
           )}
         />
       </ControlRoomPanel>
 
-      <AdvancedDisclosure title="Advanced insight actions" description="Record usage, create evaluation suites, or register marketplace entries.">
+      <AdvancedDisclosure title={cr('insights.advancedTitle', 'Advanced insight actions')} description={cr('insights.advancedDescription', 'Record usage, create evaluation suites, or register marketplace entries.')}>
         <div className="grid gap-4 xl:grid-cols-3">
           <FormPanel title="Record usage">
             <div className="grid gap-2 sm:grid-cols-2">
@@ -1162,23 +1168,27 @@ function InsightsGroup({
   );
 }
 
-function getRecommendedNextStep(activeGroup: GroupId, totals: Record<string, number>) {
+function getRecommendedNextStep(
+  activeGroup: GroupId,
+  totals: Record<string, number>,
+  cr: (key: string, defaultValue: string, values?: Record<string, unknown>) => string,
+) {
   if (totals.attention > 0) {
-    return 'Open Operations first. Clear reviews, errors, failed evals, or security findings before starting new work.';
+    return cr('recommendations.attention', 'Open Operations first. Clear reviews, errors, failed evals, or security findings before starting new work.');
   }
   if (activeGroup === 'access') {
-    return 'Open Settings > Access and save the one URL your users should use. Then assign project roles in People.';
+    return cr('recommendations.access', 'Open Settings > Access and save the one URL your users should use. Then assign project roles in People.');
   }
   if (activeGroup === 'people') {
-    return 'Create sub-users first, assign project roles second, then share an access path.';
+    return cr('recommendations.people', 'Create sub-users first, assign project roles second, then share an access path.');
   }
   if (activeGroup === 'security') {
-    return 'Store secrets with the smallest scope that works, then run a permission or secret scan.';
+    return cr('recommendations.security', 'Store secrets with the smallest scope that works, then run a permission or secret scan.');
   }
   if (activeGroup === 'insights') {
-    return 'Compare provider cost, latency, and eval pass rate before changing model defaults.';
+    return cr('recommendations.insights', 'Compare provider cost, latency, and eval pass rate before changing model defaults.');
   }
-  return 'Review Running now and the timeline. If nothing needs attention, start the next issue-to-PR or scheduled job.';
+  return cr('recommendations.operations', 'Review Running now and the timeline. If nothing needs attention, start the next issue-to-PR or scheduled job.');
 }
 
 function FormPanel({ title, children }: { title: string; children: ReactNode }) {

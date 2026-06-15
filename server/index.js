@@ -3715,14 +3715,6 @@ function handleShellConnection(ws, request) {
                     return;
                 }
 
-                // Plain shells are cheap to recreate, so terminate them immediately
-                // instead of keeping a 30-minute zombie PTY around.
-                if (session.isPlainShell) {
-                    console.log('🧹 Terminating plain shell PTY on disconnect:', ptySessionKey);
-                    terminatePtySession(ptySessionKey, session, 'plain shell disconnect');
-                    return;
-                }
-
                 console.log('⏳ PTY session kept alive, will timeout in 30 minutes:', ptySessionKey);
                 session.ws = null;
 

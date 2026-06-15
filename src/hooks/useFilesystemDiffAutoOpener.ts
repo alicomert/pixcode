@@ -14,6 +14,47 @@ type FileWithDiffResponse = {
 
 const DEBOUNCE_MS = 400;
 
+function normalizeProjectRoot(project: Project | null): string {
+  return (project?.fullPath || project?.path || '').replace(/\\/g, '/').replace(/\/+$/, '');
+}
+
+function isAbsolutePath(filePath: string): boolean {
+  return filePath.startsWith('/') || /^[A-Za-z]:\//.test(filePath);
+}
+
+function toProjectRelativePath(filePath: string, selectedProject: Project | null): string | null {
+  const normalizedFilePath = filePath.replace(/\\/g, '/').trim();
+  if (!normalizedFilePath) {
+    return null;
+  }
+
+  const projectRoot = normalizeProjectRoot(selectedProject);
+  if (projectRoot && isAbsolutePath(normalizedFilePath)) {
+    if (normalizedFilePath === projectRoot) {
+      return null;
+    }
+
+    const projectRootPrefix = `${projectRoot}/`;
+    if (!normalizedFilePath.startsWith(projectRootPrefix)) {
+      return null;
+    }
+
+    return normalizedFilePath.slice(projectRootPrefix.length);
+  }
+
+  return normalizedFilePath.replace(/^\.\/+/, '');
+}
+
+function isInternalProjectPath(filePath: string): boolean {
+  const topDir = filePath.split('/')[0];
+  return (
+    filePath.startsWith('.git/')
+    || filePath.startsWith('node_modules/')
+    || filePath.startsWith('.pixcode/')
+    || (topDir.startsWith('.') && topDir.length > 1)
+  );
+}
+
 export function useFilesystemDiffAutoOpener(
   selectedProject: Project | null,
   mode: AutoShowAgentDiffMode,
@@ -46,23 +87,9 @@ export function useFilesystemDiffAutoOpener(
       // Non-git projects fall through to read the current content below.
     }
 
-    try {
-      const response = await authenticatedFetch(
-        `/api/projects/${encodeURIComponent(projectName)}/file?path=${encodeURIComponent(filePath)}`,
-        { cache: 'no-store' },
-      );
-      const data = (await response.json()) as { content?: unknown };
-
-      if (response.ok && typeof data.content === 'string') {
-        return {
-          old_string: '',
-          new_string: data.content,
-        };
-      }
-    } catch {
-      // Ignore read failures; we cannot show a diff without content.
-    }
-
+    // Do not fall back to old_string="" for modified files. That makes a
+    // one-line edit look like the entire file was newly added whenever the git
+    // diff endpoint receives a path it cannot resolve.
     return null;
   }, []);
 
@@ -71,41 +98,25 @@ export function useFilesystemDiffAutoOpener(
       return;
     }
 
-    const normalizedFilePath = filePath.replace(/\\/g, '/');
+    const relativeFilePath = toProjectRelativePath(filePath, selectedProject);
 
-    // Skip internal/meta paths
-    const topDir = normalizedFilePath.split('/')[0];
-    if (
-      normalizedFilePath.startsWith('.git/')
-      || normalizedFilePath.startsWith('node_modules/')
-      || normalizedFilePath.startsWith('.pixcode/')
-      || (topDir.startsWith('.') && topDir.length > 1)
-    ) {
+    if (!relativeFilePath || isInternalProjectPath(relativeFilePath)) {
       return;
     }
 
-    // Restrict to files inside the active project workspace
-    const projectRoot = (selectedProject.fullPath || selectedProject.path || '').replace(/\\/g, '/');
-    if (projectRoot && (filePath.startsWith('/') || /^[A-Za-z]:/.test(filePath))) {
-      const normalizedProjectRoot = projectRoot.endsWith('/') ? projectRoot : `${projectRoot}/`;
-      if (!normalizedFilePath.startsWith(normalizedProjectRoot)) {
-        return;
-      }
-    }
-
     const normalizedOpenPaths = openFilePaths.map((path) => path.replace(/\\/g, '/'));
-    const isOpen = normalizedOpenPaths.includes(normalizedFilePath);
+    const isOpen = normalizedOpenPaths.includes(relativeFilePath);
 
     if (!isOpen && mode !== 'always') {
       return;
     }
 
-    const diffInfo = await fetchDiffForFile(projectName, filePath);
+    const diffInfo = await fetchDiffForFile(projectName, relativeFilePath);
     if (!diffInfo) {
       return;
     }
 
-    onOpenFileWithDiff(filePath, diffInfo);
+    onOpenFileWithDiff(relativeFilePath, diffInfo);
   }, [fetchDiffForFile, mode, onOpenFileWithDiff, openFilePaths, selectedProject]);
 
   useEffect(() => {
