@@ -1012,6 +1012,9 @@ const ptySessionsMap = new Map();
 const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
 const COMPLETED_PTY_SESSION_TTL = 5 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
+const SHELL_OUTPUT_FLUSH_MAX_CHARS = 128 * 1024;
+const SHELL_WS_BACKPRESSURE_LIMIT = 8 * 1024 * 1024;
+const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUFFER_MAX_BYTES || '', 10) || (2 * 1024 * 1024);
 const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
 import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAutoOpenUrlFromOutput } from './utils/url-detection.js';
 
@@ -1156,12 +1159,23 @@ function resolveProviderTerminalState(session, provider, output) {
 
 function appendPtySessionBuffer(session, data) {
     if (!session) return;
-    if (session.buffer.length < 5000) {
-        session.buffer.push(data);
-    } else {
-        session.buffer.shift();
-        session.buffer.push(data);
+    let value = String(data || '');
+    if (!value) return;
+
+    let valueBytes = Buffer.byteLength(value, 'utf8');
+    if (valueBytes > PTY_SESSION_BUFFER_MAX_BYTES) {
+        value = value.slice(-PTY_SESSION_BUFFER_MAX_BYTES);
+        valueBytes = Buffer.byteLength(value, 'utf8');
     }
+
+    session.buffer.push(value);
+    session.bufferBytes = (session.bufferBytes || 0) + valueBytes;
+
+    while (session.buffer.length > 0 && session.bufferBytes > PTY_SESSION_BUFFER_MAX_BYTES) {
+        const removed = session.buffer.shift();
+        session.bufferBytes -= Buffer.byteLength(String(removed || ''), 'utf8');
+    }
+    if (session.bufferBytes < 0) session.bufferBytes = 0;
 }
 
 function normalizeTerminalStartupInput(input) {
@@ -3424,7 +3438,17 @@ function handleShellConnection(ws, request) {
         appendPtySessionBuffer(session, rawData);
 
         if (session.ws && session.ws.readyState === WebSocket.OPEN) {
+            if (session.ws.bufferedAmount > SHELL_WS_BACKPRESSURE_LIMIT) {
+                session.droppedOutputBytes = (session.droppedOutputBytes || 0) + Buffer.byteLength(rawData, 'utf8');
+                return;
+            }
+
+            const droppedOutputBytes = session.droppedOutputBytes || 0;
+            session.droppedOutputBytes = 0;
             let outputData = rawData;
+            if (droppedOutputBytes > 0) {
+                outputData = `\r\n\x1b[33m[Pixcode] ${droppedOutputBytes} bytes of terminal output were skipped because the browser connection was backpressured.\x1b[0m\r\n${outputData}`;
+            }
 
             const cleanChunk = stripAnsiSequences(rawData);
             urlDetectionBuffer = `${urlDetectionBuffer}${cleanChunk}`.slice(-SHELL_URL_PARSE_BUFFER_LIMIT);
@@ -3786,6 +3810,8 @@ function handleShellConnection(ws, request) {
                         pty: shellProcess,
                         ws: ws,
                         buffer: [],
+                        bufferBytes: 0,
+                        droppedOutputBytes: 0,
                         timeoutId: null,
                         userId: ownerUserId,
                         projectPath,
@@ -3812,6 +3838,14 @@ function handleShellConnection(ws, request) {
                     // keystroke-sized chunk.
                     shellProcess.onData((data) => {
                         outputBuffer += data;
+                        if (outputBuffer.length >= SHELL_OUTPUT_FLUSH_MAX_CHARS) {
+                            if (outputFlushTimer) {
+                                clearTimeout(outputFlushTimer);
+                                outputFlushTimer = null;
+                            }
+                            flushOutputBuffer();
+                            return;
+                        }
                         if (!outputFlushTimer) {
                             outputFlushTimer = setTimeout(flushOutputBuffer, 8);
                         }

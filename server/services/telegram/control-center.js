@@ -27,6 +27,8 @@ const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
 const CALLBACK_TTL_MS = 10 * 60 * 1000;
 const MAX_CALLBACK_ACTIONS = 1000;
 const MAX_TELEGRAM_TEXT = 3600;
+const MAX_ACTIVITY_OUTPUT_CHARS = 48_000;
+const MAX_SSE_BUFFER_CHARS = 256_000;
 const ACTIVITY_EDIT_THROTTLE_MS = 1200;
 const ACTIVITY_HEARTBEAT_MS = 8000;
 const INTENT_ROUTER_TIMEOUT_MS = 45_000;
@@ -83,6 +85,14 @@ function compact(text, max = 80) {
 function truncate(text, max = MAX_TELEGRAM_TEXT) {
   const value = String(text || '').trim();
   return value.length > max ? `${value.slice(0, max - 20)}\n\n…truncated…` : value;
+}
+
+function appendBoundedText(current, chunk, maxChars = MAX_ACTIVITY_OUTPUT_CHARS) {
+  const nextChunk = String(chunk || '');
+  if (!nextChunk) return { text: current || '', truncated: false };
+  const combined = `${current || ''}${nextChunk}`;
+  if (combined.length <= maxChars) return { text: combined, truncated: false };
+  return { text: combined.slice(-maxChars), truncated: true };
 }
 
 function languageFor(link) {
@@ -313,6 +323,9 @@ async function localAgentStream(userId, body, onEvent) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
+    if (buffer.length > MAX_SSE_BUFFER_CHARS) {
+      buffer = buffer.slice(-MAX_SSE_BUFFER_CHARS);
+    }
     let boundary = buffer.indexOf('\n\n');
     while (boundary !== -1) {
       const block = buffer.slice(0, boundary);
@@ -360,6 +373,7 @@ function createActivityState({ lang, type = 'agent', provider, project, prompt, 
     workflowId: null,
     events: [],
     output: '',
+    outputTruncated: false,
     error: null,
   };
 }
@@ -386,6 +400,13 @@ function trimTelegramOutput(text, max, suffix = '') {
   return `${value.slice(0, room).trim()}\n\n${ending}`;
 }
 
+function appendActivityOutput(activity, chunk) {
+  if (!activity) return;
+  const next = appendBoundedText(activity.output, chunk);
+  activity.output = next.text;
+  activity.outputTruncated = Boolean(activity.outputTruncated || next.truncated);
+}
+
 function renderActivity(activity, { finalText = null } = {}) {
   const output = finalText || activity.output;
   if (activity.type === 'agent' && output && !activity.error) {
@@ -393,7 +414,9 @@ function renderActivity(activity, { finalText = null } = {}) {
       return trimTelegramOutput(
         output,
         3400,
-        t(activity.lang, 'control.activity.outputTooLong'),
+        activity.outputTruncated
+          ? t(activity.lang, 'control.activity.outputHistoryTrimmed')
+          : t(activity.lang, 'control.activity.outputTooLong'),
       );
     }
 
@@ -839,13 +862,13 @@ function applyAgentStreamEvent(activity, event) {
   if (event.kind === 'stream_delta' || event.kind === 'text') {
     activity.status = 'running';
     activity.phase = t(activity.lang, 'control.activity.responding');
-    activity.output = `${activity.output}${extractTextFromEvent(event)}`;
+    appendActivityOutput(activity, extractTextFromEvent(event));
     return;
   }
   if (event.type === 'claude-response' && event.data?.type === 'assistant') {
     activity.status = 'running';
     activity.phase = t(activity.lang, 'control.activity.responding');
-    activity.output = `${activity.output}${extractTextFromEvent(event)}`;
+    appendActivityOutput(activity, extractTextFromEvent(event));
     return;
   }
   if (event.kind === 'tool_use') {
