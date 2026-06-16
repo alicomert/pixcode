@@ -2,6 +2,16 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.53.2](https://github.com/alicomert/pixcode/compare/v1.53.1...v1.53.2) (2026-06-15)
+
+Pixcode 1.53.2 fixes agent diff baseline tracking for dirty files and moves the notification center into the workbench top bar.
+
+### Fixes
+
+* track workspace file snapshots so CLI agent edits diff against the content immediately before the edit, not the whole git working tree
+* show deleted agent-edited lines more clearly in the inline CodeMirror diff view
+* place the notification dropdown in the workbench menu bar with a red unread state instead of a floating desktop button
+
 ## [1.53.1](https://github.com/alicomert/pixcode/compare/v1.53.0...v1.53.1) (2026-06-15)
 
 Pixcode 1.53.1 fixes the first 1.53.0 workbench regressions around inline agent diffs, CLI tab persistence, and compact workbench chrome.

@@ -12,6 +12,11 @@ type FileWithDiffResponse = {
   error?: string;
 };
 
+type WorkspaceDiffSnapshot = {
+  oldContent?: string | null;
+  currentContent?: string | null;
+};
+
 const DEBOUNCE_MS = 400;
 
 function normalizeProjectRoot(project: Project | null): string {
@@ -93,7 +98,7 @@ export function useFilesystemDiffAutoOpener(
     return null;
   }, []);
 
-  const applyDiffToFile = useCallback(async (projectName: string, filePath: string) => {
+  const applyDiffToFile = useCallback(async (projectName: string, filePath: string, snapshot?: WorkspaceDiffSnapshot | null) => {
     if (mode === 'off' || !selectedProject) {
       return;
     }
@@ -111,7 +116,17 @@ export function useFilesystemDiffAutoOpener(
       return;
     }
 
-    const diffInfo = await fetchDiffForFile(projectName, relativeFilePath);
+    const diffInfo = (
+      typeof snapshot?.oldContent === 'string'
+      && typeof snapshot.currentContent === 'string'
+      && snapshot.oldContent !== snapshot.currentContent
+    )
+      ? {
+          old_string: snapshot.oldContent,
+          new_string: snapshot.currentContent,
+        }
+      : await fetchDiffForFile(projectName, relativeFilePath);
+
     if (!diffInfo) {
       return;
     }
@@ -132,7 +147,12 @@ export function useFilesystemDiffAutoOpener(
     const timers = debounceTimersRef.current;
 
     const handleFileTreeRefresh = (event: Event) => {
-      const detail = (event as CustomEvent<{ projectName?: string | null; changedFile?: string | null }>).detail;
+      const detail = (event as CustomEvent<{
+        projectName?: string | null;
+        changedFile?: string | null;
+        oldContent?: string | null;
+        currentContent?: string | null;
+      }>).detail;
       const projectName = detail?.projectName;
       const changedFile = detail?.changedFile;
 
@@ -147,7 +167,10 @@ export function useFilesystemDiffAutoOpener(
 
       const timer = window.setTimeout(() => {
         debounceTimersRef.current.delete(changedFile);
-        void applyDiffToFile(projectName, changedFile);
+        void applyDiffToFile(projectName, changedFile, {
+          oldContent: detail.oldContent,
+          currentContent: detail.currentContent,
+        });
       }, DEBOUNCE_MS);
 
       debounceTimersRef.current.set(changedFile, timer);

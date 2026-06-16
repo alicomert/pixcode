@@ -695,7 +695,108 @@ async function setupProjectsWatcher() {
 // `project_files_updated` events to subscribed clients only, letting the
 // explorer refresh automatically without HTTP polling.
 const WORKSPACE_WATCHER_DEBOUNCE_MS = 800;
-const workspaceWatchers = new Map(); // projectName -> { watcher, subscribers, debounceTimer, pendingEvent, rootPath }
+const WORKSPACE_DIFF_SNAPSHOT_MAX_BYTES = 512 * 1024;
+const WORKSPACE_DIFF_SNAPSHOT_MAX_FILES = 800;
+const workspaceWatchers = new Map(); // projectName -> { watcher, subscribers, debounceTimer, pendingEvent, rootPath, fileSnapshots }
+
+function runWorkspaceCommand(command, args, cwd) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+            cwd,
+            shell: false,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout?.on('data', (chunk) => {
+            stdout += chunk.toString();
+        });
+        child.stderr?.on('data', (chunk) => {
+            stderr += chunk.toString();
+        });
+        child.on('error', reject);
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve({ stdout, stderr });
+                return;
+            }
+
+            reject(new Error(stderr || `${command} exited with code ${code}`));
+        });
+    });
+}
+
+function parseGitPorcelainZ(output) {
+    const entries = [];
+    const parts = String(output || '').split('\0').filter(Boolean);
+
+    for (let index = 0; index < parts.length; index += 1) {
+        const entry = parts[index];
+        if (entry.length < 4) {
+            continue;
+        }
+
+        const status = entry.slice(0, 2);
+        const filePath = entry.slice(3).replace(/\\/g, '/');
+        if (filePath) {
+            entries.push(filePath);
+        }
+
+        if (status[0] === 'R' || status[0] === 'C') {
+            index += 1;
+        }
+    }
+
+    return entries;
+}
+
+function normalizeWorkspaceRelativePath(rootPath, filePath) {
+    const relativePath = path.relative(rootPath, filePath).replace(/\\/g, '/');
+    if (!relativePath || relativePath.startsWith('../') || relativePath === '..' || path.isAbsolute(relativePath)) {
+        return null;
+    }
+
+    return relativePath;
+}
+
+async function readWorkspaceTextSnapshot(filePath) {
+    try {
+        const stats = await fsPromises.stat(filePath);
+        if (!stats.isFile() || stats.size > WORKSPACE_DIFF_SNAPSHOT_MAX_BYTES) {
+            return null;
+        }
+
+        const buffer = await fsPromises.readFile(filePath);
+        if (buffer.includes(0)) {
+            return null;
+        }
+
+        return buffer.toString('utf8');
+    } catch (error) {
+        if (error?.code === 'ENOENT') {
+            return '';
+        }
+
+        return null;
+    }
+}
+
+async function initializeWorkspaceDirtySnapshots(rootPath, fileSnapshots) {
+    try {
+        const { stdout } = await runWorkspaceCommand('git', ['status', '--porcelain', '-z'], rootPath);
+        const changedPaths = parseGitPorcelainZ(stdout).slice(0, WORKSPACE_DIFF_SNAPSHOT_MAX_FILES);
+
+        await Promise.all(changedPaths.map(async (relativePath) => {
+            const content = await readWorkspaceTextSnapshot(path.join(rootPath, relativePath));
+            if (typeof content === 'string') {
+                fileSnapshots.set(relativePath, content);
+            }
+        }));
+    } catch {
+        // Non-git workspaces still get event-time snapshots after the first change.
+    }
+}
 
 async function subscribeToWorkspace(ws, projectName) {
     if (!projectName || typeof projectName !== 'string') return;
@@ -722,11 +823,48 @@ async function subscribeToWorkspace(ws, projectName) {
         debounceTimer: null,
         pendingEvent: null,
         rootPath,
+        fileSnapshots: new Map(),
     };
     workspaceWatchers.set(projectName, entry);
+    await initializeWorkspaceDirtySnapshots(rootPath, entry.fileSnapshots);
 
-    const broadcastFileUpdate = (eventType, filePath) => {
-        entry.pendingEvent = { eventType, filePath };
+    const broadcastFileUpdate = async (eventType, filePath) => {
+        const relativePath = filePath ? normalizeWorkspaceRelativePath(rootPath, filePath) : null;
+        const previousContent = relativePath ? entry.fileSnapshots.get(relativePath) : undefined;
+        let currentContent;
+
+        if (relativePath && !eventType.endsWith('Dir')) {
+            if (eventType === 'unlink') {
+                currentContent = '';
+                entry.fileSnapshots.delete(relativePath);
+            } else {
+                const snapshot = await readWorkspaceTextSnapshot(filePath);
+                if (typeof snapshot === 'string') {
+                    currentContent = snapshot;
+                    entry.fileSnapshots.set(relativePath, snapshot);
+                }
+            }
+        }
+
+        const nextEvent = {
+            eventType,
+            filePath,
+            changedFile: relativePath,
+            oldContent: typeof previousContent === 'string'
+                ? previousContent
+                : eventType === 'add'
+                    ? ''
+                    : undefined,
+            currentContent,
+        };
+
+        entry.pendingEvent = entry.pendingEvent?.changedFile === relativePath
+            ? {
+                ...nextEvent,
+                oldContent: entry.pendingEvent.oldContent ?? nextEvent.oldContent,
+            }
+            : nextEvent;
+
         if (entry.debounceTimer) {
             clearTimeout(entry.debounceTimer);
         }
@@ -734,11 +872,23 @@ async function subscribeToWorkspace(ws, projectName) {
             entry.debounceTimer = null;
             const pending = entry.pendingEvent || {};
             entry.pendingEvent = null;
+            const hasSnapshotDiff = (
+                typeof pending.oldContent === 'string'
+                && typeof pending.currentContent === 'string'
+                && pending.oldContent !== pending.currentContent
+            );
             const message = JSON.stringify({
                 type: 'project_files_updated',
                 projectName,
                 changeType: pending.eventType || 'change',
-                changedFile: pending.filePath ? path.relative(rootPath, pending.filePath) : null,
+                changedFile: pending.changedFile ?? (pending.filePath ? path.relative(rootPath, pending.filePath) : null),
+                ...(hasSnapshotDiff
+                    ? {
+                        oldContent: pending.oldContent,
+                        currentContent: pending.currentContent,
+                        diffSource: 'workspace-snapshot',
+                    }
+                    : {}),
                 timestamp: new Date().toISOString(),
             });
             entry.subscribers.forEach((client) => {
@@ -764,11 +914,11 @@ async function subscribeToWorkspace(ws, projectName) {
         });
 
         watcher
-            .on('add', (filePath) => broadcastFileUpdate('add', filePath))
-            .on('change', (filePath) => broadcastFileUpdate('change', filePath))
-            .on('unlink', (filePath) => broadcastFileUpdate('unlink', filePath))
-            .on('addDir', (dirPath) => broadcastFileUpdate('addDir', dirPath))
-            .on('unlinkDir', (dirPath) => broadcastFileUpdate('unlinkDir', dirPath))
+            .on('add', (filePath) => void broadcastFileUpdate('add', filePath))
+            .on('change', (filePath) => void broadcastFileUpdate('change', filePath))
+            .on('unlink', (filePath) => void broadcastFileUpdate('unlink', filePath))
+            .on('addDir', (dirPath) => void broadcastFileUpdate('addDir', dirPath))
+            .on('unlinkDir', (dirPath) => void broadcastFileUpdate('unlinkDir', dirPath))
             .on('error', (error) => {
                 console.error(`[ERROR] Workspace watcher error for ${projectName}:`, error);
             });

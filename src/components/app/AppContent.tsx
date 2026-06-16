@@ -148,6 +148,8 @@ export default function AppContent() {
       detail: {
         projectName: eventProjectName,
         changedFile: typeof latestMessage.changedFile === 'string' ? latestMessage.changedFile : null,
+        oldContent: typeof latestMessage.oldContent === 'string' ? latestMessage.oldContent : null,
+        currentContent: typeof latestMessage.currentContent === 'string' ? latestMessage.currentContent : null,
       },
     }));
   }, [latestMessage, selectedProject?.name]);
@@ -259,7 +261,7 @@ export default function AppContent() {
       </div>
 
       <QuickSettingsPanel />
-      <InAppNotificationCenter latestMessage={latestMessage} />
+      {isMobile && <InAppNotificationCenter latestMessage={latestMessage} />}
     </div>
   );
 }

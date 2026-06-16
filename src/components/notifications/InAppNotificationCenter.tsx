@@ -27,6 +27,7 @@ type NotificationItem = {
 
 type InAppNotificationCenterProps = {
   latestMessage: unknown;
+  variant?: 'floating' | 'inline';
 };
 
 const STORAGE_KEY = 'pixcode.inAppNotifications.v1';
@@ -115,7 +116,7 @@ function formatTime(createdAt?: string) {
   }
 }
 
-export default function InAppNotificationCenter({ latestMessage }: InAppNotificationCenterProps) {
+export default function InAppNotificationCenter({ latestMessage, variant = 'floating' }: InAppNotificationCenterProps) {
   const { t } = useTranslation('common');
   const [items, setItems] = useState<NotificationItem[]>(() => (
     typeof window === 'undefined' ? [] : readStoredNotifications()
@@ -200,12 +201,30 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
     });
   }, []);
 
-  if (!inAppEnabled || items.length === 0) {
+  if (!inAppEnabled || (variant === 'floating' && items.length === 0)) {
     return null;
   }
 
+  const hasUnread = unreadCount > 0;
+  const rootClassName = variant === 'inline'
+    ? 'relative flex h-full items-center'
+    : 'pointer-events-none fixed right-3 top-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-col items-end gap-2';
+  const Icon = hasUnread ? BellRing : Bell;
+  const buttonClassName = variant === 'inline'
+    ? `relative inline-flex h-7 w-7 items-center justify-center rounded border transition-colors ${
+        hasUnread
+          ? 'border-red-500/70 bg-red-500/10 text-red-600 hover:bg-red-500/15 dark:text-red-300'
+          : 'border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground'
+      }`
+    : `pointer-events-auto relative inline-flex h-9 w-9 items-center justify-center rounded-md border bg-background/95 shadow-md shadow-black/10 backdrop-blur transition-colors hover:bg-muted ${
+        hasUnread ? 'border-red-500/70 text-red-600 dark:text-red-300' : 'border-border text-foreground'
+      }`;
+  const panelClassName = variant === 'inline'
+    ? 'absolute right-0 top-full z-50 mt-1 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-xl shadow-black/10'
+    : 'pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-popover shadow-xl shadow-black/10';
+
   return (
-    <div className="pointer-events-none fixed right-3 top-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-col items-end gap-2">
+    <div className={rootClassName}>
       <button
         type="button"
         onClick={() => {
@@ -214,27 +233,27 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
             markAllRead();
           }
         }}
-        className="pointer-events-auto relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background/95 text-foreground shadow-md shadow-black/10 backdrop-blur transition-colors hover:bg-muted"
+        className={buttonClassName}
         aria-label={t('notifications.open', { defaultValue: 'Open notifications' })}
       >
-        <Bell className="h-4 w-4" />
-        {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+        <Icon className="h-4 w-4" />
+        {hasUnread && (
+          <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-4 text-white">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="pointer-events-auto w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-popover shadow-xl shadow-black/10">
+        <div className={panelClassName}>
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
               <BellRing className="h-4 w-4 flex-shrink-0 text-primary" />
               <span className="truncate text-sm font-medium text-popover-foreground">
                 {t('notifications.title', { defaultValue: 'Notifications' })}
               </span>
-              {unreadCount > 0 && (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground">
+              {hasUnread && (
+                <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-medium text-white">
                   {unreadCount}
                 </span>
               )}
@@ -258,6 +277,11 @@ export default function InAppNotificationCenter({ latestMessage }: InAppNotifica
             </div>
           </div>
           <div className="max-h-[22rem] space-y-2 overflow-y-auto p-2">
+            {items.length === 0 && (
+              <div className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                {t('notifications.empty', { defaultValue: 'No notifications yet' })}
+              </div>
+            )}
             {items.slice(0, 6).map((item) => (
               <div
                 key={item.id}

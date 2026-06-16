@@ -10,6 +10,7 @@ import FileTree from '../../file-tree/view/FileTree';
 import GitPanel from '../../git-panel/view/GitPanel';
 import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
 import MainContentStateView from '../../main-content/view/subcomponents/MainContentStateView';
+import InAppNotificationCenter from '../../notifications/InAppNotificationCenter';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 import {
@@ -1181,6 +1182,7 @@ function VSCodeWorkbench({
       <Sidebar {...sidebarProps} isMobile={false} modalsOnly />
       <WorkbenchMenuBar
         t={t}
+        latestMessage={latestMessage}
         onOpenProject={openProjectWizard}
         onActivityPanel={selectActivityPanel}
         onSystemTab={openSystemTab}
@@ -1362,6 +1364,7 @@ function VSCodeWorkbench({
 
 type WorkbenchMenuBarProps = {
   t: TFunction<'common'>;
+  latestMessage: unknown;
   onOpenProject: (type: WorkspaceType) => void;
   onActivityPanel: (panel: ActivityPanel, tab: AppTab) => void;
   onSystemTab: (tab: AppTab) => void;
@@ -1378,6 +1381,7 @@ type WorkbenchMenuCommand = {
 
 function WorkbenchMenuBar({
   t,
+  latestMessage,
   onOpenProject,
   onActivityPanel,
   onSystemTab,
@@ -1553,6 +1557,8 @@ function WorkbenchMenuBar({
           </div>
         ))}
       </div>
+      <div className="flex min-w-0 flex-1" />
+      <InAppNotificationCenter latestMessage={latestMessage} variant="inline" />
     </div>
   );
 }

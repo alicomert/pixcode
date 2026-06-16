@@ -34,10 +34,28 @@ export const getEditorStyles = (isDarkMode: boolean) => {
       padding-left: 4px !important;
     }
 
+    .cm-deletedChunk .cm-deletedLine,
+    .cm-deletedChunk .cm-deletedLine del {
+      background-color: ${isDarkMode ? 'rgba(239, 68, 68, 0.18)' : 'rgba(254, 226, 226, 1)'} !important;
+      color: ${isDarkMode ? '#fecaca' : '#991b1b'} !important;
+      text-decoration: none !important;
+    }
+
+    .cm-deletedChunk .cm-deletedText {
+      background: ${isDarkMode ? 'rgba(239, 68, 68, 0.42)' : 'rgba(248, 113, 113, 0.35)'} !important;
+      border-radius: 2px !important;
+    }
+
     .cm-insertedChunk {
       background-color: ${isDarkMode ? 'rgba(34, 197, 94, 0.15)' : 'rgba(230, 255, 237, 1)'} !important;
       border-left: 3px solid ${isDarkMode ? 'rgba(34, 197, 94, 0.6)' : 'rgb(34, 197, 94)'} !important;
       padding-left: 4px !important;
+    }
+
+    .cm-editor.cm-merge-b .cm-insertedLine {
+      background-color: ${isDarkMode ? 'rgba(34, 197, 94, 0.15)' : 'rgba(220, 252, 231, 1)'} !important;
+      color: ${isDarkMode ? '#bbf7d0' : '#14532d'} !important;
+      text-decoration: none !important;
     }
 
     .cm-editor.cm-merge-b .cm-changedText {
