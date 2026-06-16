@@ -13,6 +13,7 @@ import {
 } from '../constants/constants';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 import { isCodexLoginCommand } from '../utils/auth';
+import { sendTerminalInput } from '../utils/input';
 import { sendSocketMessage } from '../utils/socket';
 import { ensureXtermFocusStyles } from '../utils/terminalStyles';
 
@@ -109,10 +110,7 @@ export function useShellTerminal({
         return false;
       }
 
-      sendSocketMessage(wsRef.current, {
-        type: 'input',
-        data: text,
-      });
+      sendTerminalInput(wsRef.current, text);
       return true;
     };
 
@@ -238,10 +236,7 @@ export function useShellTerminal({
         return;
       }
 
-      sendSocketMessage(wsRef.current, {
-        type: 'input',
-        data: sanitizedData,
-      });
+      sendTerminalInput(wsRef.current, sanitizedData);
     });
 
     const resizeObserver = new ResizeObserver(() => {

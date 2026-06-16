@@ -34,6 +34,7 @@ const ACTIVITY_HEARTBEAT_MS = 8000;
 const INTENT_ROUTER_TIMEOUT_MS = 45_000;
 const callbackActions = new Map();
 const runMonitors = new Map();
+const activeLongTasks = new Map();
 
 const MODEL_FALLBACKS = Object.fromEntries(
   PROVIDERS.map((provider) => [provider, getStaticProviderModels(provider)]),
@@ -998,6 +999,47 @@ async function runAgent({ bot, chatId, link, prompt, activity = null }) {
   await editTelegramActivity({ bot, chatId, activity: active, force: true });
 }
 
+function longTaskKey(chatId) {
+  return String(chatId);
+}
+
+async function launchLongTelegramTask({ bot, chatId, link, kind, activity = null, task }) {
+  const key = longTaskKey(chatId);
+  const existing = activeLongTasks.get(key);
+  const lang = languageFor(link);
+  if (existing) {
+    await send(bot, chatId, t(lang, 'control.longTaskRunning', {
+      kind: existing.kind,
+      elapsed: formatElapsed(existing.startedAt),
+    }), {
+      editMessageId: activity?.messageId,
+      parse_mode: undefined,
+    });
+    return true;
+  }
+
+  const record = {
+    kind,
+    startedAt: Date.now(),
+  };
+  activeLongTasks.set(key, record);
+
+  Promise.resolve()
+    .then(task)
+    .catch(async (error) => {
+      console.error('[telegram-control] long task failed:', error);
+      await send(bot, chatId, t(lang, 'control.longTaskFailed'), {
+        editMessageId: activity?.messageId,
+        parse_mode: undefined,
+      }).catch(() => {});
+    })
+    .finally(() => {
+      if (activeLongTasks.get(key) === record) activeLongTasks.delete(key);
+    });
+
+  return true;
+}
+
 export async function runWorkflow({ bot, chatId, link, input, activity = null }) {
   const lang = languageFor(link);
   const state = getState(link.user_id);
@@ -1211,8 +1253,14 @@ async function handleRoutedIntent({ bot, chatId, link, text, activity }) {
   const editMessageId = activity?.messageId;
 
   if (intent.action === 'agent_prompt') {
-    await runAgent({ bot, chatId, link, prompt: intent.prompt || text, activity });
-    return true;
+    return launchLongTelegramTask({
+      bot,
+      chatId,
+      link,
+      kind: 'agent',
+      activity,
+      task: () => runAgent({ bot, chatId, link, prompt: intent.prompt || text, activity }),
+    });
   }
   if (intent.action === 'show_menu') {
     await showMainMenu({ bot, chatId, link, editMessageId });
@@ -1289,8 +1337,14 @@ async function handleRoutedIntent({ bot, chatId, link, text, activity }) {
     return true;
   }
   if (intent.action === 'run_workflow') {
-    await runWorkflow({ bot, chatId, link, input: intent.workflowInput || text, activity });
-    return true;
+    return launchLongTelegramTask({
+      bot,
+      chatId,
+      link,
+      kind: 'workflow',
+      activity,
+      task: () => runWorkflow({ bot, chatId, link, input: intent.workflowInput || text, activity }),
+    });
   }
   if (intent.action === 'show_sessions') {
     await showSessions({ bot, chatId, link, editMessageId });
@@ -1300,8 +1354,14 @@ async function handleRoutedIntent({ bot, chatId, link, text, activity }) {
     await startNewChat({ bot, chatId, link, editMessageId });
     return true;
   }
-  await runAgent({ bot, chatId, link, prompt: text, activity });
-  return true;
+  return launchLongTelegramTask({
+    bot,
+    chatId,
+    link,
+    kind: 'agent',
+    activity,
+    task: () => runAgent({ bot, chatId, link, prompt: text, activity }),
+  });
 }
 
 async function fetchRun(userId, runId) {
@@ -1516,12 +1576,22 @@ async function handleAwaitingInput({ bot, chatId, link, text }) {
   updateTelegramControlState(link.user_id, { awaiting: null });
 
   if (awaiting.type === 'agent_prompt') {
-    await runAgent({ bot, chatId, link, prompt: text });
-    return true;
+    return launchLongTelegramTask({
+      bot,
+      chatId,
+      link,
+      kind: 'agent',
+      task: () => runAgent({ bot, chatId, link, prompt: text }),
+    });
   }
   if (awaiting.type === 'workflow_prompt') {
-    await runWorkflow({ bot, chatId, link, input: text });
-    return true;
+    return launchLongTelegramTask({
+      bot,
+      chatId,
+      link,
+      kind: 'workflow',
+      task: () => runWorkflow({ bot, chatId, link, input: text }),
+    });
   }
   return false;
 }
@@ -1615,8 +1685,13 @@ async function handleCommand({ bot, chatId, link, text }) {
       await send(bot, chatId, t(lang, 'control.sendAgentPrompt'));
       return true;
     }
-    await runAgent({ bot, chatId, link, prompt: argText });
-    return true;
+    return launchLongTelegramTask({
+      bot,
+      chatId,
+      link,
+      kind: 'agent',
+      task: () => runAgent({ bot, chatId, link, prompt: argText }),
+    });
   }
   if (command === '/workflow' || command === '/orchestrate') {
     if (!argText) {
@@ -1624,8 +1699,13 @@ async function handleCommand({ bot, chatId, link, text }) {
       await send(bot, chatId, t(lang, 'control.sendWorkflowPrompt'));
       return true;
     }
-    await runWorkflow({ bot, chatId, link, input: argText });
-    return true;
+    return launchLongTelegramTask({
+      bot,
+      chatId,
+      link,
+      kind: 'workflow',
+      task: () => runWorkflow({ bot, chatId, link, input: argText }),
+    });
   }
   if (command === '/cancel') {
     if (!argText) {
@@ -1684,6 +1764,10 @@ export async function handleTelegramControlMessage(args) {
       await send(args.bot, chatId, t(languageFor(args.link), 'error.generic')).catch(() => {});
       return true;
     }
+  }).catch(async (error) => {
+    console.error('[telegram-control] message job failed:', error);
+    await send(args.bot, chatId, t(languageFor(args.link), 'error.generic')).catch(() => {});
+    return true;
   });
 }
 
@@ -1872,5 +1956,10 @@ export async function handleTelegramControlCallback(args) {
       await args.bot?.answerCallbackQuery(args.query?.id, { text: t(lang, 'error.generic') }).catch(() => {});
       await send(args.bot, chatId, t(lang, 'error.generic')).catch(() => {});
     }
+  }).catch(async (error) => {
+    console.error('[telegram-control] callback job failed:', error);
+    const lang = languageFor(args.link);
+    await args.bot?.answerCallbackQuery(args.query?.id, { text: t(lang, 'error.generic') }).catch(() => {});
+    await send(args.bot, chatId, t(lang, 'error.generic')).catch(() => {});
   });
 }

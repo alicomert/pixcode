@@ -43,13 +43,19 @@ const DAEMON_COMMAND_CONTEXT = {
 };
 
 function resolveMonacoAssetsPath() {
+    const appParent = path.dirname(APP_ROOT);
+    const appGrandparent = path.dirname(appParent);
     const candidates = [
         path.join(APP_ROOT, 'node_modules', 'monaco-editor', 'min', 'vs'),
+        path.join(appParent, 'node_modules', 'monaco-editor', 'min', 'vs'),
+        path.join(appParent, 'monaco-editor', 'min', 'vs'),
+        path.join(appGrandparent, 'node_modules', 'monaco-editor', 'min', 'vs'),
+        path.join(appGrandparent, 'monaco-editor', 'min', 'vs'),
     ];
 
     try {
         const monacoPackagePath = require.resolve('monaco-editor/package.json', {
-            paths: [APP_ROOT, __dirname],
+            paths: [APP_ROOT, appParent, appGrandparent, __dirname, process.cwd()],
         });
         candidates.push(path.join(path.dirname(monacoPackagePath), 'min', 'vs'));
     } catch {
@@ -1015,6 +1021,8 @@ const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 const SHELL_OUTPUT_FLUSH_MAX_CHARS = 128 * 1024;
 const SHELL_WS_BACKPRESSURE_LIMIT = 8 * 1024 * 1024;
 const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUFFER_MAX_BYTES || '', 10) || (2 * 1024 * 1024);
+const SHELL_INPUT_CHUNK_CHARS = 4096;
+const SHELL_PENDING_INPUT_MAX_BYTES = 2 * 1024 * 1024;
 const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
 import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAutoOpenUrlFromOutput } from './utils/url-detection.js';
 
@@ -1270,6 +1278,26 @@ function queueTerminalStartupInput(session, startupInput, reason, delayMs = 500)
 
 function writeTerminalStartupInput(session, startupInput, reason, delayMs = 500) {
     queueTerminalStartupInput(session, startupInput, reason, delayMs);
+}
+
+function splitTerminalInput(data) {
+    const value = String(data || '');
+    if (!value) return [];
+    const chunks = [];
+    for (let index = 0; index < value.length; index += SHELL_INPUT_CHUNK_CHARS) {
+        chunks.push(value.slice(index, index + SHELL_INPUT_CHUNK_CHARS));
+    }
+    return chunks;
+}
+
+function writeTerminalInputChunks(ptyProcess, data) {
+    if (!ptyProcess?.write) return false;
+    const chunks = splitTerminalInput(data);
+    if (chunks.length === 0) return false;
+    for (const chunk of chunks) {
+        ptyProcess.write(chunk);
+    }
+    return true;
 }
 
 function normalizeShellPermissionMode(value) {
@@ -1555,7 +1583,7 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
 
     const data = submit ? normalizeTerminalStartupInput(input) : input;
     try {
-        matchedSession.pty.write(data);
+        writeTerminalInputChunks(matchedSession.pty, data);
         matchedSession.updatedAt = Date.now();
         res.json({
             ok: true,
@@ -3420,7 +3448,62 @@ function handleShellConnection(ws, request) {
     let urlDetectionBuffer = '';
     let outputBuffer = '';
     let outputFlushTimer = null;
+    let inputFlushTimer = null;
+    let pendingInputBytes = 0;
+    const pendingInputQueue = [];
     const announcedAuthUrls = new Set();
+
+    function getActiveShellPty() {
+        const session = ptySessionKey ? ptySessionsMap.get(ptySessionKey) : null;
+        return session?.pty || shellProcess;
+    }
+
+    function scheduleInputFlush(delayMs = 0) {
+        if (inputFlushTimer) return;
+        inputFlushTimer = setTimeout(flushPendingInput, delayMs);
+    }
+
+    function flushPendingInput() {
+        inputFlushTimer = null;
+        if (pendingInputQueue.length === 0) return;
+
+        const activePty = getActiveShellPty();
+        if (!activePty?.write) {
+            scheduleInputFlush(100);
+            return;
+        }
+
+        const chunk = pendingInputQueue.shift();
+        pendingInputBytes = Math.max(0, pendingInputBytes - Buffer.byteLength(chunk, 'utf8'));
+        try {
+            activePty.write(chunk);
+        } catch (error) {
+            console.error('Error writing to shell:', error);
+            pendingInputQueue.length = 0;
+            pendingInputBytes = 0;
+            return;
+        }
+
+        if (pendingInputQueue.length > 0) scheduleInputFlush(1);
+    }
+
+    function enqueueShellInput(data) {
+        const chunks = splitTerminalInput(data);
+        if (chunks.length === 0) return;
+
+        for (const chunk of chunks) {
+            pendingInputQueue.push(chunk);
+            pendingInputBytes += Buffer.byteLength(chunk, 'utf8');
+        }
+
+        while (pendingInputQueue.length > 0 && pendingInputBytes > SHELL_PENDING_INPUT_MAX_BYTES) {
+            const dropped = pendingInputQueue.shift();
+            pendingInputBytes -= Buffer.byteLength(String(dropped || ''), 'utf8');
+        }
+        if (pendingInputBytes < 0) pendingInputBytes = 0;
+
+        scheduleInputFlush();
+    }
 
     function flushOutputBuffer() {
         if (!outputBuffer || !ptySessionKey) {
@@ -3832,6 +3915,7 @@ function handleShellConnection(ws, request) {
                     if (terminalStartupInput && !isPlainShell) {
                         writeTerminalStartupInput(createdSession, terminalStartupInput, 'new provider session', 4500);
                     }
+                    scheduleInputFlush();
 
                     // Handle data output — batch rapid chunks so high-volume CLI
                     // output does not flood the WebSocket with one JSON frame per
@@ -3912,16 +3996,7 @@ function handleShellConnection(ws, request) {
                 }
 
             } else if (data.type === 'input') {
-                // Send input to shell process
-                if (shellProcess && shellProcess.write) {
-                    try {
-                        shellProcess.write(data.data);
-                    } catch (error) {
-                        console.error('Error writing to shell:', error);
-                    }
-                } else {
-                    console.warn('No active shell process to send input to');
-                }
+                enqueueShellInput(data.data);
             } else if (data.type === 'resize') {
                 // Handle terminal resize
                 const session = ptySessionKey ? ptySessionsMap.get(ptySessionKey) : null;
@@ -3955,6 +4030,12 @@ function handleShellConnection(ws, request) {
             clearTimeout(outputFlushTimer);
             outputFlushTimer = null;
         }
+        if (inputFlushTimer) {
+            clearTimeout(inputFlushTimer);
+            inputFlushTimer = null;
+        }
+        pendingInputQueue.length = 0;
+        pendingInputBytes = 0;
 
         if (ptySessionKey) {
             const session = ptySessionsMap.get(ptySessionKey);

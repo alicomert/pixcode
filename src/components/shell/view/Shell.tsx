@@ -14,7 +14,7 @@ import {
   SHELL_RESTART_DELAY_MS,
 } from '../constants/constants';
 import { useShellRuntime } from '../hooks/useShellRuntime';
-import { sendSocketMessage } from '../utils/socket';
+import { sendTerminalInput } from '../utils/input';
 import { getSessionDisplayName } from '../utils/auth';
 
 import ShellConnectionOverlay from './subcomponents/ShellConnectionOverlay';
@@ -195,7 +195,7 @@ export default function Shell({
 
   const sendInput = useCallback(
     (data: string) => {
-      sendSocketMessage(wsRef.current, { type: 'input', data });
+      sendTerminalInput(wsRef.current, data);
     },
     [wsRef],
   );

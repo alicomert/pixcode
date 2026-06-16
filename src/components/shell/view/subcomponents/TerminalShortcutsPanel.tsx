@@ -2,7 +2,7 @@ import { type MutableRefObject, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Terminal } from '@xterm/xterm';
 
-import { sendSocketMessage } from '../../utils/socket';
+import { sendTerminalInput } from '../../utils/input';
 
 import {
   Clipboard,
@@ -66,7 +66,7 @@ export default function TerminalShortcutsPanel({
 
   const sendInput = useCallback(
     (data: string) => {
-      sendSocketMessage(wsRef.current, { type: 'input', data });
+      sendTerminalInput(wsRef.current, data);
     },
     [wsRef],
   );
