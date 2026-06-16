@@ -79,7 +79,7 @@ function buildOpencodePermissionConfig(settings) {
 }
 
 async function spawnOpencode(command, options = {}, ws) {
-    const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary, agent: agentOverride } = options;
+    const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary, agent: agentOverride, suppressNotifications = false } = options;
     let capturedSessionId = sessionId;
     let sessionCreatedSent = false;
     let assistantBlocks = [];
@@ -211,7 +211,7 @@ async function spawnOpencode(command, options = {}, ws) {
 
             const finalSessionId = capturedSessionId || sessionId || processKey;
             if (code === 0 && !error) {
-                notifyRunStopped({
+                if (!suppressNotifications) notifyRunStopped({
                     userId: ws?.userId || null,
                     provider: 'opencode',
                     sessionId: finalSessionId,
@@ -221,7 +221,7 @@ async function spawnOpencode(command, options = {}, ws) {
                 return;
             }
 
-            notifyRunFailed({
+            if (!suppressNotifications) notifyRunFailed({
                 userId: ws?.userId || null,
                 provider: 'opencode',
                 sessionId: finalSessionId,

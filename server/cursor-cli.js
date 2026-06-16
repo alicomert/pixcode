@@ -29,7 +29,7 @@ function isWorkspaceTrustPrompt(text = '') {
 
 async function spawnCursor(command, options = {}, ws) {
   return new Promise(async (resolve, reject) => {
-    const { sessionId, projectPath, cwd, resume, toolsSettings, skipPermissions, model, sessionSummary } = options;
+    const { sessionId, projectPath, cwd, resume, toolsSettings, skipPermissions, model, sessionSummary, suppressNotifications = false } = options;
     let capturedSessionId = sessionId; // Track session ID throughout the process
     let sessionCreatedSent = false; // Track if we've already sent session-created event
     let hasRetriedWithTrust = false;
@@ -98,7 +98,7 @@ async function spawnCursor(command, options = {}, ws) {
 
         const finalSessionId = capturedSessionId || sessionId || processKey;
         if (code === 0 && !error) {
-          notifyRunStopped({
+          if (!suppressNotifications) notifyRunStopped({
             userId: ws?.userId || null,
             provider: 'cursor',
             sessionId: finalSessionId,
@@ -108,7 +108,7 @@ async function spawnCursor(command, options = {}, ws) {
           return;
         }
 
-        notifyRunFailed({
+        if (!suppressNotifications) notifyRunFailed({
           userId: ws?.userId || null,
           provider: 'cursor',
           sessionId: finalSessionId,

@@ -236,7 +236,8 @@ export async function queryCodex(command, options = {}, ws) {
     cwd,
     projectPath,
     model,
-    permissionMode = 'default'
+    permissionMode = 'default',
+    suppressNotifications = false
   } = options;
 
   const workingDirectory = cwd || projectPath || process.cwd();
@@ -313,7 +314,7 @@ export async function queryCodex(command, options = {}, ws) {
 
       if (event.type === 'turn.failed' && !terminalFailure) {
         terminalFailure = event.error || new Error('Turn failed');
-        notifyRunFailed({
+        if (!suppressNotifications) notifyRunFailed({
           userId: ws?.userId || null,
           provider: 'codex',
           sessionId: currentSessionId,
@@ -332,7 +333,7 @@ export async function queryCodex(command, options = {}, ws) {
     // Send completion event
     if (!terminalFailure) {
       sendMessage(ws, createNormalizedMessage({ kind: 'complete', actualSessionId: thread.id, sessionId: currentSessionId, provider: 'codex' }));
-      notifyRunStopped({
+      if (!suppressNotifications) notifyRunStopped({
         userId: ws?.userId || null,
         provider: 'codex',
         sessionId: currentSessionId,
@@ -359,7 +360,7 @@ export async function queryCodex(command, options = {}, ws) {
 
       sendMessage(ws, createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: currentSessionId, provider: 'codex' }));
       if (!terminalFailure) {
-        notifyRunFailed({
+        if (!suppressNotifications) notifyRunFailed({
           userId: ws?.userId || null,
           provider: 'codex',
           sessionId: currentSessionId,

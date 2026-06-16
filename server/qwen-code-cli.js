@@ -34,7 +34,7 @@ function readCliIdleTimeoutMs() {
 }
 
 async function spawnQwen(command, options = {}, ws) {
-    const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary } = options;
+    const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary, suppressNotifications = false } = options;
     let capturedSessionId = sessionId;
     let sessionCreatedSent = false;
     let assistantBlocks = [];
@@ -154,7 +154,7 @@ async function spawnQwen(command, options = {}, ws) {
 
             const finalSessionId = capturedSessionId || sessionId || processKey;
             if (code === 0 && !error) {
-                notifyRunStopped({
+                if (!suppressNotifications) notifyRunStopped({
                     userId: ws?.userId || null,
                     provider: 'qwen',
                     sessionId: finalSessionId,
@@ -164,7 +164,7 @@ async function spawnQwen(command, options = {}, ws) {
                 return;
             }
 
-            notifyRunFailed({
+            if (!suppressNotifications) notifyRunFailed({
                 userId: ws?.userId || null,
                 provider: 'qwen',
                 sessionId: finalSessionId,

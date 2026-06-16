@@ -378,8 +378,34 @@ function activityTitle(activity) {
   return t(activity.lang, 'control.activity.agentTitle');
 }
 
+function trimTelegramOutput(text, max, suffix = '') {
+  const value = String(text || '').trim();
+  const ending = String(suffix || '').trim();
+  if (value.length <= max) return value;
+  const room = Math.max(300, max - ending.length - 4);
+  return `${value.slice(0, room).trim()}\n\n${ending}`;
+}
+
 function renderActivity(activity, { finalText = null } = {}) {
   const output = finalText || activity.output;
+  if (activity.type === 'agent' && output && !activity.error) {
+    if (activity.status === 'done') {
+      return trimTelegramOutput(
+        output,
+        3400,
+        t(activity.lang, 'control.activity.outputTooLong'),
+      );
+    }
+
+    const footer = `⏳ ${t(activity.lang, 'control.activity.liveFooter', { elapsed: formatElapsed(activity.startedAt) })}`;
+    const body = trimTelegramOutput(
+      output,
+      3200,
+      t(activity.lang, 'control.activity.outputShortened'),
+    );
+    return truncate(`${body}\n\n${footer}`, 3400);
+  }
+
   const lines = [
     `${activity.status === 'failed' ? '❌' : activity.status === 'done' ? '✅' : activity.status === 'running' ? '🔧' : '⏳'} ${activityTitle(activity)}`,
     '',
@@ -924,6 +950,7 @@ async function runAgent({ bot, chatId, link, prompt, activity = null }) {
       message: buildTelegramAgentPrompt(prompt, state),
       cleanup: false,
       permissionMode: 'default',
+      suppressNotifications: true,
     }, async (event) => {
       applyAgentStreamEvent(active, event);
       await editTelegramActivity({ bot, chatId, activity: active });
@@ -1136,6 +1163,7 @@ async function resolveTelegramAiIntent({ bot, chatId, link, text, activity }) {
         cleanup: false,
         stream: false,
         permissionMode: 'plan',
+        suppressNotifications: true,
       },
     });
     const assistantText = extractAssistantText(response);

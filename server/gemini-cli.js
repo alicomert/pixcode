@@ -65,7 +65,7 @@ async function ensureGeminiSettingsJson() {
 }
 
 async function spawnGemini(command, options = {}, ws) {
-    const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary } = options;
+    const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary, suppressNotifications = false } = options;
     let capturedSessionId = sessionId; // Track session ID throughout the process
     let sessionCreatedSent = false; // Track if we've already sent session-created event
     let assistantBlocks = []; // Accumulate the full response blocks including tools
@@ -265,7 +265,7 @@ async function spawnGemini(command, options = {}, ws) {
 
             const finalSessionId = capturedSessionId || sessionId || processKey;
             if (code === 0 && !error) {
-                notifyRunStopped({
+                if (!suppressNotifications) notifyRunStopped({
                     userId: ws?.userId || null,
                     provider: 'gemini',
                     sessionId: finalSessionId,
@@ -275,7 +275,7 @@ async function spawnGemini(command, options = {}, ws) {
                 return;
             }
 
-            notifyRunFailed({
+            if (!suppressNotifications) notifyRunFailed({
                 userId: ws?.userId || null,
                 provider: 'gemini',
                 sessionId: finalSessionId,

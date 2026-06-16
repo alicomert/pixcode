@@ -968,6 +968,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
   const permissionMode = ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto_edit', 'yolo'].includes(requestedPermissionMode)
     ? requestedPermissionMode
     : null;
+  const suppressNotifications = req.body.suppressNotifications === true || req.body.suppressNotifications === 'true';
 
   // Parse stream and cleanup as booleans (handle string "true"/"false" from curl)
   const stream = req.body.stream === undefined ? true : (req.body.stream === true || req.body.stream === 'true');
@@ -1079,7 +1080,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model,
-        permissionMode: permissionMode || 'bypassPermissions' // Bypass all permissions for API calls unless explicitly restricted
+        permissionMode: permissionMode || 'bypassPermissions', // Bypass all permissions for API calls unless explicitly restricted
+        suppressNotifications,
       }, writer);
 
     } else if (provider === 'cursor') {
@@ -1090,7 +1092,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model || undefined,
-        skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true
+        skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
+        suppressNotifications,
       }, writer);
     } else if (provider === 'codex') {
       console.log('🤖 Starting Codex SDK session');
@@ -1100,7 +1103,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model || getDefaultProviderModel('codex'),
-        permissionMode: permissionMode || 'bypassPermissions'
+        permissionMode: permissionMode || 'bypassPermissions',
+        suppressNotifications,
       }, writer);
     } else if (provider === 'gemini') {
       console.log('✨ Starting Gemini CLI session');
@@ -1111,7 +1115,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         sessionId: sessionId || null,
         model: model,
         permissionMode: permissionMode || undefined,
-        skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true
+        skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
+        suppressNotifications,
       }, writer);
     } else if (provider === 'qwen') {
       console.log('🐉 Starting Qwen Code CLI session');
@@ -1123,6 +1128,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         model: model,
         permissionMode: permissionMode || undefined,
         skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
+        suppressNotifications,
       }, writer);
     } else if (provider === 'opencode') {
       console.log('🅾️  Starting OpenCode CLI session');
@@ -1138,6 +1144,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
           denyPatterns: [],
           skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
         },
+        suppressNotifications,
       }, writer);
     }
 
