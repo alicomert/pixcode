@@ -948,6 +948,17 @@
       "newChat": "新しいチャット",
       "openProjects": "プロジェクトを開く"
     },
+    "menuBar": {
+      "file": "ファイル",
+      "edit": "編集",
+      "selection": "選択",
+      "view": "表示",
+      "go": "移動",
+      "run": "実行",
+      "terminal": "ターミナル",
+      "help": "ヘルプ",
+      "openSettingsPanel": "設定パネルを開く"
+    },
     "projects": {
       "openProject": "プロジェクトを開く",
       "cloneFromGithub": "クローン",

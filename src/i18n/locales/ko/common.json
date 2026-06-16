@@ -948,6 +948,17 @@
       "newChat": "새 채팅",
       "openProjects": "프로젝트 열기"
     },
+    "menuBar": {
+      "file": "파일",
+      "edit": "편집",
+      "selection": "선택",
+      "view": "보기",
+      "go": "이동",
+      "run": "실행",
+      "terminal": "터미널",
+      "help": "도움말",
+      "openSettingsPanel": "설정 패널 열기"
+    },
     "projects": {
       "openProject": "프로젝트 열기",
       "cloneFromGithub": "클론",

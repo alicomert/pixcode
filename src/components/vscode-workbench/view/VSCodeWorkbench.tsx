@@ -1044,6 +1044,17 @@ function VSCodeWorkbench({
                       active ? 'bg-background text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                     )}
                     onClick={() => setActiveEditorPath(tab.path)}
+                    onMouseDown={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault();
+                        handleCloseEditorTab(tab.path);
+                      }
+                    }}
+                    onAuxClick={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault();
+                      }
+                    }}
                     onContextMenu={(event) => handleEditorTabContextMenu(event, tab.path)}
                     title={tab.path}
                   >
@@ -1392,7 +1403,7 @@ function WorkbenchMenuBar({
 
   const menuItems = useMemo(() => [
     {
-      label: 'File',
+      label: t('vscodeWorkbench.menuBar.file', { defaultValue: 'File' }),
       commands: [
         {
           label: t('vscodeWorkbench.menu.openProject', { defaultValue: 'Open Project...' }),
@@ -1417,7 +1428,7 @@ function WorkbenchMenuBar({
       ],
     },
     {
-      label: 'Edit',
+      label: t('vscodeWorkbench.menuBar.edit', { defaultValue: 'Edit' }),
       commands: [
         {
           label: t('vscodeWorkbench.menu.newChat', { defaultValue: 'New Chat' }),
@@ -1427,7 +1438,7 @@ function WorkbenchMenuBar({
       ],
     },
     {
-      label: 'Selection',
+      label: t('vscodeWorkbench.menuBar.selection', { defaultValue: 'Selection' }),
       commands: [
         {
           label: t('vscodeWorkbench.menu.openProjects', { defaultValue: 'Open Projects' }),
@@ -1437,7 +1448,7 @@ function WorkbenchMenuBar({
       ],
     },
     {
-      label: 'View',
+      label: t('vscodeWorkbench.menuBar.view', { defaultValue: 'View' }),
       commands: [
         {
           label: t('vscodeWorkbench.activity.explorer'),
@@ -1462,7 +1473,7 @@ function WorkbenchMenuBar({
       ],
     },
     {
-      label: 'Go',
+      label: t('vscodeWorkbench.menuBar.go', { defaultValue: 'Go' }),
       commands: [
         {
           label: t('tabs.controlRoom'),
@@ -1477,12 +1488,12 @@ function WorkbenchMenuBar({
       ],
     },
     {
-      label: 'Run',
+      label: t('vscodeWorkbench.menuBar.run', { defaultValue: 'Run' }),
       commands: [
       ],
     },
     {
-      label: 'Terminal',
+      label: t('vscodeWorkbench.menuBar.terminal', { defaultValue: 'Terminal' }),
       commands: [
         {
           label: t('vscodeWorkbench.panels.cli'),
@@ -1492,7 +1503,7 @@ function WorkbenchMenuBar({
       ],
     },
     {
-      label: 'Help',
+      label: t('vscodeWorkbench.menuBar.help', { defaultValue: 'Help' }),
       commands: [
         {
           label: t('navigation.settings'),
@@ -1558,6 +1569,15 @@ function WorkbenchMenuBar({
         ))}
       </div>
       <div className="flex min-w-0 flex-1" />
+      <button
+        type="button"
+        onClick={() => window.toggleQuickSettings?.()}
+        className="relative mr-1 inline-flex h-7 w-7 items-center justify-center rounded border border-border bg-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        aria-label={t('vscodeWorkbench.menuBar.openSettingsPanel', { defaultValue: 'Open settings panel' })}
+        title={t('vscodeWorkbench.menuBar.openSettingsPanel', { defaultValue: 'Open settings panel' })}
+      >
+        <Settings2 className="h-4 w-4" />
+      </button>
       <InAppNotificationCenter latestMessage={latestMessage} variant="inline" />
     </div>
   );

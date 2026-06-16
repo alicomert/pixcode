@@ -948,6 +948,17 @@
       "newChat": "新建聊天",
       "openProjects": "打开项目"
     },
+    "menuBar": {
+      "file": "文件",
+      "edit": "编辑",
+      "selection": "选择",
+      "view": "视图",
+      "go": "转到",
+      "run": "运行",
+      "terminal": "终端",
+      "help": "帮助",
+      "openSettingsPanel": "打开设置面板"
+    },
     "projects": {
       "openProject": "打开项目",
       "cloneFromGithub": "克隆",

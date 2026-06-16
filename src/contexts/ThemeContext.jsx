@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   DEFAULT_CUSTOM_DARK,
@@ -7,6 +7,8 @@ import {
   THEME_CUSTOM_DARK_STORAGE_KEY,
   THEME_CUSTOM_LIGHT_STORAGE_KEY,
   applyThemeAccent,
+  isThemeAccentId,
+  isThemeHexColor,
   readThemeAccent,
   readThemeColor,
 } from '../theme/appTheme';
@@ -14,16 +16,41 @@ import {
 const ThemeContext = createContext();
 const CODE_EDITOR_THEME_KEY = 'codeEditorTheme';
 const CODE_EDITOR_SETTINGS_CHANGED_EVENT = 'codeEditorSettingsChanged';
+const APP_THEME_CHANGED_EVENT = 'pixcode:theme-changed';
 
 const toThemeName = (isDarkMode) => (isDarkMode ? 'dark' : 'light');
+
+const readStorage = (key) => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeStorage = (key, value) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Theme still applies to the current document if storage is unavailable.
+  }
+};
 
 const syncCodeEditorThemeWithApp = (currentIsDarkMode, nextIsDarkMode) => {
   const currentAppTheme = toThemeName(currentIsDarkMode);
   const nextAppTheme = toThemeName(nextIsDarkMode);
-  const editorTheme = localStorage.getItem(CODE_EDITOR_THEME_KEY);
+  const editorTheme = readStorage(CODE_EDITOR_THEME_KEY);
 
   if (!editorTheme || editorTheme === currentAppTheme) {
-    localStorage.setItem(CODE_EDITOR_THEME_KEY, nextAppTheme);
+    writeStorage(CODE_EDITOR_THEME_KEY, nextAppTheme);
     window.dispatchEvent(new Event(CODE_EDITOR_SETTINGS_CHANGED_EVENT));
   }
 };
@@ -39,8 +66,7 @@ export const useTheme = () => {
 export const ThemeProvider = ({ children }) => {
   // Check for saved theme preference or default to Pixcode's dark workbench.
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check localStorage first
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = readStorage('theme');
     if (savedTheme) {
       return savedTheme === 'dark';
     }
@@ -54,11 +80,15 @@ export const ThemeProvider = ({ children }) => {
   const [customDarkAccent, setCustomDarkAccentState] = useState(() => (
     readThemeColor(THEME_CUSTOM_DARK_STORAGE_KEY, DEFAULT_CUSTOM_DARK)
   ));
+  const previousThemeNameRef = useRef(toThemeName(isDarkMode));
 
   // Update document class and localStorage when theme changes
   useEffect(() => {
+    const root = document.documentElement;
+    const nextThemeName = toThemeName(isDarkMode);
+    const previousThemeName = previousThemeNameRef.current;
     const activeThemeColor = applyThemeAccent(
-      document.documentElement,
+      root,
       accentTheme,
       isDarkMode,
       customLightAccent,
@@ -66,8 +96,8 @@ export const ThemeProvider = ({ children }) => {
     );
 
     if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      root.classList.add('dark');
+      writeStorage('theme', nextThemeName);
       
       // Update iOS status bar style and theme color for dark mode
       const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
@@ -80,8 +110,8 @@ export const ThemeProvider = ({ children }) => {
         themeColorMeta.setAttribute('content', activeThemeColor);
       }
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      root.classList.remove('dark');
+      writeStorage('theme', nextThemeName);
       
       // Update iOS status bar style and theme color for light mode
       const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
@@ -94,6 +124,19 @@ export const ThemeProvider = ({ children }) => {
         themeColorMeta.setAttribute('content', activeThemeColor);
       }
     }
+
+    if (previousThemeName !== nextThemeName) {
+      syncCodeEditorThemeWithApp(previousThemeName === 'dark', isDarkMode);
+      previousThemeNameRef.current = nextThemeName;
+    }
+
+    window.dispatchEvent(new CustomEvent(APP_THEME_CHANGED_EVENT, {
+      detail: {
+        mode: nextThemeName,
+        accentTheme,
+        color: activeThemeColor,
+      },
+    }));
   }, [accentTheme, customDarkAccent, customLightAccent, isDarkMode]);
 
   // Listen for system theme changes
@@ -103,7 +146,7 @@ export const ThemeProvider = ({ children }) => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
       // Only update if user hasn't manually set a preference
-      const savedTheme = localStorage.getItem('theme');
+      const savedTheme = readStorage('theme');
       if (!savedTheme) {
         setIsDarkMode(e.matches);
       }
@@ -113,30 +156,71 @@ export const ThemeProvider = ({ children }) => {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  const toggleDarkMode = () => {
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === 'theme') {
+        if (event.newValue === 'dark' || event.newValue === 'light') {
+          setIsDarkMode(event.newValue === 'dark');
+        }
+        return;
+      }
+
+      if (event.key === THEME_ACCENT_STORAGE_KEY) {
+        if (isThemeAccentId(event.newValue)) {
+          setAccentThemeState(event.newValue);
+        }
+        return;
+      }
+
+      if (event.key === THEME_CUSTOM_LIGHT_STORAGE_KEY) {
+        if (isThemeHexColor(event.newValue)) {
+          setCustomLightAccentState(event.newValue);
+        }
+        return;
+      }
+
+      if (event.key === THEME_CUSTOM_DARK_STORAGE_KEY && isThemeHexColor(event.newValue)) {
+        setCustomDarkAccentState(event.newValue);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const toggleDarkMode = useCallback(() => {
     setIsDarkMode((prev) => {
       const next = !prev;
       syncCodeEditorThemeWithApp(prev, next);
       return next;
     });
-  };
+  }, []);
 
-  const setAccentTheme = (theme) => {
+  const setAccentTheme = useCallback((theme) => {
+    if (!isThemeAccentId(theme)) {
+      return;
+    }
     setAccentThemeState(theme);
-    localStorage.setItem(THEME_ACCENT_STORAGE_KEY, theme);
-  };
+    writeStorage(THEME_ACCENT_STORAGE_KEY, theme);
+  }, []);
 
-  const setCustomLightAccent = (color) => {
+  const setCustomLightAccent = useCallback((color) => {
+    if (!isThemeHexColor(color)) {
+      return;
+    }
     setCustomLightAccentState(color);
-    localStorage.setItem(THEME_CUSTOM_LIGHT_STORAGE_KEY, color);
-  };
+    writeStorage(THEME_CUSTOM_LIGHT_STORAGE_KEY, color);
+  }, []);
 
-  const setCustomDarkAccent = (color) => {
+  const setCustomDarkAccent = useCallback((color) => {
+    if (!isThemeHexColor(color)) {
+      return;
+    }
     setCustomDarkAccentState(color);
-    localStorage.setItem(THEME_CUSTOM_DARK_STORAGE_KEY, color);
-  };
+    writeStorage(THEME_CUSTOM_DARK_STORAGE_KEY, color);
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     isDarkMode,
     toggleDarkMode,
     accentTheme,
@@ -145,7 +229,16 @@ export const ThemeProvider = ({ children }) => {
     setCustomLightAccent,
     customDarkAccent,
     setCustomDarkAccent,
-  };
+  }), [
+    accentTheme,
+    customDarkAccent,
+    customLightAccent,
+    isDarkMode,
+    setAccentTheme,
+    setCustomDarkAccent,
+    setCustomLightAccent,
+    toggleDarkMode,
+  ]);
 
   return (
     <ThemeContext.Provider value={value}>

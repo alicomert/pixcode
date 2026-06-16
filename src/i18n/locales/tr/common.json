@@ -1041,6 +1041,17 @@
       "newChat": "Yeni Sohbet",
       "openProjects": "Projeleri Aç"
     },
+    "menuBar": {
+      "file": "Dosya",
+      "edit": "Düzenle",
+      "selection": "Seçim",
+      "view": "Görünüm",
+      "go": "Git",
+      "run": "Çalıştır",
+      "terminal": "Terminal",
+      "help": "Yardım",
+      "openSettingsPanel": "Ayarlar panelini aç"
+    },
     "projects": {
       "openProject": "Proje Aç",
       "cloneFromGithub": "Klonla",

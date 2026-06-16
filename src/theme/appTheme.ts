@@ -36,18 +36,34 @@ export const THEME_ACCENT_OPTIONS: ThemeAccentOption[] = [
 
 export const DEFAULT_THEME_ACCENT: ThemeAccentId = 'emerald';
 
+function getStoredValue(key: string): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 export function isThemeAccentId(value: unknown): value is ThemeAccentId {
   return typeof value === 'string' && THEME_ACCENT_OPTIONS.some((option) => option.id === value);
 }
 
+export function isThemeHexColor(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
 export function readThemeAccent(): ThemeAccentId {
-  const stored = localStorage.getItem(THEME_ACCENT_STORAGE_KEY);
+  const stored = getStoredValue(THEME_ACCENT_STORAGE_KEY);
   return isThemeAccentId(stored) ? stored : DEFAULT_THEME_ACCENT;
 }
 
 export function readThemeColor(key: string, fallback: string): string {
-  const stored = localStorage.getItem(key);
-  return stored && /^#[0-9a-fA-F]{6}$/.test(stored) ? stored : fallback;
+  const stored = getStoredValue(key);
+  return isThemeHexColor(stored) ? stored : fallback;
 }
 
 export function hexToHslToken(hex: string): string {

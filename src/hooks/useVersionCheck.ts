@@ -327,11 +327,8 @@ export const useVersionCheck = (owner: string, repo: string) => {
         }
       } catch (error) {
         console.error('Version check failed:', error);
-        setUpdateAvailable(false);
-        setLatestVersion(null);
-        setReleaseInfo(null);
         setCheckStatus('error');
-        return createResult(null, null, null, 'error');
+        return applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null, 'error');
       }
     };
     checkVersionRef.current = checkVersion;

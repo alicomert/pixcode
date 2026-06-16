@@ -1041,6 +1041,17 @@
       "newChat": "New Chat",
       "openProjects": "Open Projects"
     },
+    "menuBar": {
+      "file": "File",
+      "edit": "Edit",
+      "selection": "Selection",
+      "view": "View",
+      "go": "Go",
+      "run": "Run",
+      "terminal": "Terminal",
+      "help": "Help",
+      "openSettingsPanel": "Open settings panel"
+    },
     "projects": {
       "openProject": "Open Project",
       "cloneFromGithub": "Clone",

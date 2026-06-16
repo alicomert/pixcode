@@ -27,6 +27,9 @@ export type DetectedChangedFile = ChangedFileEntry & {
 };
 
 export type ChangedFilesTrackingMode = 'local' | 'git';
+type ChangedFilesMonitorOptions = {
+  pollingEnabled?: boolean;
+};
 
 const POLL_INTERVAL_MS = 4000;
 const MAX_DIRECT_AGENT_FILES = 80;
@@ -76,7 +79,9 @@ export function useChangedFilesMonitor(
   enabled: boolean,
   latestMessage?: unknown,
   trackingMode: ChangedFilesTrackingMode = 'local',
+  options: ChangedFilesMonitorOptions = {},
 ) {
+  const pollingEnabled = options.pollingEnabled ?? true;
   const [changedFiles, setChangedFiles] = useState<ChangedFileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,7 +216,7 @@ export function useChangedFilesMonitor(
   }, [enabled, latestMessage, selectedProject, trackingMode]);
 
   useEffect(() => {
-    if (!enabled || !selectedProject) return undefined;
+    if (!enabled || !selectedProject || !pollingEnabled) return undefined;
 
     const handleRunStateRefresh = (event: Event) => {
       const detail = (event as CustomEvent<{ projectName?: string | null }>).detail;
@@ -237,7 +242,7 @@ export function useChangedFilesMonitor(
         eventRefreshTimerRef.current = null;
       }
     };
-  }, [enabled, refresh, selectedProject]);
+  }, [enabled, pollingEnabled, refresh, selectedProject]);
 
   useEffect(() => {
     if (!enabled || !selectedProject) {
@@ -248,9 +253,16 @@ export function useChangedFilesMonitor(
       return undefined;
     }
 
+    if (!pollingEnabled) {
+      setIsLoading(false);
+      return undefined;
+    }
+
     void refresh('initial');
     const interval = window.setInterval(() => {
-      void refresh('poll');
+      if (document.visibilityState !== 'hidden') {
+        void refresh('poll');
+      }
     }, POLL_INTERVAL_MS);
 
     const handleFocus = () => {
@@ -262,7 +274,7 @@ export function useChangedFilesMonitor(
       window.clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [enabled, refresh, selectedProject]);
+  }, [enabled, pollingEnabled, refresh, selectedProject]);
 
   return {
     changedFiles,

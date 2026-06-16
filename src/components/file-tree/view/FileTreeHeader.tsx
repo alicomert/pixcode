@@ -4,7 +4,7 @@ import { Button, Input } from '../../../shared/view/ui';
 import { cn } from '../../../lib/utils';
 import type { FileTreeViewMode } from '../types/types';
 
-import { ChevronDown, Eye, FileText, FolderPlus, List, RefreshCw, Search, TableProperties, X } from '@/lib/icons';
+import { Eye, FileText, FolderPlus, List, RefreshCw, Search, TableProperties, X } from '@/lib/icons';
 
 type FileTreeHeaderProps = {
   viewMode: FileTreeViewMode;
@@ -16,7 +16,6 @@ type FileTreeHeaderProps = {
   onNewFile?: () => void;
   onNewFolder?: () => void;
   onRefresh?: () => void;
-  onCollapseAll?: () => void;
   // Loading state
   loading?: boolean;
   operationLoading?: boolean;
@@ -31,7 +30,6 @@ export default function FileTreeHeader({
   onNewFile,
   onNewFolder,
   onRefresh,
-  onCollapseAll,
   loading,
   operationLoading,
 }: FileTreeHeaderProps) {
@@ -83,18 +81,6 @@ export default function FileTreeHeader({
               disabled={operationLoading}
             >
               <RefreshCw className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5', loading && 'animate-spin')} />
-            </Button>
-          )}
-          {onCollapseAll && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn(isCompact ? 'h-6 w-6' : 'h-7 w-7', 'p-0')}
-              onClick={onCollapseAll}
-              title={t('fileTree.collapseAll', 'Collapse All')}
-              aria-label={t('fileTree.collapseAll', 'Collapse All')}
-            >
-              <ChevronDown className={cn(isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
             </Button>
           )}
           {/* Divider */}

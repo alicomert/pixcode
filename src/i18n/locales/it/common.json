@@ -948,6 +948,17 @@
       "newChat": "Nuova chat",
       "openProjects": "Apri progetti"
     },
+    "menuBar": {
+      "file": "File",
+      "edit": "Modifica",
+      "selection": "Selezione",
+      "view": "Visualizza",
+      "go": "Vai",
+      "run": "Esegui",
+      "terminal": "Terminale",
+      "help": "Aiuto",
+      "openSettingsPanel": "Apri pannello impostazioni"
+    },
     "projects": {
       "openProject": "Apri progetto",
       "cloneFromGithub": "Clona",

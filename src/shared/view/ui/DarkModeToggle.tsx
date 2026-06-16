@@ -1,4 +1,6 @@
 
+import { useTranslation } from 'react-i18next';
+
 import { useTheme } from '../../../contexts/ThemeContext';
 import { cn } from '../../../lib/utils';
 
@@ -13,15 +15,17 @@ type DarkModeToggleProps = {
 function DarkModeToggle({
   checked,
   onToggle,
-  ariaLabel = 'Toggle dark mode',
+  ariaLabel,
 }: DarkModeToggleProps) {
+  const { t } = useTranslation('settings');
   const { isDarkMode, toggleDarkMode } = useTheme();
-  const isControlled = typeof checked === 'boolean' && typeof onToggle === 'function';
+  const isControlled = typeof checked === 'boolean';
   const isEnabled = isControlled ? checked : isDarkMode;
+  const label = ariaLabel || t('quickSettings.darkMode', { defaultValue: 'Toggle dark mode' });
 
   const handleToggle = () => {
-    if (isControlled && onToggle) {
-      onToggle(!isEnabled);
+    if (isControlled) {
+      onToggle?.(!isEnabled);
       return;
     }
 
@@ -38,9 +42,9 @@ function DarkModeToggle({
       )}
       role="switch"
       aria-checked={isEnabled}
-      aria-label={ariaLabel}
+      aria-label={label}
     >
-      <span className="sr-only">{ariaLabel}</span>
+      <span className="sr-only">{label}</span>
       <span
         className={cn(
           'flex h-5 w-5 transform items-center justify-center rounded-full shadow-sm transition-transform duration-200',

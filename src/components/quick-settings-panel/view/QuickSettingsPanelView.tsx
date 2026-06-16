@@ -68,24 +68,31 @@ export default function QuickSettingsPanelView() {
 
   useEffect(() => {
     const openPanel = () => setIsOpen(true);
+    const togglePanel = () => setIsOpen((previous) => !previous);
     window.openQuickSettings = openPanel;
+    window.toggleQuickSettings = togglePanel;
     return () => {
       if (window.openQuickSettings === openPanel) {
         delete window.openQuickSettings;
+      }
+      if (window.toggleQuickSettings === togglePanel) {
+        delete window.toggleQuickSettings;
       }
     };
   }, []);
 
   return (
     <>
-      <QuickSettingsHandle
-        isOpen={isOpen}
-        isDragging={isDragging}
-        style={handleStyle}
-        onClick={handleToggleFromHandle}
-        onMouseDown={startDrag}
-        onTouchStart={startDrag}
-      />
+      {isMobile && (
+        <QuickSettingsHandle
+          isOpen={isOpen}
+          isDragging={isDragging}
+          style={handleStyle}
+          onClick={handleToggleFromHandle}
+          onMouseDown={startDrag}
+          onTouchStart={startDrag}
+        />
+      )}
 
       <div
         className={`fixed right-0 top-0 z-40 h-full w-80 transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen' : ''}`}

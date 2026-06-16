@@ -4,7 +4,6 @@ type UseExpandedDirectoriesResult = {
   expandedDirs: Set<string>;
   toggleDirectory: (path: string) => void;
   expandDirectories: (paths: string[]) => void;
-  collapseAll: () => void;
 };
 
 export function useExpandedDirectories(): UseExpandedDirectoriesResult {
@@ -36,15 +35,9 @@ export function useExpandedDirectories(): UseExpandedDirectoriesResult {
     });
   }, []);
 
-  const collapseAll = useCallback(() => {
-    setExpandedDirs(new Set());
-  }, []);
-
   return {
     expandedDirs,
     toggleDirectory,
     expandDirectories,
-    collapseAll,
   };
 }
-

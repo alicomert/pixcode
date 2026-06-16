@@ -6,13 +6,37 @@ import {
   CODE_EDITOR_STORAGE_KEYS,
 } from '../constants/settings';
 
+const safeGetStorage = (key: string) => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const safeSetStorage = (key: string, value: string) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Editor still updates in-memory when browser storage is unavailable.
+  }
+};
+
 const readAppTheme = () => {
-  const savedTheme = localStorage.getItem('theme');
+  const savedTheme = safeGetStorage('theme');
   if (savedTheme === 'dark' || savedTheme === 'light') {
     return savedTheme === 'dark';
   }
 
-  if (document.documentElement.classList.contains('dark')) {
+  if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
     return true;
   }
 
@@ -20,7 +44,7 @@ const readAppTheme = () => {
 };
 
 const readTheme = () => {
-  const savedTheme = localStorage.getItem(CODE_EDITOR_STORAGE_KEYS.theme);
+  const savedTheme = safeGetStorage(CODE_EDITOR_STORAGE_KEYS.theme);
   if (savedTheme === 'dark' || savedTheme === 'light') {
     return savedTheme === 'dark';
   }
@@ -29,7 +53,7 @@ const readTheme = () => {
 };
 
 const readBoolean = (storageKey: string, defaultValue: boolean, falseValue = 'false') => {
-  const value = localStorage.getItem(storageKey);
+  const value = safeGetStorage(storageKey);
   if (value === null) {
     return defaultValue;
   }
@@ -38,11 +62,11 @@ const readBoolean = (storageKey: string, defaultValue: boolean, falseValue = 'fa
 };
 
 const readWordWrap = () => {
-  return localStorage.getItem(CODE_EDITOR_STORAGE_KEYS.wordWrap) === 'true';
+  return safeGetStorage(CODE_EDITOR_STORAGE_KEYS.wordWrap) === 'true';
 };
 
 const readFontSize = () => {
-  const stored = localStorage.getItem(CODE_EDITOR_STORAGE_KEYS.fontSize);
+  const stored = safeGetStorage(CODE_EDITOR_STORAGE_KEYS.fontSize);
   return Number(stored ?? CODE_EDITOR_DEFAULTS.fontSize);
 };
 
@@ -59,11 +83,11 @@ export const useCodeEditorSettings = () => {
 
   // Keep legacy behavior where the editor writes theme and wrap settings directly.
   useEffect(() => {
-    localStorage.setItem(CODE_EDITOR_STORAGE_KEYS.theme, isDarkMode ? 'dark' : 'light');
+    safeSetStorage(CODE_EDITOR_STORAGE_KEYS.theme, isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
   useEffect(() => {
-    localStorage.setItem(CODE_EDITOR_STORAGE_KEYS.wordWrap, String(wordWrap));
+    safeSetStorage(CODE_EDITOR_STORAGE_KEYS.wordWrap, String(wordWrap));
   }, [wordWrap]);
 
   useEffect(() => {

@@ -47,7 +47,48 @@ type UpdateJob = {
     logs?: Array<{ stream: string; chunk: string; timestamp?: string }>;
 };
 
+type ActiveWorkSummary = {
+    hasActiveWork: boolean;
+    total: number;
+    pty?: {
+        total: number;
+        connected?: number;
+        detached?: number;
+        byProvider?: Record<string, number>;
+    };
+    agents?: {
+        total: number;
+        byProvider?: Record<string, number>;
+    };
+};
+
+type UpdateStatePayload = {
+    state?: {
+        pendingRestart?: {
+            jobId?: string;
+            toVersion?: string;
+        } | null;
+        lastAppliedUpdate?: {
+            toVersion?: string;
+        } | null;
+    };
+    activeJob?: UpdateJob | null;
+    activeWork?: ActiveWorkSummary | null;
+};
+
 type RestartPhase = 'idle' | 'restarting' | 'waiting' | 'ready' | 'timeout' | 'error';
+
+const formatActiveWorkSummary = (activeWork?: ActiveWorkSummary | null) => {
+    if (!activeWork?.hasActiveWork) return '';
+    const parts = [];
+    if (activeWork.pty?.total) {
+        parts.push(`${activeWork.pty.total} terminal${activeWork.pty.total === 1 ? '' : 's'}`);
+    }
+    if (activeWork.agents?.total) {
+        parts.push(`${activeWork.agents.total} agent run${activeWork.agents.total === 1 ? '' : 's'}`);
+    }
+    return parts.join(' and ') || `${activeWork.total} active task${activeWork.total === 1 ? '' : 's'}`;
+};
 
 export function VersionUpgradeModal({
     isOpen,
@@ -67,8 +108,11 @@ export function VersionUpgradeModal({
     const [reloadCountdown, setReloadCountdown] = useState<number | null>(null);
     const [restartPhase, setRestartPhase] = useState<RestartPhase>('idle');
     const [pendingRestartVersion, setPendingRestartVersion] = useState<string | null>(null);
+    const [activeRestartWork, setActiveRestartWork] = useState<ActiveWorkSummary | null>(null);
+    const [restartRequiresConfirmation, setRestartRequiresConfirmation] = useState(false);
     const outputRef = useRef<HTMLDivElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const pollingJobIdRef = useRef<string | null>(null);
     useGsapEntrance(modalRef, 'modal');
     const showUpdateActions = Boolean(isUpdateAvailable && latestVersion);
 
@@ -108,35 +152,10 @@ export function VersionUpgradeModal({
         setReloadCountdown(null);
         setRestartPhase('idle');
         setPendingRestartVersion(null);
+        setActiveRestartWork(null);
+        setRestartRequiresConfirmation(false);
+        pollingJobIdRef.current = null;
     }, [currentVersion, isOpen, latestVersion]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        let cancelled = false;
-        void authenticatedFetch('/api/system/update-state', { cache: 'no-store' })
-            .then(async (response) => (response.ok ? response.json() : null))
-            .then((payload) => {
-                if (cancelled) return;
-                const pending = payload?.state?.pendingRestart;
-                if (pending?.toVersion) {
-                    setPendingRestartVersion(pending.toVersion);
-                    setRestartPhase('ready');
-                    setUpdateOutput(`Update to ${pending.toVersion} is ready. Restart when convenient to apply it.\n`);
-                    return;
-                }
-                const applied = payload?.state?.lastAppliedUpdate;
-                if (applied?.toVersion === currentVersion && !isUpdateAvailable) {
-                    setUpdateOutput(`Pixcode was updated to ${applied.toVersion}.\n`);
-                }
-            })
-            .catch(() => {
-                // Non-fatal; release modal still works from GitHub metadata.
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [currentVersion, isOpen, isUpdateAvailable]);
 
     const pollHealthUntilReady = useCallback(async (expectedVersion?: string | null): Promise<boolean> => {
         const deadline = Date.now() + HEALTH_POLL_TIMEOUT_MS;
@@ -161,12 +180,27 @@ export function VersionUpgradeModal({
     }, []);
 
     const triggerRestart = useCallback(async () => {
+        const forceRestart = restartRequiresConfirmation;
         setRestartPhase('restarting');
-        appendOutput('\nRestarting server...\n');
+        appendOutput(forceRestart
+            ? '\nRestarting server and interrupting active sessions...\n'
+            : '\nRestarting server...\n');
         try {
-            const response = await authenticatedFetch('/api/system/restart', { method: 'POST' });
+            const response = await authenticatedFetch('/api/system/restart', {
+                method: 'POST',
+                body: JSON.stringify({ force: forceRestart }),
+            });
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
+                if (response.status === 409 && data.activeWork) {
+                    const summary = formatActiveWorkSummary(data.activeWork);
+                    setActiveRestartWork(data.activeWork);
+                    setRestartRequiresConfirmation(true);
+                    setRestartPhase('ready');
+                    appendOutput(`\n⚠️ Restart paused: ${summary || 'active work'} will be interrupted.\n`);
+                    appendOutput('Click "Restart anyway" to apply the update now, or close this modal and keep working.\n');
+                    return;
+                }
                 throw new Error(data.error || `Restart request failed (HTTP ${response.status})`);
             }
         } catch (error: any) {
@@ -176,6 +210,8 @@ export function VersionUpgradeModal({
             return;
         }
 
+        setActiveRestartWork(null);
+        setRestartRequiresConfirmation(false);
         setRestartPhase('waiting');
         const isBack = await pollHealthUntilReady(pendingRestartVersion || latestVersion);
         if (isBack) {
@@ -187,23 +223,30 @@ export function VersionUpgradeModal({
             appendOutput('Start it again manually (e.g. `pixcode` or your daemon/pm2), then refresh.\n');
             setRestartPhase('timeout');
         }
-    }, [appendOutput, latestVersion, pendingRestartVersion, pollHealthUntilReady]);
+    }, [appendOutput, latestVersion, pendingRestartVersion, pollHealthUntilReady, restartRequiresConfirmation]);
 
-    const streamUpdate = useCallback(async (): Promise<DoneEvent> => {
-        const startResponse = await authenticatedFetch('/api/system/update-jobs', {
-            method: 'POST',
-            body: JSON.stringify({ targetVersion: latestVersion }),
-        });
-        const startPayload = await startResponse.json().catch(() => null) as { job?: UpdateJob; error?: string } | null;
-        if (!startResponse.ok || !startPayload?.job) {
-            throw new Error(startPayload?.error || `Update job request failed (HTTP ${startResponse.status})`);
+    const pollUpdateJob = useCallback(async (
+        initialJob: UpdateJob,
+        {
+            announce = true,
+            isCancelled,
+        }: {
+            announce?: boolean;
+            isCancelled?: () => boolean;
+        } = {},
+    ): Promise<DoneEvent> => {
+        let job = initialJob;
+        pollingJobIdRef.current = job.id;
+        if (announce) {
+            appendOutput(`Background update job started: ${job.id}\n`);
         }
-
-        let job = startPayload.job;
-        appendOutput(`Background update job started: ${job.id}\n`);
         let seenLogs = 0;
 
         for (;;) {
+            if (isCancelled?.()) {
+                throw new Error('Update polling cancelled');
+            }
+
             const logs = Array.isArray(job.logs) ? job.logs : [];
             if (seenLogs > logs.length) {
                 seenLogs = 0;
@@ -214,6 +257,9 @@ export function VersionUpgradeModal({
             seenLogs = logs.length;
 
             if (job.status === 'completed') {
+                if (pollingJobIdRef.current === job.id) {
+                    pollingJobIdRef.current = null;
+                }
                 return {
                     success: true,
                     version: job.toVersion || latestVersion || undefined,
@@ -226,6 +272,9 @@ export function VersionUpgradeModal({
             }
 
             if (job.status === 'failed') {
+                if (pollingJobIdRef.current === job.id) {
+                    pollingJobIdRef.current = null;
+                }
                 return {
                     success: false,
                     error: job.error || 'Update failed',
@@ -233,6 +282,9 @@ export function VersionUpgradeModal({
             }
 
             await new Promise(resolve => setTimeout(resolve, 1500));
+            if (isCancelled?.()) {
+                throw new Error('Update polling cancelled');
+            }
             const statusResponse = await authenticatedFetch(`/api/system/update-jobs/${encodeURIComponent(job.id)}`, {
                 cache: 'no-store',
             });
@@ -243,6 +295,19 @@ export function VersionUpgradeModal({
             job = statusPayload.job;
         }
     }, [appendOutput, latestVersion]);
+
+    const streamUpdate = useCallback(async (): Promise<DoneEvent> => {
+        const startResponse = await authenticatedFetch('/api/system/update-jobs', {
+            method: 'POST',
+            body: JSON.stringify({ targetVersion: latestVersion }),
+        });
+        const startPayload = await startResponse.json().catch(() => null) as { job?: UpdateJob; error?: string } | null;
+        if (!startResponse.ok || !startPayload?.job) {
+            throw new Error(startPayload?.error || `Update job request failed (HTTP ${startResponse.status})`);
+        }
+
+        return pollUpdateJob(startPayload.job);
+    }, [latestVersion, pollUpdateJob]);
 
     const waitForServerBackOnline = useCallback(async () => {
         // Skip the POST /api/system/restart step — the server already
@@ -261,53 +326,121 @@ export function VersionUpgradeModal({
         }
     }, [appendOutput, pollHealthUntilReady]);
 
+    const finishUpdateResult = useCallback(async (result: DoneEvent) => {
+        if (!result.success) {
+            const msg = result.error || 'Update failed';
+            setUpdateError(msg);
+            appendOutput(`\n❌ Update failed: ${msg}\n`);
+            setIsUpdating(false);
+            return;
+        }
+
+        if (result.alreadyLatest) {
+            appendOutput('\n✅ Already on the latest version — nothing to do.\n');
+            setIsUpdating(false);
+            return;
+        }
+
+        if (result.version) {
+            appendOutput(`\n✅ Updated to ${result.version}!\n`);
+        } else {
+            appendOutput('\n✅ Update completed successfully!\n');
+        }
+        setIsUpdating(false);
+        setActiveRestartWork(null);
+        setRestartRequiresConfirmation(false);
+
+        if (result.selfRestarting) {
+            await waitForServerBackOnline();
+            return;
+        }
+
+        setPendingRestartVersion(result.version || latestVersion || null);
+        setRestartPhase('ready');
+        appendOutput('\nUpdate is ready. You can keep using Pixcode and restart when convenient.\n');
+    }, [appendOutput, latestVersion, waitForServerBackOnline]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        let cancelled = false;
+
+        const loadUpdateState = async () => {
+            try {
+                const response = await authenticatedFetch('/api/system/update-state', { cache: 'no-store' });
+                const payload = (response.ok ? await response.json() : null) as UpdateStatePayload | null;
+                if (cancelled || !payload) return;
+
+                const pending = payload.state?.pendingRestart;
+                if (pending?.toVersion) {
+                    setPendingRestartVersion(pending.toVersion);
+                    setActiveRestartWork(payload.activeWork ?? null);
+                    setRestartRequiresConfirmation(false);
+                    setRestartPhase('ready');
+                    setUpdateOutput(`Update to ${pending.toVersion} is ready. Restart when convenient to apply it.\n`);
+                    return;
+                }
+
+                const activeJob = payload.activeJob;
+                if (activeJob && (activeJob.status === 'queued' || activeJob.status === 'running')) {
+                    if (pollingJobIdRef.current === activeJob.id) return;
+                    setIsUpdating(true);
+                    setUpdateError('');
+                    setReloadCountdown(IS_PLATFORM ? RELOAD_COUNTDOWN_START : null);
+                    setRestartPhase('idle');
+                    setPendingRestartVersion(null);
+                    setActiveRestartWork(null);
+                    setRestartRequiresConfirmation(false);
+                    setUpdateOutput(`Reconnected to background update job: ${activeJob.id}\n`);
+                    const result = await pollUpdateJob(activeJob, {
+                        announce: false,
+                        isCancelled: () => cancelled,
+                    });
+                    if (!cancelled) {
+                        await finishUpdateResult(result);
+                    }
+                    return;
+                }
+
+                const applied = payload.state?.lastAppliedUpdate;
+                if (applied?.toVersion === currentVersion && !isUpdateAvailable) {
+                    setUpdateOutput(`Pixcode was updated to ${applied.toVersion}.\n`);
+                }
+            } catch (error) {
+                if (!cancelled && (error as Error).message !== 'Update polling cancelled') {
+                    // Non-fatal; release modal still works from GitHub metadata.
+                }
+                if (cancelled) {
+                    pollingJobIdRef.current = null;
+                }
+            }
+        };
+
+        void loadUpdateState();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [currentVersion, finishUpdateResult, isOpen, isUpdateAvailable, pollUpdateJob]);
+
     const handleUpdateNow = useCallback(async () => {
         setIsUpdating(true);
         setUpdateOutput('Starting update…\n');
         setReloadCountdown(IS_PLATFORM ? RELOAD_COUNTDOWN_START : null);
         setUpdateError('');
         setRestartPhase('idle');
+        setActiveRestartWork(null);
+        setRestartRequiresConfirmation(false);
 
         try {
             const result = await streamUpdate();
-            if (!result.success) {
-                const msg = result.error || 'Update failed';
-                setUpdateError(msg);
-                appendOutput(`\n❌ Update failed: ${msg}\n`);
-                setIsUpdating(false);
-                return;
-            }
-
-            if (result.alreadyLatest) {
-                appendOutput('\n✅ Already on the latest version — nothing to do.\n');
-                setIsUpdating(false);
-                return;
-            }
-
-            if (result.version) {
-                appendOutput(`\n✅ Updated to ${result.version}!\n`);
-            } else {
-                appendOutput('\n✅ Update completed successfully!\n');
-            }
-            setIsUpdating(false);
-
-            if (result.selfRestarting) {
-                // Desktop wrapper (runtime-dir) scenario: server exited
-                // after the swap and the wrapper is respawning it right
-                // now. Poll /health instead of POSTing /restart — which
-                // would only fail with a connection refused anyway.
-                await waitForServerBackOnline();
-            } else {
-                setPendingRestartVersion(result.version || latestVersion || null);
-                setRestartPhase('ready');
-                appendOutput('\nUpdate is ready. You can keep using Pixcode and restart when convenient.\n');
-            }
+            await finishUpdateResult(result);
         } catch (error: any) {
+            pollingJobIdRef.current = null;
             setUpdateError(error.message);
             appendOutput(`\n❌ Update failed: ${error.message}\n`);
             setIsUpdating(false);
         }
-    }, [appendOutput, latestVersion, streamUpdate, waitForServerBackOnline]);
+    }, [appendOutput, finishUpdateResult, streamUpdate]);
 
     if (!isOpen) return null;
 
@@ -424,8 +557,14 @@ export function VersionUpgradeModal({
                             </div>
                         )}
                         {restartPhase === 'ready' && (
-                            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-200">
-                                Update is ready. Keep working, or restart now to apply {pendingRestartVersion || latestVersion || 'the new version'}.
+                            <div className={`rounded-md border px-3 py-2 text-xs ${
+                                restartRequiresConfirmation
+                                    ? 'border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900/40 dark:bg-yellow-900/20 dark:text-yellow-200'
+                                    : 'border-green-200 bg-green-50 text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-200'
+                            }`}>
+                                {restartRequiresConfirmation
+                                    ? `Restart will interrupt ${formatActiveWorkSummary(activeRestartWork) || 'active terminal or agent sessions'}.`
+                                    : `Update is ready. Keep working, or restart now to apply ${pendingRestartVersion || latestVersion || 'the new version'}.`}
                             </div>
                         )}
                         {restartPhase === 'timeout' && (
@@ -485,9 +624,13 @@ export function VersionUpgradeModal({
                     {restartPhase === 'ready' && (
                         <button
                             onClick={triggerRestart}
-                            className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors ${
+                                restartRequiresConfirmation
+                                    ? 'bg-yellow-600 hover:bg-yellow-700'
+                                    : 'bg-blue-600 hover:bg-blue-700'
+                            }`}
                         >
-                            Restart now
+                            {restartRequiresConfirmation ? 'Restart anyway' : 'Restart now'}
                         </button>
                     )}
                     {showUpdateActions && (!updateOutput || updateError) && restartPhase !== 'ready' && (

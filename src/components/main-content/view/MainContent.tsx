@@ -134,6 +134,8 @@ function MainContent({
   const dockEditorInsideFilesPanel = Boolean(activeSidePanelTab === 'files' && editingFile && !isMobile);
   const showChatColumn = visiblePrimaryTab === 'chat' && (!activeSidePanelTab || showSidePanelWithChat);
   const showOrchestrationColumn = visiblePrimaryTab === 'orchestration' && showSidePanelWithChat;
+  const shouldPollChangedFiles = Boolean(selectedProject)
+    && (activeSidePanelTab === 'files' || activeSidePanelTab === 'changes' || activeTab === 'files' || activeTab === 'changes');
 
   const {
     changedFiles,
@@ -142,7 +144,9 @@ function MainContent({
     lastCheckedAt: lastChangedFilesCheckedAt,
     latestDetectedFile,
     refresh: refreshChangedFiles,
-  } = useChangedFilesMonitor(selectedProject, Boolean(selectedProject), latestMessage, changeTrackingMode);
+  } = useChangedFilesMonitor(selectedProject, Boolean(selectedProject), latestMessage, changeTrackingMode, {
+    pollingEnabled: shouldPollChangedFiles,
+  });
   const { latestDetectedFile: latestAgentEditedFile } = useAgentAutoDiff(
     selectedProject,
     latestMessage,

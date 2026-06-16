@@ -15,6 +15,7 @@ declare global {
     refreshProjects?: () => void | Promise<void>;
     openSettings?: (tab?: string) => void;
     openQuickSettings?: () => void;
+    toggleQuickSettings?: () => void;
   }
 
   interface EventSourceEventMap {

@@ -273,6 +273,59 @@ function getActiveUpdateJob() {
     return null;
 }
 
+function countByProvider(items) {
+    return items.reduce((counts, item) => {
+        const provider = item?.provider || 'unknown';
+        counts[provider] = (counts[provider] || 0) + 1;
+        return counts;
+    }, {});
+}
+
+function getActiveProviderWorkSummary() {
+    const sessions = [
+        ...getActiveClaudeSDKSessions().map((id) => ({ id, provider: 'claude' })),
+        ...getActiveCursorSessions().map((session) => ({ ...session, provider: 'cursor' })),
+        ...getActiveCodexSessions().map((session) => ({ ...session, provider: 'codex' })),
+        ...getActiveGeminiSessions().map((session) => ({ ...session, provider: 'gemini' })),
+        ...getActiveQwenSessions().map((session) => ({ ...session, provider: 'qwen' })),
+        ...getActiveOpencodeSessions().map((session) => ({ ...session, provider: 'opencode' })),
+    ];
+
+    return {
+        total: sessions.length,
+        byProvider: countByProvider(sessions),
+    };
+}
+
+function getActivePtyWorkSummary() {
+    const activePtys = Array.from(ptySessionsMap.values())
+        .filter((session) => session?.pty && session.lifecycleState === 'running')
+        .map((session) => ({
+            provider: session.isPlainShell ? 'plain-shell' : (session.provider || 'unknown'),
+            connected: Boolean(session.ws && session.ws.readyState === WebSocket.OPEN),
+        }));
+
+    return {
+        total: activePtys.length,
+        connected: activePtys.filter((session) => session.connected).length,
+        detached: activePtys.filter((session) => !session.connected).length,
+        byProvider: countByProvider(activePtys),
+    };
+}
+
+function getActiveWorkSummary() {
+    const pty = getActivePtyWorkSummary();
+    const agents = getActiveProviderWorkSummary();
+    const total = pty.total + agents.total;
+
+    return {
+        hasActiveWork: total > 0,
+        total,
+        pty,
+        agents,
+    };
+}
+
 async function readLatestPixcodePackageMetadata() {
     const registryRes = await fetch('https://registry.npmjs.org/@pixelbyte-software/pixcode');
     if (!registryRes.ok) throw new Error(`Registry returned HTTP ${registryRes.status}`);
@@ -375,8 +428,10 @@ async function runCommandUpdateJob(job, updateCommand, updateCwd) {
             cwd: updateCwd,
             env: process.env,
             shell: true,
+            detached: true,
             stdio: ['ignore', 'pipe', 'pipe'],
         });
+        try { child.unref(); } catch { /* noop */ }
         child.stdout?.on('data', (data) => appendUpdateJobLog(job, 'stdout', data.toString()));
         child.stderr?.on('data', (data) => appendUpdateJobLog(job, 'stderr', data.toString()));
         child.on('error', reject);
@@ -1635,6 +1690,7 @@ app.get('/api/system/update-state', authenticateToken, (req, res) => {
         success: true,
         state: readSystemUpdateState(),
         activeJob: snapshotUpdateJob(getActiveUpdateJob()),
+        activeWork: getActiveWorkSummary(),
         currentVersion: SERVER_VERSION,
         installMode,
         capabilities: {
@@ -2035,6 +2091,16 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
 // (systemd/pm2/daemon manager) can bring the server back on the new code.
 // Foreground installs without a wrapper will simply stop; the UI reports this.
 app.post('/api/system/restart', authenticateToken, requireAdmin, requireApiScope('system:restart'), (req, res) => {
+    const forceRestart = req.body?.force === true || req.query.force === 'true';
+    const activeWork = getActiveWorkSummary();
+    if (!forceRestart && activeWork.hasActiveWork) {
+        return res.status(409).json({
+            success: false,
+            error: 'Active terminal or agent sessions are running. Confirm restart to interrupt them.',
+            activeWork,
+        });
+    }
+
     res.json({
         success: true,
         version: SERVER_VERSION,

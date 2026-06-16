@@ -913,6 +913,17 @@
       "newChat": "Новый чат",
       "openProjects": "Открыть проекты"
     },
+    "menuBar": {
+      "file": "Файл",
+      "edit": "Правка",
+      "selection": "Выделение",
+      "view": "Вид",
+      "go": "Переход",
+      "run": "Запуск",
+      "terminal": "Терминал",
+      "help": "Справка",
+      "openSettingsPanel": "Открыть панель настроек"
+    },
     "projects": {
       "openProject": "Открыть проект",
       "cloneFromGithub": "Клонировать",

@@ -2,6 +2,24 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.53.3](https://github.com/alicomert/pixcode/compare/v1.53.2...v1.53.3) (2026-06-16)
+
+Pixcode 1.53.3 tightens the desktop workbench chrome, makes update/restart safer around active CLI sessions, and reduces background polling while preserving agent diff detection.
+
+### Fixes
+
+* move the Quick Settings trigger into the desktop workbench menu bar and keep the draggable floating handle mobile-only
+* close editor tabs with middle-click and remove the unused File Tree collapse-all toolbar button
+* localize workbench menu labels and the new settings-panel button across bundled locales
+* reattach the update modal to an already-running background update job after reopening it
+* block update restarts while active terminal or agent sessions are running until the user explicitly confirms
+
+### Performance
+
+* stop polling changed files while the file/changes panels are not visible, while keeping direct agent-message diff ingestion active
+* preserve cached update metadata when GitHub release checks fail transiently
+* harden theme storage reads/writes, custom accent validation, and cross-tab theme synchronization
+
 ## [1.53.2](https://github.com/alicomert/pixcode/compare/v1.53.1...v1.53.2) (2026-06-15)
 
 Pixcode 1.53.2 fixes agent diff baseline tracking for dirty files and moves the notification center into the workbench top bar.
