@@ -64,6 +64,7 @@ export class TelegramHttpBot extends EventEmitter {
     this._polling = false;
     this._abortController = null;
     this._pollingLoop = null;
+    this._pollingErrorCount = 0;
     if (polling) this.startPolling();
   }
 
@@ -184,15 +185,16 @@ export class TelegramHttpBot extends EventEmitter {
             await this._emitSerial('callback_query', update.callback_query);
           }
         }
+        this._pollingErrorCount = 0;
       } catch (err) {
         // AbortError is the expected path when stopPolling() is called.
         if (err?.name === 'AbortError' || !this._polling) break;
         this.emit('polling_error', err);
-        // Back off before retrying — rapid retries on 401/409 would
-        // otherwise spin at 100% CPU. Upstream consumer's polling_error
-        // handler may also call stopBot() on 401/409 which flips _polling
-        // off and breaks the loop on the next tick.
-        await new Promise((r) => setTimeout(r, 2000));
+        const status = err?.response?.statusCode || err?.code;
+        const baseDelay = status === 409 ? 2000 : 1000;
+        const delay = Math.min(60_000, baseDelay * 2 ** this._pollingErrorCount);
+        this._pollingErrorCount = Math.min(this._pollingErrorCount + 1, 6);
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
   }

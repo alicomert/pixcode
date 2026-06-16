@@ -4,13 +4,32 @@ import { apiKeysDb, telegramLinksDb } from '../../database/db.js';
 import { getProjects } from '../../projects.js';
 import { getStaticProviderModels } from '../model-registry.js';
 
+import {
+  TELEGRAM_CONTROL_SCOPES,
+  TELEGRAM_PROVIDERS,
+  buildTelegramAgentPrompt,
+  buildTelegramIntentPrompt,
+  clearTelegramConfirmation,
+  consumeTelegramConfirmation,
+  createTelegramConfirmation,
+  enqueueTelegramJob,
+  parseTelegramAiIntentResponse,
+  resolveTelegramModel,
+  resolveTelegramProvider,
+  retryWithBackoff,
+  runTelegramTool,
+  splitTelegramText,
+} from './telegram-gateway.js';
 import { SUPPORTED_LANGUAGES, t } from './translations.js';
 
-const PROVIDERS = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'];
+const PROVIDERS = TELEGRAM_PROVIDERS;
 const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
 const CALLBACK_TTL_MS = 10 * 60 * 1000;
 const MAX_CALLBACK_ACTIONS = 1000;
 const MAX_TELEGRAM_TEXT = 3600;
+const ACTIVITY_EDIT_THROTTLE_MS = 1200;
+const ACTIVITY_HEARTBEAT_MS = 8000;
+const INTENT_ROUTER_TIMEOUT_MS = 45_000;
 const callbackActions = new Map();
 const runMonitors = new Map();
 
@@ -130,7 +149,11 @@ function readAction(data) {
     callbackActions.delete(id);
     return null;
   }
-  return entry;
+  return { id, ...entry };
+}
+
+function forgetAction(id) {
+  if (id) callbackActions.delete(id);
 }
 
 function button(text, action, payload = {}) {
@@ -150,27 +173,44 @@ async function send(bot, chatId, text, options = {}) {
     disable_web_page_preview: true,
     ...telegramOptions,
   };
-  const messageText = truncate(text);
+  const chunks = splitTelegramText(text, MAX_TELEGRAM_TEXT);
+  const [firstChunk = ''] = chunks;
+  let startIndex = 0;
   if (editMessageId && typeof bot.editMessageText === 'function') {
     try {
-      return await bot.editMessageText(messageText, {
+      const edited = await bot.editMessageText(firstChunk, {
         chat_id: chatId,
         message_id: editMessageId,
         ...extra,
       });
+      startIndex = 1;
+      for (const chunk of chunks.slice(startIndex)) {
+        await send(bot, chatId, chunk, telegramOptions);
+      }
+      return edited;
     } catch (err) {
       const description = err?.response?.body?.description || err?.message || '';
-      if (/message is not modified/i.test(description)) return null;
+      if (/message is not modified/i.test(description)) {
+        startIndex = 1;
+        for (const chunk of chunks.slice(startIndex)) {
+          await send(bot, chatId, chunk, telegramOptions);
+        }
+        return null;
+      }
       console.warn('[telegram-control] editMessageText failed:', description || err);
     }
   }
-  try {
-    return await bot.sendMessage(chatId, messageText, extra);
-  } catch {
-    const fallback = { ...extra };
-    delete fallback.parse_mode;
-    return bot.sendMessage(chatId, messageText, fallback);
+  let result = null;
+  for (const chunk of chunks.slice(startIndex)) {
+    try {
+      result = await bot.sendMessage(chatId, chunk, extra);
+    } catch {
+      const fallback = { ...extra };
+      delete fallback.parse_mode;
+      result = await bot.sendMessage(chatId, chunk, fallback);
+    }
   }
+  return result;
 }
 
 function localApiBase() {
@@ -182,19 +222,42 @@ function getOrCreateTelegramApiKey(userId) {
   const existing = apiKeysDb
     .getApiKeys(userId)
     .find((key) => key.key_name === 'Telegram Control' && Boolean(key.is_active));
-  if (existing?.api_key) return existing.api_key;
-  return apiKeysDb.createApiKey(userId, 'Telegram Control').apiKey;
+  if (existing?.api_key) {
+    const existingScopes = apiKeysDb.normalizeScopes(existing.scopes || []);
+    const nextScopes = apiKeysDb.normalizeScopes([...existingScopes, ...TELEGRAM_CONTROL_SCOPES]);
+    const hasAllScopes = TELEGRAM_CONTROL_SCOPES.every((scope) => existingScopes.includes(scope));
+    if (!hasAllScopes || nextScopes.length !== existingScopes.length) {
+      apiKeysDb.updateApiKeyScopes(userId, existing.id, nextScopes);
+    }
+    return existing.api_key;
+  }
+  return apiKeysDb.createApiKey(userId, 'Telegram Control', TELEGRAM_CONTROL_SCOPES).apiKey;
 }
 
-async function localApi(userId, path, { method = 'GET', body } = {}) {
+async function localApi(userId, path, { method = 'GET', body, timeoutMs = 0 } = {}) {
   const apiKey = getOrCreateTelegramApiKey(userId);
-  const response = await fetch(`${localApiBase()}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
+  const response = await retryWithBackoff(async () => {
+    const controller = timeoutMs > 0 ? new AbortController() : null;
+    const timeoutId = controller
+      ? setTimeout(() => controller.abort(new Error(`HTTP request timed out after ${timeoutMs}ms`)), timeoutMs)
+      : null;
+    const res = await fetch(`${localApiBase()}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+      signal: controller?.signal,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }).finally(() => {
+      if (timeoutId) clearTimeout(timeoutId);
+    });
+    if ([408, 429, 500, 502, 503, 504].includes(res.status)) {
+      const error = new Error(`HTTP ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+    return res;
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -204,8 +267,195 @@ async function localApi(userId, path, { method = 'GET', body } = {}) {
   return data?.data ?? data;
 }
 
+async function localAgentStream(userId, body, onEvent) {
+  const apiKey = getOrCreateTelegramApiKey(userId);
+  const response = await fetch(`${localApiBase()}/api/agent`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': apiKey,
+    },
+    body: JSON.stringify({
+      ...body,
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = data?.error?.message || data?.error || `HTTP ${response.status}`;
+    throw new Error(typeof error === 'string' ? error : JSON.stringify(error));
+  }
+
+  if (!response.body) return;
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  const consumeBlock = async (block) => {
+    const lines = String(block || '').split('\n');
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (!payload) continue;
+      let event;
+      try {
+        event = JSON.parse(payload);
+      } catch {
+        continue;
+      }
+      await onEvent?.(event);
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary !== -1) {
+      const block = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      await consumeBlock(block);
+      boundary = buffer.indexOf('\n\n');
+    }
+  }
+
+  const rest = `${buffer}${decoder.decode()}`;
+  if (rest.trim()) await consumeBlock(rest);
+}
+
 function checked(label) {
   return `${label} ✓`;
+}
+
+function formatElapsed(startedAt) {
+  const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}m ${rest}s`;
+}
+
+function projectLabel(state) {
+  return state.selectedProjectName || state.selectedProjectPath || '-';
+}
+
+function createActivityState({ lang, type = 'agent', provider, project, prompt, mode = 'final' }) {
+  return {
+    lang,
+    type,
+    status: 'starting',
+    phase: t(lang, 'control.activity.starting'),
+    provider,
+    project,
+    prompt: compact(prompt, 120),
+    mode,
+    startedAt: Date.now(),
+    lastEditAt: 0,
+    messageId: null,
+    sessionId: null,
+    runId: null,
+    workflowId: null,
+    events: [],
+    output: '',
+    error: null,
+  };
+}
+
+function pushActivityEvent(activity, text) {
+  const value = String(text || '').trim();
+  if (!value) return;
+  if (activity.events.at(-1) === value) return;
+  activity.events.push(value);
+  if (activity.events.length > 8) activity.events.splice(0, activity.events.length - 8);
+}
+
+function activityTitle(activity) {
+  if (activity.type === 'workflow') return t(activity.lang, 'control.activity.workflowTitle');
+  if (activity.type === 'router') return t(activity.lang, 'control.activity.routerTitle');
+  return t(activity.lang, 'control.activity.agentTitle');
+}
+
+function renderActivity(activity, { finalText = null } = {}) {
+  const output = finalText || activity.output;
+  const lines = [
+    `${activity.status === 'failed' ? '❌' : activity.status === 'done' ? '✅' : activity.status === 'running' ? '🔧' : '⏳'} ${activityTitle(activity)}`,
+    '',
+    `🤖 ${t(activity.lang, 'control.activity.provider')}: ${activity.provider || '-'}`,
+    `📁 ${t(activity.lang, 'control.activity.project')}: ${compact(activity.project, 90)}`,
+  ];
+
+  if (activity.sessionId) lines.push(`🧵 ${t(activity.lang, 'control.activity.session')}: ${activity.sessionId}`);
+  if (activity.runId) lines.push(`🧭 ${t(activity.lang, 'control.activity.run')}: ${activity.runId}`);
+  if (activity.workflowId) lines.push(`🧩 ${t(activity.lang, 'control.activity.workflow')}: ${activity.workflowId}`);
+  lines.push(`⏱ ${t(activity.lang, 'control.activity.elapsed')}: ${formatElapsed(activity.startedAt)}`);
+  lines.push(`📌 ${t(activity.lang, 'control.activity.status')}: ${activity.phase}`);
+
+  const visibleEvents = activity.mode === 'final'
+    ? activity.events.slice(-4)
+    : activity.events;
+  if (visibleEvents.length > 0) {
+    lines.push('', `🛠 ${t(activity.lang, 'control.activity.work')}:`);
+    for (const event of visibleEvents) lines.push(`• ${event}`);
+  }
+
+  if (activity.error) {
+    lines.push('', `⚠️ ${truncate(activity.error, 700)}`);
+  } else if (output) {
+    lines.push('', `💬 ${t(activity.lang, 'control.activity.output')}:`);
+    lines.push(truncate(output, 1800));
+  } else if (activity.prompt) {
+    lines.push('', `📝 ${compact(activity.prompt, 220)}`);
+  }
+
+  return truncate(lines.join('\n'), 3400);
+}
+
+async function createTelegramActivity({ bot, chatId, link, type = 'agent', prompt = '', phase = null }) {
+  const lang = languageFor(link);
+  const state = getState(link.user_id);
+  const activity = createActivityState({
+    lang,
+    type,
+    provider: resolveTelegramProvider(state),
+    project: projectLabel(state),
+    prompt,
+    mode: state.progressMode,
+  });
+  if (phase) activity.phase = phase;
+  const sent = await send(bot, chatId, renderActivity(activity), { parse_mode: undefined });
+  activity.messageId = sent?.message_id || sent?.message?.message_id || null;
+  activity.lastEditAt = Date.now();
+  return activity;
+}
+
+async function editTelegramActivity({ bot, chatId, activity, force = false, reply_markup }) {
+  if (!activity) return null;
+  const now = Date.now();
+  if (!force && now - activity.lastEditAt < ACTIVITY_EDIT_THROTTLE_MS) return null;
+  const sent = await send(bot, chatId, renderActivity(activity), {
+    editMessageId: activity.messageId,
+    parse_mode: undefined,
+    reply_markup,
+  });
+  activity.messageId = sent?.message_id || sent?.message?.message_id || activity.messageId;
+  activity.lastEditAt = now;
+  return sent;
+}
+
+function startActivityHeartbeat({ bot, chatId, activity }) {
+  return setInterval(() => {
+    if (!activity || activity.status === 'done' || activity.status === 'failed') return;
+    if (activity.status === 'starting') {
+      activity.status = 'running';
+      activity.phase = t(activity.lang, 'control.activity.thinking');
+    }
+    editTelegramActivity({ bot, chatId, activity }).catch((error) => {
+      console.warn('[telegram-control] activity heartbeat failed:', error?.message || error);
+    });
+  }, ACTIVITY_HEARTBEAT_MS);
 }
 
 function stateSummary(lang, state) {
@@ -258,11 +508,12 @@ async function listProjects() {
   return projects.slice(0, 20);
 }
 
-async function showProjectMenu({ bot, chatId, link, editMessageId }) {
+async function showProjectMenu({ bot, chatId, link, editMessageId, notice }) {
   const lang = languageFor(link);
   const projects = await listProjects();
   if (projects.length === 0) {
-    await send(bot, chatId, t(lang, 'control.noProjects'), { editMessageId });
+    const prefix = notice ? `${notice}\n\n` : '';
+    await send(bot, chatId, `${prefix}${t(lang, 'control.noProjects')}`, { editMessageId });
     return;
   }
 
@@ -275,7 +526,8 @@ async function showProjectMenu({ bot, chatId, link, editMessageId }) {
       displayName: project.displayName || project.name,
     },
   ));
-  await send(bot, chatId, t(lang, 'control.pickProject'), {
+  const prefix = notice ? `${notice}\n\n` : '';
+  await send(bot, chatId, `${prefix}${t(lang, 'control.pickProject')}`, {
     editMessageId,
     reply_markup: { inline_keyboard: rows(buttons, 1) },
   });
@@ -487,78 +739,518 @@ function extractAssistantText(response) {
   return chunks.join('\n\n').trim();
 }
 
-async function runAgent({ bot, chatId, link, prompt }) {
+function extractTextFromEvent(event) {
+  if (!event || typeof event !== 'object') return '';
+  if (typeof event.content === 'string') return event.content;
+  if (Array.isArray(event.content)) {
+    return event.content
+      .map((part) => (typeof part === 'string' ? part : part?.text || ''))
+      .join('');
+  }
+  const legacyContent = event.data?.message?.content || event.message?.content;
+  if (Array.isArray(legacyContent)) {
+    return legacyContent
+      .map((part) => (typeof part === 'string' ? part : part?.text || ''))
+      .join('');
+  }
+  if (typeof legacyContent === 'string') return legacyContent;
+  return '';
+}
+
+function describeToolInput(toolName, input) {
+  if (!input || typeof input !== 'object') return '';
+  if (toolName === 'Bash' && typeof input.command === 'string') {
+    return compact(input.command, 110);
+  }
+  if (toolName === 'WebSearch' && typeof input.query === 'string') {
+    return compact(input.query, 110);
+  }
+  if (toolName === 'FileChanges') {
+    return compact(JSON.stringify(input), 110);
+  }
+  const keys = Object.keys(input).slice(0, 3);
+  if (keys.length === 0) return '';
+  return compact(keys.map((key) => `${key}: ${String(input[key])}`).join(', '), 110);
+}
+
+function applyAgentStreamEvent(activity, event) {
+  if (!event || typeof event !== 'object') return;
+
+  const sessionId = event.actualSessionId || event.newSessionId || event.sessionId || event.threadId;
+  if (sessionId) activity.sessionId = sessionId;
+
+  if (event.type === 'status' && event.message) {
+    activity.status = 'running';
+    activity.phase = compact(event.message, 120);
+    pushActivityEvent(activity, `⏳ ${compact(event.message, 120)}`);
+    return;
+  }
+  if (event.type === 'done' || event.kind === 'complete' || event.kind === 'stream_end') {
+    activity.status = 'done';
+    activity.phase = t(activity.lang, 'control.activity.done');
+    return;
+  }
+  if (event.type === 'error' || event.kind === 'error') {
+    activity.status = 'failed';
+    activity.phase = t(activity.lang, 'control.activity.failed');
+    activity.error = event.error || event.message || event.content || t(activity.lang, 'error.generic');
+    pushActivityEvent(activity, `❌ ${compact(activity.error, 120)}`);
+    return;
+  }
+  if (event.kind === 'session_created') {
+    activity.status = 'running';
+    activity.phase = t(activity.lang, 'control.activity.sessionStarted');
+    pushActivityEvent(activity, `🧵 ${t(activity.lang, 'control.activity.sessionStarted')}`);
+    return;
+  }
+  if (event.kind === 'thinking') {
+    activity.status = 'running';
+    activity.phase = t(activity.lang, 'control.activity.thinking');
+    const thought = extractTextFromEvent(event);
+    if (thought) pushActivityEvent(activity, `🧠 ${compact(thought, 120)}`);
+    return;
+  }
+  if (event.kind === 'stream_delta' || event.kind === 'text') {
+    activity.status = 'running';
+    activity.phase = t(activity.lang, 'control.activity.responding');
+    activity.output = `${activity.output}${extractTextFromEvent(event)}`;
+    return;
+  }
+  if (event.type === 'claude-response' && event.data?.type === 'assistant') {
+    activity.status = 'running';
+    activity.phase = t(activity.lang, 'control.activity.responding');
+    activity.output = `${activity.output}${extractTextFromEvent(event)}`;
+    return;
+  }
+  if (event.kind === 'tool_use') {
+    activity.status = 'running';
+    activity.phase = t(activity.lang, 'control.activity.working');
+    const toolName = event.toolName || 'Tool';
+    const input = describeToolInput(toolName, event.toolInput);
+    const icon = toolName === 'Bash'
+      ? '💻'
+      : toolName === 'FileChanges'
+        ? '📝'
+        : toolName === 'WebSearch'
+          ? '🔎'
+          : '🔧';
+    pushActivityEvent(activity, `${icon} ${toolName}${input ? `: ${input}` : ''}`);
+    return;
+  }
+  if (event.kind === 'tool_result') {
+    activity.status = 'running';
+    activity.phase = t(activity.lang, 'control.activity.working');
+    const label = event.isError
+      ? t(activity.lang, 'control.activity.toolFailed')
+      : t(activity.lang, 'control.activity.toolDone');
+    pushActivityEvent(activity, `${event.isError ? '⚠️' : '✅'} ${label}`);
+    return;
+  }
+  if (event.kind === 'status' && event.text === 'token_budget') {
+    const used = event.tokenBudget?.used;
+    if (used) pushActivityEvent(activity, `📊 ${t(activity.lang, 'control.activity.tokens')}: ${used}`);
+  }
+}
+
+function confirmationLabel(lang, action, payload = {}) {
+  if (action === 'install_provider') {
+    return t(lang, 'control.confirmInstall', { provider: payload.provider || '' });
+  }
+  if (action === 'run_cancel') {
+    return t(lang, 'control.confirmCancelRun', { runId: payload.runId || '' });
+  }
+  return t(lang, 'control.confirmationRequired');
+}
+
+async function requestConfirmation({ bot, chatId, link, action, payload = {}, editMessageId }) {
+  const lang = languageFor(link);
+  const pending = createTelegramConfirmation(link.user_id, action, payload);
+  await send(bot, chatId, confirmationLabel(lang, action, payload), {
+    editMessageId,
+    reply_markup: {
+      inline_keyboard: [[
+        button(t(lang, 'control.button.confirm'), 'confirm_action', { id: pending.id }),
+        button(t(lang, 'control.button.cancel'), 'cancel_confirmation', { id: pending.id }),
+      ]],
+    },
+  });
+  return { ok: false, requiresConfirmation: true };
+}
+
+async function sendToolFailure({ bot, chatId, link, result, editMessageId }) {
+  const lang = languageFor(link);
+  const message = result?.message === 'REMOTE_CONTROL_DISABLED'
+    ? t(lang, 'control.disabled')
+    : (result?.message || t(lang, 'error.generic'));
+  await send(bot, chatId, message, { editMessageId });
+}
+
+async function runAgent({ bot, chatId, link, prompt, activity = null }) {
   const lang = languageFor(link);
   const state = getState(link.user_id);
   if (!state.remoteControlEnabled) {
-    await send(bot, chatId, t(lang, 'control.disabled'));
+    await send(bot, chatId, t(lang, 'control.disabled'), { editMessageId: activity?.messageId });
     return;
   }
   if (!state.selectedProjectPath) {
-    await send(bot, chatId, t(lang, 'control.selectProjectFirst'));
-    await showProjectMenu({ bot, chatId, link });
+    await showProjectMenu({ bot, chatId, link, editMessageId: activity?.messageId, notice: t(lang, 'control.selectProjectFirst') });
     return;
   }
 
-  if (state.progressMode !== 'final') {
-    await send(bot, chatId, t(lang, 'control.agentStarted', {
-      provider: state.selectedProvider,
-      project: state.selectedProjectName || state.selectedProjectPath,
-    }));
+  const provider = resolveTelegramProvider(state);
+  const model = resolveTelegramModel(state);
+  const active = activity || await createTelegramActivity({
+    bot,
+    chatId,
+    link,
+    type: 'agent',
+    prompt,
+    phase: t(lang, 'control.activity.startingProvider', { provider }),
+  });
+  active.type = 'agent';
+  active.provider = provider;
+  active.project = projectLabel(state);
+  active.status = 'running';
+  active.phase = t(lang, 'control.activity.startingProvider', { provider });
+  await editTelegramActivity({ bot, chatId, activity: active, force: true });
+
+  const heartbeat = startActivityHeartbeat({ bot, chatId, activity: active });
+  let streamFailed = null;
+  try {
+    await localAgentStream(link.user_id, {
+      projectPath: state.selectedProjectPath,
+      provider,
+      model: model || undefined,
+      message: buildTelegramAgentPrompt(prompt, state),
+      cleanup: false,
+      permissionMode: 'default',
+    }, async (event) => {
+      applyAgentStreamEvent(active, event);
+      await editTelegramActivity({ bot, chatId, activity: active });
+    });
+  } catch (error) {
+    streamFailed = error;
+  } finally {
+    clearInterval(heartbeat);
   }
 
-  const response = await localApi(link.user_id, '/api/agent', {
-    method: 'POST',
-    body: {
-      projectPath: state.selectedProjectPath,
-      provider: state.selectedProvider,
-      model: state.selectedModel || undefined,
-      message: prompt,
-      cleanup: false,
-      stream: false,
-    },
-  });
-  const assistantText = extractAssistantText(response);
-  const statusLine = response.success === false
-    ? t(lang, 'control.agentFailed', { error: response.error || 'provider returned no answer' })
-    : t(lang, 'control.agentDone', { provider: state.selectedProvider, session: response.sessionId ? ` (${response.sessionId})` : '' });
-  await send(bot, chatId, `${statusLine}\n\n${assistantText || response.error || t(lang, 'control.noAssistantText')}`);
+  if (streamFailed) {
+    active.status = 'failed';
+    active.phase = t(lang, 'control.activity.failed');
+    active.error = streamFailed.message || t(lang, 'error.generic');
+    await editTelegramActivity({ bot, chatId, activity: active, force: true });
+    return;
+  }
+
+  active.status = active.error ? 'failed' : 'done';
+  active.phase = active.error ? t(lang, 'control.activity.failed') : t(lang, 'control.activity.done');
+  if (!active.output && !active.error) active.output = t(lang, 'control.noAssistantText');
+  await editTelegramActivity({ bot, chatId, activity: active, force: true });
 }
 
-export async function runWorkflow({ bot, chatId, link, input }) {
+export async function runWorkflow({ bot, chatId, link, input, activity = null }) {
   const lang = languageFor(link);
   const state = getState(link.user_id);
   const workflowId = state.selectedWorkflowId;
+  if (!state.remoteControlEnabled) {
+    await send(bot, chatId, t(lang, 'control.disabled'), { editMessageId: activity?.messageId });
+    return;
+  }
   if (!workflowId) {
-    await send(bot, chatId, t(lang, 'control.selectWorkflowFirst'));
-    await showWorkflowMenu({ bot, chatId, link });
+    await send(bot, chatId, t(lang, 'control.selectWorkflowFirst'), { editMessageId: activity?.messageId });
+    await showWorkflowMenu({ bot, chatId, link, editMessageId: activity?.messageId });
     return;
   }
   if (!state.selectedProjectPath) {
-    await send(bot, chatId, t(lang, 'control.selectProjectFirst'));
-    await showProjectMenu({ bot, chatId, link });
+    await showProjectMenu({ bot, chatId, link, editMessageId: activity?.messageId, notice: t(lang, 'control.selectProjectFirst') });
     return;
   }
 
-  const run = await localApi(link.user_id, `/api/orchestration/workflows/${workflowId}/runs`, {
-    method: 'POST',
-    body: {
-      input,
-      metadata: {
-        projectId: state.selectedProjectName,
-        projectName: state.selectedProjectName,
-        projectPath: state.selectedProjectPath,
-        workspaceTarget: 'selected_project',
-        telegram: true,
-        preferredProvider: state.selectedProvider,
-        preferredModel: state.selectedModel,
-      },
-    },
+  const provider = resolveTelegramProvider(state);
+  const model = resolveTelegramModel(state);
+  const active = activity || await createTelegramActivity({
+    bot,
+    chatId,
+    link,
+    type: 'workflow',
+    prompt: input,
+    phase: t(lang, 'control.activity.startingWorkflow'),
   });
-  await send(bot, chatId, t(lang, 'control.workflowStarted', { runId: run.id, workflowId }));
-  monitorWorkflowRun({ bot, chatId, link, runId: run.id }).catch((error) => {
+  active.type = 'workflow';
+  active.provider = provider;
+  active.project = projectLabel(state);
+  active.workflowId = workflowId;
+  active.status = 'running';
+  active.phase = t(lang, 'control.activity.startingWorkflow');
+  await editTelegramActivity({ bot, chatId, activity: active, force: true });
+
+  const result = await runTelegramTool({
+    userId: link.user_id,
+    action: 'run_workflow',
+    execute: () => localApi(link.user_id, `/api/orchestration/workflows/${workflowId}/runs`, {
+      method: 'POST',
+      body: {
+        input,
+        metadata: {
+          projectId: state.selectedProjectName,
+          projectName: state.selectedProjectName,
+          projectPath: state.selectedProjectPath,
+          workspaceTarget: 'selected_project',
+          telegram: true,
+          preferredProvider: provider,
+          preferredModel: model,
+        },
+      },
+    }),
+  });
+  if (!result.ok) {
+    await sendToolFailure({ bot, chatId, link, result, editMessageId: active.messageId });
+    return;
+  }
+  const run = result.data;
+  active.runId = run.id;
+  active.phase = t(lang, 'control.activity.workflowRunning');
+  pushActivityEvent(active, `🧭 ${t(lang, 'control.workflowStarted', { runId: run.id, workflowId }).replace('\n', ' ')}`);
+  await editTelegramActivity({ bot, chatId, activity: active, force: true });
+  monitorWorkflowRun({ bot, chatId, link, runId: run.id, activity: active }).catch((error) => {
     console.warn('[telegram-control] workflow monitor failed:', error?.message || error);
   });
+}
+
+async function cancelRun({ bot, chatId, link, runId, editMessageId, confirmed = false }) {
+  const lang = languageFor(link);
+  if (!runId) {
+    await send(bot, chatId, t(lang, 'control.cancelUsage'), { editMessageId });
+    return;
+  }
+  const state = getState(link.user_id);
+  if (state.remoteControlEnabled === false) {
+    await send(bot, chatId, t(lang, 'control.disabled'), { editMessageId });
+    return;
+  }
+  if (state.confirmationPolicy === 'strict' && !confirmed) {
+    await requestConfirmation({
+      bot,
+      chatId,
+      link,
+      action: 'run_cancel',
+      payload: { runId },
+      editMessageId,
+    });
+    return;
+  }
+
+  const result = await runTelegramTool({
+    userId: link.user_id,
+    action: 'run_cancel',
+    execute: () => localApi(link.user_id, `/api/orchestration/workflows/runs/${encodeURIComponent(runId)}/cancel`, {
+      method: 'POST',
+    }),
+  });
+  if (!result.ok) {
+    await sendToolFailure({ bot, chatId, link, result, editMessageId });
+    return;
+  }
+  const run = result.data;
+  await send(bot, chatId, t(lang, 'control.runStatus', { runId: run.id, status: run.status }), { editMessageId });
+}
+
+async function executeConfirmedAction({ bot, chatId, link, confirmation, editMessageId }) {
+  if (confirmation.action === 'install_provider') {
+    await startCliInstall({
+      bot,
+      chatId,
+      link,
+      provider: confirmation.payload?.provider,
+      editMessageId,
+      confirmed: true,
+    });
+    return true;
+  }
+  if (confirmation.action === 'run_cancel') {
+    await cancelRun({
+      bot,
+      chatId,
+      link,
+      runId: confirmation.payload?.runId,
+      editMessageId,
+      confirmed: true,
+    });
+    return true;
+  }
+  return false;
+}
+
+async function findProjectByQuery(query) {
+  const projects = await listProjects();
+  const needle = String(query || '').trim().toLocaleLowerCase('tr');
+  if (!needle) return null;
+  return projects.find((project) => {
+    const candidates = [project.name, project.displayName, project.fullPath, project.path]
+      .filter(Boolean)
+      .map((value) => String(value).toLocaleLowerCase('tr'));
+    return candidates.some((candidate) => candidate === needle || candidate.includes(needle));
+  }) || null;
+}
+
+async function listWorkflowSummaries(userId) {
+  try {
+    const data = await localApi(userId, '/api/orchestration/workflows', { timeoutMs: 10_000 });
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.workflows)) return data.workflows;
+  } catch {
+    // Workflow context is helpful for routing but should never block chat input.
+  }
+  return [];
+}
+
+async function resolveTelegramAiIntent({ bot, chatId, link, text, activity }) {
+  const state = getState(link.user_id);
+  if (state.routerEnabled === false || state.routerMode !== 'hybrid') {
+    return { action: 'agent_prompt', prompt: text, confidence: 1 };
+  }
+
+  const provider = resolveTelegramProvider(state);
+  const model = resolveTelegramModel(state);
+  if (activity) {
+    activity.type = 'router';
+    activity.provider = provider;
+    activity.project = projectLabel(state);
+    activity.status = 'running';
+    activity.phase = t(activity.lang, 'control.activity.interpreting');
+    pushActivityEvent(activity, `🧠 ${t(activity.lang, 'control.activity.interpreting')}`);
+    await editTelegramActivity({ bot, chatId, activity, force: true });
+  }
+
+  try {
+    const projects = await listProjects().catch(() => []);
+    const workflows = await listWorkflowSummaries(link.user_id);
+    const response = await localApi(link.user_id, '/api/agent', {
+      method: 'POST',
+      timeoutMs: INTENT_ROUTER_TIMEOUT_MS,
+      body: {
+        projectPath: state.selectedProjectPath || process.cwd(),
+        provider,
+        model: model || undefined,
+        message: buildTelegramIntentPrompt(text, state, { projects, workflows }),
+        cleanup: false,
+        stream: false,
+        permissionMode: 'plan',
+      },
+    });
+    const assistantText = extractAssistantText(response);
+    const intent = parseTelegramAiIntentResponse(assistantText, text);
+    if (activity) {
+      pushActivityEvent(activity, `🧭 ${intent.action} (${Math.round(intent.confidence * 100)}%)`);
+      await editTelegramActivity({ bot, chatId, activity });
+    }
+    return intent;
+  } catch (error) {
+    if (activity) {
+      pushActivityEvent(activity, `⚠️ ${t(activity.lang, 'control.activity.routerFallback')}`);
+      await editTelegramActivity({ bot, chatId, activity });
+    }
+    console.warn('[telegram-control] AI intent router fallback:', error?.message || error);
+    return { action: 'agent_prompt', prompt: text, confidence: 0 };
+  }
+}
+
+async function handleRoutedIntent({ bot, chatId, link, text, activity }) {
+  const intent = await resolveTelegramAiIntent({ bot, chatId, link, text, activity });
+  const editMessageId = activity?.messageId;
+
+  if (intent.action === 'agent_prompt') {
+    await runAgent({ bot, chatId, link, prompt: intent.prompt || text, activity });
+    return true;
+  }
+  if (intent.action === 'show_menu') {
+    await showMainMenu({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'show_projects') {
+    await showProjectMenu({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'select_project') {
+    const query = intent.projectQuery || intent.prompt || text;
+    const project = await findProjectByQuery(query);
+    const lang = languageFor(link);
+    if (!project) {
+      await showProjectMenu({
+        bot,
+        chatId,
+        link,
+        editMessageId,
+        notice: t(lang, 'control.projectNotFound', { query }),
+      });
+      return true;
+    }
+    updateTelegramControlState(link.user_id, {
+      selectedProjectName: project.name,
+      selectedProjectPath: project.fullPath || project.path,
+    });
+    await showMainMenu({
+      bot,
+      chatId,
+      link,
+      editMessageId,
+      notice: t(lang, 'control.projectSelected', {
+        project: project.displayName || project.name,
+        path: project.fullPath || project.path,
+      }),
+    });
+    return true;
+  }
+  if (intent.action === 'show_provider_menu') {
+    await showProviderMenu({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'select_provider' && intent.provider) {
+    updateTelegramControlState(link.user_id, { selectedProvider: intent.provider, selectedModel: null });
+    await showModelMenu({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'show_model_menu') {
+    await showModelMenu({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'select_model' && intent.model) {
+    updateTelegramControlState(link.user_id, { selectedModel: intent.model });
+    await showMainMenu({
+      bot,
+      chatId,
+      link,
+      editMessageId,
+      notice: t(languageFor(link), 'control.modelSelected', { model: intent.model }),
+    });
+    return true;
+  }
+  if (intent.action === 'show_runs') {
+    await showRuns({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'show_approvals') {
+    await showApprovalQueue({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'show_workflows') {
+    await showWorkflowMenu({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'run_workflow') {
+    await runWorkflow({ bot, chatId, link, input: intent.workflowInput || text, activity });
+    return true;
+  }
+  if (intent.action === 'show_sessions') {
+    await showSessions({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  if (intent.action === 'new_chat') {
+    await startNewChat({ bot, chatId, link, editMessageId });
+    return true;
+  }
+  await runAgent({ bot, chatId, link, prompt: text, activity });
+  return true;
 }
 
 async function fetchRun(userId, runId) {
@@ -566,10 +1258,17 @@ async function fetchRun(userId, runId) {
 }
 
 function summarizeRun(run, mode) {
+  const statusIcon = run.status === 'completed'
+    ? '✅'
+    : run.status === 'failed'
+      ? '❌'
+      : run.status === 'canceled'
+        ? '⏹'
+        : '🔧';
   const lines = [
-    `Run ${run.id}`,
-    `Workflow: ${run.workflowId}`,
-    `Status: ${run.status}`,
+    `${statusIcon} Run ${run.id}`,
+    `🧩 Workflow: ${run.workflowId}`,
+    `📌 Status: ${run.status}`,
   ];
   const nodeRuns = Array.isArray(run.nodeRuns) ? run.nodeRuns : [];
   if (mode !== 'final') {
@@ -577,7 +1276,14 @@ function summarizeRun(run, mode) {
       ? nodeRuns.filter((node) => node.error || node.status === 'failed')
       : nodeRuns;
     for (const node of visibleNodes) {
-      lines.push(`- ${node.status}: ${node.agentLabel || node.nodeId}${node.error ? ` — ${node.error}` : ''}`);
+      const nodeIcon = node.status === 'completed'
+        ? '✅'
+        : node.status === 'failed'
+          ? '❌'
+          : node.status === 'running'
+            ? '🔧'
+            : '⏳';
+      lines.push(`${nodeIcon} ${node.status}: ${node.agentLabel || node.nodeId}${node.error ? ` - ${node.error}` : ''}`);
     }
   }
   const outputs = nodeRuns
@@ -587,7 +1293,7 @@ function summarizeRun(run, mode) {
   return truncate(`${lines.join('\n')}${outputs.join('\n')}`);
 }
 
-async function monitorWorkflowRun({ bot, chatId, link, runId }) {
+async function monitorWorkflowRun({ bot, chatId, link, runId, activity = null }) {
   if (runMonitors.has(runId)) return;
   runMonitors.set(runId, true);
   const state = getState(link.user_id);
@@ -597,12 +1303,23 @@ async function monitorWorkflowRun({ bot, chatId, link, runId }) {
       await new Promise((resolve) => setTimeout(resolve, 5000));
       const run = await fetchRun(link.user_id, runId);
       const nodeRuns = Array.isArray(run.nodeRuns) ? run.nodeRuns : [];
+      if (activity && !TERMINAL_RUN_STATES.has(run.status)) {
+        activity.status = 'running';
+        activity.phase = `${t(activity.lang, 'control.activity.workflowRunning')} (${run.status})`;
+        await editTelegramActivity({ bot, chatId, activity });
+      }
       if (state.progressMode === 'all') {
         for (const node of nodeRuns) {
           const key = `${node.nodeId}:${node.status}`;
           if (!seenNodeStatus.has(key)) {
             seenNodeStatus.set(key, true);
-            await send(bot, chatId, `${node.agentLabel || node.nodeId}: ${node.status}${node.error ? `\n${node.error}` : ''}`);
+            if (activity) {
+              pushActivityEvent(activity, `${node.status === 'completed' ? '✅' : node.status === 'failed' ? '❌' : '🔧'} ${node.agentLabel || node.nodeId}: ${node.status}${node.error ? ` - ${node.error}` : ''}`);
+              activity.phase = t(activity.lang, 'control.activity.workflowRunning');
+              await editTelegramActivity({ bot, chatId, activity });
+            } else {
+              await send(bot, chatId, `${node.agentLabel || node.nodeId}: ${node.status}${node.error ? `\n${node.error}` : ''}`);
+            }
           }
         }
       }
@@ -611,12 +1328,27 @@ async function monitorWorkflowRun({ bot, chatId, link, runId }) {
           const key = `${node.nodeId}:${node.status}:${node.error || ''}`;
           if (!seenNodeStatus.has(key)) {
             seenNodeStatus.set(key, true);
-            await send(bot, chatId, `${node.agentLabel || node.nodeId}: ${node.status}\n${node.error || ''}`);
+            if (activity) {
+              pushActivityEvent(activity, `❌ ${node.agentLabel || node.nodeId}: ${node.status}${node.error ? ` - ${node.error}` : ''}`);
+              activity.phase = t(activity.lang, 'control.activity.workflowRunning');
+              await editTelegramActivity({ bot, chatId, activity });
+            } else {
+              await send(bot, chatId, `${node.agentLabel || node.nodeId}: ${node.status}\n${node.error || ''}`);
+            }
           }
         }
       }
       if (TERMINAL_RUN_STATES.has(run.status)) {
-        await send(bot, chatId, summarizeRun(run, state.progressMode));
+        if (activity) {
+          activity.status = run.status === 'completed' ? 'done' : 'failed';
+          activity.phase = run.status === 'completed'
+            ? t(activity.lang, 'control.activity.done')
+            : t(activity.lang, 'control.activity.failed');
+          activity.output = summarizeRun(run, state.progressMode);
+          await editTelegramActivity({ bot, chatId, activity, force: true });
+        } else {
+          await send(bot, chatId, summarizeRun(run, state.progressMode));
+        }
         return;
       }
     }
@@ -625,18 +1357,49 @@ async function monitorWorkflowRun({ bot, chatId, link, runId }) {
   }
 }
 
-export async function startCliInstall({ bot, chatId, link, provider }) {
+export async function startCliInstall({ bot, chatId, link, provider, editMessageId, confirmed = false }) {
   const lang = languageFor(link);
-  const data = await localApi(link.user_id, `/api/providers/${provider}/install`, { method: 'POST' });
+  if (!PROVIDERS.includes(provider)) {
+    await send(bot, chatId, t(lang, 'control.providerAuthFallback'), { editMessageId });
+    return;
+  }
+  const state = getState(link.user_id);
+  if (state.remoteControlEnabled === false) {
+    await send(bot, chatId, t(lang, 'control.disabled'), { editMessageId });
+    return;
+  }
+  if (state.confirmationPolicy === 'strict' && !confirmed) {
+    await requestConfirmation({
+      bot,
+      chatId,
+      link,
+      action: 'install_provider',
+      payload: { provider },
+      editMessageId,
+    });
+    return;
+  }
+
+  const result = await runTelegramTool({
+    userId: link.user_id,
+    action: 'install_provider',
+    execute: () => localApi(link.user_id, `/api/providers/${provider}/install`, { method: 'POST' }),
+  });
+  if (!result.ok) {
+    await sendToolFailure({ bot, chatId, link, result, editMessageId });
+    return;
+  }
+
+  const data = result.data;
   if (data?.manual) {
-    await send(bot, chatId, t(lang, 'control.manualInstall', { provider, manual: data.manual }));
+    await send(bot, chatId, t(lang, 'control.manualInstall', { provider, manual: data.manual }), { editMessageId });
     return;
   }
   await send(bot, chatId, t(lang, 'control.installStarted', {
     provider,
     jobId: data.jobId,
     command: data.installCmd || 'internal installer',
-  }));
+  }), { editMessageId });
 }
 
 async function showInstallMenu({ bot, chatId, link, editMessageId }) {
@@ -818,16 +1581,13 @@ async function handleCommand({ bot, chatId, link, text }) {
       await send(bot, chatId, t(lang, 'control.cancelUsage'));
       return true;
     }
-    const run = await localApi(link.user_id, `/api/orchestration/workflows/runs/${encodeURIComponent(argText)}/cancel`, {
-      method: 'POST',
-    });
-    await send(bot, chatId, t(lang, 'control.runStatus', { runId: run.id, status: run.status }));
+    await cancelRun({ bot, chatId, link, runId: argText });
     return true;
   }
   return false;
 }
 
-export async function handleTelegramControlMessage({ bot, msg, link }) {
+async function handleTelegramControlMessageInternal({ bot, msg, link }) {
   const chatId = msg.chat.id;
   const text = String(msg.text || '').trim();
   if (!text) return false;
@@ -845,13 +1605,35 @@ export async function handleTelegramControlMessage({ bot, msg, link }) {
   if (await handleCommand({ bot, chatId, link, text })) return true;
 
   const state = getState(link.user_id);
+  if (state.routerEnabled === false) return false;
   if (!state.remoteControlEnabled) {
     await send(bot, chatId, t(languageFor(link), 'control.disabled'));
     return true;
   }
 
-  await runAgent({ bot, chatId, link, prompt: text });
-  return true;
+  const activity = await createTelegramActivity({
+    bot,
+    chatId,
+    link,
+    type: 'router',
+    prompt: text,
+    phase: t(languageFor(link), 'control.activity.interpreting'),
+  });
+  return handleRoutedIntent({ bot, chatId, link, text, activity });
+}
+
+export async function handleTelegramControlMessage(args) {
+  const chatId = args?.msg?.chat?.id;
+  if (!chatId) return false;
+  return enqueueTelegramJob(chatId, async () => {
+    try {
+      return await handleTelegramControlMessageInternal(args);
+    } catch (error) {
+      console.error('[telegram-control] message handler failed:', error);
+      await send(args.bot, chatId, t(languageFor(args.link), 'error.generic')).catch(() => {});
+      return true;
+    }
+  });
 }
 
 async function showRunDetail({ bot, chatId, link, runId, editMessageId }) {
@@ -868,7 +1650,7 @@ async function showRunDetail({ bot, chatId, link, runId, editMessageId }) {
   });
 }
 
-export async function handleTelegramControlCallback({ bot, query, link }) {
+async function handleTelegramControlCallbackInternal({ bot, query, link }) {
   const chatId = query.message?.chat?.id;
   if (!chatId) return;
   const editMessageId = query.message?.message_id;
@@ -882,6 +1664,32 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
   await bot.answerCallbackQuery(query.id).catch(() => {});
 
   const { action, payload } = entry;
+  if (action === 'confirm_action') {
+    forgetAction(entry.id);
+    const lang = languageFor(link);
+    const result = consumeTelegramConfirmation(link.user_id, payload.id);
+    if (!result.ok) {
+      await send(bot, chatId, t(lang, result.reason === 'expired'
+        ? 'control.confirmationExpired'
+        : 'control.confirmationMissing'), { editMessageId });
+      return;
+    }
+    if (await executeConfirmedAction({
+      bot,
+      chatId,
+      link,
+      confirmation: result.confirmation,
+      editMessageId,
+    })) return;
+    await send(bot, chatId, t(lang, 'error.generic'), { editMessageId });
+    return;
+  }
+  if (action === 'cancel_confirmation') {
+    forgetAction(entry.id);
+    clearTelegramConfirmation(link.user_id, payload.id);
+    await send(bot, chatId, t(languageFor(link), 'control.confirmationCanceled'), { editMessageId });
+    return;
+  }
   if (action === 'menu') return showMainMenu({ bot, chatId, link, editMessageId });
   if (action === 'projects') return showProjectMenu({ bot, chatId, link, editMessageId });
   if (action === 'providers') return showProviderMenu({ bot, chatId, link, editMessageId });
@@ -947,20 +1755,26 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
   }
   if (action === 'run_detail') return showRunDetail({ bot, chatId, link, runId: payload.runId, editMessageId });
   if (action === 'run_cancel') {
-    const run = await localApi(link.user_id, `/api/orchestration/workflows/runs/${encodeURIComponent(payload.runId)}/cancel`, {
-      method: 'POST',
-    });
-    await send(bot, chatId, t(languageFor(link), 'control.runStatus', { runId: run.id, status: run.status }), { editMessageId });
+    await cancelRun({ bot, chatId, link, runId: payload.runId, editMessageId });
     return;
   }
   if (action === 'approval_decide') {
-    const result = await localApi(link.user_id, `/api/orchestration/workflows/approvals/${encodeURIComponent(payload.approvalId)}`, {
-      method: 'POST',
-      body: {
-        allow: payload.allow === true,
-        source: 'telegram',
-      },
+    const toolResult = await runTelegramTool({
+      userId: link.user_id,
+      action: 'approval_decide',
+      execute: () => localApi(link.user_id, `/api/orchestration/workflows/approvals/${encodeURIComponent(payload.approvalId)}`, {
+        method: 'POST',
+        body: {
+          allow: payload.allow === true,
+          source: 'telegram',
+        },
+      }),
     });
+    if (!toolResult.ok) {
+      await sendToolFailure({ bot, chatId, link, result: toolResult, editMessageId });
+      return;
+    }
+    const result = toolResult.data;
     const lang = languageFor(link);
     await send(bot, chatId, t(lang, 'control.approvalDecided', {
       approvalId: payload.approvalId,
@@ -969,7 +1783,7 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
     }), { editMessageId });
     return showApprovalQueue({ bot, chatId, link });
   }
-  if (action === 'install_provider') return startCliInstall({ bot, chatId, link, provider: payload.provider });
+  if (action === 'install_provider') return startCliInstall({ bot, chatId, link, provider: payload.provider, editMessageId });
   if (action === 'auth_provider') {
     await send(bot, chatId, `${payload.provider} login:\n${AUTH_HELP[payload.provider] || t(languageFor(link), 'control.providerAuthFallback')}`, { editMessageId });
     return;
@@ -993,4 +1807,19 @@ export async function handleTelegramControlCallback({ bot, query, link }) {
       notice: t(payload.language, 'control.languageSet', { language: payload.language }),
     });
   }
+}
+
+export async function handleTelegramControlCallback(args) {
+  const chatId = args?.query?.message?.chat?.id;
+  if (!chatId) return;
+  return enqueueTelegramJob(chatId, async () => {
+    try {
+      await handleTelegramControlCallbackInternal(args);
+    } catch (error) {
+      console.error('[telegram-control] callback failed:', error);
+      const lang = languageFor(args.link);
+      await args.bot?.answerCallbackQuery(args.query?.id, { text: t(lang, 'error.generic') }).catch(() => {});
+      await send(args.bot, chatId, t(lang, 'error.generic')).catch(() => {});
+    }
+  });
 }

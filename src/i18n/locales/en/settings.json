@@ -212,12 +212,28 @@
       "progressModes": {
         "final": "Final answer only",
         "steps": "Important steps and final answer",
+        "errors": "Errors and final answer",
         "all": "All visible step changes"
       },
       "selectedProject": "Selected project",
       "selectedProvider": "Selected provider",
       "selectedModel": "Selected model",
       "selectedWorkflow": "Selected workflow"
+    },
+    "router": {
+      "title": "AI Router",
+      "description": "Use the selected Pixcode provider to understand free-form Telegram messages. Slash commands and buttons still run directly.",
+      "enabled": "Enable natural-language router",
+      "enabledDescription": "Free-form text is interpreted by the provider/model below. Low-confidence text is sent to the agent as a normal prompt.",
+      "provider": "Provider",
+      "providerDescription": "Leave this on the Telegram-selected provider unless this chat should always use one provider.",
+      "useTelegramSelected": "Use provider selected in Telegram",
+      "model": "Model",
+      "modelDescription": "Optional override. Leave empty to use the model selected in Telegram.",
+      "modelPlaceholder": "Use Telegram-selected model",
+      "saveModel": "Save",
+      "strictConfirmation": "Strict confirmation",
+      "strictConfirmationDescription": "Risky write/run actions require a one-time Telegram confirmation. This is always on in v1."
     },
     "errors": {
       "invalidToken": "Telegram rejected this bot token.",

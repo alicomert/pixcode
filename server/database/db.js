@@ -762,6 +762,12 @@ const appConfigDb = {
 // ---------------------------------------------------------------------------
 const DEFAULT_TELEGRAM_CONTROL_STATE = {
     remoteControlEnabled: true,
+    routerEnabled: true,
+    routerMode: 'hybrid',
+    routerProvider: null,
+    routerModel: null,
+    confirmationPolicy: 'strict',
+    pendingConfirmation: null,
     progressMode: 'final',
     selectedProjectName: null,
     selectedProjectPath: null,
@@ -776,14 +782,36 @@ function normalizeTelegramControlState(value = {}) {
     const selectedProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.selectedProvider)
         ? raw.selectedProvider
         : DEFAULT_TELEGRAM_CONTROL_STATE.selectedProvider;
+    const routerProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.routerProvider)
+        ? raw.routerProvider
+        : null;
     const progressMode = ['final', 'steps', 'all', 'errors'].includes(raw.progressMode)
         ? raw.progressMode
         : DEFAULT_TELEGRAM_CONTROL_STATE.progressMode;
+    const pendingConfirmation = raw.pendingConfirmation && typeof raw.pendingConfirmation === 'object'
+        && typeof raw.pendingConfirmation.id === 'string'
+        && typeof raw.pendingConfirmation.action === 'string'
+        && typeof raw.pendingConfirmation.expiresAt === 'string'
+        ? {
+            id: raw.pendingConfirmation.id,
+            action: raw.pendingConfirmation.action,
+            payload: raw.pendingConfirmation.payload && typeof raw.pendingConfirmation.payload === 'object'
+                ? raw.pendingConfirmation.payload
+                : {},
+            expiresAt: raw.pendingConfirmation.expiresAt,
+        }
+        : null;
 
     return {
         ...DEFAULT_TELEGRAM_CONTROL_STATE,
         ...raw,
         remoteControlEnabled: raw.remoteControlEnabled !== false,
+        routerEnabled: raw.routerEnabled !== false,
+        routerMode: raw.routerMode === 'hybrid' ? 'hybrid' : DEFAULT_TELEGRAM_CONTROL_STATE.routerMode,
+        routerProvider,
+        routerModel: typeof raw.routerModel === 'string' && raw.routerModel.trim() ? raw.routerModel.trim() : null,
+        confirmationPolicy: 'strict',
+        pendingConfirmation,
         progressMode,
         selectedProvider,
         selectedProjectName: typeof raw.selectedProjectName === 'string' ? raw.selectedProjectName : null,

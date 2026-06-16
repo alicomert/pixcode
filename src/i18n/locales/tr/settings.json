@@ -212,12 +212,28 @@
       "progressModes": {
         "final": "Sadece final cevap",
         "steps": "Önemli adımlar ve final cevap",
+        "errors": "Hatalar ve final cevap",
         "all": "Tüm görünür adım değişiklikleri"
       },
       "selectedProject": "Seçili proje",
       "selectedProvider": "Seçili sağlayıcı",
       "selectedModel": "Seçili model",
       "selectedWorkflow": "Seçili workflow"
+    },
+    "router": {
+      "title": "AI Router",
+      "description": "Serbest Telegram mesajlarını seçili Pixcode provider/model ile anlamlandır. Slash komutları ve butonlar doğrudan çalışır.",
+      "enabled": "Doğal dil router'ını etkinleştir",
+      "enabledDescription": "Serbest metin aşağıdaki provider/model ile yorumlanır. Düşük güvenli metin normal ajan promptu olarak gönderilir.",
+      "provider": "Sağlayıcı",
+      "providerDescription": "Bu sohbet her zaman tek sağlayıcı kullanmayacaksa Telegram'da seçili sağlayıcıda bırak.",
+      "useTelegramSelected": "Telegram'da seçili sağlayıcıyı kullan",
+      "model": "Model",
+      "modelDescription": "İsteğe bağlı override. Boş bırakınca Telegram'da seçili model kullanılır.",
+      "modelPlaceholder": "Telegram'da seçili modeli kullan",
+      "saveModel": "Kaydet",
+      "strictConfirmation": "Sıkı onay",
+      "strictConfirmationDescription": "Riskli yazma/çalıştırma işlemleri tek kullanımlık Telegram onayı gerektirir. v1'de her zaman açık."
     },
     "errors": {
       "invalidToken": "Telegram bu bot token'ını reddetti.",

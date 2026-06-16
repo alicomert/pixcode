@@ -25,11 +25,14 @@ const checks = [
       source.includes("allowed_updates: ['message', 'callback_query']")
       && source.includes('answerCallbackQuery')
       && source.includes('editMessageText')
-      && source.includes("this.emit('callback_query'")
+      && (
+        source.includes("this.emit('callback_query'")
+        || source.includes("_emitSerial('callback_query'")
+      )
     ),
   },
   {
-    name: 'telegram control center exposes provider, model, workflow, install, and settings actions',
+    name: 'telegram control center exposes provider, model, workflow, install, streaming activity, and settings actions',
     file: 'server/services/telegram/control-center.js',
     test: (source) => (
       source.includes('showMainMenu')
@@ -38,9 +41,31 @@ const checks = [
       && source.includes('showWorkflowMenu')
       && source.includes('runWorkflow')
       && source.includes('startCliInstall')
+      && source.includes('localAgentStream')
+      && source.includes('editTelegramActivity')
       && source.includes('updateTelegramControlState')
       && source.includes('/api/agent')
       && source.includes('/api/orchestration/workflows')
+      && source.includes('TELEGRAM_CONTROL_SCOPES')
+      && source.includes('confirm_action')
+    ),
+  },
+  {
+    name: 'telegram natural language router is provider-backed instead of source keyword matching',
+    file: 'server/services/telegram/telegram-gateway.js',
+    test: (source) => (
+      source.includes('buildTelegramIntentPrompt')
+      && source.includes('parseTelegramAiIntentResponse')
+      && source.includes('Decide the user intent by meaning')
+      && !source.includes('classifyTelegramIntent')
+    ),
+  },
+  {
+    name: 'agent API accepts restricted permission mode for Telegram intent routing',
+    file: 'server/routes/agent.js',
+    test: (source) => (
+      source.includes('requestedPermissionMode')
+      && source.includes("permissionMode: permissionMode || 'bypassPermissions'")
     ),
   },
   {
@@ -51,6 +76,8 @@ const checks = [
       && source.includes('getControlState')
       && source.includes('updateControlState')
       && source.includes('remoteControlEnabled')
+      && source.includes('routerEnabled')
+      && source.includes('pendingConfirmation')
     ),
   },
   {
@@ -59,8 +86,10 @@ const checks = [
     test: (source) => (
       source.includes('controlEnabled')
       && source.includes('progressMode')
+      && source.includes('routerEnabled')
       && source.includes('telegram.control.title')
       && source.includes('telegram.control.progressMode')
+      && source.includes('telegram.router.title')
     ),
   },
 ];
@@ -81,6 +110,9 @@ for (const check of checks) {
 
 try {
   const {
+    parseTelegramAiIntentResponse,
+  } = await import('../../server/services/telegram/telegram-gateway.js');
+  const {
     handleTelegramControlCallback,
     handleTelegramControlMessage,
   } = await import('../../server/services/telegram/control-center.js');
@@ -89,6 +121,22 @@ try {
     setTelegramBotForTesting,
   } = await import('../../server/services/telegram/bot.js');
   const { telegramLinksDb } = await import('../../server/database/db.js');
+
+  assert.equal(
+    parseTelegramAiIntentResponse('{"action":"show_runs","confidence":0.4}', 'Selam dostum son durum nedir şimdi?').action,
+    'agent_prompt',
+    'low-confidence natural-language control guesses should fall back to the agent',
+  );
+  assert.equal(
+    parseTelegramAiIntentResponse('{"action":"show_runs","confidence":0.94}', 'Orchestration run listesini aç').action,
+    'show_runs',
+    'high-confidence AI router results should be accepted',
+  );
+  assert.equal(
+    parseTelegramAiIntentResponse('not json', 'Selam dostum son durum nedir şimdi?').action,
+    'agent_prompt',
+    'unparseable AI router responses should fall back to the agent',
+  );
 
   const userId = 4242;
   telegramLinksDb.unlink(userId);

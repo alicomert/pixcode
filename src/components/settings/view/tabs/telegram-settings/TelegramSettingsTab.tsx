@@ -22,7 +22,13 @@ type LinkState = {
   bridgeEnabled: boolean;
   control: {
     remoteControlEnabled: boolean;
-    progressMode: 'final' | 'steps' | 'all';
+    routerEnabled: boolean;
+    routerMode: 'hybrid';
+    routerProvider: string | null;
+    routerModel: string | null;
+    confirmationPolicy: 'strict';
+    pendingConfirmation: { id: string; action: string; payload: Record<string, unknown>; expiresAt: string } | null;
+    progressMode: 'final' | 'steps' | 'all' | 'errors';
     selectedProjectName: string | null;
     selectedProvider: string;
     selectedModel: string | null;
@@ -37,6 +43,9 @@ type StatusResponse = {
   bot: BotState;
   link: LinkState | null;
 };
+
+const PROVIDERS = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'] as const;
+const USE_SELECTED_PROVIDER = '__selected';
 
 const Section = ({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) => (
   <div className="rounded-xl border border-border/60 bg-background p-4">
@@ -54,6 +63,7 @@ export default function TelegramSettingsTab() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState('');
+  const [routerModelDraft, setRouterModelDraft] = useState('');
   const [busy, setBusy] = useState<'token' | 'stop' | 'remove' | 'pair' | 'unpair' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +82,10 @@ export default function TelegramSettingsTab() {
   }, []);
 
   useEffect(() => { void loadStatus(); }, [loadStatus]);
+
+  useEffect(() => {
+    setRouterModelDraft(status?.link?.control?.routerModel ?? '');
+  }, [status?.link?.control?.routerModel]);
 
   const handleSaveToken = async () => {
     setBusy('token');
@@ -154,7 +168,11 @@ export default function TelegramSettingsTab() {
   const patchLink = async (
     payload: Partial<Pick<LinkState, 'language' | 'notificationsEnabled' | 'bridgeEnabled'>> & {
       controlEnabled?: boolean;
-      progressMode?: 'final' | 'steps' | 'all';
+      progressMode?: 'final' | 'steps' | 'all' | 'errors';
+      routerEnabled?: boolean;
+      routerProvider?: string | null;
+      routerModel?: string | null;
+      confirmationPolicy?: 'strict';
     },
   ) => {
     setError(null);
@@ -177,6 +195,8 @@ export default function TelegramSettingsTab() {
   const pairingCode = link?.pairingCode ?? null;
   const controlEnabled = link?.control?.remoteControlEnabled ?? true;
   const progressMode = link?.control?.progressMode ?? 'final';
+  const routerEnabled = link?.control?.routerEnabled ?? true;
+  const routerProvider = link?.control?.routerProvider ?? null;
 
   const pairingRemainingMs = useMemo(() => {
     if (!link?.pairingExpiresAt) return null;
@@ -386,11 +406,12 @@ export default function TelegramSettingsTab() {
               <div className="mb-2 text-xs text-muted-foreground">{t('telegram.control.progressModeDescription')}</div>
               <select
                 value={progressMode}
-                onChange={(e) => void patchLink({ progressMode: e.target.value as 'final' | 'steps' | 'all' })}
+                onChange={(e) => void patchLink({ progressMode: e.target.value as 'final' | 'steps' | 'all' | 'errors' })}
                 className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
               >
                 <option value="final">{t('telegram.control.progressModes.final')}</option>
                 <option value="steps">{t('telegram.control.progressModes.steps')}</option>
+                <option value="errors">{t('telegram.control.progressModes.errors')}</option>
                 <option value="all">{t('telegram.control.progressModes.all')}</option>
               </select>
             </label>
@@ -401,6 +422,76 @@ export default function TelegramSettingsTab() {
               <div>{t('telegram.control.selectedModel')}: {link.control?.selectedModel || '-'}</div>
               <div>{t('telegram.control.selectedWorkflow')}: {link.control?.selectedWorkflowId || '-'}</div>
             </div>
+          </div>
+        </Section>
+      )}
+
+      {isPaired && link && (
+        <Section title={t('telegram.router.title')} description={t('telegram.router.description') as string}>
+          <div className="space-y-3">
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-background px-3 py-2.5">
+              <div>
+                <div className="text-sm font-medium text-foreground">{t('telegram.router.enabled')}</div>
+                <div className="text-xs text-muted-foreground">{t('telegram.router.enabledDescription')}</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={routerEnabled}
+                onChange={(e) => void patchLink({ routerEnabled: e.target.checked })}
+                className="h-4 w-4"
+              />
+            </label>
+
+            <label className="block rounded-lg border border-border/60 bg-background px-3 py-2.5">
+              <div className="text-sm font-medium text-foreground">{t('telegram.router.provider')}</div>
+              <div className="mb-2 text-xs text-muted-foreground">{t('telegram.router.providerDescription')}</div>
+              <select
+                value={routerProvider ?? USE_SELECTED_PROVIDER}
+                onChange={(e) => void patchLink({
+                  routerProvider: e.target.value === USE_SELECTED_PROVIDER ? null : e.target.value,
+                })}
+                className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+              >
+                <option value={USE_SELECTED_PROVIDER}>{t('telegram.router.useTelegramSelected')}</option>
+                {PROVIDERS.map((provider) => (
+                  <option key={provider} value={provider}>{provider}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block rounded-lg border border-border/60 bg-background px-3 py-2.5">
+              <div className="text-sm font-medium text-foreground">{t('telegram.router.model')}</div>
+              <div className="mb-2 text-xs text-muted-foreground">{t('telegram.router.modelDescription')}</div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={routerModelDraft}
+                  onChange={(e) => setRouterModelDraft(e.target.value)}
+                  placeholder={link.control?.selectedModel || (t('telegram.router.modelPlaceholder') as string)}
+                  className="min-w-0 flex-1 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => void patchLink({ routerModel: routerModelDraft.trim() || null })}
+                  className="inline-flex items-center rounded-lg border border-border/60 bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+                >
+                  {t('telegram.router.saveModel')}
+                </button>
+              </div>
+            </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5">
+              <div>
+                <div className="text-sm font-medium text-foreground">{t('telegram.router.strictConfirmation')}</div>
+                <div className="text-xs text-muted-foreground">{t('telegram.router.strictConfirmationDescription')}</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={link.control?.confirmationPolicy === 'strict'}
+                disabled
+                className="h-4 w-4"
+              />
+            </label>
           </div>
         </Section>
       )}

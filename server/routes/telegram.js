@@ -9,6 +9,7 @@ import {
   startBot,
   stopBot,
 } from '../services/telegram/bot.js';
+import { TELEGRAM_PROGRESS_MODES, TELEGRAM_PROVIDERS } from '../services/telegram/telegram-gateway.js';
 import { SUPPORTED_LANGUAGES } from '../services/telegram/translations.js';
 
 const router = express.Router();
@@ -99,7 +100,17 @@ router.post('/pairing-code', (req, res) => {
 // PATCH /api/telegram/link — update language / toggles on the user's link
 router.patch('/link', (req, res) => {
   try {
-    const { language, notificationsEnabled, bridgeEnabled, controlEnabled, progressMode } = req.body || {};
+    const {
+      language,
+      notificationsEnabled,
+      bridgeEnabled,
+      controlEnabled,
+      progressMode,
+      routerEnabled,
+      routerProvider,
+      routerModel,
+      confirmationPolicy,
+    } = req.body || {};
     const payload = {};
     if (language !== undefined) payload.language = sanitizeLanguage(language);
     if (notificationsEnabled !== undefined) payload.notificationsEnabled = Boolean(notificationsEnabled);
@@ -108,8 +119,20 @@ router.patch('/link', (req, res) => {
 
     const controlPatch = {};
     if (controlEnabled !== undefined) controlPatch.remoteControlEnabled = Boolean(controlEnabled);
-    if (progressMode !== undefined && ['final', 'steps', 'all'].includes(progressMode)) {
+    if (progressMode !== undefined && TELEGRAM_PROGRESS_MODES.includes(progressMode)) {
       controlPatch.progressMode = progressMode;
+    }
+    if (routerEnabled !== undefined) controlPatch.routerEnabled = Boolean(routerEnabled);
+    if (routerProvider !== undefined) {
+      controlPatch.routerProvider = TELEGRAM_PROVIDERS.includes(routerProvider) ? routerProvider : null;
+    }
+    if (routerModel !== undefined) {
+      controlPatch.routerModel = typeof routerModel === 'string' && routerModel.trim()
+        ? routerModel.trim()
+        : null;
+    }
+    if (confirmationPolicy !== undefined) {
+      controlPatch.confirmationPolicy = 'strict';
     }
     if (Object.keys(controlPatch).length > 0) {
       telegramLinksDb.updateControlState(req.user.id, controlPatch);

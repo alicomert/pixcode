@@ -207,13 +207,17 @@ export const handleIncomingTelegramMessage = handleMessage;
 const wirePollingErrors = () => {
   if (!bot) return;
   bot.on('polling_error', (err) => {
-    // 401 = bad token. 409 = another polling instance exists. Both mean we
-    // should stop and surface the error rather than thrash.
+    // 401 = bad token. 409 = another polling instance exists; the HTTP
+    // client keeps retrying with backoff so an old poller can disappear.
     const code = err?.response?.statusCode || err?.code;
-    lastError = { code: code || 'polling_error', message: err?.message || String(err) };
-    if (code === 401 || code === 409) {
+    lastError = code === 409
+      ? { code: 409, message: 'Another Telegram poller detected; retrying with backoff.' }
+      : { code: code || 'polling_error', message: err?.message || String(err) };
+    if (code === 401) {
       console.error('[telegram] fatal polling error, stopping:', lastError);
       stopBot().catch(() => {});
+    } else if (code === 409) {
+      console.warn('[telegram] polling conflict:', lastError);
     } else {
       console.warn('[telegram] polling error:', lastError);
     }
