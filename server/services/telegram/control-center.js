@@ -9,6 +9,7 @@ import { SUPPORTED_LANGUAGES, t } from './translations.js';
 const PROVIDERS = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'];
 const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
 const CALLBACK_TTL_MS = 10 * 60 * 1000;
+const MAX_CALLBACK_ACTIONS = 1000;
 const MAX_TELEGRAM_TEXT = 3600;
 const callbackActions = new Map();
 const runMonitors = new Map();
@@ -94,7 +95,23 @@ export function updateTelegramControlState(userId, patch) {
   return telegramLinksDb.updateControlState(userId, patch);
 }
 
+function pruneCallbackActions() {
+  const now = Date.now();
+  for (const [id, entry] of callbackActions.entries()) {
+    if (entry.expiresAt < now) {
+      callbackActions.delete(id);
+    }
+  }
+
+  while (callbackActions.size > MAX_CALLBACK_ACTIONS) {
+    const oldestId = callbackActions.keys().next().value;
+    if (!oldestId) break;
+    callbackActions.delete(oldestId);
+  }
+}
+
 function registerAction(action, payload = {}) {
+  pruneCallbackActions();
   const id = crypto.randomBytes(8).toString('hex');
   callbackActions.set(id, {
     action,

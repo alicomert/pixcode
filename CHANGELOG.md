@@ -2,6 +2,17 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.53.4](https://github.com/alicomert/pixcode/compare/v1.53.3...v1.53.4) (2026-06-16)
+
+Pixcode 1.53.4 fixes a Telegram bot memory blow-up caused by replaying stale Telegram update backlogs concurrently after startup.
+
+### Fixes
+
+* start Telegram polling only after token validation and listener wiring
+* drop stale pending Telegram updates before long polling so old offline messages are not replayed into Pixcode on restart
+* process Telegram updates serially with a bounded polling batch size to avoid parallel project/filesystem scans exhausting the Node heap
+* prune expired Telegram inline callback actions and cap the callback action store
+
 ## [1.53.3](https://github.com/alicomert/pixcode/compare/v1.53.2...v1.53.3) (2026-06-16)
 
 Pixcode 1.53.3 tightens the desktop workbench chrome, makes update/restart safer around active CLI sessions, and reduces background polling while preserving agent diff detection.

@@ -53,15 +53,18 @@ async function callApi(token, method, params, { signal } = {}) {
 }
 
 export class TelegramHttpBot extends EventEmitter {
-  constructor(token, { polling = true, pollTimeoutSec = 30 } = {}) {
+  constructor(token, { polling = true, pollTimeoutSec = 30, pollLimit = 25, dropPendingUpdates = true } = {}) {
     super();
     if (!token) throw new Error('TelegramHttpBot: token is required');
     this._token = token;
     this._pollTimeoutSec = pollTimeoutSec;
+    this._pollLimit = pollLimit;
+    this._dropPendingUpdates = dropPendingUpdates;
     this._offset = 0;
     this._polling = false;
     this._abortController = null;
-    if (polling) this._startPolling();
+    this._pollingLoop = null;
+    if (polling) this.startPolling();
   }
 
   // ---------- Public API (mirrors node-telegram-bot-api surface) ----------
@@ -96,56 +99,101 @@ export class TelegramHttpBot extends EventEmitter {
     this._polling = false;
     try { this._abortController?.abort(); } catch { /* ignore */ }
     this._abortController = null;
+    if (this._pollingLoop) {
+      await this._pollingLoop.catch(() => {});
+      this._pollingLoop = null;
+    }
   }
 
   // ---------- Polling loop ----------
 
-  async _startPolling() {
+  async startPolling({ dropPendingUpdates = this._dropPendingUpdates } = {}) {
+    if (this._polling) return;
     this._polling = true;
-    // Kick off a non-awaited loop. Each iteration long-polls getUpdates for
-    // up to pollTimeoutSec, then loops immediately. We deliberately serialize
-    // (no concurrent long-polls) because Telegram rejects that with 409.
-    (async () => {
-      while (this._polling) {
-        this._abortController = new AbortController();
-        try {
-          const updates = await callApi(
-            this._token,
-            'getUpdates',
-            {
-              offset: this._offset,
-              timeout: this._pollTimeoutSec,
-              allowed_updates: ['message', 'callback_query'],
-            },
-            { signal: this._abortController.signal },
-          );
-          for (const update of updates) {
-            if (typeof update.update_id === 'number') {
-              this._offset = Math.max(this._offset, update.update_id + 1);
-            }
-            if (update.message) {
-              try { this.emit('message', update.message); } catch (err) {
-                // Don't let a listener exception break the poll loop.
-                this.emit('polling_error', err);
-              }
-            }
-            if (update.callback_query) {
-              try { this.emit('callback_query', update.callback_query); } catch (err) {
-                this.emit('polling_error', err);
-              }
-            }
-          }
-        } catch (err) {
-          // AbortError is the expected path when stopPolling() is called.
-          if (err?.name === 'AbortError' || !this._polling) break;
-          this.emit('polling_error', err);
-          // Back off before retrying — rapid retries on 401/409 would
-          // otherwise spin at 100% CPU. Upstream consumer's polling_error
-          // handler may also call stopBot() on 401/409 which flips _polling
-          // off and breaks the loop on the next tick.
-          await new Promise((r) => setTimeout(r, 2000));
-        }
+    this._pollingLoop = this._runPollingLoop({ dropPendingUpdates });
+    await Promise.resolve();
+  }
+
+  async _dropPendingUpdatesBeforePolling() {
+    try {
+      await callApi(this._token, 'deleteWebhook', { drop_pending_updates: true });
+      return;
+    } catch (err) {
+      this.emit('polling_error', err);
+    }
+
+    // Fallback for environments where deleteWebhook is rejected: a negative
+    // offset asks Telegram to forget older queued updates.
+    try {
+      const updates = await callApi(this._token, 'getUpdates', {
+        offset: -1,
+        limit: 1,
+        timeout: 0,
+        allowed_updates: ['message', 'callback_query'],
+      });
+      const lastUpdate = Array.isArray(updates) ? updates.at(-1) : null;
+      if (typeof lastUpdate?.update_id === 'number') {
+        this._offset = lastUpdate.update_id + 1;
       }
-    })();
+    } catch (err) {
+      this.emit('polling_error', err);
+    }
+  }
+
+  async _emitSerial(eventName, payload) {
+    const listeners = this.listeners(eventName);
+    for (const listener of listeners) {
+      try {
+        await listener(payload);
+      } catch (err) {
+        this.emit('polling_error', err);
+      }
+    }
+  }
+
+  async _runPollingLoop({ dropPendingUpdates }) {
+    if (dropPendingUpdates) {
+      await this._dropPendingUpdatesBeforePolling();
+    }
+
+    // Each iteration long-polls getUpdates for up to pollTimeoutSec, then
+    // loops immediately. We deliberately serialize update handling because a
+    // stale Telegram backlog can otherwise fan out into many expensive scans.
+    while (this._polling) {
+      this._abortController = new AbortController();
+      try {
+        const updates = await callApi(
+          this._token,
+          'getUpdates',
+          {
+            offset: this._offset,
+            limit: this._pollLimit,
+            timeout: this._pollTimeoutSec,
+            allowed_updates: ['message', 'callback_query'],
+          },
+          { signal: this._abortController.signal },
+        );
+        for (const update of updates) {
+          if (typeof update.update_id === 'number') {
+            this._offset = Math.max(this._offset, update.update_id + 1);
+          }
+          if (update.message) {
+            await this._emitSerial('message', update.message);
+          }
+          if (update.callback_query) {
+            await this._emitSerial('callback_query', update.callback_query);
+          }
+        }
+      } catch (err) {
+        // AbortError is the expected path when stopPolling() is called.
+        if (err?.name === 'AbortError' || !this._polling) break;
+        this.emit('polling_error', err);
+        // Back off before retrying — rapid retries on 401/409 would
+        // otherwise spin at 100% CPU. Upstream consumer's polling_error
+        // handler may also call stopBot() on 401/409 which flips _polling
+        // off and breaks the loop on the next tick.
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
   }
 }

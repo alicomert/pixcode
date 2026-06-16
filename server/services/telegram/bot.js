@@ -234,7 +234,7 @@ export const startBot = async ({ token, persist = true } = {}) => {
   // 409 conflicts on every long-poll.
   if (bot) await stopBot();
 
-  const instance = new TelegramHttpBot(token, { polling: true });
+  const instance = new TelegramHttpBot(token, { polling: false, dropPendingUpdates: true });
   // Validate the token first — if getMe fails we never want to persist a
   // broken token or leave the poller running.
   let me;
@@ -255,17 +255,18 @@ export const startBot = async ({ token, persist = true } = {}) => {
 
   if (persist) telegramConfigDb.set(token, me.username);
 
-  bot.on('message', (msg) => {
-    handleMessage(msg).catch((err) => {
+  bot.on('message', async (msg) => {
+    await handleMessage(msg).catch((err) => {
       console.error('[telegram] handleMessage crashed:', err);
     });
   });
-  bot.on('callback_query', (query) => {
-    handleCallbackQuery(query).catch((err) => {
+  bot.on('callback_query', async (query) => {
+    await handleCallbackQuery(query).catch((err) => {
       console.error('[telegram] handleCallbackQuery crashed:', err);
     });
   });
   wirePollingErrors();
+  await bot.startPolling({ dropPendingUpdates: true });
 
   console.log(`[telegram] bot started as @${me.username}`);
   telegramEvents.emit('started', { username: me.username });
