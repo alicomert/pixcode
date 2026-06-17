@@ -64,6 +64,14 @@ const checks = [
     message: 'Shell must support true headerless rendering and a stable terminal fit container.',
   },
   {
+    path: 'src/components/shell/hooks/useShellTerminal.ts',
+    assert: (source) =>
+      source.includes('proposeDimensions()') &&
+      source.includes('currentTerminal.resize(nextCols, nextRows)') &&
+      source.includes('layoutSignal'),
+    message: 'Shell terminal must force cols/rows to refit when the layout signal changes.',
+  },
+  {
     path: 'src/components/shell/utils/terminalStyles.ts',
     assert: (source) =>
       source.includes('.pixcode-shell-terminal') &&

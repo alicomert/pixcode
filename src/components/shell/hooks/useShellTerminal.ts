@@ -46,6 +46,10 @@ function sanitizeTerminalInputData(data: string) {
   return data.replace(OSC_COLOR_REPORT_REGEX, '');
 }
 
+function refreshTerminalRows(terminal: Terminal) {
+  terminal.refresh(0, Math.max(0, terminal.rows - 1));
+}
+
 export function useShellTerminal({
   terminalContainerRef,
   terminalRef,
@@ -103,9 +107,18 @@ export function useShellTerminal({
     }
 
     try {
-      currentFitAddon.fit();
+      const dimensions = currentFitAddon.proposeDimensions();
+      if (dimensions && Number.isFinite(dimensions.cols) && Number.isFinite(dimensions.rows)) {
+        const nextCols = Math.max(2, Math.floor(dimensions.cols));
+        const nextRows = Math.max(1, Math.floor(dimensions.rows));
+        if (currentTerminal.cols !== nextCols || currentTerminal.rows !== nextRows) {
+          currentTerminal.resize(nextCols, nextRows);
+        }
+      } else {
+        currentFitAddon.fit();
+      }
       currentTerminal.scrollToBottom();
-      currentTerminal.refresh(0, Math.max(0, currentTerminal.rows - 1));
+      refreshTerminalRows(currentTerminal);
     } catch {
       return;
     }
@@ -134,7 +147,10 @@ export function useShellTerminal({
 
     const firstFrame = window.requestAnimationFrame(() => {
       fitTerminalAndNotify();
-      window.requestAnimationFrame(fitTerminalAndNotify);
+      window.requestAnimationFrame(() => {
+        fitTerminalAndNotify();
+        window.requestAnimationFrame(fitTerminalAndNotify);
+      });
     });
     const timeoutId = window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS);
 
