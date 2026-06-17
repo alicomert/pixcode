@@ -131,6 +131,45 @@ function semverGt(a, b) {
   return a3 > b3;
 }
 
+function findAncestorNodeModules(startDir) {
+  let current = path.resolve(startDir);
+  for (;;) {
+    if (path.basename(current) === 'node_modules') return current;
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function resolveBundledNodeModulesRoot(bundledRoot) {
+  if (!bundledRoot) return null;
+  const candidates = [
+    path.join(bundledRoot, 'node_modules'),
+    findAncestorNodeModules(bundledRoot),
+    path.join(path.dirname(bundledRoot), 'node_modules'),
+    path.resolve(bundledRoot, '..', '..'),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      if (
+        fs.existsSync(candidate) &&
+        (
+          fs.existsSync(path.join(candidate, 'ws', 'package.json')) ||
+          fs.existsSync(path.join(candidate, 'monaco-editor', 'package.json'))
+        )
+      ) {
+        return candidate;
+      }
+    } catch (_) { /* try next candidate */ }
+  }
+
+  return candidates.find((candidate) => {
+    try { return fs.existsSync(candidate); }
+    catch (_) { return false; }
+  }) || null;
+}
+
 function copyRecursive(src, dst) {
   if (typeof fs.cpSync === 'function') {
     fs.cpSync(src, dst, { recursive: true, errorOnExist: false, force: true });
@@ -163,10 +202,10 @@ function copyRecursive(src, dst) {
  * on the fast path the runtime already understands.
  */
 function ensureBundledNodeModulesReachable(runtimeDir, bundledRoot) {
-  const bundledNodeModules = path.resolve(bundledRoot, '..', '..');
+  const bundledNodeModules = resolveBundledNodeModulesRoot(bundledRoot);
   const runtimeNodeModules = path.join(runtimeDir, 'node_modules');
 
-  if (!fs.existsSync(bundledNodeModules)) {
+  if (!bundledNodeModules || !fs.existsSync(bundledNodeModules)) {
     throw new Error(`Bundled node_modules not found at ${bundledNodeModules}`);
   }
 
@@ -285,9 +324,7 @@ function startServer(runtimeDir) {
   // wrapper installer has to be re-downloaded anyway (electron-updater
   // handles that case separately).
   const bundledRoot = resolveBundledPixcodeRoot();
-  const bundledNodeModules = bundledRoot
-    ? path.resolve(bundledRoot, '..', '..')
-    : null;
+  const bundledNodeModules = resolveBundledNodeModulesRoot(bundledRoot);
   const pathSep = process.platform === 'win32' ? ';' : ':';
   const existingNodePath = process.env.NODE_PATH || '';
   const nodePath = bundledNodeModules

@@ -1700,7 +1700,7 @@ if (monacoAssetsPath) {
         },
     }));
 } else {
-    console.warn('[monaco] Local Monaco assets not found; code editor loader may fail.');
+    console.log('[monaco] Local Monaco assets not found; code editor loader may fail.');
 }
 
 app.use(express.static(path.join(APP_ROOT, 'dist'), {
