@@ -67,7 +67,7 @@ export default function AppearanceSettingsTab({
             description={t('appearanceSettings.colorTheme.palette.description', 'Choose the product accent used by buttons, focus rings, navigation, and active states.')}
             className="items-start"
           >
-            <div className="w-56 space-y-2">
+            <div className="w-full space-y-2 sm:w-56">
               <select
                 value={accentTheme}
                 onChange={(event) => setAccentTheme(event.target.value as ThemeAccentId)}
@@ -102,7 +102,7 @@ export default function AppearanceSettingsTab({
             description={t('appearanceSettings.colorTheme.custom.description', 'Pick separate accent colors for light and dark mode. Select Custom above to use them.')}
             className="items-start"
           >
-            <div className="grid w-56 grid-cols-2 gap-2">
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-56">
               <label className="space-y-1 text-xs text-muted-foreground">
                 <span>{t('appearanceSettings.colorTheme.custom.light', 'Light')}</span>
                 <input

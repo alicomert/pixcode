@@ -26,6 +26,7 @@ type StandaloneShellProps = {
   showHeader?: boolean;
   compact?: boolean;
   minimal?: boolean;
+  immersive?: boolean;
 };
 
 export default function StandaloneShell({
@@ -42,6 +43,7 @@ export default function StandaloneShell({
   showHeader = true,
   compact = false,
   minimal = false,
+  immersive = false,
   forceNewSession = false,
   startupInput = null,
   permissionOverride = null,
@@ -90,6 +92,7 @@ export default function StandaloneShell({
           permissionOverride={permissionOverride}
           provider={provider}
           onClose={onClose}
+          immersive={immersive}
         />
       </div>
     </div>

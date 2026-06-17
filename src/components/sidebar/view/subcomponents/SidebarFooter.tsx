@@ -165,69 +165,60 @@ export default function SidebarFooter({
         </div>
       )}
 
-      {/* Mobile Report Issue */}
-      <div className="px-3 pt-3 md:hidden">
-        <a
-          href={GITHUB_ISSUES_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-12 w-full items-center gap-3.5 rounded-xl bg-muted/40 px-4 transition-all hover:bg-muted/60 active:scale-[0.98]"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-background/80">
-            <Bug className="w-4.5 h-4.5 text-muted-foreground" />
-          </div>
-          <span className="text-base font-medium text-foreground">{t('actions.reportIssue')}</span>
-        </a>
-      </div>
-
-      {/* Mobile Discord */}
-      <div className="px-3 pt-2 md:hidden">
-        <a
-          href={DISCORD_INVITE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-12 w-full items-center gap-3.5 rounded-xl bg-muted/40 px-4 transition-all hover:bg-muted/60 active:scale-[0.98]"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-background/80">
-            <DiscordIcon className="w-4.5 h-4.5 text-muted-foreground" />
-          </div>
-          <span className="text-base font-medium text-foreground">{t('actions.joinCommunity')}</span>
-        </a>
-      </div>
-
-      {/* Mobile Control Room */}
-      {onOpenControlRoom && (
-        <div className="px-3 pt-2 md:hidden">
-          <button
-            className="flex h-14 w-full items-center gap-3.5 rounded-xl border border-primary/25 bg-primary/10 px-4 transition-all hover:bg-primary/15 active:scale-[0.98]"
-            onClick={onOpenControlRoom}
+      {/* Mobile compact actions */}
+      <div className="px-3 py-2 md:hidden">
+        <div className={`grid gap-1.5 ${onOpenControlRoom ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <a
+            href={GITHUB_ISSUES_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl bg-muted/35 px-1 text-center text-[11px] font-medium text-foreground transition-colors active:bg-muted"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
-              <Sparkles className="w-4.5 h-4.5 text-primary" />
-            </div>
-            <div className="min-w-0 flex-1 text-left">
-              <span className="block truncate text-base font-semibold text-foreground">
-                {t('actions.controlRoom', { defaultValue: 'Control Room' })}
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {t('actions.controlRoomDescription', { defaultValue: 'Admin, access, runs' })}
-              </span>
-            </div>
+            <Bug className="h-4 w-4 text-muted-foreground" />
+            <span className="line-clamp-2 leading-tight">{t('actions.reportIssue')}</span>
+          </a>
+
+          <a
+            href={DISCORD_INVITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl bg-muted/35 px-1 text-center text-[11px] font-medium text-foreground transition-colors active:bg-muted"
+          >
+            <DiscordIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="line-clamp-2 leading-tight">{t('actions.joinCommunity')}</span>
+          </a>
+
+          {onOpenControlRoom && (
+            <button
+              type="button"
+              className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border border-primary/20 bg-primary/10 px-1 text-center text-[11px] font-semibold text-primary transition-colors active:bg-primary/15"
+              onClick={onOpenControlRoom}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="line-clamp-2 leading-tight">{t('actions.controlRoom', { defaultValue: 'Control Room' })}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl bg-muted/35 px-1 text-center text-[11px] font-medium text-foreground transition-colors active:bg-muted"
+            onClick={onShowSettings}
+          >
+            <Settings className="h-4 w-4 text-muted-foreground" />
+            <span className="line-clamp-2 leading-tight">{t('actions.settings')}</span>
           </button>
         </div>
-      )}
 
-      {/* Mobile settings */}
-      <div className="px-3 pb-3 pt-2 md:hidden">
-        <button
-          className="flex h-12 w-full items-center gap-3.5 rounded-xl bg-muted/40 px-4 transition-all hover:bg-muted/60 active:scale-[0.98]"
-          onClick={onShowSettings}
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-background/80">
-            <Settings className="w-4.5 h-4.5 text-muted-foreground" />
-          </div>
-          <span className="text-base font-medium text-foreground">{t('actions.settings')}</span>
-        </button>
+        {!IS_PLATFORM && (
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 block truncate text-center text-[10px] text-muted-foreground/45"
+          >
+            Pixcode v{currentVersion} · {t('branding.openSource')}
+          </a>
+        )}
       </div>
     </div>
   );

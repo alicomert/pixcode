@@ -17,12 +17,14 @@ import DiagnosticsSettingsTab from '../view/tabs/DiagnosticsSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useWebPush } from '../../../hooks/useWebPush';
+import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import type { SettingsProps } from '../types/types';
 
 import { X } from '@/lib/icons';
 
 function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: SettingsProps) {
   const { t } = useTranslation('settings');
+  const { isMobile } = useDeviceSettings({ trackPWA: false });
   const {
     activeTab,
     setActiveTab,
@@ -117,8 +119,11 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
           <SettingsSidebar activeTab={activeTab} onChange={setActiveTab} />
 
           {/* Content */}
-          <main className="flex-1 overflow-y-auto">
-            <div key={activeTab} className="settings-content-enter space-y-6 p-4 pb-safe-area-inset-bottom md:space-y-8 md:p-6">
+          <main className="min-h-0 flex-1 overflow-y-auto">
+            <div
+              key={activeTab}
+              className={`settings-content-enter ${isMobile ? 'space-y-4 p-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]' : 'space-y-8 p-6 pb-safe-area-inset-bottom'}`}
+            >
               {activeTab === 'appearance' && (
                 <AppearanceSettingsTab
                   projectSortOrder={projectSortOrder}

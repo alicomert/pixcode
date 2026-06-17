@@ -10,7 +10,7 @@ type PillBarProps = {
 
 export function PillBar({ children, className }: PillBarProps) {
   return (
-    <div className={cn('inline-flex items-center gap-[2px] rounded-lg bg-muted/60 p-[3px]', className)}>
+    <div className={cn('inline-flex max-w-full items-center gap-1 rounded-lg bg-muted/60 p-1', className)}>
       {children}
     </div>
   );
@@ -27,9 +27,10 @@ type PillProps = {
 export function Pill({ isActive, onClick, children, className }: PillProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={cn(
-        'flex touch-manipulation items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150',
+        'flex min-w-0 touch-manipulation items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150',
         isActive
           ? 'bg-background text-foreground shadow-sm'
           : 'text-muted-foreground active:bg-background/50',

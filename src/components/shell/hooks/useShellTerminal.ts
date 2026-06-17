@@ -90,7 +90,12 @@ export function useShellTerminal({
       return;
     }
 
-    const nextTerminal = new Terminal(TERMINAL_OPTIONS);
+    const isCompactViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+    const nextTerminal = new Terminal({
+      ...TERMINAL_OPTIONS,
+      fontSize: isCompactViewport ? 12 : TERMINAL_OPTIONS.fontSize,
+      lineHeight: isCompactViewport ? 1.08 : TERMINAL_OPTIONS.lineHeight,
+    });
     terminalRef.current = nextTerminal;
 
     const nextFitAddon = new FitAddon();
@@ -213,20 +218,37 @@ export function useShellTerminal({
       return true;
     });
 
-    window.setTimeout(() => {
+    const fitTerminalAndNotify = () => {
       const currentFitAddon = fitAddonRef.current;
       const currentTerminal = terminalRef.current;
       if (!currentFitAddon || !currentTerminal) {
         return;
       }
 
-      currentFitAddon.fit();
+      try {
+        currentFitAddon.fit();
+      } catch {
+        return;
+      }
+
       sendSocketMessage(wsRef.current, {
         type: 'resize',
         cols: currentTerminal.cols,
         rows: currentTerminal.rows,
       });
-    }, TERMINAL_INIT_DELAY_MS);
+    };
+
+    const scheduleTerminalFit = () => {
+      if (resizeTimeoutRef.current !== null) {
+        window.clearTimeout(resizeTimeoutRef.current);
+      }
+
+      resizeTimeoutRef.current = window.setTimeout(() => {
+        fitTerminalAndNotify();
+      }, TERMINAL_RESIZE_DELAY_MS);
+    };
+
+    window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS);
 
     setIsInitialized(true);
 
@@ -239,34 +261,19 @@ export function useShellTerminal({
       sendTerminalInput(wsRef.current, sanitizedData);
     });
 
-    const resizeObserver = new ResizeObserver(() => {
-      if (resizeTimeoutRef.current !== null) {
-        window.clearTimeout(resizeTimeoutRef.current);
-      }
-
-      resizeTimeoutRef.current = window.setTimeout(() => {
-        const currentFitAddon = fitAddonRef.current;
-        const currentTerminal = terminalRef.current;
-        if (!currentFitAddon || !currentTerminal) {
-          return;
-        }
-
-        currentFitAddon.fit();
-        sendSocketMessage(wsRef.current, {
-          type: 'resize',
-          cols: currentTerminal.cols,
-          rows: currentTerminal.rows,
-        });
-      }, TERMINAL_RESIZE_DELAY_MS);
-    });
+    const resizeObserver = new ResizeObserver(scheduleTerminalFit);
 
     resizeObserver.observe(terminalContainer);
+    window.visualViewport?.addEventListener('resize', scheduleTerminalFit);
+    window.addEventListener('orientationchange', scheduleTerminalFit);
 
     return () => {
       terminalContainer.removeEventListener('copy', handleTerminalCopy);
       terminalContainer.removeEventListener('paste', handleTerminalPaste, true);
       terminalContainer.removeEventListener('keydown', handleCopyPasteShortcut, true);
       resizeObserver.disconnect();
+      window.visualViewport?.removeEventListener('resize', scheduleTerminalFit);
+      window.removeEventListener('orientationchange', scheduleTerminalFit);
       if (resizeTimeoutRef.current !== null) {
         window.clearTimeout(resizeTimeoutRef.current);
         resizeTimeoutRef.current = null;

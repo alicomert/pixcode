@@ -47,6 +47,7 @@ type TerminalShortcutsPanelProps = {
   terminalRef: MutableRefObject<Terminal | null>;
   isConnected: boolean;
   bottomOffset?: string;
+  placement?: 'fixed' | 'absolute';
 };
 
 const preventFocusSteal = (e: React.PointerEvent) => e.preventDefault();
@@ -63,6 +64,7 @@ export default function TerminalShortcutsPanel({
   terminalRef,
   isConnected,
   bottomOffset = 'bottom-0',
+  placement = 'fixed',
 }: TerminalShortcutsPanelProps) {
   const { t } = useTranslation('settings');
   const [ctrlActive, setCtrlActive] = useState(false);
@@ -123,7 +125,7 @@ export default function TerminalShortcutsPanel({
   );
 
   return (
-    <div className={`pointer-events-none fixed inset-x-0 ${bottomOffset} z-40 px-2 pb-[max(env(safe-area-inset-bottom),0px)] md:hidden`}>
+    <div className={`pointer-events-none ${placement} inset-x-0 ${bottomOffset} z-40 px-2 pb-[max(env(safe-area-inset-bottom),0px)] md:hidden`}>
       <div className="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-lg border border-gray-700/80 bg-gray-900/95 px-1.5 py-1.5 shadow-lg backdrop-blur-sm [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {pasteError && (
           <span className="shrink-0 rounded-md border border-yellow-500/50 bg-yellow-500/15 px-2 py-1 text-[11px] text-yellow-100">

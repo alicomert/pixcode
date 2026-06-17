@@ -305,12 +305,21 @@ export default function SidebarHeader({
           </div>
         </div>
 
+        {onQuickStartSession && (
+          <button
+            type="button"
+            onClick={() => { void onQuickStartSession(); }}
+            className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors active:bg-primary/10"
+          >
+            <Sparkles className="h-4 w-4" />
+            {t('sidebar.newChat', { defaultValue: 'New chat' })}
+          </button>
+        )}
+
         {/* Mobile search */}
         {projectsCount > 0 && !isLoading && (
           <div className="mt-2.5 space-y-2">
-            {searchMode === 'projects' && (
-              <HistoryViewToggle value={historyView} onChange={onHistoryViewChange} t={t} />
-            )}
+            <HistoryViewToggle value={historyView} onChange={onHistoryViewChange} t={t} />
             <div className="flex rounded-lg bg-muted/50 p-0.5">
               <button
                 onClick={() => onSearchModeChange('projects')}

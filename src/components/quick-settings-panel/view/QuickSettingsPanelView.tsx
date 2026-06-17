@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { useQuickSettingsDrag } from '../hooks/useQuickSettingsDrag';
+import { cn } from '../../../lib/utils';
 import type { AutoShowAgentDiffMode, PreferenceToggleKey, QuickSettingsPreferences } from '../types';
 
 import QuickSettingsContent from './QuickSettingsContent';
-import QuickSettingsHandle from './QuickSettingsHandle';
 import QuickSettingsPanelHeader from './QuickSettingsPanelHeader';
 
 export default function QuickSettingsPanelView() {
@@ -16,12 +14,6 @@ export default function QuickSettingsPanelView() {
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { isDarkMode } = useTheme();
   const { preferences, setPreference } = useUiPreferences();
-  const {
-    isDragging,
-    handleStyle,
-    startDrag,
-    consumeSuppressedClick,
-  } = useQuickSettingsDrag({ isMobile });
 
   const quickSettingsPreferences = useMemo<QuickSettingsPreferences>(() => ({
     autoExpandTools: preferences.autoExpandTools,
@@ -53,19 +45,6 @@ export default function QuickSettingsPanelView() {
     [setPreference],
   );
 
-  const handleToggleFromHandle = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      // A drag releases a click event as well; this guard prevents accidental toggles.
-      if (consumeSuppressedClick()) {
-        event.preventDefault();
-        return;
-      }
-
-      setIsOpen((previous) => !previous);
-    },
-    [consumeSuppressedClick],
-  );
-
   useEffect(() => {
     const openPanel = () => setIsOpen(true);
     const togglePanel = () => setIsOpen((previous) => !previous);
@@ -83,19 +62,20 @@ export default function QuickSettingsPanelView() {
 
   return (
     <>
-      {isMobile && (
-        <QuickSettingsHandle
-          isOpen={isOpen}
-          isDragging={isDragging}
-          style={handleStyle}
-          onClick={handleToggleFromHandle}
-          onMouseDown={startDrag}
-          onTouchStart={startDrag}
-        />
-      )}
-
       <div
-        className={`fixed right-0 top-0 z-40 h-full w-80 transform border-l border-border bg-background shadow-xl transition-transform duration-150 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isMobile ? 'h-screen' : ''}`}
+        className={cn(
+          'fixed z-40 transform border-border bg-background shadow-xl transition-transform duration-150 ease-out',
+          isMobile
+            ? [
+              'inset-x-2 bottom-2 h-[min(78vh,34rem)] overflow-hidden rounded-2xl border',
+              isOpen ? 'translate-y-0' : 'translate-y-[calc(100%+1rem)]',
+            ]
+            : [
+              'right-0 top-0 h-full w-80 border-l',
+              isOpen ? 'translate-x-0' : 'translate-x-full',
+            ],
+        )}
+        aria-hidden={!isOpen}
       >
         <div className="flex h-full flex-col">
           <QuickSettingsPanelHeader />

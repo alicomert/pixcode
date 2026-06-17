@@ -5,6 +5,7 @@ import { Tooltip, PillBar, Pill } from '../../../../shared/view/ui';
 import type { AppTab } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 import PluginIcon from '../../../plugins/view/PluginIcon';
+import { cn } from '../../../../lib/utils';
 
 import {
   Columns,
@@ -88,7 +89,7 @@ export default function MainContentTabSwitcher({
   const tabs: TabDefinition[] = [...BASE_TABS, ...pluginTabs];
 
   return (
-    <PillBar>
+    <PillBar className={cn(isMobile && 'w-max min-w-full justify-start overflow-x-visible')}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
         const displayLabel = tab.kind === 'builtin' ? t(tab.labelKey) : tab.label;
@@ -111,7 +112,16 @@ export default function MainContentTabSwitcher({
               <Pill
                 isActive={isActive}
                 onClick={() => setActiveTab(tab.id)}
-                className={showLayoutIndicator ? 'px-2 py-[5px] pr-7' : 'px-2.5 py-[5px]'}
+                className={cn(
+                  'h-8',
+                  isMobile
+                    ? isActive
+                      ? 'max-w-[10rem] px-2.5 py-1.5'
+                      : 'w-9 px-0 py-1.5'
+                    : showLayoutIndicator
+                      ? 'px-2 py-[5px] pr-7'
+                      : 'px-2.5 py-[5px]',
+                )}
               >
                 {tab.kind === 'builtin' ? (
                   <tab.icon className="h-3.5 w-3.5" />
@@ -122,7 +132,17 @@ export default function MainContentTabSwitcher({
                     className="flex h-3.5 w-3.5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
                   />
                 )}
-                <span className="hidden lg:inline">{displayLabel}</span>
+                <span
+                  className={cn(
+                    isMobile
+                      ? isActive
+                        ? 'inline max-w-[7.5rem] truncate text-xs'
+                        : 'sr-only'
+                      : 'hidden lg:inline',
+                  )}
+                >
+                  {displayLabel}
+                </span>
                 {tab.id === 'liveView' && liveViewAvailable && (
                   <span
                     className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]"

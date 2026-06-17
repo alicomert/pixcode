@@ -617,14 +617,35 @@ export function useProjectsState({
       }
 
       setProjects((prevProjects) =>
-        prevProjects.map((project) => ({
-          ...project,
-          sessions: project.sessions?.filter((session) => session.id !== sessionIdToDelete) ?? [],
-          sessionMeta: {
-            ...project.sessionMeta,
-            total: Math.max(0, (project.sessionMeta?.total as number | undefined ?? 0) - 1),
-          },
-        })),
+        prevProjects.map((project) => {
+          const providerSessionLists = [
+            project.sessions,
+            project.cursorSessions,
+            project.codexSessions,
+            project.geminiSessions,
+            project.qwenSessions,
+            project.opencodeSessions,
+          ];
+          const containedSession = providerSessionLists.some(
+            (sessions) => sessions?.some((session) => session.id === sessionIdToDelete),
+          );
+
+          return {
+            ...project,
+            sessions: project.sessions?.filter((session) => session.id !== sessionIdToDelete) ?? [],
+            cursorSessions: project.cursorSessions?.filter((session) => session.id !== sessionIdToDelete) ?? [],
+            codexSessions: project.codexSessions?.filter((session) => session.id !== sessionIdToDelete) ?? [],
+            geminiSessions: project.geminiSessions?.filter((session) => session.id !== sessionIdToDelete) ?? [],
+            qwenSessions: project.qwenSessions?.filter((session) => session.id !== sessionIdToDelete) ?? [],
+            opencodeSessions: project.opencodeSessions?.filter((session) => session.id !== sessionIdToDelete) ?? [],
+            sessionMeta: {
+              ...project.sessionMeta,
+              total: containedSession
+                ? Math.max(0, (project.sessionMeta?.total as number | undefined ?? 0) - 1)
+                : project.sessionMeta?.total,
+            },
+          };
+        }),
       );
     },
     [navigate, selectedSession?.id],

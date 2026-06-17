@@ -8,6 +8,7 @@ type MainContentTitleProps = {
   activeTab: AppTab;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
+  isMobile?: boolean;
 };
 
 function getTabTitle(activeTab: AppTab, t: (key: string) => string, pluginDisplayName?: string) {
@@ -65,6 +66,7 @@ export default function MainContentTitle({
   activeTab,
   selectedProject,
   selectedSession,
+  isMobile = false,
 }: MainContentTitleProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -76,9 +78,10 @@ export default function MainContentTitle({
   const showSessionIcon = activeTab === 'chat' && Boolean(selectedSession);
   const showChatNewSession = activeTab === 'chat' && !selectedSession;
   const projectLabel = selectedProject?.displayName || 'Server';
+  const projectPathLabel = selectedProject?.path || selectedProject?.fullPath;
 
   return (
-    <div className="scrollbar-hide flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
       {showSessionIcon && (
         <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
           <SessionProviderLogo provider={selectedSession?.__provider} className="h-4 w-4" />
@@ -88,22 +91,28 @@ export default function MainContentTitle({
       <div className="min-w-0 flex-1">
         {activeTab === 'chat' && selectedSession ? (
           <div className="min-w-0">
-            <h2 className="scrollbar-hide overflow-x-auto whitespace-nowrap text-sm font-semibold leading-tight text-foreground">
+            <h2 className="truncate text-sm font-semibold leading-tight text-foreground">
               {getSessionTitle(selectedSession)}
             </h2>
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{projectLabel}</div>
+            <div className="truncate text-[11px] leading-tight text-muted-foreground">
+              {isMobile && projectPathLabel ? `${projectLabel} · ${projectPathLabel}` : projectLabel}
+            </div>
           </div>
         ) : showChatNewSession ? (
           <div className="min-w-0">
-            <h2 className="text-base font-semibold leading-tight text-foreground">{t('mainContent.newSession')}</h2>
-            <div className="truncate text-xs leading-tight text-muted-foreground">{projectLabel}</div>
+            <h2 className="truncate text-base font-semibold leading-tight text-foreground">{t('mainContent.newSession')}</h2>
+            <div className="truncate text-xs leading-tight text-muted-foreground">
+              {isMobile && projectPathLabel ? `${projectLabel} · ${projectPathLabel}` : projectLabel}
+            </div>
           </div>
         ) : (
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold leading-tight text-foreground">
+            <h2 className="truncate text-sm font-semibold leading-tight text-foreground">
               {getTabTitle(activeTab, t, pluginDisplayName)}
             </h2>
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{projectLabel}</div>
+            <div className="truncate text-[11px] leading-tight text-muted-foreground">
+              {isMobile && projectPathLabel ? `${projectLabel} · ${projectPathLabel}` : projectLabel}
+            </div>
           </div>
         )}
       </div>

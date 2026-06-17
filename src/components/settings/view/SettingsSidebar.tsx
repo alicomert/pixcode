@@ -1,11 +1,11 @@
+import { useState } from 'react';
 import { Send as TelegramIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
-import { PillBar, Pill } from '../../../shared/view/ui';
 import type { SettingsMainTab } from '../types/types';
 
-import { Bell, Bot, Bug, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone, Sparkles } from '@/lib/icons';
+import { Bell, Bot, Bug, ChevronDown, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone, Sparkles } from '@/lib/icons';
 
 type SettingsSidebarProps = {
   activeTab: SettingsMainTab;
@@ -35,6 +35,9 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebarProps) {
   const { t } = useTranslation('settings');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const activeItem = NAV_ITEMS.find((item) => item.id === activeTab) ?? NAV_ITEMS[0];
+  const ActiveIcon = activeItem.icon;
 
   return (
     <>
@@ -64,26 +67,47 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
         </nav>
       </aside>
 
-      {/* Mobile horizontal nav — pill bar */}
-      <div className="relative flex-shrink-0 border-b border-border px-3 py-2 md:hidden">
-        <PillBar className="scrollbar-hide w-full overflow-x-auto pr-8">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
+      {/* Mobile section switcher */}
+      <div className="flex-shrink-0 border-b border-border p-2 md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((value) => !value)}
+          className="flex h-11 w-full items-center gap-2 rounded-xl bg-muted/45 px-3 text-left text-sm font-medium text-foreground transition-colors active:bg-muted"
+          aria-expanded={mobileMenuOpen}
+        >
+          <ActiveIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate">{t(activeItem.labelKey)}</span>
+          <ChevronDown className={cn('h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform', mobileMenuOpen && 'rotate-180')} />
+        </button>
 
-            return (
-              <Pill
-                key={item.id}
-                isActive={activeTab === item.id}
-                onClick={() => onChange(item.id)}
-                className="flex-shrink-0"
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {t(item.labelKey)}
-              </Pill>
-            );
-          })}
-        </PillBar>
-        <div className="pointer-events-none absolute inset-y-2 right-0 w-10 bg-gradient-to-l from-background to-transparent" />
+        {mobileMenuOpen && (
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => {
+                    onChange(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={cn(
+                    'flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-center text-[11px] font-medium transition-colors',
+                    isActive
+                      ? 'bg-accent text-accent-foreground'
+                      : 'bg-muted/30 text-muted-foreground active:bg-muted',
+                  )}
+                >
+                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <span className="line-clamp-2 leading-tight">{t(item.labelKey)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );

@@ -83,3 +83,10 @@ Config: `eslint.config.js` (flat config, two blocks).
 - `src/contexts/PermissionContext.tsx` — per-session permission mode / active tool approvals.
 - `src/hooks/useServerPlatform.ts` — reports whether backend runs as managed Pixcode platform variant.
 - `tailwind.config.js` exposes keyframes: `shimmer`, `dialog-overlay-show`, `dialog-content-show`.
+
+## Mobile parity requirement
+
+- Every frontend feature must have an intentional mobile path (`<768px`) unless the task explicitly says desktop-only. Check navigation, settings, modals, workspace/session context, and any new tab/tool entry point on mobile before release.
+- Do not hide desktop-only controls without providing a compact mobile equivalent. Prefer bottom sheets, active-section switchers, icon buttons with tooltips/labels, and full-width form controls over long horizontal pill bars or fixed edge handles.
+- Terminal/CLI work must preserve real xterm behavior and session continuity on mobile; avoid wrapping the terminal in decorative cards or compressed preview panels.
+- Release verification for UI work should include `npm run smoke:mobile-ux` plus lint/typecheck/build when practical.

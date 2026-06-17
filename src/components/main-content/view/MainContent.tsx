@@ -104,6 +104,12 @@ function MainContent({
 
   const activeSidePanelTab = isSidePanelTab(activeTab) ? activeTab : null;
   const showSidePanelSplit = Boolean(activeSidePanelTab && !isMobile && canUseSidePanelSplit && sidePanelMode === 'split');
+  const mobileShellTabId = useMemo(() => {
+    const projectKey = selectedProject?.name || selectedProject?.path || 'project';
+    const sessionKey = selectedSession?.id || 'new';
+    const providerKey = selectedSession?.__provider || 'default';
+    return `mobile-shell_${projectKey}_${providerKey}_${sessionKey}`;
+  }, [selectedProject?.name, selectedProject?.path, selectedSession?.id, selectedSession?.__provider]);
 
   // Subtle crossfade when switching tabs — drives a small fade+rise on the
   // active content column whenever activeTab changes.
@@ -289,6 +295,8 @@ function MainContent({
           session={selectedSession}
           showHeader={false}
           isActive={activeTab === 'shell'}
+          tabId={isMobile ? mobileShellTabId : undefined}
+          immersive={isMobile}
         />
       );
     }
@@ -635,7 +643,9 @@ function MainContent({
             'flex min-h-0 min-w-[200px] flex-1 flex-col overflow-hidden',
             editorExpanded && 'hidden',
             !editingFile && !activeSidePanelTab && !showSidePanelSplit && 'mx-auto w-full max-w-[1100px] px-4 md:px-8',
-            !editingFile && activeSidePanelTab && !showSidePanelWithChat && 'w-full px-3 md:px-4',
+            !editingFile && activeSidePanelTab && !showSidePanelWithChat && (
+              isMobile && activeSidePanelTab === 'shell' ? 'w-full px-0' : 'w-full px-3 md:px-4'
+            ),
             !editingFile && showSidePanelWithChat && 'w-full px-3 md:px-4',
             !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
             !editingFile && activeTab === 'remote' && 'max-w-none px-0 md:px-0',
@@ -734,7 +744,10 @@ function MainContent({
                 <div
                   ref={sidePanelRef}
                   className={cn(
-                    'min-h-0 overflow-hidden rounded-lg border border-border/60 bg-card/40',
+                    'min-h-0 overflow-hidden',
+                    isMobile && activeSidePanelTab === 'shell'
+                      ? 'bg-gray-900'
+                      : 'rounded-lg border border-border/60 bg-card/40',
                     showSidePanelWithChat && 'min-w-[360px] flex-none shadow-sm transition-[width,opacity,transform] duration-300 ease-out',
                     isDraggingSidePanel && 'transition-none',
                     !showSidePanelWithChat && 'h-full w-full',

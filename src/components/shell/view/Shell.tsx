@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { PROVIDER_DISPLAY_NAMES } from '../../provider-auth/types';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { ShellPermissionOverride } from '../types/types';
+import { cn } from '../../../lib/utils';
 import {
   PROMPT_BUFFER_SCAN_LINES,
   PROMPT_DEBOUNCE_MS,
@@ -40,6 +41,7 @@ type ShellProps = {
   provider?: LLMProvider | null;
   isActive?: boolean;
   onClose?: (() => void) | null;
+  immersive?: boolean;
 };
 
 export default function Shell({
@@ -57,6 +59,7 @@ export default function Shell({
   provider = null,
   isActive = true,
   onClose = null,
+  immersive = false,
 }: ShellProps) {
   const { t } = useTranslation('chat');
   const [isRestarting, setIsRestarting] = useState(false);
@@ -287,7 +290,7 @@ export default function Shell({
   const overlayDescription = overlayMode === 'connecting' ? connectingDescription : readyDescription;
 
   return (
-    <div className="flex h-full w-full flex-col bg-gray-900">
+    <div className={cn('flex h-full w-full flex-col bg-gray-900', immersive && 'bg-gray-950')}>
       <ShellHeader
         isConnected={isConnected}
         isInitialized={isInitialized}
@@ -306,10 +309,10 @@ export default function Shell({
         disableRestart={isRestarting || isConnected}
       />
 
-      <div className="relative flex-1 overflow-hidden p-2 pb-16 md:pb-2">
+      <div className={cn('relative flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-2 pb-16 md:pb-2')}>
         <div
           ref={terminalContainerRef}
-          className="h-full w-full focus:outline-none"
+            className="h-full w-full focus:outline-none"
           style={{ outline: 'none' }}
         />
 
@@ -327,7 +330,10 @@ export default function Shell({
 
         {cliPromptOptions && isConnected && (
           <div
-            className="absolute inset-x-0 bottom-14 z-10 border-t border-gray-700/80 bg-gray-800/95 px-3 py-2 backdrop-blur-sm md:bottom-0"
+            className={cn(
+              'absolute inset-x-0 z-10 border-t border-gray-700/80 bg-gray-800/95 px-3 py-2 backdrop-blur-sm',
+              immersive ? 'bottom-12 md:bottom-0' : 'bottom-14 md:bottom-0',
+            )}
             onMouseDown={(e) => e.preventDefault()}
           >
             <div className="flex flex-wrap items-center gap-2">
@@ -364,6 +370,7 @@ export default function Shell({
         wsRef={wsRef}
         terminalRef={terminalRef}
         isConnected={isConnected}
+        placement={immersive ? 'absolute' : 'fixed'}
       />
 
     </div>
