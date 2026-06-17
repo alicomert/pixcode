@@ -40,6 +40,7 @@ type ShellProps = {
   permissionOverride?: ShellPermissionOverride | null;
   provider?: LLMProvider | null;
   isActive?: boolean;
+  layoutSignal?: string | number | null;
   onClose?: (() => void) | null;
   immersive?: boolean;
   showHeader?: boolean;
@@ -59,6 +60,7 @@ export default function Shell({
   permissionOverride = null,
   provider = null,
   isActive = true,
+  layoutSignal = null,
   onClose = null,
   immersive = false,
   showHeader = true,
@@ -95,6 +97,7 @@ export default function Shell({
     permissionOverride,
     provider,
     isActive,
+    layoutSignal,
     isRestarting,
     onProcessComplete,
     onOutputRef,

@@ -31,6 +31,7 @@ type UseShellTerminalOptions = {
   copyAuthUrlToClipboard: (url?: string) => Promise<boolean>;
   closeSocket: () => void;
   isActive: boolean;
+  layoutSignal?: string | number | null;
 };
 
 type UseShellTerminalResult = {
@@ -59,6 +60,7 @@ export function useShellTerminal({
   copyAuthUrlToClipboard,
   closeSocket,
   isActive,
+  layoutSignal = null,
 }: UseShellTerminalOptions): UseShellTerminalResult {
   const [isInitialized, setIsInitialized] = useState(false);
   const resizeTimeoutRef = useRef<number | null>(null);
@@ -140,7 +142,7 @@ export function useShellTerminal({
       window.cancelAnimationFrame(firstFrame);
       window.clearTimeout(timeoutId);
     };
-  }, [fitTerminalAndNotify, isActive, isInitialized]);
+  }, [fitTerminalAndNotify, isActive, isInitialized, layoutSignal]);
 
   useEffect(() => {
     if (!terminalContainerRef.current || !hasSelectedProject || isRestarting || terminalRef.current) {
@@ -323,7 +325,6 @@ export function useShellTerminal({
     initialCommandRef,
     isPlainShellRef,
     isRestarting,
-    isActive,
     minimal,
     hasSelectedProject,
     fitTerminalAndNotify,

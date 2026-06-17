@@ -160,8 +160,9 @@ const LEFT_MIN_WIDTH = 260;
 const LEFT_MAX_WIDTH = 520;
 const LEFT_DEFAULT_WIDTH = 340;
 const RIGHT_MIN_WIDTH = 320;
-const RIGHT_MAX_WIDTH = 680;
+const RIGHT_HARD_MAX_WIDTH = 1280;
 const RIGHT_DEFAULT_WIDTH = 420;
+const CENTER_MIN_WIDTH_WHEN_RIGHT_RESIZING = 280;
 const BOTTOM_TERMINAL_MIN_HEIGHT = 220;
 const BOTTOM_TERMINAL_MAX_HEIGHT = 720;
 const BOTTOM_TERMINAL_FALLBACK_HEIGHT = 360;
@@ -174,6 +175,11 @@ const MAX_PERSISTED_EDITOR_TABS = 30;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getRightPaneMaxWidth(containerWidth: number, reservedLeftWidth: number) {
+  const dynamicMax = Math.floor(containerWidth - reservedLeftWidth - CENTER_MIN_WIDTH_WHEN_RIGHT_RESIZING);
+  return Math.max(RIGHT_MIN_WIDTH, Math.min(RIGHT_HARD_MAX_WIDTH, dynamicMax));
 }
 
 function getDefaultBottomTerminalHeight() {
@@ -842,7 +848,9 @@ function VSCodeWorkbench({
         return;
       }
 
-      setRightPaneWidth(clamp(rect.right - event.clientX, RIGHT_MIN_WIDTH, RIGHT_MAX_WIDTH));
+      const reservedLeftWidth = isLeftCollapsed ? 0 : leftPaneWidth;
+      const rightPaneMaxWidth = getRightPaneMaxWidth(rect.width, reservedLeftWidth);
+      setRightPaneWidth(clamp(rect.right - event.clientX, RIGHT_MIN_WIDTH, rightPaneMaxWidth));
     };
 
     const stopResize = () => setResizeTarget(null);
@@ -860,7 +868,25 @@ function VSCodeWorkbench({
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [resizeTarget]);
+  }, [isLeftCollapsed, leftPaneWidth, resizeTarget]);
+
+  useEffect(() => {
+    const reconcileRightPaneWidth = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const reservedLeftWidth = isLeftCollapsed ? 0 : leftPaneWidth;
+      const rightPaneMaxWidth = getRightPaneMaxWidth(rect.width, reservedLeftWidth);
+      setRightPaneWidth((currentWidth) => clamp(currentWidth, RIGHT_MIN_WIDTH, rightPaneMaxWidth));
+    };
+
+    reconcileRightPaneWidth();
+    window.addEventListener('resize', reconcileRightPaneWidth);
+
+    return () => {
+      window.removeEventListener('resize', reconcileRightPaneWidth);
+    };
+  }, [isLeftCollapsed, leftPaneWidth]);
 
   const selectActivityPanel = useCallback((panel: ActivityPanel, tab: AppTab) => {
     if (panel === 'terminal') {
@@ -1201,6 +1227,7 @@ function VSCodeWorkbench({
     return (
       <WorkbenchCliPanel
         project={selectedProject}
+        layoutSignal={rightPaneWidth}
         onHeaderContentChange={setCliHeaderContent}
         t={t}
       />
@@ -2358,10 +2385,12 @@ function getProjectCliSessions(project: Project | null): ProjectSession[] {
 
 function WorkbenchCliPanel({
   project,
+  layoutSignal,
   onHeaderContentChange,
   t,
 }: {
   project: Project | null;
+  layoutSignal: number;
   onHeaderContentChange: (content: ReactNode | null) => void;
   t: TFunction<'common'>;
 }) {
@@ -2928,6 +2957,7 @@ function WorkbenchCliPanel({
                 showHeader
                 autoConnect={canAutoConnect}
                 isActive
+                layoutSignal={`right-cli:${layoutSignal}:fallback`}
                 onClose={closeTerminal}
               />
             </>
@@ -2946,6 +2976,7 @@ function WorkbenchCliPanel({
                 showHeader
                 autoConnect={canAutoConnect && tab.id === activeCliTab?.id}
                 isActive={tab.id === activeCliTab?.id}
+                layoutSignal={`right-cli:${layoutSignal}:${tab.id}:${tab.id === activeCliTab?.id ? 'active' : 'hidden'}`}
                 onClose={() => closeCliTab(tab.id)}
               />
             </div>

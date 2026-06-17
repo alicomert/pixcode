@@ -19,6 +19,7 @@ type StandaloneShellProps = {
   permissionOverride?: ShellPermissionOverride | null;
   provider?: LLMProvider | null;
   tabId?: string | null;
+  layoutSignal?: string | number | null;
   onComplete?: ((exitCode: number) => void) | null;
   onClose?: (() => void) | null;
   title?: string | null;
@@ -48,6 +49,7 @@ export default function StandaloneShell({
   startupInput = null,
   permissionOverride = null,
   provider = null,
+  layoutSignal = null,
   tabId: externalTabId = null,
 }: StandaloneShellProps) {
   const [isCompleted, setIsCompleted] = useState(false);
@@ -91,6 +93,7 @@ export default function StandaloneShell({
           startupInput={startupInput}
           permissionOverride={permissionOverride}
           provider={provider}
+          layoutSignal={layoutSignal}
           onClose={onClose}
           immersive={immersive}
           showHeader={showHeader}

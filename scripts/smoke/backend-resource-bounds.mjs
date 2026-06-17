@@ -49,14 +49,15 @@ const checks = [
   },
   {
     path: 'src/components/standalone-shell/view/StandaloneShell.tsx',
-    assert: (source) => source.includes('showHeader={showHeader}'),
-    message: 'Standalone shell must pass header visibility through to the inner shell.',
+    assert: (source) => source.includes('showHeader={showHeader}') && source.includes('layoutSignal={layoutSignal}'),
+    message: 'Standalone shell must pass header visibility and layout refit signals through to the inner shell.',
   },
   {
     path: 'src/components/shell/view/Shell.tsx',
     assert: (source) =>
       source.includes('showHeader?: boolean') &&
       source.includes('showHeader &&') &&
+      source.includes('layoutSignal?: string | number | null') &&
       source.includes('pixcode-shell-terminal') &&
       source.includes('min-w-0') &&
       source.includes('max-w-full'),
@@ -83,9 +84,14 @@ const checks = [
     path: 'src/components/vscode-workbench/view/VSCodeWorkbench.tsx',
     assert: (source) =>
       source.includes("autoConnect={canAutoConnect && tab.id === activeCliTab?.id}") &&
+      source.includes('layoutSignal={rightPaneWidth}') &&
+      source.includes('right-cli:${layoutSignal}') &&
+      source.includes('getRightPaneMaxWidth') &&
+      source.includes('RIGHT_HARD_MAX_WIDTH') &&
+      !source.includes('RIGHT_MAX_WIDTH = 680') &&
       source.includes("absolute inset-0 min-w-0 overflow-hidden") &&
       source.includes("h-full min-w-0 shrink-0 overflow-hidden bg-background"),
-    message: 'Right CLI panel must keep hidden tabs disconnected and constrain terminal overflow.',
+    message: 'Right CLI panel must keep hidden tabs disconnected, refit on resize, and avoid a narrow fixed width cap.',
   },
 ];
 

@@ -21,6 +21,7 @@ export function useShellRuntime({
   permissionOverride,
   provider,
   isActive = true,
+  layoutSignal = null,
   isRestarting,
   onProcessComplete,
   onOutputRef,
@@ -122,6 +123,7 @@ export function useShellRuntime({
     copyAuthUrlToClipboard,
     closeSocket,
     isActive,
+    layoutSignal,
   });
 
   const { isConnected, isConnecting, connectToShell, disconnectFromShell } = useShellConnection({
