@@ -157,7 +157,7 @@ import {
 } from './services/provider-credentials.js';
 import { primeCliBinPath } from './services/install-jobs.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, appConfigDb } from './database/db.js';
+import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, appConfigDb, telegramLinksDb } from './database/db.js';
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket, requireAdmin, requireApiScope } from './middleware/auth.js';
@@ -637,7 +637,7 @@ const WATCHER_IGNORED_PATTERNS = [
 // every open tab, which shows up as mouse/UI stutter. 1500ms collapses
 // a full chat reply into ~1 scan while still feeling responsive when
 // the user flips to the projects list.
-const WATCHER_DEBOUNCE_MS = 1500;
+const WATCHER_DEBOUNCE_MS = Number.parseInt(process.env.PIXCODE_PROJECT_WATCH_DEBOUNCE_MS || '', 10) || 10000;
 let projectsWatchers = [];
 let projectsWatcherDebounceTimer = null;
 const connectedClients = new Set();
@@ -692,8 +692,9 @@ async function setupProjectsWatcher() {
             try {
                 isGetProjectsRunning = true;
 
-                // Clear project directory cache when files change
-                clearProjectDirectoryCache();
+                if (eventType === 'addDir' || eventType === 'unlinkDir') {
+                    clearProjectDirectoryCache();
+                }
 
                 // Get updated projects list
                 const updatedProjects = await getProjects(broadcastProgress);
@@ -781,9 +782,43 @@ async function setupProjectsWatcher() {
 // `project_files_updated` events to subscribed clients only, letting the
 // explorer refresh automatically without HTTP polling.
 const WORKSPACE_WATCHER_DEBOUNCE_MS = 800;
-const WORKSPACE_DIFF_SNAPSHOT_MAX_BYTES = 512 * 1024;
-const WORKSPACE_DIFF_SNAPSHOT_MAX_FILES = 800;
+const WORKSPACE_DIFF_SNAPSHOT_MAX_BYTES = 128 * 1024;
+const WORKSPACE_DIFF_SNAPSHOT_MAX_FILES = 80;
+const WORKSPACE_DIFF_SNAPSHOT_MAX_TOTAL_BYTES = 2 * 1024 * 1024;
 const workspaceWatchers = new Map(); // projectName -> { watcher, subscribers, debounceTimer, pendingEvent, rootPath, fileSnapshots }
+
+function getWorkspaceSnapshotBytes(content) {
+    return Buffer.byteLength(String(content || ''), 'utf8');
+}
+
+function deleteWorkspaceSnapshot(entry, relativePath) {
+    if (!entry?.fileSnapshots?.has(relativePath)) return;
+    const previous = entry.fileSnapshots.get(relativePath);
+    entry.snapshotBytes = Math.max(0, (entry.snapshotBytes || 0) - getWorkspaceSnapshotBytes(previous));
+    entry.fileSnapshots.delete(relativePath);
+}
+
+function setWorkspaceSnapshot(entry, relativePath, content) {
+    if (!entry || !relativePath || typeof content !== 'string') return;
+    const nextBytes = getWorkspaceSnapshotBytes(content);
+    if (nextBytes > WORKSPACE_DIFF_SNAPSHOT_MAX_BYTES) {
+        deleteWorkspaceSnapshot(entry, relativePath);
+        return;
+    }
+
+    deleteWorkspaceSnapshot(entry, relativePath);
+    entry.fileSnapshots.set(relativePath, content);
+    entry.snapshotBytes = (entry.snapshotBytes || 0) + nextBytes;
+
+    while (
+        entry.fileSnapshots.size > WORKSPACE_DIFF_SNAPSHOT_MAX_FILES ||
+        (entry.snapshotBytes || 0) > WORKSPACE_DIFF_SNAPSHOT_MAX_TOTAL_BYTES
+    ) {
+        const oldestKey = entry.fileSnapshots.keys().next().value;
+        if (!oldestKey) break;
+        deleteWorkspaceSnapshot(entry, oldestKey);
+    }
+}
 
 function runWorkspaceCommand(command, args, cwd) {
     return new Promise((resolve, reject) => {
@@ -868,7 +903,7 @@ async function readWorkspaceTextSnapshot(filePath) {
     }
 }
 
-async function initializeWorkspaceDirtySnapshots(rootPath, fileSnapshots) {
+async function initializeWorkspaceDirtySnapshots(rootPath, entry) {
     try {
         const { stdout } = await runWorkspaceCommand('git', ['status', '--porcelain', '-z'], rootPath);
         const changedPaths = parseGitPorcelainZ(stdout).slice(0, WORKSPACE_DIFF_SNAPSHOT_MAX_FILES);
@@ -876,7 +911,7 @@ async function initializeWorkspaceDirtySnapshots(rootPath, fileSnapshots) {
         await Promise.all(changedPaths.map(async (relativePath) => {
             const content = await readWorkspaceTextSnapshot(path.join(rootPath, relativePath));
             if (typeof content === 'string') {
-                fileSnapshots.set(relativePath, content);
+                setWorkspaceSnapshot(entry, relativePath, content);
             }
         }));
     } catch {
@@ -910,9 +945,10 @@ async function subscribeToWorkspace(ws, projectName) {
         pendingEvent: null,
         rootPath,
         fileSnapshots: new Map(),
+        snapshotBytes: 0,
     };
     workspaceWatchers.set(projectName, entry);
-    await initializeWorkspaceDirtySnapshots(rootPath, entry.fileSnapshots);
+    await initializeWorkspaceDirtySnapshots(rootPath, entry);
 
     const broadcastFileUpdate = async (eventType, filePath) => {
         const relativePath = filePath ? normalizeWorkspaceRelativePath(rootPath, filePath) : null;
@@ -922,12 +958,12 @@ async function subscribeToWorkspace(ws, projectName) {
         if (relativePath && !eventType.endsWith('Dir')) {
             if (eventType === 'unlink') {
                 currentContent = '';
-                entry.fileSnapshots.delete(relativePath);
+                deleteWorkspaceSnapshot(entry, relativePath);
             } else {
                 const snapshot = await readWorkspaceTextSnapshot(filePath);
                 if (typeof snapshot === 'string') {
                     currentContent = snapshot;
-                    entry.fileSnapshots.set(relativePath, snapshot);
+                    setWorkspaceSnapshot(entry, relativePath, snapshot);
                 }
             }
         }
@@ -1041,13 +1077,13 @@ const server = http.createServer(app);
 
 const ptySessionsMap = new Map();
 const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
-const COMPLETED_PTY_SESSION_TTL = 5 * 60 * 1000;
+const COMPLETED_PTY_SESSION_TTL = Number.parseInt(process.env.PIXCODE_COMPLETED_PTY_TTL_MS || '', 10) || 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 const SHELL_OUTPUT_FLUSH_MAX_CHARS = 128 * 1024;
 const SHELL_WS_BACKPRESSURE_LIMIT = 8 * 1024 * 1024;
-const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUFFER_MAX_BYTES || '', 10) || (2 * 1024 * 1024);
+const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUFFER_MAX_BYTES || '', 10) || (512 * 1024);
 const SHELL_INPUT_CHUNK_CHARS = 4096;
-const SHELL_PENDING_INPUT_MAX_BYTES = 2 * 1024 * 1024;
+const SHELL_PENDING_INPUT_MAX_BYTES = Number.parseInt(process.env.PIXCODE_SHELL_PENDING_INPUT_MAX_BYTES || '', 10) || (16 * 1024 * 1024);
 const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
 import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAutoOpenUrlFromOutput } from './utils/url-detection.js';
 
@@ -1325,6 +1361,76 @@ function writeTerminalInputChunks(ptyProcess, data) {
     return true;
 }
 
+function readPtyTarget(value) {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function findProviderPtySession({
+    provider,
+    projectPath,
+    user,
+    tabId = null,
+    sessionId = null,
+    requireRunning = false,
+    requirePty = false,
+}) {
+    const requestedProjectPath = projectPath ? path.resolve(projectPath) : null;
+    const requestUserId = user?.id ?? user?.userId ?? null;
+    const canUseAnyShellSession = ['admin', 'owner'].includes(user?.role);
+    const requestedTabId = readPtyTarget(tabId);
+    const requestedSessionId = readPtyTarget(sessionId);
+    const candidates = [];
+
+    for (const session of ptySessionsMap.values()) {
+        if (session?.provider !== provider || session?.isPlainShell) continue;
+        if (requirePty && !session?.pty) continue;
+        if (requireRunning && session?.lifecycleState !== 'running') continue;
+        if (!canUseAnyShellSession && session?.userId !== requestUserId) continue;
+        if (requestedProjectPath && path.resolve(session.projectPath || os.homedir()) !== requestedProjectPath) continue;
+        if (requestedTabId && session.tabId !== requestedTabId) continue;
+        if (requestedSessionId && session.sessionId !== requestedSessionId) continue;
+        candidates.push(session);
+    }
+
+    if (candidates.length === 0) {
+        return {
+            status: 'missing',
+            session: null,
+            candidates,
+            requestedProjectPath,
+        };
+    }
+
+    if ((requestedTabId || requestedSessionId) && candidates.length > 1) {
+        return {
+            status: 'ambiguous',
+            session: null,
+            candidates,
+            requestedProjectPath,
+        };
+    }
+
+    const session = candidates.reduce((latest, candidate) => (
+        !latest || (candidate.updatedAt || 0) > (latest.updatedAt || 0) ? candidate : latest
+    ), null);
+
+    if (!requestedTabId && !requestedSessionId && candidates.length > 1) {
+        return {
+            status: 'legacy-latest',
+            session,
+            candidates,
+            requestedProjectPath,
+        };
+    }
+
+    return {
+        status: 'matched',
+        session,
+        candidates,
+        requestedProjectPath,
+    };
+}
+
 function normalizeShellPermissionMode(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
@@ -1515,6 +1621,8 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
     const projectPath = typeof req.query.projectPath === 'string' && req.query.projectPath.trim()
         ? req.query.projectPath.trim()
         : null;
+    const tabId = readPtyTarget(req.query.tabId);
+    const sessionId = readPtyTarget(req.query.sessionId);
     const maxChars = Math.min(
         20000,
         Math.max(1000, Number.parseInt(String(req.query.maxChars || '12000'), 10) || 12000)
@@ -1524,33 +1632,32 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
         return res.status(400).json({ error: 'Unsupported provider' });
     }
 
-    const requestedProjectPath = projectPath ? path.resolve(projectPath) : null;
-    const requestUserId = req.user?.id ?? req.user?.userId ?? null;
-    const canReadAnyShellSession = ['admin', 'owner'].includes(req.user?.role);
-    let matchedSession = null;
-    for (const session of ptySessionsMap.values()) {
-        if (
-            session?.provider === provider &&
-            !session?.isPlainShell &&
-            (canReadAnyShellSession || session?.userId === requestUserId) &&
-            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath)
-        ) {
-            if (!matchedSession || (session.updatedAt || 0) > (matchedSession.updatedAt || 0)) {
-                matchedSession = session;
-            }
-        }
-    }
+    const match = findProviderPtySession({ provider, projectPath, user: req.user, tabId, sessionId });
 
-    if (!matchedSession) {
+    if (!match.session) {
+        if (match.status === 'ambiguous') {
+            return res.status(409).json({
+                active: false,
+                provider,
+                projectPath: match.requestedProjectPath,
+                tabId,
+                sessionId,
+                output: '',
+                message: 'Multiple provider terminal sessions match this target. Pick a specific tab.',
+            });
+        }
         return res.json({
             active: false,
             provider,
-            projectPath: requestedProjectPath,
+            projectPath: match.requestedProjectPath,
+            tabId,
+            sessionId,
             output: '',
             message: 'No active provider terminal session found for this project.',
         });
     }
 
+    const matchedSession = match.session;
     const rawOutput = matchedSession.buffer.join('').slice(-maxChars);
     const output = stripAnsiSequences(rawOutput);
     const terminalState = resolveProviderTerminalState(matchedSession, provider, output);
@@ -1559,7 +1666,9 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
         provider,
         projectPath: path.resolve(matchedSession.projectPath || os.homedir()),
         sessionId: matchedSession.sessionId || null,
+        tabId: matchedSession.tabId || null,
         updatedAt: matchedSession.updatedAt || null,
+        matchStatus: match.status,
         ...terminalState,
         output,
     });
@@ -1570,6 +1679,8 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
     const projectPath = typeof req.body?.projectPath === 'string' && req.body.projectPath.trim()
         ? req.body.projectPath.trim()
         : null;
+    const tabId = readPtyTarget(req.body?.tabId);
+    const sessionId = readPtyTarget(req.body?.sessionId);
     const input = typeof req.body?.input === 'string' ? req.body.input : '';
     const submit = req.body?.submit !== false;
 
@@ -1577,35 +1688,40 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
         return res.status(400).json({ error: 'Unsupported provider' });
     }
 
-    const requestedProjectPath = projectPath ? path.resolve(projectPath) : null;
-    const requestUserId = req.user?.id ?? req.user?.userId ?? null;
-    const canWriteAnyShellSession = ['admin', 'owner'].includes(req.user?.role);
-    let matchedSession = null;
-    for (const session of ptySessionsMap.values()) {
-        if (
-            session?.provider === provider &&
-            !session?.isPlainShell &&
-            session?.pty &&
-            session.lifecycleState === 'running' &&
-            (canWriteAnyShellSession || session?.userId === requestUserId) &&
-            (!requestedProjectPath || path.resolve(session.projectPath || os.homedir()) === requestedProjectPath)
-        ) {
-            if (!matchedSession || (session.updatedAt || 0) > (matchedSession.updatedAt || 0)) {
-                matchedSession = session;
-            }
-        }
-    }
+    const match = findProviderPtySession({
+        provider,
+        projectPath,
+        user: req.user,
+        tabId,
+        sessionId,
+        requireRunning: true,
+        requirePty: true,
+    });
 
-    if (!matchedSession?.pty) {
+    if (!match.session?.pty) {
+        if (match.status === 'ambiguous') {
+            return res.status(409).json({
+                ok: false,
+                provider,
+                projectPath: match.requestedProjectPath,
+                tabId,
+                sessionId,
+                wrote: false,
+                message: 'Multiple running provider terminal sessions match this target. Pick a specific tab.',
+            });
+        }
         return res.status(404).json({
             ok: false,
             provider,
-            projectPath: requestedProjectPath,
+            projectPath: match.requestedProjectPath,
+            tabId,
+            sessionId,
             wrote: false,
             message: 'No running provider terminal session found for this project.',
         });
     }
 
+    const matchedSession = match.session;
     const data = submit ? normalizeTerminalStartupInput(input) : input;
     try {
         writeTerminalInputChunks(matchedSession.pty, data);
@@ -1615,9 +1731,11 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             provider,
             projectPath: path.resolve(matchedSession.projectPath || os.homedir()),
             sessionId: matchedSession.sessionId || null,
+            tabId: matchedSession.tabId || null,
             wrote: true,
             submitted: submit,
             bytes: Buffer.byteLength(data),
+            matchStatus: match.status,
         });
     } catch (error) {
         res.status(500).json({
@@ -1626,6 +1744,104 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             wrote: false,
             error: error instanceof Error ? error.message : String(error),
         });
+    }
+});
+
+const sanitizeTelegramActiveString = (value, maxLength = 240) => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.slice(0, maxLength) : null;
+};
+
+function requireVerifiedTelegramLink(req, res) {
+    const link = telegramLinksDb.getByUserId(req.user.id);
+    if (!link?.chat_id || !link?.verified_at) {
+        res.status(409).json({ error: 'Telegram is not paired for this user.' });
+        return null;
+    }
+    return link;
+}
+
+// Bind the paired Telegram chat to an already running provider terminal tab.
+// This route lives next to the PTY registry so it can verify the target is live.
+app.post('/api/telegram/active-terminal', authenticateToken, requireProjectPathAccess('useShell'), (req, res) => {
+    try {
+        const link = requireVerifiedTelegramLink(req, res);
+        if (!link) return;
+
+        const provider = sanitizeTelegramActiveString(req.body?.provider, 40);
+        const projectPathRaw = sanitizeTelegramActiveString(req.body?.projectPath, 2000);
+        if (!provider || !SHELL_CLI_PROVIDERS.has(provider) || !projectPathRaw) {
+            return res.status(400).json({ error: 'A supported provider and projectPath are required.' });
+        }
+
+        const projectPath = path.resolve(projectPathRaw);
+        const projectName = sanitizeTelegramActiveString(req.body?.projectName) || path.basename(projectPath);
+        const tabId = sanitizeTelegramActiveString(req.body?.tabId, 160);
+        const sessionId = sanitizeTelegramActiveString(req.body?.sessionId, 240);
+
+        const match = findProviderPtySession({
+            provider,
+            projectPath,
+            user: req.user,
+            tabId,
+            sessionId,
+            requireRunning: true,
+            requirePty: true,
+        });
+
+        if (!match.session?.pty) {
+            if (match.status === 'ambiguous') {
+                return res.status(409).json({
+                    error: 'Multiple running provider terminal sessions match this target. Pick a specific tab.',
+                    candidates: match.candidates.map((session) => ({
+                        sessionId: session.sessionId || null,
+                        tabId: session.tabId || null,
+                        projectPath: path.resolve(session.projectPath || os.homedir()),
+                        updatedAt: session.updatedAt || null,
+                    })),
+                });
+            }
+            return res.status(404).json({
+                error: 'No running provider terminal session found for this project.',
+            });
+        }
+
+        const matchedSession = match.session;
+        const resolvedMatchedProjectPath = path.resolve(matchedSession.projectPath || projectPath);
+        const activeTerminal = {
+            provider,
+            projectPath: resolvedMatchedProjectPath,
+            projectName,
+            projectLabel: sanitizeTelegramActiveString(req.body?.projectLabel) || projectName,
+            sessionId: matchedSession.sessionId || sessionId || null,
+            tabId: matchedSession.tabId || tabId || null,
+            attachedAt: new Date().toISOString(),
+        };
+        const control = telegramLinksDb.updateControlState(req.user.id, {
+            activeTerminal,
+            selectedProvider: provider,
+            selectedProjectName: projectName,
+            selectedProjectPath: resolvedMatchedProjectPath,
+        });
+
+        res.json({ success: true, activeTerminal: control.activeTerminal, control, matchStatus: match.status });
+    } catch (error) {
+        console.error('telegram/active-terminal failed:', error);
+        res.status(500).json({ error: 'Failed to attach Telegram to this terminal.' });
+    }
+});
+
+// Return Telegram text input to the normal AI router.
+app.delete('/api/telegram/active-terminal', authenticateToken, (req, res) => {
+    try {
+        const link = requireVerifiedTelegramLink(req, res);
+        if (!link) return;
+        const control = telegramLinksDb.updateControlState(req.user.id, { activeTerminal: null });
+        res.json({ success: true, control });
+    } catch (error) {
+        console.error('telegram/active-terminal delete failed:', error);
+        res.status(500).json({ error: 'Failed to detach Telegram terminal.' });
     }
 });
 
@@ -3516,16 +3732,23 @@ function handleShellConnection(ws, request) {
         const chunks = splitTerminalInput(data);
         if (chunks.length === 0) return;
 
+        let droppedBytes = 0;
         for (const chunk of chunks) {
+            const chunkBytes = Buffer.byteLength(chunk, 'utf8');
+            if (pendingInputBytes + chunkBytes > SHELL_PENDING_INPUT_MAX_BYTES) {
+                droppedBytes += chunkBytes;
+                continue;
+            }
             pendingInputQueue.push(chunk);
-            pendingInputBytes += Buffer.byteLength(chunk, 'utf8');
+            pendingInputBytes += chunkBytes;
         }
 
-        while (pendingInputQueue.length > 0 && pendingInputBytes > SHELL_PENDING_INPUT_MAX_BYTES) {
-            const dropped = pendingInputQueue.shift();
-            pendingInputBytes -= Buffer.byteLength(String(dropped || ''), 'utf8');
+        if (droppedBytes > 0 && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'output',
+                data: `\r\n\x1b[33m[Pixcode] ${droppedBytes} bytes of pasted terminal input were not sent because the input queue limit was reached. Split very large pastes into smaller chunks.\x1b[0m\r\n`,
+            }));
         }
-        if (pendingInputBytes < 0) pendingInputBytes = 0;
 
         scheduleInputFlush();
     }

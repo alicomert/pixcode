@@ -123,6 +123,7 @@
     "apiTokens": "API & Tokens",
     "notifications": "Notifications",
     "plugins": "Plugins",
+    "market": "Market",
     "mobile": "Use from Mobile",
     "telegram": "Telegram",
     "diagnostics": "Diagnostics",
@@ -762,6 +763,32 @@
     "installAriaLabel": "Plugin git repository URL",
     "tab": "tab",
     "runningStatus": "running"
+  },
+  "marketSettings": {
+    "title": "Global Skills & Plugin Market",
+    "description": "Browse trusted skill libraries, agent packs, and native plugin sources for every CLI in Pixcode.",
+    "refresh": "Refresh market",
+    "searchPlaceholder": "Search GitHub for skills, agents, or plugins",
+    "search": "Search",
+    "latest": "Latest",
+    "loading": "Loading market…",
+    "empty": "No market entries found.",
+    "emptyInstalled": "No global sources added yet.",
+    "addSource": "Add source",
+    "removeSource": "Remove source",
+    "added": "Added",
+    "installPlugin": "Install plugin",
+    "installFailed": "Installation failed",
+    "openGithub": "Open GitHub",
+    "categories": {
+      "popular": "Popular",
+      "new": "New",
+      "skills": "Skills",
+      "plugin": "Plugins",
+      "workflow": "Workflows",
+      "installed": "Added",
+      "search": "Search"
+    }
   },
   "access": {
     "title": "Access",

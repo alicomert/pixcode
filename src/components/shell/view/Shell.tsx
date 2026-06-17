@@ -306,7 +306,7 @@ export default function Shell({
         disableRestart={isRestarting || isConnected}
       />
 
-      <div className="relative flex-1 overflow-hidden p-2">
+      <div className="relative flex-1 overflow-hidden p-2 pb-16 md:pb-2">
         <div
           ref={terminalContainerRef}
           className="h-full w-full focus:outline-none"
@@ -327,7 +327,7 @@ export default function Shell({
 
         {cliPromptOptions && isConnected && (
           <div
-            className="absolute inset-x-0 bottom-0 z-10 border-t border-gray-700/80 bg-gray-800/95 px-3 py-2 backdrop-blur-sm"
+            className="absolute inset-x-0 bottom-14 z-10 border-t border-gray-700/80 bg-gray-800/95 px-3 py-2 backdrop-blur-sm md:bottom-0"
             onMouseDown={(e) => e.preventDefault()}
           >
             <div className="flex flex-wrap items-center gap-2">

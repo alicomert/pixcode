@@ -5,7 +5,7 @@ import { cn } from '../../../lib/utils';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import type { SettingsMainTab } from '../types/types';
 
-import { Bell, Bot, Bug, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone } from '@/lib/icons';
+import { Bell, Bot, Bug, GitBranch, Globe, Info, Key, Palette, Puzzle, Smartphone, Sparkles } from '@/lib/icons';
 
 type SettingsSidebarProps = {
   activeTab: SettingsMainTab;
@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },
   { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },
   { id: 'plugins', labelKey: 'mainTabs.plugins', icon: Puzzle },
+  { id: 'market', labelKey: 'mainTabs.market', icon: Sparkles },
   { id: 'notifications', labelKey: 'mainTabs.notifications', icon: Bell },
   { id: 'mobile', labelKey: 'mainTabs.mobile', icon: Smartphone },
   { id: 'telegram', labelKey: 'mainTabs.telegram', icon: TelegramIcon },

@@ -69,6 +69,15 @@ import sessionManager from './sessionManager.js';
 import { applyCustomSessionNames } from './database/db.js';
 
 const FILE_COUNT_LIMIT = 20000;
+const FILE_COUNT_CACHE_TTL_MS = 5 * 60 * 1000;
+const FILE_COUNT_CACHE_MAX_ENTRIES = 300;
+const FILE_COUNT_SCAN_MAX_MS = 2500;
+const CODEX_SESSION_INDEX_TTL_MS = 60 * 1000;
+const CODEX_SESSION_INDEX_MAX_FILES = 1200;
+const CODEX_SESSION_INDEX_MAX_DIRS = 2500;
+const GEMINI_QWEN_PROJECT_ENTRY_CACHE_TTL_MS = 60 * 1000;
+const CLI_CHAT_FILE_READ_MAX_BYTES = 2 * 1024 * 1024;
+const CLI_CHAT_FILES_PER_PROJECT_LIMIT = 150;
 const FILE_COUNT_IGNORED_DIRECTORIES = new Set([
   '.cache',
   '.git',
@@ -88,10 +97,44 @@ const FILE_COUNT_IGNORED_DIRECTORIES = new Set([
   'target',
   'vendor'
 ]);
+const fileCountCache = new Map();
+let codexSessionsIndexCache = null;
+let geminiCliProjectEntriesCache = null;
+let qwenCliProjectEntriesCache = null;
+
+function pruneMapToMaxEntries(map, maxEntries) {
+  while (map.size > maxEntries) {
+    const firstKey = map.keys().next().value;
+    if (firstKey === undefined) break;
+    map.delete(firstKey);
+  }
+}
+
+function readFreshCacheEntry(cache, key, now = Date.now()) {
+  const entry = cache.get(key);
+  if (!entry || entry.expiresAt <= now) {
+    if (entry) cache.delete(key);
+    return undefined;
+  }
+  return entry.value;
+}
+
+function writeCacheEntry(cache, key, value, ttlMs, maxEntries) {
+  cache.set(key, {
+    value,
+    expiresAt: Date.now() + ttlMs,
+  });
+  pruneMapToMaxEntries(cache, maxEntries);
+}
 
 async function countProjectFiles(projectPath, maxFiles = FILE_COUNT_LIMIT) {
   if (!projectPath || typeof projectPath !== 'string') {
     return undefined;
+  }
+  const cacheKey = `${path.resolve(projectPath)}:${maxFiles}`;
+  const cached = readFreshCacheEntry(fileCountCache, cacheKey);
+  if (cached !== undefined) {
+    return cached;
   }
 
   try {
@@ -104,9 +147,15 @@ async function countProjectFiles(projectPath, maxFiles = FILE_COUNT_LIMIT) {
   }
 
   let count = 0;
+  const startedAt = Date.now();
   const pendingDirectories = [projectPath];
 
   while (pendingDirectories.length > 0) {
+    if (Date.now() - startedAt > FILE_COUNT_SCAN_MAX_MS) {
+      writeCacheEntry(fileCountCache, cacheKey, count, FILE_COUNT_CACHE_TTL_MS, FILE_COUNT_CACHE_MAX_ENTRIES);
+      return count;
+    }
+
     const currentDirectory = pendingDirectories.pop();
     let entries = [];
 
@@ -127,12 +176,14 @@ async function countProjectFiles(projectPath, maxFiles = FILE_COUNT_LIMIT) {
       if (entry.isFile() || entry.isSymbolicLink()) {
         count += 1;
         if (count >= maxFiles) {
+          writeCacheEntry(fileCountCache, cacheKey, count, FILE_COUNT_CACHE_TTL_MS, FILE_COUNT_CACHE_MAX_ENTRIES);
           return count;
         }
       }
     }
   }
 
+  writeCacheEntry(fileCountCache, cacheKey, count, FILE_COUNT_CACHE_TTL_MS, FILE_COUNT_CACHE_MAX_ENTRIES);
   return count;
 }
 
@@ -207,6 +258,10 @@ function areStringArraysEqual(first, second) {
 // Gemini ones rather than sharing a parametric implementation, keeping
 // provider-specific logic discoverable in one place.
 async function listQwenCliProjectEntries() {
+  if (qwenCliProjectEntriesCache?.expiresAt > Date.now()) {
+    return qwenCliProjectEntriesCache.entries;
+  }
+
   const qwenTmpDir = path.join(os.homedir(), '.qwen', 'tmp');
   try {
     await fs.access(qwenTmpDir);
@@ -241,10 +296,18 @@ async function listQwenCliProjectEntries() {
     });
   }
 
+  qwenCliProjectEntriesCache = {
+    entries,
+    expiresAt: Date.now() + GEMINI_QWEN_PROJECT_ENTRY_CACHE_TTL_MS,
+  };
   return entries;
 }
 
 async function listGeminiCliProjectEntries() {
+  if (geminiCliProjectEntriesCache?.expiresAt > Date.now()) {
+    return geminiCliProjectEntriesCache.entries;
+  }
+
   const geminiTmpDir = path.join(os.homedir(), '.gemini', 'tmp');
   try {
     await fs.access(geminiTmpDir);
@@ -282,7 +345,19 @@ async function listGeminiCliProjectEntries() {
     });
   }
 
+  geminiCliProjectEntriesCache = {
+    entries,
+    expiresAt: Date.now() + GEMINI_QWEN_PROJECT_ENTRY_CACHE_TTL_MS,
+  };
   return entries;
+}
+
+async function readJsonTextFileLimited(filePath, maxBytes = CLI_CHAT_FILE_READ_MAX_BYTES) {
+  const stat = await fs.stat(filePath);
+  if (!stat.isFile() || stat.size > maxBytes) {
+    return null;
+  }
+  return fs.readFile(filePath, 'utf8');
 }
 
 function addDiscoveredProject(discoveredProjectsByPath, projectPath, provider) {
@@ -1614,27 +1689,46 @@ function normalizeComparablePath(inputPath) {
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
-async function findCodexJsonlFiles(dir) {
+async function findCodexJsonlFiles(dir, {
+  maxFiles = CODEX_SESSION_INDEX_MAX_FILES,
+  maxDirs = CODEX_SESSION_INDEX_MAX_DIRS,
+} = {}) {
   const files = [];
+  const pendingDirs = [dir];
+  let visitedDirs = 0;
 
-  try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        files.push(...await findCodexJsonlFiles(fullPath));
-      } else if (entry.name.endsWith('.jsonl')) {
-        files.push(fullPath);
+  while (pendingDirs.length > 0 && files.length < maxFiles && visitedDirs < maxDirs) {
+    const currentDir = pendingDirs.pop();
+    visitedDirs += 1;
+
+    try {
+      const entries = await fs.readdir(currentDir, { withFileTypes: true });
+      entries.sort((a, b) => b.name.localeCompare(a.name));
+
+      for (const entry of entries) {
+        if (files.length >= maxFiles) break;
+        const fullPath = path.join(currentDir, entry.name);
+        if (entry.isDirectory()) {
+          if (visitedDirs + pendingDirs.length < maxDirs) {
+            pendingDirs.push(fullPath);
+          }
+        } else if (entry.name.endsWith('.jsonl')) {
+          files.push(fullPath);
+        }
       }
+    } catch {
+      // Skip directories we can't read
     }
-  } catch (error) {
-    // Skip directories we can't read
   }
 
   return files;
 }
 
 async function buildCodexSessionsIndex() {
+  if (codexSessionsIndexCache?.expiresAt > Date.now()) {
+    return codexSessionsIndexCache.sessionsByProject;
+  }
+
   const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
   const sessionsByProject = new Map();
 
@@ -1683,6 +1777,10 @@ async function buildCodexSessionsIndex() {
     sessions.sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity));
   }
 
+  codexSessionsIndexCache = {
+    sessionsByProject,
+    expiresAt: Date.now() + CODEX_SESSION_INDEX_TTL_MS,
+  };
   return sessionsByProject;
 }
 
@@ -2049,24 +2147,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
 async function deleteCodexSession(sessionId) {
   try {
     const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
-
-    const findJsonlFiles = async (dir) => {
-      const files = [];
-      try {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            files.push(...await findJsonlFiles(fullPath));
-          } else if (entry.name.endsWith('.jsonl')) {
-            files.push(fullPath);
-          }
-        }
-      } catch (error) { }
-      return files;
-    };
-
-    const jsonlFiles = await findJsonlFiles(codexSessionsDir);
+    const jsonlFiles = await findCodexJsonlFiles(codexSessionsDir);
 
     for (const filePath of jsonlFiles) {
       const sessionData = await parseCodexSessionFile(filePath);
@@ -2582,13 +2663,14 @@ async function searchGeminiSessionsForProject(
       continue;
     }
 
-    for (const chatFile of chatFiles) {
+    for (const chatFile of chatFiles.slice(0, CLI_CHAT_FILES_PER_PROJECT_LIMIT)) {
       if (getTotalMatches() >= limit || isAborted()) break;
       if (!chatFile.endsWith('.json')) continue;
 
       try {
         const filePath = path.join(chatsDir, chatFile);
-        const data = await fs.readFile(filePath, 'utf8');
+        const data = await readJsonTextFileLimited(filePath);
+        if (!data) continue;
         const session = JSON.parse(data);
         if (!session.messages || !Array.isArray(session.messages)) continue;
 
@@ -2680,11 +2762,12 @@ async function getQwenCliSessions(projectPath, options = {}) {
       continue;
     }
 
-    for (const chatFile of chatFiles) {
+    for (const chatFile of chatFiles.slice(0, CLI_CHAT_FILES_PER_PROJECT_LIMIT)) {
       if (!chatFile.endsWith('.json')) continue;
       try {
         const filePath = path.join(chatsDir, chatFile);
-        const data = await fs.readFile(filePath, 'utf8');
+        const data = await readJsonTextFileLimited(filePath);
+        if (!data) continue;
         const session = JSON.parse(data);
         if (!session.messages || !Array.isArray(session.messages)) continue;
 
@@ -2763,10 +2846,11 @@ async function getOpencodeCliSessions(projectPath) {
         continue;
       }
 
-      for (const file of sessionFiles) {
+      for (const file of sessionFiles.slice(0, CLI_CHAT_FILES_PER_PROJECT_LIMIT)) {
         if (!file.startsWith('ses_') || !file.endsWith('.json')) continue;
         try {
-          const data = await fs.readFile(path.join(dir, file), 'utf8');
+          const data = await readJsonTextFileLimited(path.join(dir, file));
+          if (!data) continue;
           const sess = JSON.parse(data);
           const sessDir = typeof sess?.directory === 'string'
             ? normalizeComparablePath(sess.directory)
@@ -2830,11 +2914,12 @@ async function getQwenCliSessionMessages(sessionId) {
       continue;
     }
 
-    for (const chatFile of chatFiles) {
+    for (const chatFile of chatFiles.slice(0, CLI_CHAT_FILES_PER_PROJECT_LIMIT)) {
       if (!chatFile.endsWith('.json')) continue;
       try {
         const filePath = path.join(chatsDir, chatFile);
-        const data = await fs.readFile(filePath, 'utf8');
+        const data = await readJsonTextFileLimited(filePath);
+        if (!data) continue;
         const session = JSON.parse(data);
         const fileSessionId = session.sessionId || chatFile.replace('.json', '');
         if (fileSessionId !== sessionId) continue;
@@ -2890,11 +2975,12 @@ async function getGeminiCliSessions(projectPath, options = {}) {
       continue;
     }
 
-    for (const chatFile of chatFiles) {
+    for (const chatFile of chatFiles.slice(0, CLI_CHAT_FILES_PER_PROJECT_LIMIT)) {
       if (!chatFile.endsWith('.json')) continue;
       try {
         const filePath = path.join(chatsDir, chatFile);
-        const data = await fs.readFile(filePath, 'utf8');
+        const data = await readJsonTextFileLimited(filePath);
+        if (!data) continue;
         const session = JSON.parse(data);
         if (!session.messages || !Array.isArray(session.messages)) continue;
 
@@ -2946,11 +3032,12 @@ async function getGeminiCliSessionMessages(sessionId) {
       continue;
     }
 
-    for (const chatFile of chatFiles) {
+    for (const chatFile of chatFiles.slice(0, CLI_CHAT_FILES_PER_PROJECT_LIMIT)) {
       if (!chatFile.endsWith('.json')) continue;
       try {
         const filePath = path.join(chatsDir, chatFile);
-        const data = await fs.readFile(filePath, 'utf8');
+        const data = await readJsonTextFileLimited(filePath);
+        if (!data) continue;
         const session = JSON.parse(data);
         const fileSessionId = session.sessionId || chatFile.replace('.json', '');
         if (fileSessionId !== sessionId) continue;

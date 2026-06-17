@@ -9,6 +9,7 @@ import AppearanceSettingsTab from '../view/tabs/AppearanceSettingsTab';
 import CredentialsSettingsTab from '../view/tabs/api-settings/CredentialsSettingsTab';
 import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
+import GlobalMarketSettingsTab from '../../plugins/view/GlobalMarketSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
 import MobileSettingsTab from '../view/tabs/mobile-settings/MobileSettingsTab';
 import TelegramSettingsTab from '../view/tabs/telegram-settings/TelegramSettingsTab';
@@ -173,6 +174,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               {activeTab === 'api' && <CredentialsSettingsTab />}
 
               {activeTab === 'plugins' && <PluginSettingsTab />}
+
+              {activeTab === 'market' && <GlobalMarketSettingsTab />}
 
               {activeTab === 'mobile' && <MobileSettingsTab />}
 

@@ -188,20 +188,17 @@ function Sidebar({
     if (!latestVersion || !releaseInfo) return;
     if (autoShownVersionRef.current === latestVersion) return;
 
-    const seenReleaseNotesVersion = typeof window !== 'undefined'
-      ? window.localStorage.getItem(VERSION_RELEASE_NOTES_SEEN_KEY)
-      : null;
-    const hasSeenCurrentReleaseNotes = seenReleaseNotesVersion === latestVersion;
-    const shouldShowReleaseNotes = !updateAvailable
-      && latestVersion === currentVersion;
-
-    if (updateAvailable || (shouldShowReleaseNotes && !hasSeenCurrentReleaseNotes)) {
+    if (updateAvailable) {
       autoShownVersionRef.current = latestVersion;
-      if (shouldShowReleaseNotes) {
-        window.localStorage.setItem(VERSION_RELEASE_NOTES_SEEN_KEY, latestVersion);
-      }
       setVersionModalSnapshot(null);
       setShowVersionModal(true);
+      return;
+    }
+    if (latestVersion === currentVersion) {
+      const hasSeenCurrentReleaseNotes = window.localStorage.getItem(VERSION_RELEASE_NOTES_SEEN_KEY) === latestVersion;
+      if (!hasSeenCurrentReleaseNotes) {
+        window.localStorage.setItem(VERSION_RELEASE_NOTES_SEEN_KEY, latestVersion);
+      }
     }
   }, [currentVersion, latestVersion, releaseInfo, setShowVersionModal, updateAvailable]);
 

@@ -59,7 +59,7 @@ type NotificationPreferencesResponse = {
 
 type ActiveLoginProvider = LLMProvider | '';
 
-const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'access', 'appearance', 'git', 'api', 'notifications', 'plugins', 'mobile', 'telegram', 'diagnostics', 'about'];
+const KNOWN_MAIN_TABS: SettingsMainTab[] = ['agents', 'access', 'appearance', 'git', 'api', 'notifications', 'plugins', 'market', 'mobile', 'telegram', 'diagnostics', 'about'];
 const DEFAULT_CODE_EDITOR_SETTINGS: CodeEditorSettingsState = {
   theme: 'light',
   wordWrap: false,

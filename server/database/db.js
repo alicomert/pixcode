@@ -774,6 +774,7 @@ const DEFAULT_TELEGRAM_CONTROL_STATE = {
     selectedProvider: 'opencode',
     selectedModel: null,
     selectedWorkflowId: null,
+    activeTerminal: null,
     awaiting: null,
 };
 
@@ -801,6 +802,30 @@ function normalizeTelegramControlState(value = {}) {
             expiresAt: raw.pendingConfirmation.expiresAt,
         }
         : null;
+    const activeTerminal = raw.activeTerminal && typeof raw.activeTerminal === 'object'
+        && ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.activeTerminal.provider)
+        && typeof raw.activeTerminal.projectPath === 'string'
+        && raw.activeTerminal.projectPath.trim()
+        ? {
+            provider: raw.activeTerminal.provider,
+            projectPath: raw.activeTerminal.projectPath.trim(),
+            projectName: typeof raw.activeTerminal.projectName === 'string' && raw.activeTerminal.projectName.trim()
+                ? raw.activeTerminal.projectName.trim()
+                : null,
+            projectLabel: typeof raw.activeTerminal.projectLabel === 'string' && raw.activeTerminal.projectLabel.trim()
+                ? raw.activeTerminal.projectLabel.trim()
+                : null,
+            sessionId: typeof raw.activeTerminal.sessionId === 'string' && raw.activeTerminal.sessionId.trim()
+                ? raw.activeTerminal.sessionId.trim()
+                : null,
+            tabId: typeof raw.activeTerminal.tabId === 'string' && raw.activeTerminal.tabId.trim()
+                ? raw.activeTerminal.tabId.trim()
+                : null,
+            attachedAt: typeof raw.activeTerminal.attachedAt === 'string' && raw.activeTerminal.attachedAt.trim()
+                ? raw.activeTerminal.attachedAt.trim()
+                : nowIso(),
+        }
+        : null;
 
     return {
         ...DEFAULT_TELEGRAM_CONTROL_STATE,
@@ -818,6 +843,7 @@ function normalizeTelegramControlState(value = {}) {
         selectedProjectPath: typeof raw.selectedProjectPath === 'string' ? raw.selectedProjectPath : null,
         selectedModel: typeof raw.selectedModel === 'string' ? raw.selectedModel : null,
         selectedWorkflowId: typeof raw.selectedWorkflowId === 'string' ? raw.selectedWorkflowId : null,
+        activeTerminal,
         awaiting: raw.awaiting && typeof raw.awaiting === 'object' ? raw.awaiting : null,
     };
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { Send as TelegramIcon } from 'lucide-react';
 
 import CodeEditor from '../../code-editor/view/CodeEditor';
 import type { CodeEditorDiffInfo, CodeEditorFile } from '../../code-editor/types/types';
@@ -136,6 +137,16 @@ type WorkbenchShellTab = {
   forceNewSession: boolean;
   startupInput: string | null;
   permissionOverride: ShellPermissionOverride | null;
+};
+
+type TelegramTerminalAttachTarget = {
+  provider: LLMProvider;
+  projectPath: string;
+  projectName: string;
+  projectLabel: string;
+  title: string;
+  sessionId: string | null;
+  tabId: string | null;
 };
 
 type WorkbenchEditorProjectState = {
@@ -2380,6 +2391,7 @@ function WorkbenchCliPanel({
   const selectedProviderStatus = providerAuthStatus[selectedProvider];
   const sessionForShell = terminalSession?.__provider === selectedProvider ? terminalSession : null;
   const activeCliTab = cliTabs.find((tab) => tab.id === activeCliTabId) || cliTabs[0] || null;
+  const [telegramAttachTarget, setTelegramAttachTarget] = useState<TelegramTerminalAttachTarget | null>(null);
   useEffect(() => {
     if (activeCliTab) {
       setTerminalMode(activeCliTab.type);
@@ -2461,6 +2473,36 @@ function WorkbenchCliPanel({
     setShowProviderPicker(true);
   }, []);
 
+  const openTelegramAttachForTab = useCallback((tab: WorkbenchShellTab | null) => {
+    if (!project || !tab || tab.type !== 'provider' || !tab.provider) return;
+    const projectPath = getProjectPath(project);
+    setTelegramAttachTarget({
+      provider: tab.provider,
+      projectPath,
+      projectName: project.name,
+      projectLabel: project.displayName || project.name,
+      title: tab.title || (PROVIDER_DISPLAY_NAMES[tab.provider] ?? tab.provider),
+      sessionId: tab.session?.id ?? null,
+      tabId: tab.tabId,
+    });
+  }, [project]);
+
+  const openTelegramAttachForFallback = useCallback(() => {
+    if (!project) return;
+    const projectPath = getProjectPath(project);
+    setTelegramAttachTarget({
+      provider: selectedProvider,
+      projectPath,
+      projectName: project.name,
+      projectLabel: project.displayName || project.name,
+      title: PROVIDER_DISPLAY_NAMES[selectedProvider] ?? selectedProvider,
+      sessionId: sessionForShell?.id ?? null,
+      tabId: `fallback-${selectedProvider}-${terminalLaunch.runId}`,
+    });
+  }, [project, selectedProvider, sessionForShell?.id, terminalLaunch.runId]);
+
+  const canAttachActiveCliTabToTelegram = Boolean(project && activeCliTab?.type === 'provider' && activeCliTab.provider);
+
   const cliHeaderTabs = useMemo(() => (
     <div className="flex min-w-0 items-center gap-1">
       {cliTabs.length === 0 && (
@@ -2517,6 +2559,16 @@ function WorkbenchCliPanel({
       )}
       <button
         type="button"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={!canAttachActiveCliTabToTelegram}
+        onClick={() => openTelegramAttachForTab(activeCliTab)}
+        title={t('vscodeWorkbench.cli.continueTelegram', { defaultValue: 'Continue this CLI session in Telegram' })}
+        aria-label={t('vscodeWorkbench.cli.continueTelegram', { defaultValue: 'Continue this CLI session in Telegram' })}
+      >
+        <TelegramIcon className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
         disabled={!project}
         onClick={openPlainShellTab}
@@ -2534,7 +2586,7 @@ function WorkbenchCliPanel({
         <Plus className="h-3.5 w-3.5" />
       </button>
     </div>
-  ), [activeCliTab?.id, activeCliTabId, cliTabs, closeCliTab, installState.state, openPlainShellTab, openProviderPickerForNewTab, project, renameCliTab, t]);
+  ), [activeCliTab, activeCliTabId, canAttachActiveCliTabToTelegram, cliTabs, closeCliTab, installState.state, openPlainShellTab, openProviderPickerForNewTab, openTelegramAttachForTab, project, renameCliTab, t]);
 
   useEffect(() => {
     onHeaderContentChange(cliHeaderTabs);
@@ -2788,6 +2840,13 @@ function WorkbenchCliPanel({
   if (isTerminalOpen || cliTabs.length > 0) {
     return (
       <div className="relative flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
+        {telegramAttachTarget && (
+          <TelegramTerminalAttachModal
+            target={telegramAttachTarget}
+            onClose={() => setTelegramAttachTarget(null)}
+            t={t}
+          />
+        )}
         {showProviderPicker && (
           <div className="absolute inset-x-2 top-2 z-30 max-h-[58%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
             <div className="flex items-center justify-between border-b border-gray-800 px-2.5 py-2">
@@ -2836,20 +2895,34 @@ function WorkbenchCliPanel({
 
         <div className="relative min-h-0 flex-1">
           {cliTabs.length === 0 ? (
-            <StandaloneShell
-              key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalLaunch.runId}`}
-              tabId={`fallback-${selectedProvider}-${terminalLaunch.runId}`}
-              project={project}
-              session={sessionForShell}
-              provider={selectedProvider}
-              forceNewSession={terminalLaunch.forceNewSession}
-              startupInput={terminalStartupInput}
-              permissionOverride={terminalPermissionOverride}
-              showHeader
-              autoConnect={canAutoConnect}
-              isActive
-              onClose={closeTerminal}
-            />
+            <>
+              <div className="absolute right-2 top-2 z-20">
+                <button
+                  type="button"
+                  className="flex h-8 w-8 items-center justify-center rounded border border-gray-700 bg-gray-900 text-gray-300 shadow-lg hover:border-blue-400 hover:text-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!project}
+                  onClick={openTelegramAttachForFallback}
+                  title={t('vscodeWorkbench.cli.continueTelegram', { defaultValue: 'Continue this CLI session in Telegram' })}
+                  aria-label={t('vscodeWorkbench.cli.continueTelegram', { defaultValue: 'Continue this CLI session in Telegram' })}
+                >
+                  <TelegramIcon className="h-4 w-4" />
+                </button>
+              </div>
+              <StandaloneShell
+                key={`${selectedProvider}-${sessionForShell?.id || 'new'}-${project?.name || 'none'}-${terminalLaunch.runId}`}
+                tabId={`fallback-${selectedProvider}-${terminalLaunch.runId}`}
+                project={project}
+                session={sessionForShell}
+                provider={selectedProvider}
+                forceNewSession={terminalLaunch.forceNewSession}
+                startupInput={terminalStartupInput}
+                permissionOverride={terminalPermissionOverride}
+                showHeader
+                autoConnect={canAutoConnect}
+                isActive
+                onClose={closeTerminal}
+              />
+            </>
           ) : cliTabs.map((tab) => (
             <div key={tab.id} className={cn('absolute inset-0', tab.id === activeCliTab?.id ? 'block' : 'hidden')}>
               <StandaloneShell
@@ -3016,6 +3089,179 @@ function WorkbenchCliPanel({
             defaultValue: 'Start {{provider}}',
           })}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function TelegramTerminalAttachModal({
+  target,
+  onClose,
+  t,
+}: {
+  target: TelegramTerminalAttachTarget;
+  onClose: () => void;
+  t: TFunction<'common'>;
+}) {
+  const [state, setState] = useState<'checking' | 'ready' | 'saving' | 'success' | 'error'>('checking');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    let canceled = false;
+    setState('checking');
+    setMessage('');
+
+    authenticatedFetch('/api/telegram/status', { cache: 'no-store' })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}));
+        if (canceled) return;
+        if (!response.ok) {
+          throw new Error(body?.error || `HTTP ${response.status}`);
+        }
+        if (!body?.link?.paired) {
+          setState('error');
+          setMessage(t('vscodeWorkbench.cli.telegramNotPaired', {
+            defaultValue: 'Telegram is not paired yet. Pair it from Settings > Telegram first.',
+          }));
+          return;
+        }
+        setState('ready');
+      })
+      .catch((error) => {
+        if (canceled) return;
+        setState('error');
+        setMessage(error instanceof Error ? error.message : t('vscodeWorkbench.cli.telegramStatusFailed', {
+          defaultValue: 'Could not read Telegram status.',
+        }));
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [t]);
+
+  const attach = useCallback(async () => {
+    setState('saving');
+    setMessage('');
+    try {
+      const response = await authenticatedFetch('/api/telegram/active-terminal', {
+        method: 'POST',
+        body: JSON.stringify({
+          provider: target.provider,
+          projectPath: target.projectPath,
+          projectName: target.projectName,
+          projectLabel: target.projectLabel,
+          sessionId: target.sessionId,
+          tabId: target.tabId,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.error || `HTTP ${response.status}`);
+      }
+      setState('success');
+      setMessage(t('vscodeWorkbench.cli.telegramAttached', {
+        defaultValue: 'Telegram is attached. Send a message to the bot to continue this CLI session.',
+      }));
+    } catch (error) {
+      setState('error');
+      setMessage(error instanceof Error ? error.message : t('vscodeWorkbench.cli.telegramAttachFailed', {
+        defaultValue: 'Could not attach Telegram to this CLI session.',
+      }));
+    }
+  }, [target, t]);
+
+  const providerLabel = PROVIDER_DISPLAY_NAMES[target.provider] ?? target.provider;
+  const canAttach = state === 'ready';
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-md border border-gray-700 bg-gray-950 text-gray-100 shadow-2xl shadow-black/40">
+        <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <TelegramIcon className="h-4 w-4 shrink-0 text-blue-300" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">
+                {t('vscodeWorkbench.cli.telegramModalTitle', { defaultValue: 'Continue in Telegram' })}
+              </div>
+              <div className="truncate text-[11px] text-gray-500">{target.title}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+            onClick={onClose}
+            aria-label={t('common.close', { defaultValue: 'Close' })}
+            title={t('common.close', { defaultValue: 'Close' })}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3 px-4 py-4">
+          <div className="rounded border border-gray-800 bg-gray-900/70 p-3 text-xs">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-gray-500">{t('vscodeWorkbench.cli.provider', { defaultValue: 'Provider' })}</span>
+              <span className="font-medium text-gray-100">{providerLabel}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-gray-500">{t('vscodeWorkbench.cli.project', { defaultValue: 'Project' })}</span>
+              <span className="min-w-0 truncate font-medium text-gray-100">{target.projectLabel}</span>
+            </div>
+            <div className="mt-2 truncate font-mono text-[10px] text-gray-500" title={target.projectPath}>
+              {target.projectPath}
+            </div>
+          </div>
+
+          <p className="text-xs leading-5 text-gray-400">
+            {t('vscodeWorkbench.cli.telegramModalDescription', {
+              defaultValue: 'Plain messages sent to the paired bot will be written to this active web CLI terminal until you detach it.',
+            })}
+          </p>
+
+          {(state === 'checking' || state === 'saving') && (
+            <div className="flex items-center gap-2 text-xs text-blue-200">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {state === 'saving'
+                ? t('vscodeWorkbench.cli.telegramAttaching', { defaultValue: 'Attaching Telegram...' })
+                : t('vscodeWorkbench.cli.telegramChecking', { defaultValue: 'Checking Telegram pairing...' })}
+            </div>
+          )}
+          {message && (
+            <div className={cn(
+              'rounded border px-3 py-2 text-xs',
+              state === 'success'
+                ? 'border-emerald-800 bg-emerald-950/40 text-emerald-100'
+                : 'border-red-800 bg-red-950/40 text-red-100',
+            )}
+            >
+              {message}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-gray-800 px-4 py-3">
+          <button
+            type="button"
+            className="rounded border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-gray-800 hover:text-gray-100"
+            onClick={onClose}
+          >
+            {state === 'success'
+              ? t('common.close', { defaultValue: 'Close' })
+              : t('common.cancel', { defaultValue: 'Cancel' })}
+          </button>
+          {state !== 'success' && (
+            <button
+              type="button"
+              disabled={!canAttach}
+              className="inline-flex items-center gap-2 rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-500"
+              onClick={attach}
+            >
+              <TelegramIcon className="h-3.5 w-3.5" />
+              {t('vscodeWorkbench.cli.telegramAttachAction', { defaultValue: 'Continue from Telegram' })}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

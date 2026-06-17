@@ -75,6 +75,8 @@ const CONTROL_COMMANDS = new Set([
   '/workflow',
   '/orchestrate',
   '/cancel',
+  '/terminal',
+  '/detach',
   'menu',
 ]);
 
@@ -509,16 +511,27 @@ function startActivityHeartbeat({ bot, chatId, activity }) {
 }
 
 function stateSummary(lang, state) {
-  return [
+  const lines = [
     `${t(lang, 'control.summary.project')}: ${state.selectedProjectName || t(lang, 'control.notSelected')}`,
     `${t(lang, 'control.summary.provider')}: ${state.selectedProvider}${state.selectedModel ? ` / ${state.selectedModel}` : ''}`,
     `${t(lang, 'control.summary.workflow')}: ${state.selectedWorkflowId || t(lang, 'control.notSelected')}`,
     `${t(lang, 'control.summary.progress')}: ${state.progressMode}`,
-  ].join('\n');
+  ];
+  if (state.activeTerminal) {
+    lines.push(`${t(lang, 'control.summary.terminal')}: ${state.activeTerminal.provider} / ${state.activeTerminal.projectLabel || state.activeTerminal.projectName || compact(state.activeTerminal.projectPath, 50)}`);
+  }
+  return lines.join('\n');
 }
 
-function mainMenuKeyboard(lang) {
+function terminalControlKeyboard(lang) {
   return [
+    [button(t(lang, 'control.button.terminalRefresh'), 'terminal_status'), button(t(lang, 'control.button.detachTerminal'), 'detach_terminal')],
+    [button(t(lang, 'control.button.mainMenu'), 'menu')],
+  ];
+}
+
+function mainMenuKeyboard(lang, state = null) {
+  const keyboard = [
     [button(t(lang, 'control.button.projects'), 'projects'), button(t(lang, 'control.button.provider'), 'providers')],
     [button(t(lang, 'control.button.models'), 'models'), button(t(lang, 'control.button.workflows'), 'workflows')],
     [button(t(lang, 'control.button.runs'), 'runs'), button(t(lang, 'control.button.approvals'), 'approvals')],
@@ -527,6 +540,10 @@ function mainMenuKeyboard(lang) {
     [button(t(lang, 'control.button.install'), 'install_menu'), button(t(lang, 'control.button.auth'), 'auth_menu')],
     [button(t(lang, 'control.button.settings'), 'settings')],
   ];
+  if (state?.activeTerminal) {
+    keyboard.splice(1, 0, [button(t(lang, 'control.button.terminal'), 'terminal_status'), button(t(lang, 'control.button.detachTerminal'), 'detach_terminal')]);
+  }
+  return keyboard;
 }
 
 export async function showMainMenu({ bot, chatId, link, editMessageId, notice }) {
@@ -535,7 +552,7 @@ export async function showMainMenu({ bot, chatId, link, editMessageId, notice })
   const prefix = notice ? `${notice}\n\n` : '';
   await send(bot, chatId, `${prefix}${t(lang, 'control.menu')}\n\n${stateSummary(lang, state)}`, {
     editMessageId,
-    reply_markup: { inline_keyboard: mainMenuKeyboard(lang) },
+    reply_markup: { inline_keyboard: mainMenuKeyboard(lang, state) },
   });
 }
 
@@ -549,8 +566,146 @@ async function showCommandPalette({ bot, chatId, link, editMessageId, unknown = 
   const prefix = unknown ? `${t(lang, 'control.unknownCommand')}\n\n` : '';
   await send(bot, chatId, `${prefix}${t(lang, 'control.help')}\n\n${t(lang, 'control.examples')}`, {
     editMessageId,
-    reply_markup: { inline_keyboard: mainMenuKeyboard(lang) },
+    reply_markup: { inline_keyboard: mainMenuKeyboard(lang, getState(link.user_id)) },
   });
+}
+
+function getActiveTerminal(state) {
+  const terminal = state?.activeTerminal;
+  if (
+    !terminal ||
+    !PROVIDERS.includes(terminal.provider) ||
+    typeof terminal.projectPath !== 'string' ||
+    !terminal.projectPath.trim()
+  ) {
+    return null;
+  }
+  return terminal;
+}
+
+function terminalProjectLabel(terminal) {
+  return terminal?.projectLabel || terminal?.projectName || terminal?.projectPath || '-';
+}
+
+function terminalOutputUrl(terminal, maxChars = 3200) {
+  const params = new URLSearchParams({
+    provider: terminal.provider,
+    projectPath: terminal.projectPath,
+    maxChars: String(maxChars),
+  });
+  if (terminal.tabId) params.set('tabId', terminal.tabId);
+  if (terminal.sessionId) params.set('sessionId', terminal.sessionId);
+  return `/api/shell/sessions/provider-output?${params.toString()}`;
+}
+
+function renderTerminalSnapshot(lang, terminal, data, { prefix = '' } = {}) {
+  const active = data?.active !== false;
+  const lifecycle = data?.terminalState || data?.lifecycleState || (active ? 'running' : 'not running');
+  const output = String(data?.output || '').trim();
+  const lines = [
+    prefix || t(lang, active ? 'control.terminalAttached' : 'control.terminalNotRunning'),
+    '',
+    `🤖 ${t(lang, 'control.activity.provider')}: ${terminal.provider}`,
+    `📁 ${t(lang, 'control.activity.project')}: ${compact(terminalProjectLabel(terminal), 90)}`,
+    `📌 ${t(lang, 'control.activity.status')}: ${lifecycle}`,
+  ];
+  if (terminal.sessionId || data?.sessionId) {
+    lines.push(`🧵 ${t(lang, 'control.activity.session')}: ${terminal.sessionId || data.sessionId}`);
+  }
+  if (output) {
+    lines.push('', `💬 ${t(lang, 'control.activity.output')}:`);
+    lines.push(truncate(output, 2400));
+  } else {
+    lines.push('', t(lang, 'control.terminalNoOutput'));
+  }
+  return truncate(lines.join('\n'), 3400);
+}
+
+async function showActiveTerminalStatus({ bot, chatId, link, editMessageId }) {
+  const lang = languageFor(link);
+  const state = getState(link.user_id);
+  const terminal = getActiveTerminal(state);
+  if (!terminal) {
+    await send(bot, chatId, t(lang, 'control.noActiveTerminal'), {
+      editMessageId,
+      reply_markup: { inline_keyboard: [[button(t(lang, 'control.button.mainMenu'), 'menu')]] },
+    });
+    return;
+  }
+  try {
+    const data = await localApi(link.user_id, terminalOutputUrl(terminal), { timeoutMs: 12_000 });
+    await send(bot, chatId, renderTerminalSnapshot(lang, terminal, data), {
+      editMessageId,
+      parse_mode: undefined,
+      reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+    });
+  } catch (error) {
+    await send(bot, chatId, t(lang, 'control.terminalStatusFailed', { error: error?.message || String(error) }), {
+      editMessageId,
+      reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+    });
+  }
+}
+
+async function detachActiveTerminal({ bot, chatId, link, editMessageId }) {
+  const lang = languageFor(link);
+  updateTelegramControlState(link.user_id, { activeTerminal: null });
+  await send(bot, chatId, t(lang, 'control.terminalDetached'), {
+    editMessageId,
+    reply_markup: { inline_keyboard: [[button(t(lang, 'control.button.mainMenu'), 'menu')]] },
+  });
+}
+
+async function sendToActiveTerminal({ bot, chatId, link, text }) {
+  const lang = languageFor(link);
+  const state = getState(link.user_id);
+  const terminal = getActiveTerminal(state);
+  if (!terminal) return false;
+  if (state.remoteControlEnabled === false) {
+    await send(bot, chatId, t(lang, 'control.disabled'));
+    return true;
+  }
+
+  const sent = await send(bot, chatId, t(lang, 'control.terminalSending', {
+    provider: terminal.provider,
+    project: terminalProjectLabel(terminal),
+  }), {
+    parse_mode: undefined,
+    reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+  });
+  const editMessageId = sent?.message_id || sent?.message?.message_id || null;
+
+  try {
+    await localApi(link.user_id, '/api/shell/sessions/provider-input', {
+      method: 'POST',
+      timeoutMs: 15_000,
+      body: {
+        provider: terminal.provider,
+        projectPath: terminal.projectPath,
+        tabId: terminal.tabId,
+        sessionId: terminal.sessionId,
+        input: text,
+        submit: true,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    const data = await localApi(link.user_id, terminalOutputUrl(terminal), { timeoutMs: 12_000 });
+    await send(bot, chatId, renderTerminalSnapshot(lang, terminal, data, {
+      prefix: t(lang, 'control.terminalSent'),
+    }), {
+      editMessageId,
+      parse_mode: undefined,
+      reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+    });
+  } catch (error) {
+    await send(bot, chatId, t(lang, 'control.terminalSendFailed', {
+      error: error?.message || String(error),
+    }), {
+      editMessageId,
+      reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+    });
+  }
+  return true;
 }
 
 async function listProjects() {
@@ -1646,6 +1801,14 @@ async function handleCommand({ bot, chatId, link, text }) {
     await showSessions({ bot, chatId, link });
     return true;
   }
+  if (command === '/terminal') {
+    await showActiveTerminalStatus({ bot, chatId, link });
+    return true;
+  }
+  if (command === '/detach') {
+    await detachActiveTerminal({ bot, chatId, link });
+    return true;
+  }
   if (command === '/newchat') {
     await startNewChat({ bot, chatId, link });
     return true;
@@ -1736,6 +1899,9 @@ async function handleTelegramControlMessageInternal({ bot, msg, link }) {
   if (await handleCommand({ bot, chatId, link, text })) return true;
 
   const state = getState(link.user_id);
+  if (getActiveTerminal(state)) {
+    return sendToActiveTerminal({ bot, chatId, link, text });
+  }
   if (state.routerEnabled === false) return false;
   if (!state.remoteControlEnabled) {
     await send(bot, chatId, t(languageFor(link), 'control.disabled'));
@@ -1836,6 +2002,8 @@ async function handleTelegramControlCallbackInternal({ bot, query, link }) {
   if (action === 'control_room') return showControlRoom({ bot, chatId, link, editMessageId });
   if (action === 'webhooks') return showWebhookMenu({ bot, chatId, link, editMessageId });
   if (action === 'sessions') return showSessions({ bot, chatId, link, editMessageId });
+  if (action === 'terminal_status') return showActiveTerminalStatus({ bot, chatId, link, editMessageId });
+  if (action === 'detach_terminal') return detachActiveTerminal({ bot, chatId, link, editMessageId });
   if (action === 'new_chat') return startNewChat({ bot, chatId, link, editMessageId });
   if (action === 'install_menu') return showInstallMenu({ bot, chatId, link, editMessageId });
   if (action === 'auth_menu') return showAuthMenu({ bot, chatId, link, editMessageId });

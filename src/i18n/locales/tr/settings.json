@@ -123,6 +123,7 @@
     "apiTokens": "API ve Token'lar",
     "notifications": "Bildirimler",
     "plugins": "Eklentiler",
+    "market": "Market",
     "mobile": "Mobilden Kullan",
     "telegram": "Telegram",
     "diagnostics": "Tanılama",
@@ -762,6 +763,32 @@
     "installAriaLabel": "Eklenti git deposu URL'si",
     "tab": "sekme",
     "runningStatus": "çalışıyor"
+  },
+  "marketSettings": {
+    "title": "Global Skills ve Eklenti Marketi",
+    "description": "Pixcode'daki tum CLI'ler icin skill kutuphaneleri, ajan paketleri ve native eklenti kaynaklarini yonet.",
+    "refresh": "Marketi yenile",
+    "searchPlaceholder": "GitHub'da skill, ajan veya eklenti ara",
+    "search": "Ara",
+    "latest": "Yeni",
+    "loading": "Market yukleniyor…",
+    "empty": "Market kaydi bulunamadi.",
+    "emptyInstalled": "Henuz global kaynak eklenmedi.",
+    "addSource": "Kaynak ekle",
+    "removeSource": "Kaynagi kaldir",
+    "added": "Eklendi",
+    "installPlugin": "Eklentiyi yukle",
+    "installFailed": "Yukleme basarisiz",
+    "openGithub": "GitHub'i ac",
+    "categories": {
+      "popular": "Populer",
+      "new": "Yeni",
+      "skills": "Skills",
+      "plugin": "Eklentiler",
+      "workflow": "Is akislari",
+      "installed": "Eklenenler",
+      "search": "Arama"
+    }
   },
   "access": {
     "title": "Erisim",

@@ -19,8 +19,13 @@ type Shortcut =
   | { type: 'arrow'; id: string; sequence: string; icon: 'up' | 'down' | 'left' | 'right' };
 
 const MOBILE_KEYS: Shortcut[] = [
+  { type: 'key', id: 'ctrl-c', label: 'Ctrl-C', sequence: '\x03' },
+  { type: 'key', id: 'ctrl-d', label: 'Ctrl-D', sequence: '\x04' },
+  { type: 'key', id: 'ctrl-l', label: 'Ctrl-L', sequence: '\x0c' },
+  { type: 'key', id: 'ctrl-z', label: 'Ctrl-Z', sequence: '\x1a' },
   { type: 'key', id: 'esc', label: 'Esc', sequence: '\x1b' },
   { type: 'key', id: 'tab', label: 'Tab', sequence: '\t' },
+  { type: 'key', id: 'enter', label: 'Enter', sequence: '\r' },
   { type: 'key', id: 'shift-tab', label: '\u21e7Tab', sequence: '\x1b[Z' },
   { type: 'modifier', id: 'ctrl', label: 'CTRL', modifier: 'ctrl' },
   { type: 'modifier', id: 'alt', label: 'ALT', modifier: 'alt' },
@@ -118,7 +123,7 @@ export default function TerminalShortcutsPanel({
   );
 
   return (
-    <div className={`pointer-events-none fixed inset-x-0 ${bottomOffset} z-20 px-2 md:hidden`}>
+    <div className={`pointer-events-none fixed inset-x-0 ${bottomOffset} z-40 px-2 pb-[max(env(safe-area-inset-bottom),0px)] md:hidden`}>
       <div className="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-lg border border-gray-700/80 bg-gray-900/95 px-1.5 py-1.5 shadow-lg backdrop-blur-sm [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {pasteError && (
           <span className="shrink-0 rounded-md border border-yellow-500/50 bg-yellow-500/15 px-2 py-1 text-[11px] text-yellow-100">
