@@ -88,11 +88,16 @@ export function useShellTerminal({
 }: UseShellTerminalOptions): UseShellTerminalResult {
   const [isInitialized, setIsInitialized] = useState(false);
   const resizeTimeoutRef = useRef<number | null>(null);
+  const layoutSignalRef = useRef<string | number | null>(layoutSignal);
   const hasSelectedProject = Boolean(selectedProject);
 
   useEffect(() => {
     ensureXtermFocusStyles();
   }, []);
+
+  useEffect(() => {
+    layoutSignalRef.current = layoutSignal;
+  }, [layoutSignal]);
 
   const clearTerminalScreen = useCallback(() => {
     if (!terminalRef.current) {
@@ -127,7 +132,7 @@ export function useShellTerminal({
     }
 
     try {
-      const nextFontSize = resolveRightCliFontSize(bounds.width, layoutSignal);
+      const nextFontSize = resolveRightCliFontSize(bounds.width, layoutSignalRef.current);
       if (nextFontSize !== null && currentTerminal.options.fontSize !== nextFontSize) {
         currentTerminal.options.fontSize = nextFontSize;
         currentTerminal.clearTextureAtlas();
@@ -154,7 +159,7 @@ export function useShellTerminal({
       cols: currentTerminal.cols,
       rows: currentTerminal.rows,
     });
-  }, [fitAddonRef, layoutSignal, terminalContainerRef, terminalRef, wsRef]);
+  }, [fitAddonRef, terminalContainerRef, terminalRef, wsRef]);
 
   const scheduleTerminalFit = useCallback(() => {
     if (resizeTimeoutRef.current !== null) {

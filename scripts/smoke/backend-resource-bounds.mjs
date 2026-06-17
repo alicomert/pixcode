@@ -70,8 +70,9 @@ const checks = [
       source.includes('currentTerminal.resize(nextCols, nextRows)') &&
       source.includes('resolveRightCliFontSize') &&
       source.includes('currentTerminal.options.fontSize = nextFontSize') &&
-      source.includes('layoutSignal'),
-    message: 'Shell terminal must force cols/rows to refit and scale right-side CLI font on layout changes.',
+      source.includes('layoutSignalRef.current') &&
+      !source.includes('}, [fitAddonRef, layoutSignal, terminalContainerRef, terminalRef, wsRef])'),
+    message: 'Shell terminal must refit on layout changes without reconnecting the terminal lifecycle.',
   },
   {
     path: 'src/components/shell/utils/terminalStyles.ts',
