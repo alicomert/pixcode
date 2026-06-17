@@ -15,8 +15,6 @@ import {
   Folder,
   GitBranch,
   FileCode,
-  Globe,
-  Workflow,
   Smartphone,
   X,
   type LucideIcon,
@@ -25,7 +23,6 @@ import {
 type MainContentTabSwitcherProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  liveViewAvailable?: boolean;
   activeSidePanelTab?: AppTab | null;
   sidePanelMode?: 'split' | 'full';
   canUseSidePanelSplit?: boolean;
@@ -52,21 +49,18 @@ type TabDefinition = BuiltInTab | PluginTab;
 
 const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'chat',  labelKey: 'tabs.chat',  icon: MessageSquare },
-  { kind: 'builtin', id: 'orchestration', labelKey: 'tabs.orchestration', icon: Workflow },
   { kind: 'builtin', id: 'remote', labelKey: 'tabs.remote', icon: Smartphone },
   { kind: 'builtin', id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
   { kind: 'builtin', id: 'changes', labelKey: 'tabs.changes', icon: FileCode },
-  { kind: 'builtin', id: 'liveView', labelKey: 'tabs.liveView', icon: Globe },
 ];
 
-const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes', 'liveView']);
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes']);
 
 export default function MainContentTabSwitcher({
   activeTab,
   setActiveTab,
-  liveViewAvailable = false,
   activeSidePanelTab,
   sidePanelMode = 'split',
   canUseSidePanelSplit = true,
@@ -88,8 +82,30 @@ export default function MainContentTabSwitcher({
 
   const tabs: TabDefinition[] = [...BASE_TABS, ...pluginTabs];
 
+  if (isMobile) {
+    const selectedValue = tabs.some((tab) => tab.id === activeTab) ? activeTab : 'chat';
+
+    return (
+      <label className="block min-w-0">
+        <span className="sr-only">{t('tabs.selectTab', 'Select section')}</span>
+        <select
+          value={selectedValue}
+          onChange={(event) => setActiveTab(event.target.value as AppTab)}
+          className="h-9 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+          aria-label={t('tabs.selectTab', 'Select section')}
+        >
+          {tabs.map((tab) => (
+            <option key={tab.id} value={tab.id}>
+              {tab.kind === 'builtin' ? t(tab.labelKey) : tab.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
   return (
-    <PillBar className={cn(isMobile && 'w-max min-w-full justify-start overflow-x-visible')}>
+    <PillBar>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
         const displayLabel = tab.kind === 'builtin' ? t(tab.labelKey) : tab.label;
@@ -114,13 +130,9 @@ export default function MainContentTabSwitcher({
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
                   'h-8',
-                  isMobile
-                    ? isActive
-                      ? 'max-w-[10rem] px-2.5 py-1.5'
-                      : 'w-9 px-0 py-1.5'
-                    : showLayoutIndicator
-                      ? 'px-2 py-[5px] pr-7'
-                      : 'px-2.5 py-[5px]',
+                  showLayoutIndicator
+                    ? 'px-2 py-[5px] pr-7'
+                    : 'px-2.5 py-[5px]',
                 )}
               >
                 {tab.kind === 'builtin' ? (
@@ -134,21 +146,11 @@ export default function MainContentTabSwitcher({
                 )}
                 <span
                   className={cn(
-                    isMobile
-                      ? isActive
-                        ? 'inline max-w-[7.5rem] truncate text-xs'
-                        : 'sr-only'
-                      : 'hidden lg:inline',
+                    'hidden lg:inline',
                   )}
                 >
                   {displayLabel}
                 </span>
-                {tab.id === 'liveView' && liveViewAvailable && (
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.75)]"
-                    aria-hidden="true"
-                  />
-                )}
                 {showLayoutIndicator && (
                   <span
                     className={`ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded border ${

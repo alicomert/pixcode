@@ -44,7 +44,6 @@ type SidebarProjectItemProps = {
   ) => void;
   onLoadMoreSessions: (project: Project) => void;
   onNewSession: (project: Project) => void;
-  onOpenOrchestration?: (project: Project, runId?: string) => void;
   onEditingSessionNameChange: (value: string) => void;
   onStartEditingSession: (sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
@@ -90,7 +89,6 @@ export default function SidebarProjectItem({
   onDeleteSession,
   onLoadMoreSessions,
   onNewSession,
-  onOpenOrchestration,
   onEditingSessionNameChange,
   onStartEditingSession,
   onCancelEditingSession,
@@ -429,7 +427,6 @@ export default function SidebarProjectItem({
         onDeleteSession={onDeleteSession}
         onLoadMoreSessions={onLoadMoreSessions}
         onNewSession={onNewSession}
-        onOpenOrchestration={onOpenOrchestration}
         t={t}
       />
     </div>

@@ -12,8 +12,34 @@ const checks = [
   },
   {
     path: 'src/components/main-content/view/MainContent.tsx',
-    assert: (source) => source.includes('mobileShellTabId') && source.includes('immersive={isMobile}'),
-    message: 'Mobile shell must keep a stable tab id and use immersive terminal mode.',
+    assert: (source) =>
+      source.includes('mobileShellTabId') &&
+      source.includes('immersive={isMobile}') &&
+      !source.includes('OrchestrationPage') &&
+      !source.includes('LiveViewPanel'),
+    message: 'Main content must keep mobile shell continuity and must not expose orchestration/live view tabs.',
+  },
+  {
+    path: 'src/components/main-content/view/subcomponents/MainContentTabSwitcher.tsx',
+    assert: (source) =>
+      source.includes('<select') &&
+      !source.includes("id: 'orchestration'") &&
+      !source.includes("id: 'liveView'") &&
+      !source.includes('w-max min-w-full justify-start overflow-x-visible') &&
+      !source.includes("'w-9 px-0 py-1.5'"),
+    message: 'Mobile tab switcher must use a compact select and exclude orchestration/live view.',
+  },
+  {
+    path: 'src/components/shell/view/Shell.tsx',
+    assert: (source) =>
+      source.includes('pixcode-shell-terminal') &&
+      source.includes("immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0'"),
+    message: 'Shell terminal must fill the desktop surface without card padding.',
+  },
+  {
+    path: 'src/components/shell/utils/terminalStyles.ts',
+    assert: (source) => source.includes('.pixcode-shell-terminal .xterm') && source.includes('height: 100%'),
+    message: 'Shell terminal styles must keep xterm height aligned with its container.',
   },
   {
     path: 'src/components/quick-settings-panel/view/QuickSettingsPanelView.tsx',

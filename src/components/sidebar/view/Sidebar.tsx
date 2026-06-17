@@ -27,7 +27,6 @@ function Sidebar({
   onSessionSelect,
   onNewSession,
   onProjectCreated,
-  onOpenOrchestration,
   onQuickStartSession,
   onOpenControlRoom,
   onSessionDelete,
@@ -280,7 +279,6 @@ function Sidebar({
       void loadMoreSessions(project);
     },
     onNewSession,
-    onOpenOrchestration,
     onEditingSessionNameChange: setEditingSessionName,
     onStartEditingSession: startEditingSession,
     onCancelEditingSession: cancelEditingSession,
@@ -306,7 +304,6 @@ function Sidebar({
     onToggleStarSession: toggleStarSession,
     onProjectSelect: handleProjectSelect,
     onSessionSelect: handleSessionClick,
-    onOpenOrchestration,
     onDeleteSession: showDeleteSessionConfirmation,
     t,
   };

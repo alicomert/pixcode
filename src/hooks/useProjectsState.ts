@@ -121,7 +121,7 @@ const isUpdateAdditive = (
   );
 };
 
-const VALID_TABS: Set<string> = new Set(['chat', 'orchestration', 'remote', 'controlRoom', 'files', 'shell', 'git', 'changes', 'liveView', 'preview']);
+const VALID_TABS: Set<string> = new Set(['chat', 'remote', 'controlRoom', 'files', 'shell', 'git', 'changes', 'preview']);
 const NON_RESTORABLE_TABS: Set<AppTab> = new Set(['controlRoom']);
 
 const isValidTab = (tab: string): tab is AppTab => {
@@ -133,10 +133,6 @@ const getPersistableTab = (tab: AppTab): AppTab => {
 };
 
 const readPersistedTab = (): AppTab => {
-  if (typeof window !== 'undefined' && window.location.pathname.endsWith('/orchestration')) {
-    return 'orchestration';
-  }
-
   try {
     const stored = localStorage.getItem('activeTab');
     if (stored && isValidTab(stored)) {
@@ -476,7 +472,7 @@ export function useProjectsState({
     (session: ProjectSession) => {
       setSelectedSession(session);
 
-      if (activeTab === 'preview' || activeTab === 'liveView' || activeTab === 'orchestration') {
+      if (activeTab === 'preview') {
         setActiveTab('chat');
       }
 
@@ -579,26 +575,6 @@ export function useProjectsState({
   const handleQuickStartSession = useCallback(async () => {
     await quickStartIntoTab('chat');
   }, [quickStartIntoTab]);
-
-  const handleQuickStartOrchestration = useCallback(async () => {
-    await quickStartIntoTab('orchestration');
-  }, [quickStartIntoTab]);
-
-  const handleOpenOrchestration = useCallback(
-    (project: Project, runId?: string) => {
-      setSelectedProject(project);
-      setSelectedSession(null);
-      setActiveTab('orchestration');
-      if (runId) {
-        localStorage.setItem('pixcode.orchestration.selectedRunId', runId);
-      }
-      navigate('/');
-      if (isMobile) {
-        setSidebarOpen(false);
-      }
-    },
-    [isMobile, navigate],
-  );
 
   const handleOpenControlRoom = useCallback(() => {
     setSelectedSession(null);
@@ -721,7 +697,6 @@ export function useProjectsState({
       onProjectCreated: openProjectChat,
       onQuickStartSession: handleQuickStartSession,
       onOpenControlRoom: handleOpenControlRoom,
-      onOpenOrchestration: handleOpenOrchestration,
       onSessionDelete: handleSessionDelete,
       onProjectDelete: handleProjectDelete,
       isLoading: isLoadingProjects,
@@ -736,7 +711,6 @@ export function useProjectsState({
     [
       handleNewSession,
       handleOpenControlRoom,
-      handleOpenOrchestration,
       openProjectChat,
       handleQuickStartSession,
       handleProjectDelete,
@@ -778,8 +752,6 @@ export function useProjectsState({
     handleProjectSelect,
     handleSessionSelect,
     handleNewSession,
-    handleOpenOrchestration,
-    handleQuickStartOrchestration,
     handleSessionDelete,
     handleProjectDelete,
     handleSidebarRefresh,

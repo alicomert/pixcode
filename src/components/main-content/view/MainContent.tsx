@@ -7,8 +7,6 @@ import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import GitPanel from '../../git-panel/view/GitPanel';
-import OrchestrationPage from '../../orchestration/OrchestrationPage';
-import LiveViewPanel from '../../live-view/LiveViewPanel';
 import RemoteConsole from '../../remote-console/RemoteConsole';
 import ControlRoomPage from '../../control-room/ControlRoomPage';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
@@ -34,13 +32,13 @@ type FileWithDiffResponse = {
   error?: string;
 };
 
-const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes', 'liveView']);
+const sidePanelTabs = new Set<AppTab>(['files', 'shell', 'git', 'changes']);
 const SIDE_PANEL_MIN_WIDTH = 40;
 const SIDE_PANEL_MAX_WIDTH = 50;
 const SIDE_PANEL_DEFAULT_WIDTH = 46;
 const COMMAND_CENTER_MODE_STORAGE_KEY = 'command-center-tracking-mode';
 
-function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' | 'changes' | 'liveView' {
+function isSidePanelTab(tab: AppTab): tab is 'files' | 'shell' | 'git' | 'changes' {
   return sidePanelTabs.has(tab);
 }
 
@@ -75,7 +73,6 @@ function MainContent({
   onShowSettings,
   externalMessageUpdate,
   onQuickStartSession,
-  onQuickStartOrchestration,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
   const {
@@ -89,7 +86,6 @@ function MainContent({
   const [sidePanelMode, setSidePanelMode] = useState<'split' | 'full'>('split');
   const [sidePanelWidth, setSidePanelWidth] = useState(SIDE_PANEL_DEFAULT_WIDTH);
   const [isDraggingSidePanel, setIsDraggingSidePanel] = useState(false);
-  const [liveViewAvailable, setLiveViewAvailable] = useState(false);
   const [changeTrackingMode, setChangeTrackingMode] = useState<ChangedFilesTrackingMode>(() => {
     if (typeof window === 'undefined') {
       return 'local';
@@ -97,7 +93,6 @@ function MainContent({
 
     return window.localStorage.getItem(COMMAND_CENTER_MODE_STORAGE_KEY) === 'git' ? 'git' : 'local';
   });
-  const [mainSurfaceTab, setMainSurfaceTab] = useState<AppTab>(() => (isSidePanelTab(activeTab) ? 'chat' : activeTab));
   const [canUseSidePanelSplit, setCanUseSidePanelSplit] = useState(() => (
     typeof window !== 'undefined' && window.innerWidth >= 1024
   ));
@@ -134,12 +129,11 @@ function MainContent({
     selectedProject,
     isMobile,
   });
-  const sidePanelMainTab: AppTab = mainSurfaceTab === 'orchestration' ? 'orchestration' : 'chat';
+  const sidePanelMainTab: AppTab = 'chat';
   const visiblePrimaryTab = activeSidePanelTab ? sidePanelMainTab : activeTab;
   const showSidePanelWithChat = Boolean(showSidePanelSplit);
   const dockEditorInsideFilesPanel = Boolean(activeSidePanelTab === 'files' && editingFile && !isMobile);
   const showChatColumn = visiblePrimaryTab === 'chat' && (!activeSidePanelTab || showSidePanelWithChat);
-  const showOrchestrationColumn = visiblePrimaryTab === 'orchestration' && showSidePanelWithChat;
   const shouldPollChangedFiles = Boolean(selectedProject)
     && (activeSidePanelTab === 'files' || activeSidePanelTab === 'changes' || activeTab === 'files' || activeTab === 'changes');
 
@@ -246,7 +240,7 @@ function MainContent({
     setActiveTab(sidePanelMainTab);
   }, [setActiveTab, sidePanelMainTab]);
 
-  const renderSidePanel = (tab: 'files' | 'shell' | 'git' | 'changes' | 'liveView') => {
+  const renderSidePanel = (tab: 'files' | 'shell' | 'git' | 'changes') => {
     if (tab === 'files') {
       if (dockEditorInsideFilesPanel) {
         return (
@@ -318,44 +312,8 @@ function MainContent({
       );
     }
 
-    if (tab === 'liveView') {
-      if (!selectedProject) {
-        return null;
-      }
-
-      return (
-        <LiveViewPanel
-          selectedProject={selectedProject}
-          onAvailabilityChange={setLiveViewAvailable}
-        />
-      );
-    }
-
     return <GitPanel selectedProject={selectedProject} isMobile={isMobile} onFileOpen={handleFileOpen} />;
   };
-
-  useEffect(() => {
-    if (!selectedProject) {
-      setLiveViewAvailable(false);
-      return;
-    }
-
-    let cancelled = false;
-    authenticatedFetch(`/api/live-view/${encodeURIComponent(selectedProject.name)}/status`, { cache: 'no-store' })
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => {
-        if (!cancelled) {
-          setLiveViewAvailable(Boolean(data?.target?.available || data?.session));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLiveViewAvailable(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProject]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -381,12 +339,6 @@ function MainContent({
     window.localStorage.setItem(COMMAND_CENTER_MODE_STORAGE_KEY, changeTrackingMode);
   }, [changeTrackingMode]);
 
-  useEffect(() => {
-    if (!isSidePanelTab(activeTab)) {
-      setMainSurfaceTab(activeTab);
-    }
-  }, [activeTab]);
-
   const handleActiveTabChange = useCallback((next: React.SetStateAction<AppTab>) => {
     const nextTab = typeof next === 'function' ? next(activeTab) : next;
     if (!isMobile && canUseSidePanelSplit && isSidePanelTab(nextTab)) {
@@ -398,7 +350,6 @@ function MainContent({
       }
     } else {
       setSidePanelMode('split');
-      setMainSurfaceTab(nextTab);
     }
     setActiveTab(nextTab);
   }, [activeTab, canUseSidePanelSplit, isMobile, setActiveTab]);
@@ -584,7 +535,6 @@ function MainContent({
           setActiveTab={handleActiveTabChange}
           selectedProject={null}
           selectedSession={null}
-          liveViewAvailable={false}
           activeSidePanelTab={null}
           sidePanelMode={sidePanelMode}
           canUseSidePanelSplit={canUseSidePanelSplit}
@@ -608,7 +558,6 @@ function MainContent({
         isMobile={isMobile}
         onMenuClick={onMenuClick}
         onQuickStartSession={onQuickStartSession}
-        onQuickStartOrchestration={onQuickStartOrchestration}
         onOpenControlRoom={() => setActiveTab('controlRoom')}
       />
     );
@@ -621,7 +570,6 @@ function MainContent({
         setActiveTab={handleActiveTabChange}
         selectedProject={selectedProject}
         selectedSession={selectedSession}
-        liveViewAvailable={liveViewAvailable}
         activeSidePanelTab={activeSidePanelTab}
         sidePanelMode={sidePanelMode}
         canUseSidePanelSplit={canUseSidePanelSplit}
@@ -647,12 +595,11 @@ function MainContent({
               isMobile && activeSidePanelTab === 'shell' ? 'w-full px-0' : 'w-full px-3 md:px-4'
             ),
             !editingFile && showSidePanelWithChat && 'w-full px-3 md:px-4',
-            !editingFile && activeTab === 'orchestration' && 'max-w-none px-0 md:px-0',
             !editingFile && activeTab === 'remote' && 'max-w-none px-0 md:px-0',
             !editingFile && activeTab === 'controlRoom' && 'max-w-none px-0 md:px-0',
           )}
         >
-          {(showChatColumn || showOrchestrationColumn || activeSidePanelTab) && (
+          {(showChatColumn || activeSidePanelTab) && (
             <div
               ref={splitContainerRef}
               className={cn(
@@ -704,24 +651,6 @@ function MainContent({
                 </div>
               )}
 
-              {showOrchestrationColumn && (
-                <div
-                  ref={chatPaneRef}
-                  className={cn(
-                    'min-h-0 overflow-hidden',
-                    showSidePanelWithChat && 'min-w-[320px] flex-none transition-[width,opacity,transform] duration-300 ease-out',
-                    isDraggingSidePanel && 'transition-none',
-                  )}
-                  style={showSidePanelWithChat ? { width: `${100 - sidePanelWidth}%` } : undefined}
-                >
-                  <div className="flex h-full min-h-0 min-w-0 flex-1">
-                    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                      <OrchestrationPage selectedProject={selectedProject} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {showSidePanelWithChat && (
                 <button
                   type="button"
@@ -757,14 +686,6 @@ function MainContent({
                   {renderSidePanel(activeSidePanelTab)}
                 </div>
               )}
-            </div>
-          )}
-
-          {!activeSidePanelTab && activeTab === 'orchestration' && (
-            <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
-              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                <OrchestrationPage selectedProject={selectedProject} />
-              </div>
             </div>
           )}
 

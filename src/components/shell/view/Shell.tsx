@@ -309,10 +309,10 @@ export default function Shell({
         disableRestart={isRestarting || isConnected}
       />
 
-      <div className={cn('relative flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-2 pb-16 md:pb-2')}>
+      <div className={cn('relative flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
         <div
           ref={terminalContainerRef}
-            className="h-full w-full focus:outline-none"
+          className="pixcode-shell-terminal h-full w-full focus:outline-none"
           style={{ outline: 'none' }}
         />
 

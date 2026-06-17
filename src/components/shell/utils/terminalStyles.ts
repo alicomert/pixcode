@@ -10,6 +10,13 @@ const XTERM_FOCUS_STYLES = `
   .xterm-screen:focus {
     outline: none !important;
   }
+  .pixcode-shell-terminal .xterm {
+    height: 100%;
+    padding: 0 !important;
+  }
+  .pixcode-shell-terminal .xterm-viewport {
+    height: 100% !important;
+  }
 `;
 
 export function ensureXtermFocusStyles(): void {

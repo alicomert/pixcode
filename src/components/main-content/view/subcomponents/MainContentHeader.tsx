@@ -14,7 +14,6 @@ export default function MainContentHeader({
   setActiveTab,
   selectedProject,
   selectedSession,
-  liveViewAvailable,
   activeSidePanelTab,
   sidePanelMode,
   canUseSidePanelSplit,
@@ -81,7 +80,6 @@ export default function MainContentHeader({
                 <MainContentTabSwitcher
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
-                  liveViewAvailable={liveViewAvailable}
                   activeSidePanelTab={activeSidePanelTab}
                   sidePanelMode={sidePanelMode}
                   canUseSidePanelSplit={canUseSidePanelSplit}

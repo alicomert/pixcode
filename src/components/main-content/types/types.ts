@@ -28,7 +28,6 @@ export type MainContentProps = {
   /** Forwarded to the empty-state view so landing cards can create a
    *  pixcode-project-N and open the selected workspace surface. */
   onQuickStartSession?: () => void | Promise<void>;
-  onQuickStartOrchestration?: () => void | Promise<void>;
 };
 
 export type MainContentHeaderProps = {
@@ -36,7 +35,6 @@ export type MainContentHeaderProps = {
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
-  liveViewAvailable?: boolean;
   activeSidePanelTab?: AppTab | null;
   sidePanelMode?: 'split' | 'full';
   canUseSidePanelSplit?: boolean;
@@ -52,7 +50,6 @@ export type MainContentStateViewProps = {
   /** When set, the empty state can create a pixcode-project-N and open
    *  a focused workspace surface without the project creation wizard. */
   onQuickStartSession?: () => void | Promise<void>;
-  onQuickStartOrchestration?: () => void | Promise<void>;
   onOpenControlRoom?: () => void;
 };
 

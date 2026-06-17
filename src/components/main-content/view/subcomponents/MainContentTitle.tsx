@@ -20,10 +20,6 @@ function getTabTitle(activeTab: AppTab, t: (key: string) => string, pluginDispla
     return t('mainContent.projectFiles');
   }
 
-  if (activeTab === 'orchestration') {
-    return t('tabs.orchestration');
-  }
-
   if (activeTab === 'remote') {
     return t('tabs.remote');
   }
@@ -38,10 +34,6 @@ function getTabTitle(activeTab: AppTab, t: (key: string) => string, pluginDispla
 
   if (activeTab === 'changes') {
     return t('tabs.changes');
-  }
-
-  if (activeTab === 'liveView') {
-    return t('tabs.liveView');
   }
 
   return 'Project';

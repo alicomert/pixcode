@@ -4,14 +4,13 @@ import type { MainContentStateViewProps } from '../../types/types';
 
 import MobileMenuButton from './MobileMenuButton';
 
-import { Folder, FolderPlus, Sparkles, Workflow } from '@/lib/icons';
+import { Folder, FolderPlus, Sparkles } from '@/lib/icons';
 
 export default function MainContentStateView({
   mode,
   isMobile,
   onMenuClick,
   onQuickStartSession,
-  onQuickStartOrchestration,
   onOpenControlRoom,
 }: MainContentStateViewProps) {
   const { t } = useTranslation();
@@ -70,18 +69,6 @@ export default function MainContentStateView({
                   {t('mainContent.openControlRoomDescription', {
                     defaultValue: 'See admin users, team access, production runs, secrets, audits, usage, and remote access in one place.',
                   })}
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { void onQuickStartOrchestration?.(); }}
-                className="rounded-md border border-primary/30 bg-primary/5 p-4 text-left transition-colors hover:bg-primary/10"
-              >
-                <Workflow className="mb-3 h-5 w-5 text-primary" />
-                <div className="text-sm font-semibold">{t('mainContent.landing.startOrchestration')}</div>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  {t('mainContent.landing.startOrchestrationDescription')}
                 </p>
               </button>
 
