@@ -29,6 +29,16 @@ const FILESYSTEM_SCAN_EXCLUDED_DIRS = new Set([
   '.turbo',
   '.cache',
   '.pixcode-dev',
+  '.gradle',
+  '.repo',
+  '.venv',
+  'out',
+  'target',
+  'vendor',
+  'prebuilts',
+  'Pods',
+  'DerivedData',
+  'venv',
 ]);
 
 router.use((req, res, next) => {
@@ -80,43 +90,45 @@ async function collectFilesystemSnapshot(projectPath) {
       return;
     }
 
-    let entries = [];
     try {
-      entries = await fs.readdir(directoryPath, { withFileTypes: true });
+      const dir = await fs.opendir(directoryPath);
+      try {
+        for await (const entry of dir) {
+          if (limitReached || shouldSkipFilesystemEntry(entry.name)) {
+            continue;
+          }
+
+          const absolutePath = path.join(directoryPath, entry.name);
+
+          if (entry.isDirectory()) {
+            await walk(absolutePath, depth + 1);
+            continue;
+          }
+
+          if (!entry.isFile()) {
+            continue;
+          }
+
+          try {
+            const stat = await fs.stat(absolutePath);
+            snapshot.set(toProjectRelativePath(projectPath, absolutePath), {
+              mtimeMs: Math.round(stat.mtimeMs),
+              size: stat.size,
+            });
+          } catch {
+            continue;
+          }
+
+          if (snapshot.size >= FILESYSTEM_SCAN_MAX_FILES) {
+            limitReached = true;
+            break;
+          }
+        }
+      } finally {
+        await dir.close().catch(() => undefined);
+      }
     } catch {
       return;
-    }
-
-    for (const entry of entries) {
-      if (limitReached || shouldSkipFilesystemEntry(entry.name)) {
-        continue;
-      }
-
-      const absolutePath = path.join(directoryPath, entry.name);
-
-      if (entry.isDirectory()) {
-        await walk(absolutePath, depth + 1);
-        continue;
-      }
-
-      if (!entry.isFile()) {
-        continue;
-      }
-
-      try {
-        const stat = await fs.stat(absolutePath);
-        snapshot.set(toProjectRelativePath(projectPath, absolutePath), {
-          mtimeMs: Math.round(stat.mtimeMs),
-          size: stat.size,
-        });
-      } catch {
-        continue;
-      }
-
-      if (snapshot.size >= FILESYSTEM_SCAN_MAX_FILES) {
-        limitReached = true;
-        break;
-      }
     }
   }
 

@@ -272,7 +272,12 @@ export function useProjectsState({
       (selectedSession && activeSessions.has(selectedSession.id)) ||
       (activeSessions.size > 0 && Array.from(activeSessions).some((id) => id.startsWith('new-session-')));
 
-    const updatedProjects = projectsMessage.projects;
+    const updatedProjects = Array.isArray(projectsMessage.projects) ? projectsMessage.projects : null;
+
+    if (!updatedProjects) {
+      void fetchProjects();
+      return;
+    }
 
     if (
       hasActiveSession &&
@@ -310,7 +315,7 @@ export function useProjectsState({
     if (!updatedSelectedSession) {
       setSelectedSession(null);
     }
-  }, [latestMessage, selectedProject, selectedSession, activeSessions, projects]);
+  }, [latestMessage, selectedProject, selectedSession, activeSessions, projects, fetchProjects]);
 
   useEffect(() => {
     return () => {

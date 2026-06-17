@@ -75,6 +75,7 @@ const FILE_COUNT_SCAN_MAX_MS = 2500;
 const CODEX_SESSION_INDEX_TTL_MS = 60 * 1000;
 const CODEX_SESSION_INDEX_MAX_FILES = 1200;
 const CODEX_SESSION_INDEX_MAX_DIRS = 2500;
+const CLAUDE_JSONL_LINE_MAX_CHARS = 1024 * 1024;
 const GEMINI_QWEN_PROJECT_ENTRY_CACHE_TTL_MS = 60 * 1000;
 const CLI_CHAT_FILE_READ_MAX_BYTES = 2 * 1024 * 1024;
 const CLI_CHAT_FILES_PER_PROJECT_LIMIT = 150;
@@ -932,11 +933,12 @@ async function getSessions(projectName, limit = 5, offset = 0) {
     filesWithStats.sort((a, b) => b.mtime - a.mtime);
 
     const allSessions = new Map();
-    const allEntries = [];
-    const uuidToSessionMap = new Map();
+    const sessionFirstUserMessageIds = new Map();
 
     // Collect all sessions and entries from all files
+    let filesScanned = 0;
     for (const { file } of filesWithStats) {
+      filesScanned++;
       const jsonlFile = path.join(projectDir, file);
       const result = await parseJsonlSessions(jsonlFile);
 
@@ -946,35 +948,30 @@ async function getSessions(projectName, limit = 5, offset = 0) {
         }
       });
 
-      allEntries.push(...result.entries);
+      result.firstUserMessageIds.forEach((firstUserMsgId, sessionId) => {
+        if (!sessionFirstUserMessageIds.has(sessionId)) {
+          sessionFirstUserMessageIds.set(sessionId, firstUserMsgId);
+        }
+      });
 
       // Early exit optimization for large projects
-      if (allSessions.size >= (limit + offset) * 2 && allEntries.length >= Math.min(3, filesWithStats.length)) {
+      if (allSessions.size >= (limit + offset) * 2 && filesScanned >= Math.min(3, filesWithStats.length)) {
         break;
       }
     }
-
-    // Build UUID-to-session mapping for timeline detection
-    allEntries.forEach(entry => {
-      if (entry.uuid && entry.sessionId) {
-        uuidToSessionMap.set(entry.uuid, entry.sessionId);
-      }
-    });
 
     // Group sessions by first user message ID
     const sessionGroups = new Map(); // firstUserMsgId -> { latestSession, allSessions[] }
     const sessionToFirstUserMsgId = new Map(); // sessionId -> firstUserMsgId
 
     // Find the first user message for each session
-    allEntries.forEach(entry => {
-      if (entry.sessionId && entry.type === 'user' && entry.parentUuid === null && entry.uuid) {
-        // This is a first user message in a session (parentUuid is null)
-        const firstUserMsgId = entry.uuid;
+    sessionFirstUserMessageIds.forEach((firstUserMsgId, sessionId) => {
+      if (sessionId && firstUserMsgId) {
 
-        if (!sessionToFirstUserMsgId.has(entry.sessionId)) {
-          sessionToFirstUserMsgId.set(entry.sessionId, firstUserMsgId);
+        if (!sessionToFirstUserMsgId.has(sessionId)) {
+          sessionToFirstUserMsgId.set(sessionId, firstUserMsgId);
 
-          const session = allSessions.get(entry.sessionId);
+          const session = allSessions.get(sessionId);
           if (session) {
             if (!sessionGroups.has(firstUserMsgId)) {
               sessionGroups.set(firstUserMsgId, {
@@ -1038,7 +1035,7 @@ async function getSessions(projectName, limit = 5, offset = 0) {
 
 async function parseJsonlSessions(filePath) {
   const sessions = new Map();
-  const entries = [];
+  const firstUserMessageIds = new Map();
   const pendingSummaries = new Map(); // leafUuid -> summary for entries without sessionId
 
   try {
@@ -1050,9 +1047,12 @@ async function parseJsonlSessions(filePath) {
 
     for await (const line of rl) {
       if (line.trim()) {
+        if (line.length > CLAUDE_JSONL_LINE_MAX_CHARS) {
+          continue;
+        }
+
         try {
           const entry = JSON.parse(line);
-          entries.push(entry);
 
           // Handle summary entries that don't have sessionId yet
           if (entry.type === 'summary' && entry.summary && !entry.sessionId && entry.leafUuid) {
@@ -1073,6 +1073,15 @@ async function parseJsonlSessions(filePath) {
             }
 
             const session = sessions.get(entry.sessionId);
+
+            if (
+              entry.type === 'user'
+              && entry.parentUuid === null
+              && entry.uuid
+              && !firstUserMessageIds.has(entry.sessionId)
+            ) {
+              firstUserMessageIds.set(entry.sessionId, entry.uuid);
+            }
 
             // Apply pending summary if this entry has a parentUuid that matches a pending summary
             if (session.summary === 'New Session' && entry.parentUuid && pendingSummaries.has(entry.parentUuid)) {
@@ -1180,12 +1189,12 @@ async function parseJsonlSessions(filePath) {
 
     return {
       sessions: filteredSessions,
-      entries: entries
+      firstUserMessageIds,
     };
 
   } catch (error) {
     console.error('Error reading JSONL file:', error);
-    return { sessions: [], entries: [] };
+    return { sessions: [], firstUserMessageIds: new Map() };
   }
 }
 
@@ -1249,6 +1258,9 @@ async function parseAgentTools(filePath) {
 // Get messages for a specific session with pagination support
 async function getSessionMessages(projectName, sessionId, limit = null, offset = 0) {
   const projectDir = path.join(os.homedir(), '.claude', 'projects', projectName);
+  const boundedLimit = limit === null ? null : Math.max(0, Number(limit) || 0);
+  const boundedOffset = Math.max(0, Number(offset) || 0);
+  const maxBufferedMessages = boundedLimit === null ? Infinity : boundedLimit + boundedOffset;
 
   try {
     const files = await fs.readdir(projectDir);
@@ -1261,6 +1273,7 @@ async function getSessionMessages(projectName, sessionId, limit = null, offset =
     }
 
     const messages = [];
+    let totalMessages = 0;
     // Map of agentId -> tools for subagent tool grouping
     const agentToolsCache = new Map();
 
@@ -1276,9 +1289,17 @@ async function getSessionMessages(projectName, sessionId, limit = null, offset =
       for await (const line of rl) {
         if (line.trim()) {
           try {
+            if (line.length > CLAUDE_JSONL_LINE_MAX_CHARS) {
+              continue;
+            }
+
             const entry = JSON.parse(line);
             if (entry.sessionId === sessionId) {
+              totalMessages += 1;
               messages.push(entry);
+              if (messages.length > maxBufferedMessages) {
+                messages.shift();
+              }
             }
           } catch (parseError) {
             // Silently skip malformed JSONL lines (common with concurrent writes)
@@ -1320,30 +1341,30 @@ async function getSessionMessages(projectName, sessionId, limit = null, offset =
       new Date(a.timestamp || 0) - new Date(b.timestamp || 0)
     );
 
-    const total = sortedMessages.length;
+    const total = boundedLimit === null ? sortedMessages.length : totalMessages;
 
     // If no limit is specified, return all messages (backward compatibility)
-    if (limit === null) {
+    if (boundedLimit === null) {
       return sortedMessages;
     }
 
     // Apply pagination - for recent messages, we need to slice from the end
     // offset 0 should give us the most recent messages
-    const startIndex = Math.max(0, total - offset - limit);
-    const endIndex = total - offset;
+    const startIndex = Math.max(0, sortedMessages.length - boundedOffset - boundedLimit);
+    const endIndex = sortedMessages.length - boundedOffset;
     const paginatedMessages = sortedMessages.slice(startIndex, endIndex);
-    const hasMore = startIndex > 0;
+    const hasMore = total > boundedOffset + boundedLimit;
 
     return {
       messages: paginatedMessages,
       total,
       hasMore,
-      offset,
-      limit
+      offset: boundedOffset,
+      limit: boundedLimit
     };
   } catch (error) {
     console.error(`Error reading messages for session ${sessionId}:`, error);
-    return limit === null ? [] : { messages: [], total: 0, hasMore: false };
+    return boundedLimit === null ? [] : { messages: [], total: 0, hasMore: false };
   }
 }
 
@@ -1702,19 +1723,21 @@ async function findCodexJsonlFiles(dir, {
     visitedDirs += 1;
 
     try {
-      const entries = await fs.readdir(currentDir, { withFileTypes: true });
-      entries.sort((a, b) => b.name.localeCompare(a.name));
-
-      for (const entry of entries) {
-        if (files.length >= maxFiles) break;
-        const fullPath = path.join(currentDir, entry.name);
-        if (entry.isDirectory()) {
-          if (visitedDirs + pendingDirs.length < maxDirs) {
-            pendingDirs.push(fullPath);
+      const dirHandle = await fs.opendir(currentDir);
+      try {
+        for await (const entry of dirHandle) {
+          if (files.length >= maxFiles) break;
+          const fullPath = path.join(currentDir, entry.name);
+          if (entry.isDirectory()) {
+            if (visitedDirs + pendingDirs.length < maxDirs) {
+              pendingDirs.push(fullPath);
+            }
+          } else if (entry.name.endsWith('.jsonl')) {
+            files.push(fullPath);
           }
-        } else if (entry.name.endsWith('.jsonl')) {
-          files.push(fullPath);
         }
+      } finally {
+        await dirHandle.close().catch(() => undefined);
       }
     } catch {
       // Skip directories we can't read
@@ -1900,29 +1923,18 @@ async function parseCodexSessionFile(filePath) {
 
 // Get messages for a specific Codex session
 async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
+  const boundedLimit = limit === null ? null : Math.max(0, Number(limit) || 0);
+  const boundedOffset = Math.max(0, Number(offset) || 0);
+  const maxBufferedMessages = boundedLimit === null ? Infinity : boundedLimit + boundedOffset;
+
   try {
     const codexSessionsDir = path.join(os.homedir(), '.codex', 'sessions');
 
-    // Find the session file by searching for the session ID
-    const findSessionFile = async (dir) => {
-      try {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            const found = await findSessionFile(fullPath);
-            if (found) return found;
-          } else if (entry.name.includes(sessionId) && entry.name.endsWith('.jsonl')) {
-            return fullPath;
-          }
-        }
-      } catch (error) {
-        // Skip directories we can't read
-      }
-      return null;
-    };
-
-    const sessionFilePath = await findSessionFile(codexSessionsDir);
+    const sessionFiles = await findCodexJsonlFiles(codexSessionsDir, {
+      maxFiles: Math.max(CODEX_SESSION_INDEX_MAX_FILES, 10000),
+      maxDirs: CODEX_SESSION_INDEX_MAX_DIRS,
+    });
+    const sessionFilePath = sessionFiles.find(filePath => path.basename(filePath).includes(sessionId)) || null;
 
     if (!sessionFilePath) {
       console.warn(`Codex session file not found for session ${sessionId}`);
@@ -1930,6 +1942,14 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
     }
 
     const messages = [];
+    let totalMessages = 0;
+    const pushMessage = (message) => {
+      totalMessages += 1;
+      messages.push(message);
+      if (messages.length > maxBufferedMessages) {
+        messages.shift();
+      }
+    };
     let tokenUsage = null;
     const fileStream = fsSync.createReadStream(sessionFilePath);
     const rl = readline.createInterface({
@@ -1957,6 +1977,10 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
     for await (const line of rl) {
       if (line.trim()) {
         try {
+          if (line.length > CLAUDE_JSONL_LINE_MAX_CHARS) {
+            continue;
+          }
+
           const entry = JSON.parse(line);
 
           // Extract token usage from token_count events (keep latest)
@@ -1972,7 +1996,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
           
           // Use event_msg.user_message for user-visible inputs.
           if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload)) {
-            messages.push({
+            pushMessage({
               type: 'user',
               timestamp: entry.timestamp,
               message: {
@@ -1994,7 +2018,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
 
             // Only add if there's actual content
             if (textContent?.trim()) {
-              messages.push({
+              pushMessage({
                 type: 'assistant',
                 timestamp: entry.timestamp,
                 message: {
@@ -2011,7 +2035,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
               .filter(Boolean)
               .join('\n');
             if (summaryText?.trim()) {
-              messages.push({
+              pushMessage({
                 type: 'thinking',
                 timestamp: entry.timestamp,
                 message: {
@@ -2037,7 +2061,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
               }
             }
 
-            messages.push({
+            pushMessage({
               type: 'tool_use',
               timestamp: entry.timestamp,
               toolName: toolName,
@@ -2047,7 +2071,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
           }
 
           if (entry.type === 'response_item' && entry.payload?.type === 'function_call_output') {
-            messages.push({
+            pushMessage({
               type: 'tool_result',
               timestamp: entry.timestamp,
               toolCallId: entry.payload.call_id,
@@ -2077,7 +2101,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
                 }
               }
 
-              messages.push({
+              pushMessage({
                 type: 'tool_use',
                 timestamp: entry.timestamp,
                 toolName: 'Edit',
@@ -2089,7 +2113,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
                 toolCallId: entry.payload.call_id
               });
             } else {
-              messages.push({
+              pushMessage({
                 type: 'tool_use',
                 timestamp: entry.timestamp,
                 toolName: toolName,
@@ -2100,7 +2124,7 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
           }
 
           if (entry.type === 'response_item' && entry.payload?.type === 'custom_tool_call_output') {
-            messages.push({
+            pushMessage({
               type: 'tool_result',
               timestamp: entry.timestamp,
               toolCallId: entry.payload.call_id,
@@ -2117,21 +2141,21 @@ async function getCodexSessionMessages(sessionId, limit = null, offset = 0) {
     // Sort by timestamp
     messages.sort((a, b) => new Date(a.timestamp || 0) - new Date(b.timestamp || 0));
 
-    const total = messages.length;
+    const total = boundedLimit === null ? messages.length : totalMessages;
 
     // Apply pagination if limit is specified
-    if (limit !== null) {
-      const startIndex = Math.max(0, total - offset - limit);
-      const endIndex = total - offset;
+    if (boundedLimit !== null) {
+      const startIndex = Math.max(0, messages.length - boundedOffset - boundedLimit);
+      const endIndex = messages.length - boundedOffset;
       const paginatedMessages = messages.slice(startIndex, endIndex);
-      const hasMore = startIndex > 0;
+      const hasMore = total > boundedOffset + boundedLimit;
 
       return {
         messages: paginatedMessages,
         total,
         hasMore,
-        offset,
-        limit,
+        offset: boundedOffset,
+        limit: boundedLimit,
         tokenUsage
       };
     }

@@ -93,6 +93,7 @@ export default function StandaloneShell({
           provider={provider}
           onClose={onClose}
           immersive={immersive}
+          showHeader={showHeader}
         />
       </div>
     </div>

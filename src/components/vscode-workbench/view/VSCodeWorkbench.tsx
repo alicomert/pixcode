@@ -162,9 +162,9 @@ const LEFT_DEFAULT_WIDTH = 340;
 const RIGHT_MIN_WIDTH = 320;
 const RIGHT_MAX_WIDTH = 680;
 const RIGHT_DEFAULT_WIDTH = 420;
-const BOTTOM_TERMINAL_MIN_HEIGHT = 150;
-const BOTTOM_TERMINAL_MAX_HEIGHT = 560;
-const BOTTOM_TERMINAL_DEFAULT_HEIGHT = 256;
+const BOTTOM_TERMINAL_MIN_HEIGHT = 220;
+const BOTTOM_TERMINAL_MAX_HEIGHT = 720;
+const BOTTOM_TERMINAL_FALLBACK_HEIGHT = 360;
 const WORKBENCH_WORKSPACE_TABS_STORAGE_KEY = 'pixcode.workbench.workspaceTabs.v1';
 const WORKBENCH_CLI_STATE_STORAGE_KEY = 'pixcode.workbench.cliState.v1';
 const WORKBENCH_EDITOR_STATE_STORAGE_KEY = 'pixcode.workbench.editorState.v1';
@@ -174,6 +174,14 @@ const MAX_PERSISTED_EDITOR_TABS = 30;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getDefaultBottomTerminalHeight() {
+  if (typeof window === 'undefined') {
+    return BOTTOM_TERMINAL_FALLBACK_HEIGHT;
+  }
+
+  return clamp(Math.round(window.innerHeight * 0.42), BOTTOM_TERMINAL_MIN_HEIGHT, BOTTOM_TERMINAL_MAX_HEIGHT);
 }
 
 function isCenterSystemTab(activeTab: AppTab) {
@@ -408,7 +416,7 @@ function VSCodeWorkbench({
   const [bottomTerminalRunId, setBottomTerminalRunId] = useState(0);
   const [bottomTerminalForceNewSession, setBottomTerminalForceNewSession] = useState(false);
   const [bottomTerminalProject, setBottomTerminalProject] = useState<Project | null>(null);
-  const [bottomTerminalHeight, setBottomTerminalHeight] = useState(BOTTOM_TERMINAL_DEFAULT_HEIGHT);
+  const [bottomTerminalHeight, setBottomTerminalHeight] = useState(() => getDefaultBottomTerminalHeight());
   const [bottomTerminalViewMode, setBottomTerminalViewMode] = useState<WorkbenchBottomTerminalViewMode>('half');
   const [hasPendingRestartUpdate, setHasPendingRestartUpdate] = useState(false);
   const versionCheck = useVersionCheck('alicomert', 'pixcode');

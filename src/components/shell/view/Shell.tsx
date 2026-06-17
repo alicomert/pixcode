@@ -42,6 +42,7 @@ type ShellProps = {
   isActive?: boolean;
   onClose?: (() => void) | null;
   immersive?: boolean;
+  showHeader?: boolean;
 };
 
 export default function Shell({
@@ -60,6 +61,7 @@ export default function Shell({
   isActive = true,
   onClose = null,
   immersive = false,
+  showHeader = true,
 }: ShellProps) {
   const { t } = useTranslation('chat');
   const [isRestarting, setIsRestarting] = useState(false);
@@ -291,28 +293,30 @@ export default function Shell({
 
   return (
     <div className={cn('flex h-full w-full flex-col bg-gray-900', immersive && 'bg-gray-950')}>
-      <ShellHeader
-        isConnected={isConnected}
-        isInitialized={isInitialized}
-        isRestarting={isRestarting}
-        hasSession={Boolean(selectedSession)}
-        sessionDisplayNameShort={sessionDisplayNameShort}
-        onDisconnect={handleDisconnectClick}
-        onRestart={handleRestartShell}
-        statusNewSessionText={t('shell.status.newSession')}
-        statusInitializingText={t('shell.status.initializing')}
-        statusRestartingText={t('shell.status.restarting')}
-        disconnectLabel={t('shell.actions.disconnect')}
-        disconnectTitle={t('shell.actions.disconnectTitle')}
-        restartLabel={t('shell.actions.restart')}
-        restartTitle={t('shell.actions.restartTitle')}
-        disableRestart={isRestarting || isConnected}
-      />
+      {showHeader && (
+        <ShellHeader
+          isConnected={isConnected}
+          isInitialized={isInitialized}
+          isRestarting={isRestarting}
+          hasSession={Boolean(selectedSession)}
+          sessionDisplayNameShort={sessionDisplayNameShort}
+          onDisconnect={handleDisconnectClick}
+          onRestart={handleRestartShell}
+          statusNewSessionText={t('shell.status.newSession')}
+          statusInitializingText={t('shell.status.initializing')}
+          statusRestartingText={t('shell.status.restarting')}
+          disconnectLabel={t('shell.actions.disconnect')}
+          disconnectTitle={t('shell.actions.disconnectTitle')}
+          restartLabel={t('shell.actions.restart')}
+          restartTitle={t('shell.actions.restartTitle')}
+          disableRestart={isRestarting || isConnected}
+        />
+      )}
 
-      <div className={cn('relative flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
+      <div className={cn('relative min-h-0 flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
         <div
           ref={terminalContainerRef}
-          className="pixcode-shell-terminal h-full w-full focus:outline-none"
+          className="pixcode-shell-terminal h-full min-h-0 w-full focus:outline-none"
           style={{ outline: 'none' }}
         />
 

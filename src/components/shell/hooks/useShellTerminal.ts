@@ -227,6 +227,8 @@ export function useShellTerminal({
 
       try {
         currentFitAddon.fit();
+        currentTerminal.scrollToBottom();
+        currentTerminal.refresh(0, Math.max(0, currentTerminal.rows - 1));
       } catch {
         return;
       }
@@ -249,6 +251,9 @@ export function useShellTerminal({
     };
 
     window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(fitTerminalAndNotify);
+    });
 
     setIsInitialized(true);
 
@@ -264,6 +269,7 @@ export function useShellTerminal({
     const resizeObserver = new ResizeObserver(scheduleTerminalFit);
 
     resizeObserver.observe(terminalContainer);
+    window.addEventListener('resize', scheduleTerminalFit);
     window.visualViewport?.addEventListener('resize', scheduleTerminalFit);
     window.addEventListener('orientationchange', scheduleTerminalFit);
 
@@ -279,6 +285,7 @@ export function useShellTerminal({
         resizeTimeoutRef.current = null;
       }
       dataSubscription.dispose();
+      window.removeEventListener('resize', scheduleTerminalFit);
       closeSocket();
       disposeTerminal();
     };

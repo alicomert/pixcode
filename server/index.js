@@ -8,6 +8,7 @@ import os from 'os';
 import http from 'http';
 import net from 'node:net';
 import crypto from 'node:crypto';
+import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { spawn } from 'child_process';
 
@@ -41,6 +42,7 @@ const DAEMON_COMMAND_CONTEXT = {
     cliEntry: path.join(APP_ROOT, 'server', 'cli.js'),
     nodeExecPath: process.execPath,
 };
+const JSONL_STREAM_LINE_MAX_CHARS = 1024 * 1024;
 
 function resolveMonacoAssetsPath() {
     const appParent = path.dirname(APP_ROOT);
@@ -625,9 +627,25 @@ const WATCHER_IGNORED_PATTERNS = [
     '**/node_modules/**',
     '**/.git/**',
     '**/dist/**',
+    '**/dist-server/**',
     '**/build/**',
+    '**/out/**',
+    '**/target/**',
+    '**/vendor/**',
+    '**/prebuilts/**',
+    '**/.repo/**',
+    '**/.gradle/**',
+    '**/.next/**',
+    '**/.nuxt/**',
+    '**/.svelte-kit/**',
+    '**/.turbo/**',
+    '**/.cache/**',
+    '**/.venv/**',
+    '**/venv/**',
+    '**/coverage/**',
     '**/*.tmp',
     '**/*.swp',
+    '**/*.log',
     '**/.DS_Store'
 ];
 // Debounce chokidar events before rescanning all provider project trees.
@@ -638,8 +656,10 @@ const WATCHER_IGNORED_PATTERNS = [
 // a full chat reply into ~1 scan while still feeling responsive when
 // the user flips to the projects list.
 const WATCHER_DEBOUNCE_MS = Number.parseInt(process.env.PIXCODE_PROJECT_WATCH_DEBOUNCE_MS || '', 10) || 10000;
+const PROVIDER_WATCHER_DEPTH = Number.parseInt(process.env.PIXCODE_PROVIDER_WATCH_DEPTH || '', 10) || 8;
 let projectsWatchers = [];
 let projectsWatcherDebounceTimer = null;
+let pendingProjectsWatcherRefresh = null;
 const connectedClients = new Set();
 let isGetProjectsRunning = false; // Flag to prevent reentrant calls
 const STARTUP_INPUT_READY_TIMEOUT_MS = 10 * 60 * 1000;
@@ -678,7 +698,20 @@ async function setupProjectsWatcher() {
     );
     projectsWatchers = [];
 
+    const sendToOpenClient = (client, payload) => {
+        if (client.readyState !== WebSocket.OPEN) {
+            return false;
+        }
+        if (client.bufferedAmount > SHELL_WS_BACKPRESSURE_LIMIT) {
+            return false;
+        }
+        client.send(JSON.stringify(payload));
+        return true;
+    };
+
     const debouncedUpdate = (eventType, filePath, provider, rootPath) => {
+        pendingProjectsWatcherRefresh = { eventType, filePath, provider, rootPath };
+
         if (projectsWatcherDebounceTimer) {
             clearTimeout(projectsWatcherDebounceTimer);
         }
@@ -686,35 +719,37 @@ async function setupProjectsWatcher() {
         projectsWatcherDebounceTimer = setTimeout(async () => {
             // Prevent reentrant calls
             if (isGetProjectsRunning) {
+                projectsWatcherDebounceTimer = setTimeout(() => {
+                    const pending = pendingProjectsWatcherRefresh;
+                    if (pending) {
+                        debouncedUpdate(pending.eventType, pending.filePath, pending.provider, pending.rootPath);
+                    }
+                }, WATCHER_DEBOUNCE_MS);
                 return;
             }
 
             try {
                 isGetProjectsRunning = true;
+                const pending = pendingProjectsWatcherRefresh || { eventType, filePath, provider, rootPath };
+                pendingProjectsWatcherRefresh = null;
 
-                if (eventType === 'addDir' || eventType === 'unlinkDir') {
+                if (pending.eventType === 'addDir' || pending.eventType === 'unlinkDir') {
                     clearProjectDirectoryCache();
                 }
-
-                // Get updated projects list
-                const updatedProjects = await getProjects(broadcastProgress);
 
                 const updatePayload = {
                     type: 'projects_updated',
                     timestamp: new Date().toISOString(),
-                    changeType: eventType,
-                    changedFile: path.relative(rootPath, filePath),
-                    watchProvider: provider
+                    changeType: pending.eventType,
+                    changedFile: path.relative(pending.rootPath, pending.filePath),
+                    watchProvider: pending.provider,
+                    invalidated: true,
                 };
 
-                // Notify all connected clients about project changes, scoped to their access.
+                // Notify clients that provider metadata changed. Avoid broadcasting the full
+                // project/session tree from watcher events; clients can pull when needed.
                 connectedClients.forEach(client => {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(JSON.stringify({
-                            ...updatePayload,
-                            projects: filterProjectsForUser(updatedProjects, client.user),
-                        }));
-                    }
+                    sendToOpenClient(client, updatePayload);
                 });
 
             } catch (error) {
@@ -737,7 +772,7 @@ async function setupProjectsWatcher() {
                 persistent: true,
                 ignoreInitial: true, // Don't fire events for existing files on startup
                 followSymlinks: false,
-                depth: 10, // Reasonable depth limit
+                depth: PROVIDER_WATCHER_DEPTH,
                 awaitWriteFinish: {
                     // Raised from (100, 50) to (500, 250). The old settings
                     // had chokidar polling every 50ms per in-flight file; an
@@ -782,6 +817,8 @@ async function setupProjectsWatcher() {
 // `project_files_updated` events to subscribed clients only, letting the
 // explorer refresh automatically without HTTP polling.
 const WORKSPACE_WATCHER_DEBOUNCE_MS = 800;
+const WORKSPACE_WATCHER_DEPTH = Number.parseInt(process.env.PIXCODE_WORKSPACE_WATCH_DEPTH || '', 10) || 5;
+const WORKSPACE_WS_BACKPRESSURE_LIMIT = 2 * 1024 * 1024;
 const WORKSPACE_DIFF_SNAPSHOT_MAX_BYTES = 128 * 1024;
 const WORKSPACE_DIFF_SNAPSHOT_MAX_FILES = 80;
 const WORKSPACE_DIFF_SNAPSHOT_MAX_TOTAL_BYTES = 2 * 1024 * 1024;
@@ -1014,7 +1051,7 @@ async function subscribeToWorkspace(ws, projectName) {
                 timestamp: new Date().toISOString(),
             });
             entry.subscribers.forEach((client) => {
-                if (client.readyState === WebSocket.OPEN) {
+                if (client.readyState === WebSocket.OPEN && client.bufferedAmount <= WORKSPACE_WS_BACKPRESSURE_LIMIT) {
                     client.send(message);
                 }
             });
@@ -1028,7 +1065,7 @@ async function subscribeToWorkspace(ws, projectName) {
             persistent: true,
             ignoreInitial: true,
             followSymlinks: false,
-            depth: 10,
+            depth: WORKSPACE_WATCHER_DEPTH,
             awaitWriteFinish: {
                 stabilityThreshold: 500,
                 pollInterval: 250
@@ -1085,6 +1122,36 @@ const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUF
 const SHELL_INPUT_CHUNK_CHARS = 4096;
 const SHELL_PENDING_INPUT_MAX_BYTES = Number.parseInt(process.env.PIXCODE_SHELL_PENDING_INPUT_MAX_BYTES || '', 10) || (16 * 1024 * 1024);
 const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
+const FILE_TREE_MAX_ITEMS = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ITEMS || '', 10) || 5000;
+const FILE_TREE_MAX_DIRECTORIES = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_DIRECTORIES || '', 10) || 1200;
+const FILE_TREE_SCAN_MAX_MS = Number.parseInt(process.env.PIXCODE_FILE_TREE_SCAN_MAX_MS || '', 10) || 4000;
+const FILE_TREE_MAX_ENTRIES_PER_DIRECTORY = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ENTRIES_PER_DIRECTORY || '', 10) || 1500;
+const FILE_TREE_EXCLUDED_ENTRY_NAMES = new Set([
+    '.cache',
+    '.git',
+    '.gradle',
+    '.hg',
+    '.next',
+    '.nuxt',
+    '.pnpm-store',
+    '.repo',
+    '.svn',
+    '.svelte-kit',
+    '.turbo',
+    '.venv',
+    'build',
+    'coverage',
+    'DerivedData',
+    'dist',
+    'dist-server',
+    'node_modules',
+    'out',
+    'Pods',
+    'prebuilts',
+    'target',
+    'vendor',
+    'venv',
+]);
 import { stripAnsiSequences, normalizeDetectedUrl, extractUrlsFromText, shouldAutoOpenUrlFromOutput } from './utils/url-detection.js';
 
 function terminatePtySession(sessionKey, session, reason) {
@@ -4018,11 +4085,22 @@ function handleShellConnection(ws, request) {
                         if (existingSession.buffer && existingSession.buffer.length > 0) {
                             console.log(`📜 Sending ${existingSession.buffer.length} buffered messages`);
                             existingSession.buffer.forEach(bufferedData => {
+                                if (ws.bufferedAmount > SHELL_WS_BACKPRESSURE_LIMIT) {
+                                    existingSession.droppedOutputBytes = (existingSession.droppedOutputBytes || 0) + Buffer.byteLength(String(bufferedData || ''), 'utf8');
+                                    return;
+                                }
                                 ws.send(JSON.stringify({
                                     type: 'output',
                                     data: bufferedData
                                 }));
                             });
+                            if ((existingSession.droppedOutputBytes || 0) > 0 && ws.bufferedAmount <= SHELL_WS_BACKPRESSURE_LIMIT) {
+                                ws.send(JSON.stringify({
+                                    type: 'output',
+                                    data: `\r\n\x1b[33m[Pixcode] ${existingSession.droppedOutputBytes} bytes of buffered terminal output were skipped because the browser connection was backpressured.\x1b[0m\r\n`,
+                                }));
+                                existingSession.droppedOutputBytes = 0;
+                            }
                         }
 
                         existingSession.ws = ws;
@@ -4531,22 +4609,46 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
         if (provider === 'codex') {
             const codexSessionsDir = path.join(homeDir, '.codex', 'sessions');
 
-            // Find the session file by searching for the session ID
+            // Find the session file by searching for the session ID without
+            // materializing every directory entry in memory.
             const findSessionFile = async (dir) => {
-                try {
-                    const entries = await fsPromises.readdir(dir, { withFileTypes: true });
-                    for (const entry of entries) {
-                        const fullPath = path.join(dir, entry.name);
-                        if (entry.isDirectory()) {
-                            const found = await findSessionFile(fullPath);
-                            if (found) return found;
-                        } else if (entry.name.includes(safeSessionId) && entry.name.endsWith('.jsonl')) {
-                            return fullPath;
+                const pendingDirs = [dir];
+                let visitedDirs = 0;
+                let visitedFiles = 0;
+                const maxDirs = 2500;
+                const maxFiles = 10000;
+
+                while (pendingDirs.length > 0 && visitedDirs < maxDirs && visitedFiles < maxFiles) {
+                    const currentDir = pendingDirs.pop();
+                    visitedDirs += 1;
+
+                    try {
+                        const dirHandle = await fsPromises.opendir(currentDir);
+                        try {
+                            for await (const entry of dirHandle) {
+                                const fullPath = path.join(currentDir, entry.name);
+                                if (entry.isDirectory()) {
+                                    if (visitedDirs + pendingDirs.length < maxDirs) {
+                                        pendingDirs.push(fullPath);
+                                    }
+                                } else {
+                                    visitedFiles += 1;
+                                    if (entry.name.includes(safeSessionId) && entry.name.endsWith('.jsonl')) {
+                                        return fullPath;
+                                    }
+                                    if (visitedFiles >= maxFiles) {
+                                        break;
+                                    }
+                                }
+                            }
+                        } finally {
+                            await dirHandle.close().catch(() => undefined);
                         }
+                    } catch (error) {
+                        // Skip directories we can't read
                     }
-                } catch (error) {
-                    // Skip directories we can't read
                 }
+
                 return null;
             };
 
@@ -4556,24 +4658,31 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
                 return res.status(404).json({ error: 'Codex session file not found', sessionId: safeSessionId });
             }
 
-            // Read and parse the Codex JSONL file
-            let fileContent;
+            // Stream and parse the Codex JSONL file. Keeping only the latest
+            // token_count event avoids loading very large session logs.
             try {
-                fileContent = await fsPromises.readFile(sessionFilePath, 'utf8');
+                await fsPromises.access(sessionFilePath);
             } catch (error) {
                 if (error.code === 'ENOENT') {
                     return res.status(404).json({ error: 'Session file not found', path: sessionFilePath });
                 }
                 throw error;
             }
-            const lines = fileContent.trim().split('\n');
+            const fileStream = fs.createReadStream(sessionFilePath, { encoding: 'utf8' });
+            const rl = readline.createInterface({
+                input: fileStream,
+                crlfDelay: Infinity,
+            });
             let totalTokens = 0;
             let contextWindow = 200000; // Default for Codex/OpenAI
 
-            // Find the latest token_count event with info (scan from end)
-            for (let i = lines.length - 1; i >= 0; i--) {
+            for await (const line of rl) {
+                if (!line.trim() || line.length > JSONL_STREAM_LINE_MAX_CHARS) {
+                    continue;
+                }
+
                 try {
-                    const entry = JSON.parse(lines[i]);
+                    const entry = JSON.parse(line);
 
                     // Codex stores token info in event_msg with type: "token_count"
                     if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
@@ -4584,7 +4693,6 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
                         if (tokenInfo.model_context_window) {
                             contextWindow = tokenInfo.model_context_window;
                         }
-                        break; // Stop after finding the latest token count
                     }
                 } catch (parseError) {
                     // Skip lines that can't be parsed
@@ -4622,17 +4730,21 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
             return res.status(400).json({ error: 'Invalid path' });
         }
 
-        // Read and parse the JSONL file
-        let fileContent;
+        // Stream and parse the JSONL file. Keeping only the latest assistant
+        // usage object avoids loading very large session logs.
         try {
-            fileContent = await fsPromises.readFile(jsonlPath, 'utf8');
+            await fsPromises.access(jsonlPath);
         } catch (error) {
             if (error.code === 'ENOENT') {
                 return res.status(404).json({ error: 'Session file not found', path: jsonlPath });
             }
             throw error; // Re-throw other errors to be caught by outer try-catch
         }
-        const lines = fileContent.trim().split('\n');
+        const fileStream = fs.createReadStream(jsonlPath, { encoding: 'utf8' });
+        const rl = readline.createInterface({
+            input: fileStream,
+            crlfDelay: Infinity,
+        });
 
         const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
         const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
@@ -4640,10 +4752,13 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
         let cacheCreationTokens = 0;
         let cacheReadTokens = 0;
 
-        // Find the latest assistant message with usage data (scan from end)
-        for (let i = lines.length - 1; i >= 0; i--) {
+        for await (const line of rl) {
+            if (!line.trim() || line.length > JSONL_STREAM_LINE_MAX_CHARS) {
+                continue;
+            }
+
             try {
-                const entry = JSON.parse(lines[i]);
+                const entry = JSON.parse(line);
 
                 // Only count assistant messages which have usage data
                 if (entry.type === 'assistant' && entry.message?.usage) {
@@ -4653,8 +4768,6 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
                     inputTokens = usage.input_tokens || 0;
                     cacheCreationTokens = usage.cache_creation_input_tokens || 0;
                     cacheReadTokens = usage.cache_read_input_tokens || 0;
-
-                    break; // Stop after finding the latest assistant message
                 }
             } catch (parseError) {
                 // Skip lines that can't be parsed
@@ -4772,72 +4885,122 @@ function permToRwx(perm) {
     return r + w + x;
 }
 
-async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true) {
-    // Using fsPromises from import
-    const items = [];
+function createFileTreeScanContext() {
+    return {
+        startedAt: Date.now(),
+        itemCount: 0,
+        directoryCount: 0,
+        limitReached: false,
+    };
+}
+
+function hasFileTreeBudget(context) {
+    if (!context || context.limitReached) {
+        return false;
+    }
+
+    if (context.itemCount >= FILE_TREE_MAX_ITEMS || context.directoryCount >= FILE_TREE_MAX_DIRECTORIES) {
+        context.limitReached = true;
+        return false;
+    }
+
+    if (Date.now() - context.startedAt > FILE_TREE_SCAN_MAX_MS) {
+        context.limitReached = true;
+        return false;
+    }
+
+    return true;
+}
+
+function shouldSkipFileTreeEntry(entryName, showHidden) {
+    if (!showHidden && entryName.startsWith('.')) {
+        return true;
+    }
+
+    return FILE_TREE_EXCLUDED_ENTRY_NAMES.has(entryName)
+        || entryName.endsWith('.log')
+        || entryName === '.DS_Store';
+}
+
+async function readDirectoryEntriesBounded(dirPath, context) {
+    const entries = [];
 
     try {
-        const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
-
-        for (const entry of entries) {
-            // Debug: log all entries including hidden files
-
-
-            // Skip heavy build directories and VCS directories
-            if (entry.name === 'node_modules' ||
-                entry.name === 'dist' ||
-                entry.name === 'build' ||
-                entry.name === '.git' ||
-                entry.name === '.svn' ||
-                entry.name === '.hg') continue;
-
-            const itemPath = path.join(dirPath, entry.name);
-            const item = {
-                name: entry.name,
-                path: itemPath,
-                type: entry.isDirectory() ? 'directory' : 'file'
-            };
-
-            // Get file stats for additional metadata
-            try {
-                const stats = await fsPromises.stat(itemPath);
-                item.size = stats.size;
-                item.modified = stats.mtime.toISOString();
-
-                // Convert permissions to rwx format
-                const mode = stats.mode;
-                const ownerPerm = (mode >> 6) & 7;
-                const groupPerm = (mode >> 3) & 7;
-                const otherPerm = mode & 7;
-                item.permissions = ((mode >> 6) & 7).toString() + ((mode >> 3) & 7).toString() + (mode & 7).toString();
-                item.permissionsRwx = permToRwx(ownerPerm) + permToRwx(groupPerm) + permToRwx(otherPerm);
-            } catch (statError) {
-                // If stat fails, provide default values
-                item.size = 0;
-                item.modified = null;
-                item.permissions = '000';
-                item.permissionsRwx = '---------';
-            }
-
-            if (entry.isDirectory() && currentDepth < maxDepth) {
-                // Recursively get subdirectories but limit depth
-                try {
-                    // Check if we can access the directory before trying to read it
-                    await fsPromises.access(item.path, fs.constants.R_OK);
-                    item.children = await getFileTree(item.path, maxDepth, currentDepth + 1, showHidden);
-                } catch (e) {
-                    // Silently skip directories we can't access (permission denied, etc.)
-                    item.children = [];
+        const dir = await fsPromises.opendir(dirPath);
+        try {
+            for await (const entry of dir) {
+                if (!hasFileTreeBudget(context) || entries.length >= FILE_TREE_MAX_ENTRIES_PER_DIRECTORY) {
+                    context.limitReached = true;
+                    break;
                 }
-            }
 
-            items.push(item);
+                entries.push(entry);
+            }
+        } finally {
+            await dir.close().catch(() => undefined);
         }
     } catch (error) {
-        // Only log non-permission errors to avoid spam
-        if (error.code !== 'EACCES' && error.code !== 'EPERM') {
+        if (error.code !== 'EACCES' && error.code !== 'EPERM' && error.code !== 'ENOENT') {
             console.error('Error reading directory:', error);
         }
+    }
+
+    return entries;
+}
+
+async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true, scanContext = null) {
+    const context = scanContext || createFileTreeScanContext();
+    const items = [];
+
+    if (!hasFileTreeBudget(context)) {
+        return items;
+    }
+
+    context.directoryCount += 1;
+    const entries = await readDirectoryEntriesBounded(dirPath, context);
+
+    for (const entry of entries) {
+        if (!hasFileTreeBudget(context) || shouldSkipFileTreeEntry(entry.name, showHidden)) {
+            continue;
+        }
+
+        const itemPath = path.join(dirPath, entry.name);
+        const item = {
+            name: entry.name,
+            path: itemPath,
+            type: entry.isDirectory() ? 'directory' : 'file'
+        };
+
+        try {
+            const stats = await fsPromises.stat(itemPath);
+            item.size = stats.size;
+            item.modified = stats.mtime.toISOString();
+
+            const mode = stats.mode;
+            const ownerPerm = (mode >> 6) & 7;
+            const groupPerm = (mode >> 3) & 7;
+            const otherPerm = mode & 7;
+            item.permissions = ((mode >> 6) & 7).toString() + ((mode >> 3) & 7).toString() + (mode & 7).toString();
+            item.permissionsRwx = permToRwx(ownerPerm) + permToRwx(groupPerm) + permToRwx(otherPerm);
+        } catch {
+            item.size = 0;
+            item.modified = null;
+            item.permissions = '000';
+            item.permissionsRwx = '---------';
+        }
+
+        context.itemCount += 1;
+
+        if (entry.isDirectory() && currentDepth < maxDepth && hasFileTreeBudget(context)) {
+            try {
+                await fsPromises.access(item.path, fs.constants.R_OK);
+                item.children = await getFileTree(item.path, maxDepth, currentDepth + 1, showHidden, context);
+            } catch {
+                item.children = [];
+            }
+        }
+
+        items.push(item);
     }
 
     return items.sort((a, b) => {

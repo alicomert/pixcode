@@ -10,12 +10,20 @@ const XTERM_FOCUS_STYLES = `
   .xterm-screen:focus {
     outline: none !important;
   }
+  .pixcode-shell-terminal {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+  }
   .pixcode-shell-terminal .xterm {
+    flex: 1 1 auto;
     height: 100%;
+    min-height: 0;
+    width: 100%;
     padding: 0 !important;
   }
-  .pixcode-shell-terminal .xterm-viewport {
-    height: 100% !important;
+  .pixcode-shell-terminal .xterm-screen {
+    min-height: 0;
   }
 `;
 

@@ -55,8 +55,9 @@ export interface LoadingProgress {
 
 export interface ProjectsUpdatedMessage {
   type: 'projects_updated';
-  projects: Project[];
+  projects?: Project[];
   changedFile?: string;
+  invalidated?: boolean;
   [key: string]: unknown;
 }
 
