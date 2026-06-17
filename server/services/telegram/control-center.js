@@ -32,9 +32,14 @@ const MAX_SSE_BUFFER_CHARS = 256_000;
 const ACTIVITY_EDIT_THROTTLE_MS = 1200;
 const ACTIVITY_HEARTBEAT_MS = 8000;
 const INTENT_ROUTER_TIMEOUT_MS = 45_000;
+const TERMINAL_BRIDGE_TIMEOUT_MS = 5 * 60 * 1000;
+const TERMINAL_BRIDGE_POLL_MS = 1500;
+const TERMINAL_BRIDGE_EDIT_THROTTLE_MS = 3500;
+const TERMINAL_BRIDGE_SETTLE_MS = 6000;
 const callbackActions = new Map();
 const runMonitors = new Map();
 const activeLongTasks = new Map();
+const terminalBridgeMonitors = new Map();
 
 const MODEL_FALLBACKS = Object.fromEntries(
   PROVIDERS.map((provider) => [provider, getStaticProviderModels(provider)]),
@@ -587,7 +592,7 @@ function terminalProjectLabel(terminal) {
   return terminal?.projectLabel || terminal?.projectName || terminal?.projectPath || '-';
 }
 
-function terminalOutputUrl(terminal, maxChars = 3200) {
+function terminalOutputUrl(terminal, maxChars = 3200, sinceCursor = null) {
   const params = new URLSearchParams({
     provider: terminal.provider,
     projectPath: terminal.projectPath,
@@ -595,6 +600,7 @@ function terminalOutputUrl(terminal, maxChars = 3200) {
   });
   if (terminal.tabId) params.set('tabId', terminal.tabId);
   if (terminal.sessionId) params.set('sessionId', terminal.sessionId);
+  if (Number.isFinite(sinceCursor)) params.set('sinceCursor', String(sinceCursor));
   return `/api/shell/sessions/provider-output?${params.toString()}`;
 }
 
@@ -619,6 +625,193 @@ function renderTerminalSnapshot(lang, terminal, data, { prefix = '', includeOutp
     lines.push('', t(lang, 'control.terminalOutputHidden'));
   }
   return truncate(lines.join('\n'), 3400);
+}
+
+function terminalBridgeMonitorKey(chatId, terminal) {
+  return [
+    chatId,
+    terminal.provider,
+    terminal.projectPath,
+    terminal.tabId || '-',
+    terminal.sessionId || '-',
+  ].join(':');
+}
+
+function normalizeBridgeLine(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function isNoisyTerminalBridgeLine(line, prompt) {
+  const normalized = normalizeBridgeLine(line);
+  if (!normalized || normalized.length <= 1) return true;
+  if (/^[╭╮╰╯│─═┌┐└┘├┤┬┴┼\s]+$/u.test(normalized)) return true;
+  if (/^[●✶✻✽✢✳⠂⠐⏵·\s0;:()\-|/\\]+$/u.test(normalized)) return true;
+
+  const lower = normalized.toLowerCase();
+  const promptNeedle = normalizeBridgeLine(prompt).toLowerCase();
+  if (promptNeedle && lower.includes(promptNeedle.slice(0, 120))) return true;
+  if (/^[›❯>]\s*/u.test(normalized)) return true;
+  if (lower.includes('welcome back')) return true;
+  if (lower.includes('api usage billing')) return true;
+  if (lower.includes('bypass permissions')) return true;
+  if (lower.includes('try "')) return true;
+  if (lower.includes('esc to interrupt') || lower.includes('press esc')) return true;
+  if (lower.includes('/effort')) return true;
+  if (lower.includes('determining')) return true;
+  if (/^(?:claude code|codex)\b/i.test(normalized) && normalized.length < 80) return true;
+  if (/^\(?\d+s\s*·\s*[↓↑]?\d*\s*tokens?\)?$/iu.test(normalized)) return true;
+  return false;
+}
+
+function cleanTerminalBridgeOutput(output, prompt) {
+  const text = String(output || '')
+    .replace(/\r/g, '\n')
+    .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '')
+    .replace(/\u00a0/g, ' ');
+  const lines = text
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter((line) => !isNoisyTerminalBridgeLine(line, prompt));
+  const deduped = [];
+  for (const line of lines) {
+    if (deduped.at(-1) === line) continue;
+    deduped.push(line);
+  }
+  return deduped.join('\n').trim();
+}
+
+function renderTerminalBridgeProgress(lang, terminal, {
+  output = '',
+  statusKey = 'control.terminalWaiting',
+  startedAt = Date.now(),
+  final = false,
+  terminalState = null,
+} = {}) {
+  const lines = [
+    `${final ? '✅' : '⏳'} ${t(lang, statusKey)}`,
+    '',
+    `🤖 ${t(lang, 'control.activity.provider')}: ${terminal.provider}`,
+    `📁 ${t(lang, 'control.activity.project')}: ${compact(terminalProjectLabel(terminal), 90)}`,
+  ];
+  if (terminal.sessionId) {
+    lines.push(`🧵 ${t(lang, 'control.activity.session')}: ${terminal.sessionId}`);
+  }
+  if (terminalState) {
+    lines.push(`📌 ${t(lang, 'control.activity.status')}: ${terminalState}`);
+  }
+  if (output) {
+    lines.push('', `💬 ${t(lang, 'control.activity.output')}:`);
+    lines.push(truncate(output, final ? 2800 : 2200));
+  } else {
+    lines.push('', t(lang, 'control.terminalWaitingHint'));
+  }
+  if (!final) {
+    lines.push('', `⏱ ${t(lang, 'control.activity.elapsed')}: ${formatElapsed(startedAt)}`);
+  }
+  return truncate(lines.join('\n'), 3400);
+}
+
+async function monitorTerminalBridgeResponse({
+  bot,
+  chatId,
+  link,
+  terminal,
+  prompt,
+  sinceCursor,
+  editMessageId,
+  monitorKey,
+  monitorToken,
+}) {
+  const lang = languageFor(link);
+  const startedAt = Date.now();
+  let lastCleanOutput = '';
+  let lastOutputChangeAt = startedAt;
+  let lastEditAt = 0;
+
+  const isCurrent = () => terminalBridgeMonitors.get(monitorKey) === monitorToken;
+
+  try {
+    while (isCurrent() && Date.now() - startedAt < TERMINAL_BRIDGE_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, TERMINAL_BRIDGE_POLL_MS));
+      if (!isCurrent()) return;
+
+      const data = await localApi(
+        link.user_id,
+        terminalOutputUrl(terminal, 12000, sinceCursor),
+        { timeoutMs: 12_000 },
+      );
+      if (data?.active === false) {
+        await send(bot, chatId, renderTerminalBridgeProgress(lang, terminal, {
+          output: lastCleanOutput,
+          statusKey: 'control.terminalNotRunning',
+          startedAt,
+          final: true,
+          terminalState: 'not running',
+        }), {
+          editMessageId,
+          parse_mode: undefined,
+          reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+        });
+        return;
+      }
+      const cleanOutput = cleanTerminalBridgeOutput(data?.output, prompt);
+      const terminalState = data?.terminalState || data?.lifecycleState || 'unknown';
+      const now = Date.now();
+
+      if (cleanOutput && cleanOutput !== lastCleanOutput) {
+        lastCleanOutput = cleanOutput;
+        lastOutputChangeAt = now;
+      }
+
+      const finishedByState = ['idle', 'completed', 'failed', 'exited'].includes(terminalState);
+      const finishedByQuietOutput = Boolean(lastCleanOutput) && now - lastOutputChangeAt >= TERMINAL_BRIDGE_SETTLE_MS;
+      const shouldFinish = Boolean(lastCleanOutput) && (finishedByState || finishedByQuietOutput);
+
+      if (shouldFinish) {
+        await send(bot, chatId, renderTerminalBridgeProgress(lang, terminal, {
+          output: lastCleanOutput,
+          statusKey: 'control.terminalResponseReady',
+          startedAt,
+          final: true,
+          terminalState,
+        }), {
+          editMessageId,
+          parse_mode: undefined,
+          reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+        });
+        return;
+      }
+
+      if (now - lastEditAt >= TERMINAL_BRIDGE_EDIT_THROTTLE_MS) {
+        lastEditAt = now;
+        await send(bot, chatId, renderTerminalBridgeProgress(lang, terminal, {
+          output: lastCleanOutput,
+          statusKey: lastCleanOutput ? 'control.terminalResponding' : 'control.terminalWaiting',
+          startedAt,
+          terminalState,
+        }), {
+          editMessageId,
+          parse_mode: undefined,
+          reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+        });
+      }
+    }
+
+    if (!isCurrent()) return;
+    await send(bot, chatId, renderTerminalBridgeProgress(lang, terminal, {
+      output: lastCleanOutput,
+      statusKey: lastCleanOutput ? 'control.terminalStillRunning' : 'control.terminalNoReadableOutput',
+      startedAt,
+      final: Boolean(lastCleanOutput),
+      terminalState: 'running',
+    }), {
+      editMessageId,
+      parse_mode: undefined,
+      reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+    });
+  } finally {
+    if (isCurrent()) terminalBridgeMonitors.delete(monitorKey);
+  }
 }
 
 export async function sendActiveTerminalAttachedNotice({ bot, chatId, link, terminal }) {
@@ -695,7 +888,7 @@ async function sendToActiveTerminal({ bot, chatId, link, text }) {
   const editMessageId = sent?.message_id || sent?.message?.message_id || null;
 
   try {
-    await localApi(link.user_id, '/api/shell/sessions/provider-input', {
+    const inputResult = await localApi(link.user_id, '/api/shell/sessions/provider-input', {
       method: 'POST',
       timeoutMs: 15_000,
       body: {
@@ -707,14 +900,34 @@ async function sendToActiveTerminal({ bot, chatId, link, text }) {
         submit: true,
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    const data = await localApi(link.user_id, terminalOutputUrl(terminal), { timeoutMs: 12_000 });
-    await send(bot, chatId, renderTerminalSnapshot(lang, terminal, data, {
-      prefix: t(lang, 'control.terminalSent'),
+    const sinceCursor = Number.isFinite(inputResult?.outputCursorBefore)
+      ? inputResult.outputCursorBefore
+      : null;
+    const monitorKey = terminalBridgeMonitorKey(chatId, terminal);
+    const monitorToken = crypto.randomUUID();
+    terminalBridgeMonitors.set(monitorKey, monitorToken);
+
+    await send(bot, chatId, renderTerminalBridgeProgress(lang, terminal, {
+      statusKey: 'control.terminalWaiting',
+      startedAt: Date.now(),
+      terminalState: 'running',
     }), {
       editMessageId,
       parse_mode: undefined,
       reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+    });
+    monitorTerminalBridgeResponse({
+      bot,
+      chatId,
+      link,
+      terminal,
+      prompt: text,
+      sinceCursor,
+      editMessageId,
+      monitorKey,
+      monitorToken,
+    }).catch((error) => {
+      console.warn('[telegram-control] terminal bridge monitor failed:', error?.message || error);
     });
   } catch (error) {
     await send(bot, chatId, t(lang, 'control.terminalSendFailed', {

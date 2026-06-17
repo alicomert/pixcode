@@ -1237,6 +1237,7 @@ function appendPtySessionBuffer(session, data) {
         valueBytes = Buffer.byteLength(value, 'utf8');
     }
 
+    session.totalOutputBytes = (session.totalOutputBytes || 0) + valueBytes;
     session.buffer.push(value);
     session.bufferBytes = (session.bufferBytes || 0) + valueBytes;
 
@@ -1245,6 +1246,31 @@ function appendPtySessionBuffer(session, data) {
         session.bufferBytes -= Buffer.byteLength(String(removed || ''), 'utf8');
     }
     if (session.bufferBytes < 0) session.bufferBytes = 0;
+}
+
+function readPtySessionBufferedOutput(session, { maxChars = 12000, sinceCursor = null } = {}) {
+    const rawBuffer = (session?.buffer || []).join('');
+    const bufferBytes = session?.bufferBytes || Buffer.byteLength(rawBuffer, 'utf8');
+    const outputCursor = session?.totalOutputBytes || bufferBytes;
+    const bufferStartCursor = Math.max(0, outputCursor - bufferBytes);
+    let rawOutput = rawBuffer;
+
+    if (Number.isFinite(sinceCursor)) {
+        const skipBytes = Math.max(0, sinceCursor - bufferStartCursor);
+        if (skipBytes > 0) {
+            rawOutput = Buffer.from(rawBuffer, 'utf8').slice(skipBytes).toString('utf8');
+        }
+    }
+
+    if (rawOutput.length > maxChars) {
+        rawOutput = rawOutput.slice(-maxChars);
+    }
+
+    return {
+        rawOutput,
+        outputCursor,
+        bufferStartCursor,
+    };
 }
 
 function normalizeTerminalStartupInput(input) {
@@ -1627,6 +1653,8 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
         20000,
         Math.max(1000, Number.parseInt(String(req.query.maxChars || '12000'), 10) || 12000)
     );
+    const sinceCursorRaw = Number.parseInt(String(req.query.sinceCursor ?? ''), 10);
+    const sinceCursor = Number.isFinite(sinceCursorRaw) ? Math.max(0, sinceCursorRaw) : null;
 
     if (!SHELL_CLI_PROVIDERS.has(provider)) {
         return res.status(400).json({ error: 'Unsupported provider' });
@@ -1643,6 +1671,8 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
                 tabId,
                 sessionId,
                 output: '',
+                outputCursor: 0,
+                bufferStartCursor: 0,
                 message: 'Multiple provider terminal sessions match this target. Pick a specific tab.',
             });
         }
@@ -1653,14 +1683,21 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
             tabId,
             sessionId,
             output: '',
+            outputCursor: 0,
+            bufferStartCursor: 0,
             message: 'No active provider terminal session found for this project.',
         });
     }
 
     const matchedSession = match.session;
-    const rawOutput = matchedSession.buffer.join('').slice(-maxChars);
+    const {
+        rawOutput,
+        outputCursor,
+        bufferStartCursor,
+    } = readPtySessionBufferedOutput(matchedSession, { maxChars, sinceCursor });
     const output = stripAnsiSequences(rawOutput);
-    const terminalState = resolveProviderTerminalState(matchedSession, provider, output);
+    const fullOutput = readSessionOutputForState(matchedSession);
+    const terminalState = resolveProviderTerminalState(matchedSession, provider, fullOutput);
     res.json({
         active: true,
         provider,
@@ -1671,6 +1708,9 @@ app.get('/api/shell/sessions/provider-output', authenticateToken, requireProject
         matchStatus: match.status,
         ...terminalState,
         output,
+        outputCursor,
+        bufferStartCursor,
+        sinceCursor,
     });
 });
 
@@ -1723,6 +1763,7 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
 
     const matchedSession = match.session;
     const data = submit ? normalizeTerminalStartupInput(input) : input;
+    const outputCursorBefore = matchedSession.totalOutputBytes || matchedSession.bufferBytes || 0;
     try {
         writeTerminalInputChunks(matchedSession.pty, data);
         matchedSession.updatedAt = Date.now();
@@ -1736,6 +1777,8 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             submitted: submit,
             bytes: Buffer.byteLength(data),
             matchStatus: match.status,
+            outputCursorBefore,
+            outputCursorAfter: matchedSession.totalOutputBytes || matchedSession.bufferBytes || 0,
         });
     } catch (error) {
         res.status(500).json({
@@ -4152,6 +4195,7 @@ function handleShellConnection(ws, request) {
                         ws: ws,
                         buffer: [],
                         bufferBytes: 0,
+                        totalOutputBytes: 0,
                         droppedOutputBytes: 0,
                         timeoutId: null,
                         userId: ownerUserId,

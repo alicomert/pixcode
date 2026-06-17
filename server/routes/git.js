@@ -46,9 +46,11 @@ router.use((req, res, next) => {
 });
 
 function isNotGitRepositoryMessage(message = '') {
-  return message.includes('Not a git repository')
-    || message.includes('not a git repository')
-    || message.includes('Project directory is not a git repository');
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('not a git repository')
+    || normalized.includes('not inside a git work tree')
+    || normalized.includes('does not contain a .git folder')
+    || normalized.includes('project directory is not a git repository');
 }
 
 function isMissingFileError(error) {
@@ -175,6 +177,35 @@ async function buildFilesystemStatus(projectPath) {
     snapshotReady: Boolean(previousSnapshot),
     fileCount: snapshot.size,
     scanLimitReached: limitReached,
+  };
+}
+
+async function readFilesystemFileWithDiff(projectPath, filePath) {
+  const projectRoot = path.resolve(projectPath);
+  const resolvedFilePath = path.resolve(projectRoot, String(filePath || ''));
+  const relativePath = path.relative(projectRoot, resolvedFilePath);
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    const error = new Error('Invalid file path: path traversal detected');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const stats = await fs.stat(resolvedFilePath);
+  if (stats.isDirectory()) {
+    const error = new Error('Cannot show diff for directories');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const currentContent = await fs.readFile(resolvedFilePath, 'utf-8');
+  return {
+    currentContent,
+    oldContent: currentContent,
+    isDeleted: false,
+    isUntracked: false,
+    isGitRepository: false,
+    trackingMode: 'filesystem',
   };
 }
 
@@ -634,6 +665,14 @@ router.get('/diff', async (req, res) => {
 
     res.json({ diff });
   } catch (error) {
+    if (isNotGitRepositoryMessage(getGitErrorDetails(error))) {
+      return res.json({
+        diff: '',
+        isGitRepository: false,
+        trackingMode: 'filesystem',
+      });
+    }
+
     console.error('Git diff error:', error);
     res.json({ error: error.message });
   }
@@ -763,6 +802,34 @@ router.get('/file-with-diff', async (req, res) => {
         isUntracked: false,
       });
     }
+
+    if (isNotGitRepositoryMessage(getGitErrorDetails(error))) {
+      try {
+        return res.json(await readFilesystemFileWithDiff(
+          await getActualProjectPath(project),
+          file,
+        ));
+      } catch (fallbackError) {
+        if (isMissingFileError(fallbackError)) {
+          return res.status(404).json({
+            error: 'File not found',
+            currentContent: '',
+            oldContent: '',
+            isDeleted: true,
+            isUntracked: false,
+            isGitRepository: false,
+            trackingMode: 'filesystem',
+          });
+        }
+
+        return res.status(fallbackError.statusCode || 500).json({
+          error: fallbackError.message || 'Failed to read file',
+          isGitRepository: false,
+          trackingMode: 'filesystem',
+        });
+      }
+    }
+
     console.error('Git file-with-diff error:', error);
     res.json({ error: error.message });
   }
