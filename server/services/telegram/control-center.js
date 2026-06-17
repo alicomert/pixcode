@@ -36,6 +36,8 @@ const TERMINAL_BRIDGE_TIMEOUT_MS = 5 * 60 * 1000;
 const TERMINAL_BRIDGE_POLL_MS = 1500;
 const TERMINAL_BRIDGE_EDIT_THROTTLE_MS = 3500;
 const TERMINAL_BRIDGE_SETTLE_MS = 6000;
+const TERMINAL_BRIDGE_FINAL_OPEN = '<PIXCODE_TELEGRAM_FINAL>';
+const TERMINAL_BRIDGE_FINAL_CLOSE = '</PIXCODE_TELEGRAM_FINAL>';
 const callbackActions = new Map();
 const runMonitors = new Map();
 const activeLongTasks = new Map();
@@ -637,15 +639,89 @@ function terminalBridgeMonitorKey(chatId, terminal) {
   ].join(':');
 }
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function terminalBridgeInput(text, lang) {
+  const prompt = String(text || '').trim();
+  const instruction = lang === 'tr'
+    ? `Pixcode Telegram senkronu: Yanıtının sonunda Telegram için okunabilir ve eksiksiz final cevabını ${TERMINAL_BRIDGE_FINAL_OPEN} ve ${TERMINAL_BRIDGE_FINAL_CLOSE} etiketleri arasına yaz. Etiketlerin içine spinner, terminal ekranı veya tekrar eden durum satırı koyma.`
+    : `Pixcode Telegram sync: At the end of your response, write the readable complete final answer for Telegram between ${TERMINAL_BRIDGE_FINAL_OPEN} and ${TERMINAL_BRIDGE_FINAL_CLOSE}. Do not put spinners, terminal screen text, or repeated status lines inside the tags.`;
+  return `${prompt}\n\n${instruction}`;
+}
+
 function normalizeBridgeLine(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
-function isNoisyTerminalBridgeLine(line, prompt) {
+function terminalBridgeLabels(terminal) {
+  const labels = new Set();
+  for (const value of [
+    terminal?.provider,
+    terminal?.projectName,
+    terminal?.projectLabel,
+    terminal?.projectPath,
+  ]) {
+    const normalized = normalizeBridgeLine(value);
+    if (!normalized) continue;
+    labels.add(normalized);
+    const pathParts = normalized.split(/[\\/]/u).filter(Boolean);
+    const basename = pathParts.at(-1);
+    if (basename) labels.add(basename);
+  }
+  return [...labels]
+    .map((value) => value.trim())
+    .filter((value) => value.length >= 2)
+    .sort((a, b) => b.length - a.length);
+}
+
+function stripTerminalBridgeFragments(value, terminal) {
+  let text = String(value || '');
+  text = text.replace(/\[[0-?]{1,32}[ -/]*[@-~]/gu, ' ');
+  text = text.replace(/\b\d{1,3}(?:;\d{1,3}){1,8}[A-Za-z]/gu, ' ');
+  text = text.replace(/\b[012];[^\n\r]{0,100}[⠂⠐⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✶✻✽✢✳][^\n\r]{0,100}/gu, ' ');
+
+  for (const label of terminalBridgeLabels(terminal)) {
+    const labelPattern = escapeRegExp(label).replace(/\s+/gu, '\\s+');
+    const titlePattern = new RegExp(
+      String.raw`\b(?:\d+[a-z])?[012];[⠂⠐⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✶✻✽✢✳•*·\s-]*${labelPattern}(?:\d+;?)?`,
+      'giu',
+    );
+    text = text.replace(titlePattern, ' ');
+  }
+
+  return text
+    .replace(/[⠂⠐⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✶✻✽✢✳]+/gu, ' ')
+    .replace(/\b(?:Working|Determining|Thinking|Running)(?:\s*•\s*(?:Working|Determining|Thinking|Running))+\b/giu, ' ');
+}
+
+function extractTerminalBridgeFinalBlock(text) {
+  const blocks = [];
+  const blockPattern = /(?:<|\[)\s*PIXCODE_TELEGRAM_FINAL\s*(?:>|\])([\s\S]*?)(?:<|\[)\s*\/\s*PIXCODE_TELEGRAM_FINAL\s*(?:>|\])/giu;
+  for (const match of text.matchAll(blockPattern)) {
+    const block = String(match[1] || '').trim();
+    if (block) blocks.push(block);
+  }
+  if (blocks.length > 0) return blocks.at(-1);
+
+  const openPattern = /(?:<|\[)\s*PIXCODE_TELEGRAM_FINAL\s*(?:>|\])/giu;
+  let lastOpen = null;
+  for (const match of text.matchAll(openPattern)) lastOpen = match;
+  if (!lastOpen) return '';
+  return text.slice((lastOpen.index || 0) + lastOpen[0].length).trim();
+}
+
+function isNoisyTerminalBridgeLine(line, prompt, terminal) {
   const normalized = normalizeBridgeLine(line);
   if (!normalized || normalized.length <= 1) return true;
+  if (/PIXCODE_TELEGRAM_FINAL/iu.test(normalized)) return true;
+  if (/Pixcode Telegram (?:sync|senkronu)/iu.test(normalized)) return true;
   if (/^[╭╮╰╯│─═┌┐└┘├┤┬┴┼\s]+$/u.test(normalized)) return true;
   if (/^[●✶✻✽✢✳⠂⠐⏵·\s0;:()\-|/\\]+$/u.test(normalized)) return true;
+  if (/^\[[0-?]{1,32}[ -/]*[@-~]/u.test(normalized)) return true;
+  if (/^(?:\d+[a-z])?[012];/iu.test(normalized) && /[⠂⠐⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✶✻✽✢✳]/u.test(normalized)) return true;
+  if ((normalized.match(/[⠂⠐⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✶✻✽✢✳]/gu) || []).length >= 2) return true;
 
   const lower = normalized.toLowerCase();
   const promptNeedle = normalizeBridgeLine(prompt).toLowerCase();
@@ -660,18 +736,28 @@ function isNoisyTerminalBridgeLine(line, prompt) {
   if (lower.includes('determining')) return true;
   if (/^(?:claude code|codex)\b/i.test(normalized) && normalized.length < 80) return true;
   if (/^\(?\d+s\s*·\s*[↓↑]?\d*\s*tokens?\)?$/iu.test(normalized)) return true;
+  for (const label of terminalBridgeLabels(terminal)) {
+    if (
+      lower.includes(label.toLowerCase())
+      && /(?:^[012];|[⠂⠐⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✶✻✽✢✳]|working|determining)/iu.test(normalized)
+    ) {
+      return true;
+    }
+  }
   return false;
 }
 
-function cleanTerminalBridgeOutput(output, prompt) {
-  const text = String(output || '')
+export function cleanTerminalBridgeOutput(output, prompt, terminal = null) {
+  const text = stripTerminalBridgeFragments(String(output || ''), terminal)
     .replace(/\r/g, '\n')
     .replace(/[\x00-\x08\x0B-\x1F\x7F]/g, '')
     .replace(/\u00a0/g, ' ');
-  const lines = text
+  const finalBlock = extractTerminalBridgeFinalBlock(text);
+  const source = finalBlock || text;
+  const lines = source
     .split('\n')
     .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-    .filter((line) => !isNoisyTerminalBridgeLine(line, prompt));
+    .filter((line) => !isNoisyTerminalBridgeLine(line, prompt, terminal));
   const deduped = [];
   for (const line of lines) {
     if (deduped.at(-1) === line) continue;
@@ -696,12 +782,12 @@ function renderTerminalBridgeProgress(lang, terminal, {
   if (terminal.sessionId) {
     lines.push(`🧵 ${t(lang, 'control.activity.session')}: ${terminal.sessionId}`);
   }
-  if (terminalState) {
+  if (terminalState && terminalState !== 'unknown') {
     lines.push(`📌 ${t(lang, 'control.activity.status')}: ${terminalState}`);
   }
   if (output) {
     lines.push('', `💬 ${t(lang, 'control.activity.output')}:`);
-    lines.push(truncate(output, final ? 2800 : 2200));
+    lines.push(truncate(output, final ? 3100 : 2200));
   } else {
     lines.push('', t(lang, 'control.terminalWaitingHint'));
   }
@@ -754,7 +840,7 @@ async function monitorTerminalBridgeResponse({
         });
         return;
       }
-      const cleanOutput = cleanTerminalBridgeOutput(data?.output, prompt);
+      const cleanOutput = cleanTerminalBridgeOutput(data?.output, prompt, terminal);
       const terminalState = data?.terminalState || data?.lifecycleState || 'unknown';
       const now = Date.now();
 
@@ -888,6 +974,7 @@ async function sendToActiveTerminal({ bot, chatId, link, text }) {
   const editMessageId = sent?.message_id || sent?.message?.message_id || null;
 
   try {
+    const terminalPrompt = terminalBridgeInput(text, lang);
     const inputResult = await localApi(link.user_id, '/api/shell/sessions/provider-input', {
       method: 'POST',
       timeoutMs: 15_000,
@@ -896,7 +983,7 @@ async function sendToActiveTerminal({ bot, chatId, link, text }) {
         projectPath: terminal.projectPath,
         tabId: terminal.tabId,
         sessionId: terminal.sessionId,
-        input: text,
+        input: terminalPrompt,
         submit: true,
         submitMode: 'deferred-enter',
       },
@@ -922,7 +1009,7 @@ async function sendToActiveTerminal({ bot, chatId, link, text }) {
       chatId,
       link,
       terminal,
-      prompt: text,
+      prompt: terminalPrompt,
       sinceCursor,
       editMessageId,
       monitorKey,

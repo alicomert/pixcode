@@ -113,6 +113,7 @@ try {
     parseTelegramAiIntentResponse,
   } = await import('../../server/services/telegram/telegram-gateway.js');
   const {
+    cleanTerminalBridgeOutput,
     handleTelegramControlCallback,
     handleTelegramControlMessage,
   } = await import('../../server/services/telegram/control-center.js');
@@ -121,6 +122,7 @@ try {
     setTelegramBotForTesting,
   } = await import('../../server/services/telegram/bot.js');
   const { telegramLinksDb } = await import('../../server/database/db.js');
+  const { stripAnsiSequences } = await import('../../server/utils/url-detection.js');
 
   assert.equal(
     parseTelegramAiIntentResponse('{"action":"show_runs","confidence":0.4}', 'Selam dostum son durum nedir şimdi?').action,
@@ -136,6 +138,45 @@ try {
     parseTelegramAiIntentResponse('not json', 'Selam dostum son durum nedir şimdi?').action,
     'agent_prompt',
     'unparseable AI router responses should fall back to the agent',
+  );
+  assert.equal(stripAnsiSequences('\u001b[43;35Hok'), 'ok', 'CSI escape sequences should be fully stripped');
+  assert.equal(stripAnsiSequences('\u001b]0;orhan\u0007ok'), 'ok', 'OSC title sequences should be fully stripped');
+
+  const terminal = {
+    provider: 'codex',
+    projectName: 'orhan',
+    projectLabel: 'orhan',
+    projectPath: '/Users/halilbilik/Desktop/orhan',
+  };
+  assert.equal(
+    cleanTerminalBridgeOutput(
+      '[43;35H40;⠸ orhan0;⠼ orhan0;⠴ orhan0;⠦ orhan0;⠧ orhan0;⠇ orhan0;⠏ orhanW0;⠋ orhanWo•Wor0;⠙ orhan•Work0;⠹ orhanWorki•Workin0;⠸ orhan5•Working',
+      'pm2 kontrol',
+      terminal,
+    ),
+    '',
+    'terminal bridge should suppress spinner/title redraw noise',
+  );
+  assert.equal(
+    cleanTerminalBridgeOutput(
+      [
+        '9m0;⠇ orhan0;⠏ orhan',
+        '- trade-bot: stopped, PID 00;⠋ orhan0;⠙ orhan0;⠹ orhan',
+        '<PIXCODE_TELEGRAM_FINAL>',
+        'Evet, durdurmuşsun. Sunucuda PM2 durumu şu an:',
+        '- trade-bot: stopped, PID 0',
+        '- zeroclaw-gw: stopped, PID 0',
+        '</PIXCODE_TELEGRAM_FINAL>',
+      ].join('\n'),
+      'pm2 kontrol',
+      terminal,
+    ),
+    [
+      'Evet, durdurmuşsun. Sunucuda PM2 durumu şu an:',
+      '- trade-bot: stopped, PID 0',
+      '- zeroclaw-gw: stopped, PID 0',
+    ].join('\n'),
+    'terminal bridge should prefer explicit Telegram final blocks',
   );
 
   const userId = 4242;

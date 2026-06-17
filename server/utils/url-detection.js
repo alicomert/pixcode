@@ -1,4 +1,4 @@
-const ANSI_ESCAPE_SEQUENCE_REGEX = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1B\\))/g;
+const ANSI_ESCAPE_SEQUENCE_REGEX = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1B\r\n]*(?:\x07|\x1B\\|$)|P[\s\S]*?(?:\x1B\\|$)|\^[\s\S]*?(?:\x1B\\|$)|_[\s\S]*?(?:\x1B\\|$)|[@-Z\\-_])|\x9B[0-?]*[ -/]*[@-~]/g;
 const TRAILING_URL_PUNCTUATION_REGEX = /[)\]}>.,;:!?]+$/;
 
 function stripAnsiSequences(value = '') {
