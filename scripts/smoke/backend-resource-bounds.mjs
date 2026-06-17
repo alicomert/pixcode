@@ -68,8 +68,10 @@ const checks = [
     assert: (source) =>
       source.includes('proposeDimensions()') &&
       source.includes('currentTerminal.resize(nextCols, nextRows)') &&
+      source.includes('resolveRightCliFontSize') &&
+      source.includes('currentTerminal.options.fontSize = nextFontSize') &&
       source.includes('layoutSignal'),
-    message: 'Shell terminal must force cols/rows to refit when the layout signal changes.',
+    message: 'Shell terminal must force cols/rows to refit and scale right-side CLI font on layout changes.',
   },
   {
     path: 'src/components/shell/utils/terminalStyles.ts',
@@ -77,8 +79,9 @@ const checks = [
       source.includes('.pixcode-shell-terminal') &&
       source.includes('display: flex') &&
       source.includes('max-width: 100%') &&
-      source.includes('.pixcode-shell-terminal .xterm-viewport'),
-    message: 'Terminal styles must avoid forcing viewport height independently from xterm fit.',
+      source.includes('.pixcode-shell-terminal .xterm-viewport') &&
+      !source.includes('white-space: pre-wrap !important'),
+    message: 'Terminal styles must preserve xterm row semantics; responsive right pane fit is handled by font scaling.',
   },
   {
     path: 'src/components/vscode-workbench/view/VSCodeWorkbench.tsx',

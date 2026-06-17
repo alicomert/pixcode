@@ -1,6 +1,6 @@
 {
   "name": "@pixelbyte-software/pixcode",
-  "version": "1.53.22",
+  "version": "1.53.23",
   "description": "Self-hosted AI coding agent control room for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode with chat, files, shell, Git, orchestration, API keys, Telegram, MCP, plugins, themes, and desktop/server deployment.",
   "type": "module",
   "main": "dist-server/server/index.js",
