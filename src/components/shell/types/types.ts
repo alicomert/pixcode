@@ -60,6 +60,7 @@ export type UseShellRuntimeOptions = {
   startupInput: string | null | undefined;
   permissionOverride?: ShellPermissionOverride | null;
   provider?: LLMProvider | null;
+  isActive?: boolean;
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
   onOutputRef?: MutableRefObject<(() => void) | null>;

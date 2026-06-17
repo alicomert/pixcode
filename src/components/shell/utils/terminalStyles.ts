@@ -13,17 +13,32 @@ const XTERM_FOCUS_STYLES = `
   .pixcode-shell-terminal {
     display: flex;
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
     overflow: hidden;
   }
   .pixcode-shell-terminal .xterm {
     flex: 1 1 auto;
     height: 100%;
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
     width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
     padding: 0 !important;
   }
+  .pixcode-shell-terminal .xterm-viewport,
   .pixcode-shell-terminal .xterm-screen {
     min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .pixcode-shell-terminal .xterm-rows {
+    min-width: 0;
+    max-width: 100%;
   }
 `;
 

@@ -1366,7 +1366,7 @@ function VSCodeWorkbench({
             />
 
             <aside
-              className="h-full shrink-0 overflow-hidden bg-background"
+              className="h-full min-w-0 shrink-0 overflow-hidden bg-background"
               style={{ width: rightPaneWidth }}
             >
               <div className="flex h-10 items-center justify-between border-b border-border px-3">
@@ -1381,7 +1381,7 @@ function VSCodeWorkbench({
                   )}
                 </div>
               </div>
-              <div className="h-[calc(100%-2.5rem)] min-h-0 overflow-hidden">
+              <div className="h-[calc(100%-2.5rem)] min-h-0 min-w-0 overflow-hidden">
                 {renderRightPanel()}
               </div>
             </aside>
@@ -2035,7 +2035,7 @@ function WorkbenchBottomTerminal({
   return (
     <section
       className={cn(
-        'relative overflow-hidden bg-gray-950 text-gray-100',
+        'relative min-w-0 overflow-hidden bg-gray-950 text-gray-100',
         isFullScreen ? 'absolute inset-0 z-30' : 'shrink-0',
       )}
       style={{ height: isFullScreen ? '100%' : height }}
@@ -2092,7 +2092,7 @@ function WorkbenchBottomTerminal({
           </button>
         </div>
       </div>
-      <div className="h-[calc(100%-2rem)] min-h-0">
+      <div className="h-[calc(100%-2rem)] min-h-0 min-w-0 overflow-hidden">
         <StandaloneShell
           key={`bottom-terminal-shell-${project ? getProjectPath(project) : 'none'}-${runId}`}
           project={project}
@@ -2847,7 +2847,7 @@ function WorkbenchCliPanel({
 
   if (isTerminalOpen || cliTabs.length > 0) {
     return (
-      <div className="relative flex h-full min-h-0 flex-col bg-gray-950 text-gray-100">
+      <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-gray-950 text-gray-100">
         {telegramAttachTarget && (
           <TelegramTerminalAttachModal
             target={telegramAttachTarget}
@@ -2901,7 +2901,7 @@ function WorkbenchCliPanel({
           </div>
         )}
 
-        <div className="relative min-h-0 flex-1">
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           {cliTabs.length === 0 ? (
             <>
               <div className="absolute right-2 top-2 z-20">
@@ -2932,7 +2932,7 @@ function WorkbenchCliPanel({
               />
             </>
           ) : cliTabs.map((tab) => (
-            <div key={tab.id} className={cn('absolute inset-0', tab.id === activeCliTab?.id ? 'block' : 'hidden')}>
+            <div key={tab.id} className={cn('absolute inset-0 min-w-0 overflow-hidden', tab.id === activeCliTab?.id ? 'block' : 'hidden')}>
               <StandaloneShell
                 key={`${tab.id}-${tab.runId}`}
                 tabId={tab.tabId}
@@ -2944,7 +2944,7 @@ function WorkbenchCliPanel({
                 startupInput={tab.startupInput}
                 permissionOverride={tab.permissionOverride}
                 showHeader
-                autoConnect={canAutoConnect}
+                autoConnect={canAutoConnect && tab.id === activeCliTab?.id}
                 isActive={tab.id === activeCliTab?.id}
                 onClose={() => closeCliTab(tab.id)}
               />

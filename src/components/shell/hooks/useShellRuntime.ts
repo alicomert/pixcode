@@ -20,6 +20,7 @@ export function useShellRuntime({
   startupInput,
   permissionOverride,
   provider,
+  isActive = true,
   isRestarting,
   onProcessComplete,
   onOutputRef,
@@ -120,6 +121,7 @@ export function useShellRuntime({
     authUrlRef,
     copyAuthUrlToClipboard,
     closeSocket,
+    isActive,
   });
 
   const { isConnected, isConnecting, connectToShell, disconnectFromShell } = useShellConnection({
@@ -137,7 +139,7 @@ export function useShellRuntime({
     providerRef,
     onProcessCompleteRef,
     isInitialized,
-    autoConnect,
+    autoConnect: autoConnect && isActive,
     closeSocket,
     clearTerminalScreen,
     setAuthUrl: setCurrentAuthUrl,

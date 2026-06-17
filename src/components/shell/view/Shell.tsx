@@ -94,6 +94,7 @@ export default function Shell({
     startupInput,
     permissionOverride,
     provider,
+    isActive,
     isRestarting,
     onProcessComplete,
     onOutputRef,
@@ -292,7 +293,7 @@ export default function Shell({
   const overlayDescription = overlayMode === 'connecting' ? connectingDescription : readyDescription;
 
   return (
-    <div className={cn('flex h-full w-full flex-col bg-gray-900', immersive && 'bg-gray-950')}>
+    <div className={cn('flex h-full min-w-0 w-full flex-col overflow-hidden bg-gray-900', immersive && 'bg-gray-950')}>
       {showHeader && (
         <ShellHeader
           isConnected={isConnected}
@@ -313,10 +314,10 @@ export default function Shell({
         />
       )}
 
-      <div className={cn('relative min-h-0 flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
+      <div className={cn('relative min-h-0 min-w-0 flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
         <div
           ref={terminalContainerRef}
-          className="pixcode-shell-terminal h-full min-h-0 w-full focus:outline-none"
+          className="pixcode-shell-terminal h-full min-h-0 w-full min-w-0 max-w-full focus:outline-none"
           style={{ outline: 'none' }}
         />
 

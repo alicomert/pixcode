@@ -30,6 +30,7 @@ type UseShellTerminalOptions = {
   authUrlRef: MutableRefObject<string>;
   copyAuthUrlToClipboard: (url?: string) => Promise<boolean>;
   closeSocket: () => void;
+  isActive: boolean;
 };
 
 type UseShellTerminalResult = {
@@ -57,6 +58,7 @@ export function useShellTerminal({
   authUrlRef,
   copyAuthUrlToClipboard,
   closeSocket,
+  isActive,
 }: UseShellTerminalOptions): UseShellTerminalResult {
   const [isInitialized, setIsInitialized] = useState(false);
   const resizeTimeoutRef = useRef<number | null>(null);
@@ -84,6 +86,61 @@ export function useShellTerminal({
     fitAddonRef.current = null;
     setIsInitialized(false);
   }, [fitAddonRef, terminalRef]);
+
+  const fitTerminalAndNotify = useCallback(() => {
+    const currentFitAddon = fitAddonRef.current;
+    const currentTerminal = terminalRef.current;
+    const terminalContainer = terminalContainerRef.current;
+    if (!currentFitAddon || !currentTerminal || !terminalContainer) {
+      return;
+    }
+
+    const bounds = terminalContainer.getBoundingClientRect();
+    if (bounds.width < 16 || bounds.height < 16) {
+      return;
+    }
+
+    try {
+      currentFitAddon.fit();
+      currentTerminal.scrollToBottom();
+      currentTerminal.refresh(0, Math.max(0, currentTerminal.rows - 1));
+    } catch {
+      return;
+    }
+
+    sendSocketMessage(wsRef.current, {
+      type: 'resize',
+      cols: currentTerminal.cols,
+      rows: currentTerminal.rows,
+    });
+  }, [fitAddonRef, terminalContainerRef, terminalRef, wsRef]);
+
+  const scheduleTerminalFit = useCallback(() => {
+    if (resizeTimeoutRef.current !== null) {
+      window.clearTimeout(resizeTimeoutRef.current);
+    }
+
+    resizeTimeoutRef.current = window.setTimeout(() => {
+      fitTerminalAndNotify();
+    }, TERMINAL_RESIZE_DELAY_MS);
+  }, [fitTerminalAndNotify]);
+
+  useEffect(() => {
+    if (!isActive || !isInitialized) {
+      return;
+    }
+
+    const firstFrame = window.requestAnimationFrame(() => {
+      fitTerminalAndNotify();
+      window.requestAnimationFrame(fitTerminalAndNotify);
+    });
+    const timeoutId = window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS);
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.clearTimeout(timeoutId);
+    };
+  }, [fitTerminalAndNotify, isActive, isInitialized]);
 
   useEffect(() => {
     if (!terminalContainerRef.current || !hasSelectedProject || isRestarting || terminalRef.current) {
@@ -218,38 +275,6 @@ export function useShellTerminal({
       return true;
     });
 
-    const fitTerminalAndNotify = () => {
-      const currentFitAddon = fitAddonRef.current;
-      const currentTerminal = terminalRef.current;
-      if (!currentFitAddon || !currentTerminal) {
-        return;
-      }
-
-      try {
-        currentFitAddon.fit();
-        currentTerminal.scrollToBottom();
-        currentTerminal.refresh(0, Math.max(0, currentTerminal.rows - 1));
-      } catch {
-        return;
-      }
-
-      sendSocketMessage(wsRef.current, {
-        type: 'resize',
-        cols: currentTerminal.cols,
-        rows: currentTerminal.rows,
-      });
-    };
-
-    const scheduleTerminalFit = () => {
-      if (resizeTimeoutRef.current !== null) {
-        window.clearTimeout(resizeTimeoutRef.current);
-      }
-
-      resizeTimeoutRef.current = window.setTimeout(() => {
-        fitTerminalAndNotify();
-      }, TERMINAL_RESIZE_DELAY_MS);
-    };
-
     window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS);
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(fitTerminalAndNotify);
@@ -298,8 +323,11 @@ export function useShellTerminal({
     initialCommandRef,
     isPlainShellRef,
     isRestarting,
+    isActive,
     minimal,
     hasSelectedProject,
+    fitTerminalAndNotify,
+    scheduleTerminalFit,
     terminalContainerRef,
     terminalRef,
     wsRef,

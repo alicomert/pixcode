@@ -42,10 +42,10 @@ export default function ShellMinimalView({
   const showMobileAuthPanelToggle = hasAuthUrl && isAuthPanelHidden;
 
   return (
-    <div className="relative h-full w-full bg-gray-900 pb-14 md:pb-0">
+    <div className="relative h-full w-full min-w-0 overflow-hidden bg-gray-900 pb-14 md:pb-0">
       <div
         ref={terminalContainerRef}
-        className="h-full w-full focus:outline-none"
+        className="pixcode-shell-terminal h-full min-h-0 w-full min-w-0 max-w-full focus:outline-none"
         style={{ outline: 'none' }}
       />
 

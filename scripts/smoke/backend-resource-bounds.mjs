@@ -57,7 +57,9 @@ const checks = [
     assert: (source) =>
       source.includes('showHeader?: boolean') &&
       source.includes('showHeader &&') &&
-      source.includes('pixcode-shell-terminal h-full min-h-0 w-full'),
+      source.includes('pixcode-shell-terminal') &&
+      source.includes('min-w-0') &&
+      source.includes('max-w-full'),
     message: 'Shell must support true headerless rendering and a stable terminal fit container.',
   },
   {
@@ -65,7 +67,8 @@ const checks = [
     assert: (source) =>
       source.includes('.pixcode-shell-terminal') &&
       source.includes('display: flex') &&
-      !source.includes('.pixcode-shell-terminal .xterm-viewport'),
+      source.includes('max-width: 100%') &&
+      source.includes('.pixcode-shell-terminal .xterm-viewport'),
     message: 'Terminal styles must avoid forcing viewport height independently from xterm fit.',
   },
   {
@@ -75,6 +78,14 @@ const checks = [
       source.includes("useState(() => getDefaultBottomTerminalHeight())") &&
       !source.includes('BOTTOM_TERMINAL_DEFAULT_HEIGHT'),
     message: 'Desktop workbench terminal must use a viewport-aware default height.',
+  },
+  {
+    path: 'src/components/vscode-workbench/view/VSCodeWorkbench.tsx',
+    assert: (source) =>
+      source.includes("autoConnect={canAutoConnect && tab.id === activeCliTab?.id}") &&
+      source.includes("absolute inset-0 min-w-0 overflow-hidden") &&
+      source.includes("h-full min-w-0 shrink-0 overflow-hidden bg-background"),
+    message: 'Right CLI panel must keep hidden tabs disconnected and constrain terminal overflow.',
   },
 ];
 
