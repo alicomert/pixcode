@@ -1277,6 +1277,10 @@ function normalizeTerminalStartupInput(input) {
     return `\x15${String(input || '').replace(/(?:\r\n|\r|\n)+$/u, '')}\r`;
 }
 
+function normalizeTerminalBufferedInput(input) {
+    return `\x15${String(input || '').replace(/(?:\r\n|\r|\n)+$/u, '')}`;
+}
+
 function readSessionOutputForState(session, maxChars = 12000) {
     return stripAnsiSequences((session?.buffer || []).join('').slice(-maxChars));
 }
@@ -1723,6 +1727,7 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
     const sessionId = readPtyTarget(req.body?.sessionId);
     const input = typeof req.body?.input === 'string' ? req.body.input : '';
     const submit = req.body?.submit !== false;
+    const submitMode = req.body?.submitMode === 'deferred-enter' ? 'deferred-enter' : 'inline';
 
     if (!SHELL_CLI_PROVIDERS.has(provider)) {
         return res.status(400).json({ error: 'Unsupported provider' });
@@ -1762,10 +1767,31 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
     }
 
     const matchedSession = match.session;
-    const data = submit ? normalizeTerminalStartupInput(input) : input;
+    const data = submit
+        ? (submitMode === 'deferred-enter' ? normalizeTerminalBufferedInput(input) : normalizeTerminalStartupInput(input))
+        : input;
     const outputCursorBefore = matchedSession.totalOutputBytes || matchedSession.bufferBytes || 0;
     try {
         writeTerminalInputChunks(matchedSession.pty, data);
+        if (submit && submitMode === 'deferred-enter') {
+            setTimeout(() => {
+                const currentSession = findProviderPtySession({
+                    provider,
+                    projectPath,
+                    user: req.user,
+                    tabId,
+                    sessionId,
+                    requireRunning: true,
+                    requirePty: true,
+                }).session;
+                try {
+                    writeTerminalInputChunks(currentSession?.pty, '\r');
+                    if (currentSession) currentSession.updatedAt = Date.now();
+                } catch (error) {
+                    console.warn('Deferred terminal submit failed:', error?.message || error);
+                }
+            }, 120);
+        }
         matchedSession.updatedAt = Date.now();
         res.json({
             ok: true,
@@ -1775,6 +1801,7 @@ app.post('/api/shell/sessions/provider-input', authenticateToken, requireProject
             tabId: matchedSession.tabId || null,
             wrote: true,
             submitted: submit,
+            submitMode,
             bytes: Buffer.byteLength(data),
             matchStatus: match.status,
             outputCursorBefore,

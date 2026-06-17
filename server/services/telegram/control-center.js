@@ -898,6 +898,7 @@ async function sendToActiveTerminal({ bot, chatId, link, text }) {
         sessionId: terminal.sessionId,
         input: text,
         submit: true,
+        submitMode: 'deferred-enter',
       },
     });
     const sinceCursor = Number.isFinite(inputResult?.outputCursorBefore)
