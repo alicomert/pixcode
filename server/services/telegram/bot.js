@@ -27,6 +27,9 @@ const PAIRING_TTL_MS = 10 * 60 * 1000;
 let bot = null;
 let botInfo = null; // { id, username, first_name }
 let lastError = null;
+let lastTransientPollingLogAt = 0;
+
+const TRANSIENT_POLLING_LOG_INTERVAL_MS = 60 * 1000;
 
 export const setTelegramBotForTesting = (nextBot) => {
   bot = nextBot;
@@ -73,6 +76,29 @@ const parseMaybeCode = (text) => {
   // otherwise a paired user typing "123456" as part of a prompt would get
   // rejected with "invalid code" instead of being forwarded.
   return /^\d{6}$/.test(trimmed) ? trimmed : null;
+};
+
+const isTransientTelegramNetworkError = (err, code = err?.response?.statusCode || err?.code) => {
+  if (code === 409) return true;
+  const message = String(err?.message || err || '').toLowerCase();
+  return message.includes('fetch failed')
+    || message.includes('network')
+    || message.includes('timeout')
+    || message.includes('timed out')
+    || message.includes('econnreset')
+    || message.includes('econnrefused')
+    || message.includes('enotfound')
+    || message.includes('etimedout')
+    || message.includes('socket hang up');
+};
+
+const logTransientPollingError = (nextError) => {
+  const timestamp = Date.now();
+  if (timestamp - lastTransientPollingLogAt < TRANSIENT_POLLING_LOG_INTERVAL_MS) {
+    return;
+  }
+  lastTransientPollingLogAt = timestamp;
+  console.log('[telegram] polling temporarily unavailable; retrying with backoff:', nextError);
 };
 
 const safeSend = async (chatId, text, extra = {}) => {
@@ -216,8 +242,10 @@ const wirePollingErrors = () => {
     if (code === 401) {
       console.error('[telegram] fatal polling error, stopping:', lastError);
       stopBot().catch(() => {});
+    } else if (isTransientTelegramNetworkError(err, code)) {
+      logTransientPollingError(lastError);
     } else if (code === 409) {
-      console.warn('[telegram] polling conflict:', lastError);
+      console.log('[telegram] polling conflict:', lastError);
     } else {
       console.warn('[telegram] polling error:', lastError);
     }
@@ -247,9 +275,17 @@ export const startBot = async ({ token, persist = true } = {}) => {
   } catch (err) {
     try { await instance.stopPolling(); } catch { /* ignore */ }
     const reason = err?.response?.body?.description || err?.message || String(err);
-    lastError = { code: 'auth', message: reason };
-    const error = new Error(`Invalid bot token: ${reason}`);
-    error.code = 'INVALID_TOKEN';
+    const transientNetworkError = isTransientTelegramNetworkError(err);
+    lastError = {
+      code: transientNetworkError ? 'network' : 'auth',
+      message: reason,
+    };
+    const error = new Error(
+      transientNetworkError
+        ? `Telegram network unavailable: ${reason}`
+        : `Invalid bot token: ${reason}`,
+    );
+    error.code = transientNetworkError ? 'TELEGRAM_NETWORK_UNAVAILABLE' : 'INVALID_TOKEN';
     throw error;
   }
 
@@ -331,6 +367,10 @@ export const restoreBotFromConfig = async () => {
   try {
     await startBot({ token: config.bot_token, persist: false });
   } catch (err) {
-    console.warn('[telegram] Failed to restore bot:', err?.message || err);
+    if (err?.code === 'TELEGRAM_NETWORK_UNAVAILABLE') {
+      console.log('[telegram] restore delayed; Telegram network unavailable:', err?.message || err);
+    } else {
+      console.warn('[telegram] Failed to restore bot:', err?.message || err);
+    }
   }
 };

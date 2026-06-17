@@ -51,6 +51,14 @@ function isNotGitRepositoryMessage(message = '') {
     || message.includes('Project directory is not a git repository');
 }
 
+function isMissingFileError(error) {
+  const message = `${error?.message || ''} ${error?.stderr || ''} ${error?.stdout || ''}`.toLowerCase();
+  return error?.code === 'ENOENT'
+    || message.includes('enoent')
+    || message.includes('no such file or directory')
+    || message.includes('path does not exist');
+}
+
 function shouldSkipFilesystemEntry(entryName) {
   return FILESYSTEM_SCAN_EXCLUDED_DIRS.has(entryName)
     || entryName.endsWith('.log')
@@ -746,6 +754,15 @@ router.get('/file-with-diff', async (req, res) => {
       isUntracked
     });
   } catch (error) {
+    if (isMissingFileError(error)) {
+      return res.status(404).json({
+        error: 'File not found',
+        currentContent: '',
+        oldContent: '',
+        isDeleted: true,
+        isUntracked: false,
+      });
+    }
     console.error('Git file-with-diff error:', error);
     res.json({ error: error.message });
   }

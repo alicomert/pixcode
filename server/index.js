@@ -45,21 +45,46 @@ const DAEMON_COMMAND_CONTEXT = {
 function resolveMonacoAssetsPath() {
     const appParent = path.dirname(APP_ROOT);
     const appGrandparent = path.dirname(appParent);
+    const nodePathRoots = String(process.env.NODE_PATH || '')
+        .split(path.delimiter)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
     const candidates = [
         path.join(APP_ROOT, 'node_modules', 'monaco-editor', 'min', 'vs'),
         path.join(appParent, 'node_modules', 'monaco-editor', 'min', 'vs'),
         path.join(appParent, 'monaco-editor', 'min', 'vs'),
         path.join(appGrandparent, 'node_modules', 'monaco-editor', 'min', 'vs'),
         path.join(appGrandparent, 'monaco-editor', 'min', 'vs'),
+        ...nodePathRoots.flatMap((nodePathRoot) => [
+            path.join(nodePathRoot, 'monaco-editor', 'min', 'vs'),
+            path.join(nodePathRoot, 'node_modules', 'monaco-editor', 'min', 'vs'),
+        ]),
+    ];
+    const resolutionPaths = [
+        APP_ROOT,
+        appParent,
+        appGrandparent,
+        __dirname,
+        process.cwd(),
+        ...nodePathRoots,
     ];
 
     try {
         const monacoPackagePath = require.resolve('monaco-editor/package.json', {
-            paths: [APP_ROOT, appParent, appGrandparent, __dirname, process.cwd()],
+            paths: resolutionPaths,
         });
         candidates.push(path.join(path.dirname(monacoPackagePath), 'min', 'vs'));
     } catch {
         // The editor will show its normal load failure if the dependency is unavailable.
+    }
+
+    try {
+        const monacoLoaderPath = require.resolve('monaco-editor/min/vs/loader.js', {
+            paths: resolutionPaths,
+        });
+        candidates.push(path.dirname(monacoLoaderPath));
+    } catch {
+        // Some package managers only expose the package root; candidates above cover that case.
     }
 
     return candidates.find((candidate) => fs.existsSync(path.join(candidate, 'loader.js'))) || null;
@@ -3937,7 +3962,9 @@ function handleShellConnection(ws, request) {
 
                     // Handle process exit
                     shellProcess.onExit((exitCode) => {
-                        console.log('🔚 Shell process exited with code:', exitCode.exitCode, 'signal:', exitCode.signal);
+                        const cleanShellExit = exitCode.exitCode === 0;
+                        const normalizedExitSignal = cleanShellExit ? null : (exitCode.signal || null);
+                        console.log('🔚 Shell process exited with code:', exitCode.exitCode, 'signal:', normalizedExitSignal);
                         if (outputFlushTimer) {
                             clearTimeout(outputFlushTimer);
                             outputFlushTimer = null;
@@ -3949,11 +3976,11 @@ function handleShellConnection(ws, request) {
                             return;
                         }
 
-                        const exitMessage = `\r\n\x1b[33mProcess exited with code ${exitCode.exitCode}${exitCode.signal ? ` (${exitCode.signal})` : ''}\x1b[0m\r\n`;
+                        const exitMessage = `\r\n\x1b[33mProcess exited with code ${exitCode.exitCode}${normalizedExitSignal ? ` (${normalizedExitSignal})` : ''}\x1b[0m\r\n`;
                         if (session) {
-                            session.lifecycleState = exitCode.exitCode === 0 && !exitCode.signal ? 'completed' : 'failed';
+                            session.lifecycleState = cleanShellExit ? 'completed' : 'failed';
                             session.exitCode = typeof exitCode.exitCode === 'number' ? exitCode.exitCode : null;
-                            session.exitSignal = exitCode.signal || null;
+                            session.exitSignal = normalizedExitSignal;
                             session.completedAt = new Date().toISOString();
                             session.updatedAt = Date.now();
                             if (session.startupInputTimerId) {

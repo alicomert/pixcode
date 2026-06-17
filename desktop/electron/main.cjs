@@ -43,6 +43,17 @@ let serverReady = false;
 let intentionalQuit = false;
 let userRequestedClose = false;
 
+function shouldSuppressRecoverableServerStderrLine(line) {
+  const text = String(line || '');
+  return text.includes('[monaco] Local Monaco assets not found')
+    || (
+      text.includes('[telegram] polling error:')
+      && text.toLowerCase().includes('fetch failed')
+    )
+    || text.includes('[telegram] polling temporarily unavailable')
+    || text.includes('[telegram] polling conflict:');
+}
+
 // ---------------------------------------------------------------------------
 // Single-instance lock — the second double-click just refocuses the window.
 // ---------------------------------------------------------------------------
@@ -346,12 +357,33 @@ function startServer(runtimeDir) {
   });
 
   let stderrBuffer = '';
+  let suppressGitEnoentBlock = false;
   serverProcess.stdout?.on('data', (buf) => {
     process.stdout.write(`[pixcode] ${buf.toString()}`);
   });
   serverProcess.stderr?.on('data', (buf) => {
     const text = buf.toString();
-    stderrBuffer += text;
+    const fatalText = text
+      .split(/(?<=\n)/)
+      .filter((line) => {
+        if (suppressGitEnoentBlock) {
+          if (line.includes('}')) suppressGitEnoentBlock = false;
+          return false;
+        }
+        if (
+          line.includes('Git file-with-diff error:')
+          && (
+            line.includes('ENOENT')
+            || line.toLowerCase().includes('no such file or directory')
+          )
+        ) {
+          suppressGitEnoentBlock = true;
+          return false;
+        }
+        return !shouldSuppressRecoverableServerStderrLine(line);
+      })
+      .join('');
+    stderrBuffer += fatalText;
     if (stderrBuffer.length > 4000) stderrBuffer = stderrBuffer.slice(-4000);
     process.stderr.write(`[pixcode:err] ${text}`);
   });
