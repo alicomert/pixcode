@@ -150,7 +150,7 @@ import {
 import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
 import { restoreRequestedTunnel } from './services/external-access.js';
-import { restoreBotFromConfig } from './services/telegram/bot.js';
+import { notifyTelegramTerminalAttached, restoreBotFromConfig } from './services/telegram/bot.js';
 import { ensurePortOpen } from './utils/port-access.js';
 import {
     applyAllStoredCredentialsToEnv,
@@ -1764,7 +1764,7 @@ function requireVerifiedTelegramLink(req, res) {
 
 // Bind the paired Telegram chat to an already running provider terminal tab.
 // This route lives next to the PTY registry so it can verify the target is live.
-app.post('/api/telegram/active-terminal', authenticateToken, requireProjectPathAccess('useShell'), (req, res) => {
+app.post('/api/telegram/active-terminal', authenticateToken, requireProjectPathAccess('useShell'), async (req, res) => {
     try {
         const link = requireVerifiedTelegramLink(req, res);
         if (!link) return;
@@ -1824,8 +1824,18 @@ app.post('/api/telegram/active-terminal', authenticateToken, requireProjectPathA
             selectedProjectName: projectName,
             selectedProjectPath: resolvedMatchedProjectPath,
         });
+        notifyTelegramTerminalAttached({
+            userId: req.user.id,
+            terminal: control.activeTerminal,
+        }).then((telegramNotice) => {
+            if (telegramNotice?.ok === false) {
+                console.warn('[telegram] terminal attach notice not delivered:', telegramNotice.reason);
+            }
+        }).catch((error) => {
+            console.warn('[telegram] terminal attach notice failed:', error?.message || error);
+        });
 
-        res.json({ success: true, activeTerminal: control.activeTerminal, control, matchStatus: match.status });
+        res.json({ success: true, activeTerminal: control.activeTerminal, control, matchStatus: match.status, telegramNotice: { queued: true } });
     } catch (error) {
         console.error('telegram/active-terminal failed:', error);
         res.status(500).json({ error: 'Failed to attach Telegram to this terminal.' });

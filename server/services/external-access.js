@@ -44,6 +44,7 @@ let restoreInFlight = null;
 let tunnelState = {
   running: false,
   binary: null, // 'cloudflared' | 'ngrok'
+  provider: null, // 'cloudflare' | 'ngrok'
   url: null,
   error: null,
   installHint: null,
@@ -55,7 +56,7 @@ let tunnelState = {
 const DEFAULT_TUNNEL_PREFERENCE = Object.freeze({
   desired: false,
   port: null,
-  provider: null,
+  provider: 'cloudflare',
   lastUrl: null,
   lastStartedAt: null,
   lastStoppedAt: null,
@@ -97,8 +98,14 @@ const appendLog = (line) => {
   if (tunnelState.log.length > 200) tunnelState.log.shift();
 };
 
-const detectBinary = async () => {
-  const candidates = ['cloudflared', 'ngrok'];
+const normalizeTunnelProvider = (provider) => (provider === 'ngrok' ? 'ngrok' : 'cloudflare');
+
+const tunnelProviderBinary = (provider) => (normalizeTunnelProvider(provider) === 'ngrok' ? 'ngrok' : 'cloudflared');
+
+const tunnelBinaryProvider = (binary) => (binary === 'ngrok' ? 'ngrok' : 'cloudflare');
+
+const detectBinary = async (provider = null) => {
+  const candidates = provider ? [tunnelProviderBinary(provider)] : ['cloudflared', 'ngrok'];
   for (const name of candidates) {
     try {
       // `which` isn't guaranteed on Windows; we probe with `--version` instead
@@ -116,17 +123,31 @@ const detectBinary = async () => {
   return null;
 };
 
-const createTunnelInstallHint = () => ({
-  title: 'Tunnel binary required',
-  message: 'Install cloudflared or ngrok to create a public mobile URL. Local LAN QR codes still work on the same Wi-Fi/network.',
-  commands: [
-    'macOS: brew install cloudflared',
-    'Windows: winget install Cloudflare.cloudflared',
-    'Linux: install cloudflared from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/',
-    'Alternative: install and authenticate ngrok from https://ngrok.com/download',
-  ],
-  docsUrl: 'https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/',
-});
+const createTunnelInstallHint = (provider = 'cloudflare') => {
+  if (normalizeTunnelProvider(provider) === 'ngrok') {
+    return {
+      title: 'ngrok binary required',
+      message: 'Install and authenticate ngrok to create a public mobile URL. Local LAN QR codes still work on the same Wi-Fi/network.',
+      commands: [
+        'macOS: brew install ngrok/ngrok/ngrok',
+        'Windows: winget install ngrok.ngrok',
+        'Linux: install ngrok from https://ngrok.com/download',
+      ],
+      docsUrl: 'https://ngrok.com/download',
+    };
+  }
+
+  return {
+    title: 'Cloudflare Tunnel binary required',
+    message: 'Install cloudflared to create a public Cloudflare URL. Local LAN QR codes still work on the same Wi-Fi/network.',
+    commands: [
+      'macOS: brew install cloudflared',
+      'Windows: winget install Cloudflare.cloudflared',
+      'Linux: install cloudflared from https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/',
+    ],
+    docsUrl: 'https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/',
+  };
+};
 
 const cloudflareUrlRegex = /https?:\/\/[a-z0-9.-]+trycloudflare\.com/i;
 const ngrokUrlRegex = /https?:\/\/[a-z0-9.-]+\.ngrok(-free)?\.(app|io)/i;
@@ -143,13 +164,14 @@ const extractUrl = (binary, text) => {
   return null;
 };
 
-export const startTunnel = async ({ port, persistPreference = false, restoring = false } = {}) => {
+export const startTunnel = async ({ port, provider: requestedProvider = 'cloudflare', persistPreference = false, restoring = false } = {}) => {
+  const provider = normalizeTunnelProvider(requestedProvider);
   if (tunnelProc) {
     if (persistPreference) {
       await persistTunnelPreference({
         desired: true,
         port,
-        provider: tunnelState.binary,
+        provider: tunnelState.provider || tunnelBinaryProvider(tunnelState.binary),
         lastUrl: tunnelState.url,
       });
       tunnelState = { ...tunnelState, desired: true, restoring: false };
@@ -158,20 +180,21 @@ export const startTunnel = async ({ port, persistPreference = false, restoring =
   }
   suppressNextTunnelRestore = false;
 
-  const binary = await detectBinary();
+  const binary = await detectBinary(provider);
   if (!binary) {
-    const installHint = createTunnelInstallHint();
+    const installHint = createTunnelInstallHint(provider);
     tunnelState = {
       running: false,
       binary: null,
+      provider,
       url: null,
-      error: 'No tunnel binary found',
+      error: provider === 'cloudflare' ? 'cloudflared was not found' : 'ngrok was not found',
       installHint,
       desired: Boolean(persistPreference || restoring),
       restoring,
       log: [],
     };
-    const err = new Error('No tunnel binary found (tried cloudflared, ngrok)');
+    const err = new Error(tunnelState.error);
     err.code = 'ENOENT_TUNNEL';
     err.installHint = installHint;
     throw err;
@@ -183,6 +206,7 @@ export const startTunnel = async ({ port, persistPreference = false, restoring =
   tunnelState = {
     running: true,
     binary,
+    provider,
     url: null,
     error: null,
     installHint: null,
@@ -207,6 +231,7 @@ export const startTunnel = async ({ port, persistPreference = false, restoring =
     tunnelState = {
       running: false,
       binary,
+      provider,
       url: null,
       error: code === 0 ? null : `Tunnel exited with code ${code}`,
       installHint: null,
@@ -242,7 +267,7 @@ export const startTunnel = async ({ port, persistPreference = false, restoring =
         await persistTunnelPreference({
           desired: true,
           port,
-          provider: binary,
+          provider,
           lastUrl: tunnelState.url,
           lastStartedAt: new Date().toISOString(),
         });
@@ -284,6 +309,7 @@ export const stopTunnel = async ({ persistPreference = true } = {}) => {
     tunnelState = {
       running: false,
       binary: null,
+      provider: null,
       url: null,
       error: null,
       installHint: null,
@@ -302,6 +328,7 @@ export const stopTunnel = async ({ persistPreference = true } = {}) => {
   tunnelState = {
     running: false,
     binary: null,
+    provider: null,
     url: null,
     error: null,
     installHint: null,
@@ -341,6 +368,7 @@ export const restoreRequestedTunnel = async ({ port } = {}) => {
     try {
       return await startTunnel({
         port: restorePort,
+        provider: preference.provider || 'cloudflare',
         persistPreference: true,
         restoring: true,
       });

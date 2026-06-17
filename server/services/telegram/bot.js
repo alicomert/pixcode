@@ -7,6 +7,7 @@ import {
   handleTelegramControlCallback,
   handleTelegramControlMessage,
   isTelegramControlCommand,
+  sendActiveTerminalAttachedNotice,
   showMainMenu,
 } from './control-center.js';
 import { t } from './translations.js';
@@ -357,6 +358,20 @@ export const notifyUser = async ({ userId, kind, title, error }) => {
         : 'notification.taskDone';
   const text = t(lang, key, { title: title || 'Session', error: error || '' });
   return sendToUser(userId, text);
+};
+
+export const notifyTelegramTerminalAttached = async ({ userId, terminal }) => {
+  const link = telegramLinksDb.getByUserId(userId);
+  if (!bot) return { ok: false, reason: 'bot_not_running' };
+  if (!link?.chat_id || !link?.verified_at) return { ok: false, reason: 'telegram_not_paired' };
+  if (!terminal) return { ok: false, reason: 'missing_terminal' };
+  try {
+    await sendActiveTerminalAttachedNotice({ bot, chatId: link.chat_id, link, terminal });
+    return { ok: true };
+  } catch (err) {
+    console.warn('[telegram] terminal attach notice failed:', err?.message || err);
+    return { ok: false, reason: err?.message || String(err) };
+  }
 };
 
 // Boot the bot automatically if a token was previously persisted. This runs

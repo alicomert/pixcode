@@ -6,7 +6,13 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 
 import { userDb, db } from '../database/db.js';
-import { generateToken, authenticateToken } from '../middleware/auth.js';
+import { generateToken, authenticateToken, requireAdmin } from '../middleware/auth.js';
+import {
+  consumeQrLoginToken,
+  createQrLoginToken,
+  getQrLoginSettings,
+  saveQrLoginSettings,
+} from '../services/qr-login.js';
 import {
   getPublicRemoteConnectionConfig,
   saveRemoteConnectionConfig,
@@ -48,6 +54,46 @@ router.put('/connection-mode', (req, res) => {
     res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/qr-login/settings', authenticateToken, requireAdmin, (_req, res) => {
+  res.json({ success: true, settings: getQrLoginSettings() });
+});
+
+router.put('/qr-login/settings', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    res.json({ success: true, settings: saveQrLoginSettings(req.body || {}) });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/qr-login/token', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const baseUrl = typeof req.body?.baseUrl === 'string' && req.body.baseUrl.trim()
+      ? req.body.baseUrl.trim()
+      : null;
+    res.json({ success: true, ...createQrLoginToken({ userId: req.user.id, baseUrl }) });
+  } catch (error) {
+    const status = error?.code === 'QR_LOGIN_DISABLED' ? 409 : 400;
+    res.status(status).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/qr-login', (req, res) => {
+  try {
+    const user = consumeQrLoginToken(req.body?.token);
+    const token = generateToken(user);
+    userDb.updateLastLogin(user.id);
+    res.json({
+      success: true,
+      user: publicUser(user),
+      token,
+    });
+  } catch (error) {
+    const status = error?.code === 'QR_LOGIN_DISABLED' ? 409 : 401;
+    res.status(status).json({ success: false, error: error.message });
   }
 });
 

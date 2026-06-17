@@ -816,6 +816,10 @@
         "title": "Private ekip linki",
         "description": "Public domain veya modem ayari istemeden ozel ekip erisimi icin Tailscale kullan."
       },
+      "cloudflare": {
+        "title": "Cloudflare public link",
+        "description": "Cloudflare Tunnel baslat; Pixcode public HTTPS URL ve QR kodu otomatik gostersin."
+      },
       "customDomain": {
         "title": "Kendi domainin",
         "description": "Zaten HTTPS, reverse proxy veya Cloudflare Tunnel hostname varsa bunu kaydet."
@@ -843,6 +847,30 @@
       "empty": "LAN linki algilanmadi. Sunucunun aga bagli oldugundan emin olup yenile.",
       "saveLabel": "Ayni ag erisimi",
       "save": "Bu LAN linkini kaydet"
+    },
+    "quickLogin": {
+      "title": "Istege bagli QR hizli giris",
+      "description": "Acik oldugunda QR kodlari kisa omurlu tek kullanimlik giris tokeni icerir; tarayan cihaz kullanici adi ve sifre sormadan girer.",
+      "enabled": "QR hizli giris acik",
+      "disabled": "QR hizli giris kapali",
+      "badge": "hizli giris",
+      "qrNote": "Bu QR taraninca kullanici adi ve sifre sormadan tek seferlik giris yapar.",
+      "enabledNote": "Yeni QR tokenleri {{seconds}} saniye sonra sona erer ve basarili giristen sonra tuketilir.",
+      "disabledNote": "QR kodlari sadece URLyi acar; kullanici normal sekilde giris yapar."
+    },
+    "cloudflare": {
+      "title": "Cloudflare Tunnel",
+      "description": "Modem ayari yapmadan uzaktan erisim icin Pixcode cloudflared baslatir ve public HTTPS URLyi burada gosterir.",
+      "secureLink": "Cloudflare linki ve QR",
+      "help": "Baslata tikla. cloudflared kuruluysa Pixcode gecici HTTPS adresini ve QR kodunu otomatik olusturur.",
+      "running": "Cloudflare tunnel calisiyor",
+      "start": "Cloudflare baslat",
+      "stop": "Cloudflare durdur",
+      "save": "Bu Cloudflare URLini kaydet",
+      "saveLabel": "Cloudflare Tunnel erisimi",
+      "qrLabel": "Cloudflare",
+      "installTitle": "Cloudflare kurulumu gerekli",
+      "installNeeded": "Once cloudflared kur, sonra Cloudflare baslat dugmesine tekrar bas."
     },
     "tunnel": {
       "title": "Guvenli tunnel",

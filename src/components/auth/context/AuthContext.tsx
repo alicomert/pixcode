@@ -74,6 +74,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await checkOnboardingStatus();
   }, [checkOnboardingStatus]);
 
+  const consumeQrLoginFromUrl = useCallback(async () => {
+    const params = new URLSearchParams(window.location.search);
+    const qrLoginToken = params.get('qrLoginToken');
+    if (!qrLoginToken) {
+      return false;
+    }
+
+    const response = await api.auth.qrLogin(qrLoginToken);
+    const payload = await parseJsonSafely<AuthSessionPayload>(response);
+
+    params.delete('qrLoginToken');
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      {},
+      document.title,
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`,
+    );
+
+    if (!response.ok || !payload?.token || !payload.user) {
+      const message = resolveApiErrorMessage(payload, AUTH_ERROR_MESSAGES.qrLoginFailed);
+      setError(message);
+      return false;
+    }
+
+    setSession(payload.user, payload.token);
+    setNeedsSetup(false);
+    await checkOnboardingStatus();
+    return true;
+  }, [checkOnboardingStatus, setSession]);
+
   const checkAuthStatus = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -88,6 +118,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setNeedsSetup(false);
+
+      const qrLoginConsumed = await consumeQrLoginFromUrl();
+      if (qrLoginConsumed) {
+        return;
+      }
 
       if (!token) {
         return;
@@ -113,7 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [checkOnboardingStatus, clearSession, token]);
+  }, [checkOnboardingStatus, clearSession, consumeQrLoginFromUrl, token]);
 
   useEffect(() => {
     void checkAuthStatus();

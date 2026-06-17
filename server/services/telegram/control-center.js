@@ -598,7 +598,7 @@ function terminalOutputUrl(terminal, maxChars = 3200) {
   return `/api/shell/sessions/provider-output?${params.toString()}`;
 }
 
-function renderTerminalSnapshot(lang, terminal, data, { prefix = '' } = {}) {
+function renderTerminalSnapshot(lang, terminal, data, { prefix = '', includeOutput = false } = {}) {
   const active = data?.active !== false;
   const lifecycle = data?.terminalState || data?.lifecycleState || (active ? 'running' : 'not running');
   const output = String(data?.output || '').trim();
@@ -612,13 +612,32 @@ function renderTerminalSnapshot(lang, terminal, data, { prefix = '' } = {}) {
   if (terminal.sessionId || data?.sessionId) {
     lines.push(`🧵 ${t(lang, 'control.activity.session')}: ${terminal.sessionId || data.sessionId}`);
   }
-  if (output) {
+  if (includeOutput && output) {
     lines.push('', `💬 ${t(lang, 'control.activity.output')}:`);
     lines.push(truncate(output, 2400));
   } else {
-    lines.push('', t(lang, 'control.terminalNoOutput'));
+    lines.push('', t(lang, 'control.terminalOutputHidden'));
   }
   return truncate(lines.join('\n'), 3400);
+}
+
+export async function sendActiveTerminalAttachedNotice({ bot, chatId, link, terminal }) {
+  const lang = languageFor(link);
+  const lines = [
+    t(lang, 'control.terminalAttached'),
+    '',
+    `🤖 ${t(lang, 'control.activity.provider')}: ${terminal.provider}`,
+    `📁 ${t(lang, 'control.activity.project')}: ${compact(terminalProjectLabel(terminal), 90)}`,
+    `📌 ${t(lang, 'control.activity.status')}: ${t(lang, 'control.terminalReadyStatus')}`,
+  ];
+  if (terminal.sessionId) {
+    lines.push(`🧵 ${t(lang, 'control.activity.session')}: ${terminal.sessionId}`);
+  }
+  lines.push('', t(lang, 'control.terminalReadyPrompt'));
+  await send(bot, chatId, truncate(lines.join('\n'), 3400), {
+    parse_mode: undefined,
+    reply_markup: { inline_keyboard: terminalControlKeyboard(lang) },
+  });
 }
 
 async function showActiveTerminalStatus({ bot, chatId, link, editMessageId }) {

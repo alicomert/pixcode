@@ -23,6 +23,9 @@ type NetworkEndpoint = {
   host: string;
   label: string;
   family: string;
+  scope?: string;
+  kind?: string;
+  usableForSameNetwork?: boolean;
   url: string;
 };
 
@@ -97,6 +100,7 @@ type TunnelInstallHint = {
 type TunnelState = {
   running: boolean;
   binary: string | null;
+  provider?: string | null;
   url: string | null;
   error: string | null;
   installHint?: TunnelInstallHint | null;
@@ -110,11 +114,23 @@ type AccessQr = {
   key: string;
   label: string;
   url: string;
+  qrUrl?: string;
+  magicLogin?: boolean;
   dataUrl: string | null;
 };
 
-const accessModes = ['lan', 'tailscale', 'cloudflare_tunnel', 'custom_domain'];
-const connectionOptions = ['sameNetwork', 'secureTunnel', 'tailscale', 'customDomain'] as const;
+type QrLoginSettings = {
+  enabled: boolean;
+  ttlSeconds: number;
+};
+
+const DEFAULT_QR_LOGIN_SETTINGS: QrLoginSettings = {
+  enabled: false,
+  ttlSeconds: 300,
+};
+
+const accessModes = ['lan', 'tailscale', 'cloudflare_tunnel'];
+const connectionOptions = ['sameNetwork', 'tailscale', 'cloudflare'] as const;
 
 async function readJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(url, options);
@@ -134,12 +150,43 @@ const renderQrDataUrl = async (url: string): Promise<string | null> => {
   }
 };
 
+async function buildAccessQr(
+  entry: { key: string; label: string; url: string },
+  qrLogin: QrLoginSettings,
+): Promise<AccessQr> {
+  let qrUrl = entry.url;
+  let magicLogin = false;
+
+  if (qrLogin.enabled) {
+    try {
+      const data = await readJson<{ qrUrl?: string }>('/api/auth/qr-login/token', {
+        method: 'POST',
+        body: JSON.stringify({ baseUrl: entry.url }),
+      });
+      if (data.qrUrl) {
+        qrUrl = data.qrUrl;
+        magicLogin = true;
+      }
+    } catch (error) {
+      console.warn('QR login token generation failed:', error);
+    }
+  }
+
+  return {
+    ...entry,
+    qrUrl,
+    magicLogin,
+    dataUrl: await renderQrDataUrl(qrUrl),
+  };
+}
+
 export default function AccessSettingsTab() {
   const { t } = useTranslation('settings');
   const [endpoints, setEndpoints] = useState<EndpointsResponse | null>(null);
   const [remoteAccess, setRemoteAccess] = useState<RemoteAccessState | null>(null);
   const [tailscale, setTailscale] = useState<TailscaleState | null>(null);
   const [external, setExternal] = useState<ExternalState | null>(null);
+  const [qrLogin, setQrLogin] = useState<QrLoginSettings>(DEFAULT_QR_LOGIN_SETTINGS);
   const [networkQrs, setNetworkQrs] = useState<AccessQr[]>([]);
   const [externalQrs, setExternalQrs] = useState<AccessQr[]>([]);
   const [tailscaleQr, setTailscaleQr] = useState<AccessQr | null>(null);
@@ -148,12 +195,14 @@ export default function AccessSettingsTab() {
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
   const [tunnelBusy, setTunnelBusy] = useState(false);
+  const [qrLoginBusy, setQrLoginBusy] = useState(false);
   const [tailscaleBusy, setTailscaleBusy] = useState<'install' | 'login' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [externalError, setExternalError] = useState<string | null>(null);
   const [tailscaleAction, setTailscaleAction] = useState<TailscaleActionResult | null>(null);
   const [tunnelInstallHint, setTunnelInstallHint] = useState<TunnelInstallHint | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [qrRefreshNonce, setQrRefreshNonce] = useState(0);
   const [form, setForm] = useState({
     mode: 'custom_domain',
     label: '',
@@ -173,44 +222,43 @@ export default function AccessSettingsTab() {
   const tunnelUrl = external?.tunnel?.url || '';
   const tailscaleUrl = tailscale?.pixcodeUrl || '';
 
-  const hydrateExternalQrs = useCallback(async (externalData: ExternalState | null) => {
+  const hydrateExternalQrs = useCallback(async (externalData: ExternalState | null, qrSettings = DEFAULT_QR_LOGIN_SETTINGS) => {
     const urls: Array<{ key: string; label: string; url: string }> = [];
     if (externalData?.tunnel?.running && externalData.tunnel.url) {
       urls.push({
         key: `tunnel:${externalData.tunnel.url}`,
-        label: externalData.tunnel.binary || t('access.tunnel.qrLabel'),
+        label: t('access.cloudflare.qrLabel'),
         url: externalData.tunnel.url,
       });
     }
 
-    setExternalQrs(await Promise.all(urls.map(async (entry) => ({
-      ...entry,
-      dataUrl: await renderQrDataUrl(entry.url),
-    }))));
+    setExternalQrs(await Promise.all(urls.map((entry) => buildAccessQr(entry, qrSettings))));
   }, [t]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [networkData, remoteData, tailscaleData, externalData] = await Promise.all([
+      const [networkData, remoteData, tailscaleData, externalData, qrLoginData] = await Promise.all([
         readJson<EndpointsResponse>('/api/network/endpoints'),
         readJson<{ remoteAccess: RemoteAccessState }>('/api/platformization/remote-access'),
         readJson<{ tailscale: TailscaleState }>('/api/platformization/remote-access/tailscale'),
         readJson<ExternalState>('/api/network/external'),
+        readJson<{ settings: QrLoginSettings }>('/api/auth/qr-login/settings'),
       ]);
+      const nextQrLogin = qrLoginData.settings || DEFAULT_QR_LOGIN_SETTINGS;
       setEndpoints(networkData);
       setRemoteAccess(remoteData.remoteAccess);
       setTailscale(tailscaleData.tailscale);
       setExternal(externalData);
+      setQrLogin(nextQrLogin);
       setTunnelInstallHint(externalData.tunnel?.installHint ?? null);
-      await hydrateExternalQrs(externalData);
-      setTailscaleQr(tailscaleData.tailscale.pixcodeUrl ? {
+      await hydrateExternalQrs(externalData, nextQrLogin);
+      setTailscaleQr(tailscaleData.tailscale.pixcodeUrl ? await buildAccessQr({
         key: `tailscale:${tailscaleData.tailscale.pixcodeUrl}`,
         label: t('access.links.tailscale'),
         url: tailscaleData.tailscale.pixcodeUrl,
-        dataUrl: await renderQrDataUrl(tailscaleData.tailscale.pixcodeUrl),
-      } : null);
+      }, nextQrLogin) : null);
       setForm((current) => ({
         ...current,
         targetPort: String(remoteData.remoteAccess?.configs?.[0]?.targetPort || networkData.port || current.targetPort),
@@ -229,12 +277,11 @@ export default function AccessSettingsTab() {
   useEffect(() => {
     let cancelled = false;
     const generate = async () => {
-      const generated = await Promise.all(sameNetworkLinks.map(async (endpoint) => ({
+      const generated = await Promise.all(sameNetworkLinks.map((endpoint) => buildAccessQr({
         key: endpoint.url,
         label: endpoint.label,
         url: endpoint.url,
-        dataUrl: await renderQrDataUrl(endpoint.url),
-      })));
+      }, qrLogin)));
       if (!cancelled) {
         setNetworkQrs(generated);
       }
@@ -243,7 +290,7 @@ export default function AccessSettingsTab() {
     return () => {
       cancelled = true;
     };
-  }, [sameNetworkLinks]);
+  }, [sameNetworkLinks, qrLogin, qrRefreshNonce]);
 
   const copyUrl = async (url: string) => {
     try {
@@ -321,6 +368,7 @@ export default function AccessSettingsTab() {
       const isRunning = Boolean(external?.tunnel?.running);
       const response = await authenticatedFetch('/api/network/tunnel', {
         method: isRunning ? 'DELETE' : 'POST',
+        body: isRunning ? undefined : JSON.stringify({ provider: 'cloudflare' }),
       });
       const body = (await response.json().catch(() => ({}))) as {
         error?: string;
@@ -336,7 +384,7 @@ export default function AccessSettingsTab() {
           await hydrateExternalQrs(nextExternal);
         }
         if (response.status === 424) {
-          setExternalError(t('access.tunnel.installNeeded'));
+          setExternalError(t('access.cloudflare.installNeeded'));
           return;
         }
         throw new Error(body.error || `HTTP ${response.status}`);
@@ -377,6 +425,27 @@ export default function AccessSettingsTab() {
     }
   };
 
+  const updateQrLogin = async (enabled: boolean) => {
+    setQrLoginBusy(true);
+    setError(null);
+    try {
+      const data = await readJson<{ settings: QrLoginSettings }>('/api/auth/qr-login/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          enabled,
+          ttlSeconds: qrLogin.ttlSeconds,
+        }),
+      });
+      setQrLogin(data.settings || DEFAULT_QR_LOGIN_SETTINGS);
+      setQrRefreshNonce((value) => value + 1);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setQrLoginBusy(false);
+    }
+  };
+
   const renderQrCard = (entry: AccessQr) => {
     const isCopied = copiedUrl === entry.url;
     return (
@@ -392,7 +461,10 @@ export default function AccessSettingsTab() {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium uppercase text-muted-foreground">{entry.label}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-xs font-medium uppercase text-muted-foreground">{entry.label}</div>
+            {entry.magicLogin && <Badge variant="secondary">{t('access.quickLogin.badge')}</Badge>}
+          </div>
           <button
             type="button"
             title={entry.url}
@@ -401,6 +473,9 @@ export default function AccessSettingsTab() {
           >
             {entry.url}
           </button>
+          {entry.magicLogin && (
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('access.quickLogin.qrNote')}</p>
+          )}
           <Button
             type="button"
             size="sm"
@@ -465,6 +540,33 @@ export default function AccessSettingsTab() {
         </div>
       </section>
 
+      <section className="rounded-md border border-border/60 bg-background p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <Shield className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
+            <div className="min-w-0">
+              <h4 className="text-sm font-semibold text-foreground">{t('access.quickLogin.title')}</h4>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('access.quickLogin.description')}</p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                {qrLogin.enabled
+                  ? t('access.quickLogin.enabledNote', { seconds: qrLogin.ttlSeconds })
+                  : t('access.quickLogin.disabledNote')}
+              </p>
+            </div>
+          </div>
+          <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={qrLogin.enabled}
+              disabled={qrLoginBusy}
+              onChange={(event) => void updateQrLogin(event.target.checked)}
+              className="h-4 w-4 rounded border-border"
+            />
+            {qrLogin.enabled ? t('access.quickLogin.enabled') : t('access.quickLogin.disabled')}
+          </label>
+        </div>
+      </section>
+
       <section className="space-y-5">
         <ConnectionPanel
           icon={<Monitor className="h-5 w-5" />}
@@ -514,9 +616,9 @@ export default function AccessSettingsTab() {
 
         <ConnectionPanel
           icon={<Cloud className="h-5 w-5" />}
-          title={t('access.tunnel.title')}
-          description={t('access.tunnel.description')}
-          badge={external?.tunnel?.running ? t('access.tunnel.running') : t('access.status.optional')}
+          title={t('access.cloudflare.title')}
+          description={t('access.cloudflare.description')}
+          badge={external?.tunnel?.running ? t('access.cloudflare.running') : t('access.status.optional')}
           tone="amber"
         >
           <div className="space-y-4">
@@ -528,18 +630,18 @@ export default function AccessSettingsTab() {
             <div className="flex flex-col gap-4 rounded-md border border-border/60 bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">{t('access.tunnel.secureLink')}</span>
+                  <span className="text-sm font-medium text-foreground">{t('access.cloudflare.secureLink')}</span>
                   {external?.tunnel?.running && (
                     <Badge variant="secondary">
-                      {t('access.tunnel.running')} · {external.tunnel.binary}
+                      {t('access.cloudflare.running')} · {external.tunnel.binary}
                     </Badge>
                   )}
                 </div>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('access.tunnel.help')}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t('access.cloudflare.help')}</p>
               </div>
               <Button type="button" variant="outline" size="sm" className="w-full flex-shrink-0 sm:w-auto" onClick={() => void toggleTunnel()} disabled={tunnelBusy}>
                 {tunnelBusy && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                {external?.tunnel?.running ? t('access.tunnel.stop') : t('access.tunnel.start')}
+                {external?.tunnel?.running ? t('access.cloudflare.stop') : t('access.cloudflare.start')}
               </Button>
             </div>
 
@@ -554,10 +656,10 @@ export default function AccessSettingsTab() {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => void saveDetectedAccessPath('cloudflare_tunnel', t('access.tunnel.saveLabel'), tunnelUrl)}
+                  onClick={() => void saveDetectedAccessPath('cloudflare_tunnel', t('access.cloudflare.saveLabel'), tunnelUrl)}
                   disabled={saving}
                 >
-                  {t('access.tunnel.save')}
+                  {t('access.cloudflare.save')}
                 </Button>
                 <Button type="button" size="sm" variant="outline" onClick={() => void checkUrl(tunnelUrl)} disabled={checking}>
                   {checking && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
@@ -567,7 +669,7 @@ export default function AccessSettingsTab() {
             )}
 
             {tunnelHint && (
-              <InstallHint hint={tunnelHint} fallbackTitle={t('access.tunnel.installTitle')} />
+              <InstallHint hint={tunnelHint} fallbackTitle={t('access.cloudflare.installTitle')} />
             )}
           </div>
         </ConnectionPanel>

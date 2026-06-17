@@ -1108,7 +1108,18 @@
       "installError": "needs attention",
       "showPanel": "Show CLI panel",
       "hidePanel": "Hide CLI panel",
-      "close": "Close terminal"
+      "close": "Close terminal",
+      "continueTelegram": "Continue this CLI session in Telegram",
+      "project": "Project",
+      "telegramModalTitle": "Continue in Telegram",
+      "telegramModalDescription": "Plain messages sent to the paired bot will be written to this active web CLI terminal until you detach it.",
+      "telegramNotPaired": "Telegram is not paired yet. Pair it from Settings > Telegram first.",
+      "telegramStatusFailed": "Could not read Telegram status.",
+      "telegramAttached": "Telegram is attached. Send a message to the bot to continue this CLI session.",
+      "telegramAttachFailed": "Could not attach Telegram to this CLI session.",
+      "telegramAttaching": "Attaching Telegram...",
+      "telegramChecking": "Checking Telegram pairing...",
+      "telegramAttachAction": "Continue from Telegram"
     },
     "terminal": {
       "title": "Terminal",

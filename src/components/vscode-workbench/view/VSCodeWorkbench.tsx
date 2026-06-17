@@ -3191,8 +3191,8 @@ function TelegramTerminalAttachModal({
             type="button"
             className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
             onClick={onClose}
-            aria-label={t('common.close', { defaultValue: 'Close' })}
-            title={t('common.close', { defaultValue: 'Close' })}
+            aria-label={t('buttons.close', { defaultValue: 'Close' })}
+            title={t('buttons.close', { defaultValue: 'Close' })}
           >
             <X className="h-4 w-4" />
           </button>
@@ -3247,8 +3247,8 @@ function TelegramTerminalAttachModal({
             onClick={onClose}
           >
             {state === 'success'
-              ? t('common.close', { defaultValue: 'Close' })
-              : t('common.cancel', { defaultValue: 'Cancel' })}
+              ? t('buttons.close', { defaultValue: 'Close' })
+              : t('buttons.cancel', { defaultValue: 'Cancel' })}
           </button>
           {state !== 'success' && (
             <button

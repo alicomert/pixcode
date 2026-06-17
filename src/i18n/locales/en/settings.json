@@ -816,6 +816,10 @@
         "title": "Private team link",
         "description": "Use Tailscale when you want private access without a public domain or router setup."
       },
+      "cloudflare": {
+        "title": "Cloudflare public link",
+        "description": "Start Cloudflare Tunnel and Pixcode shows a public HTTPS URL plus QR automatically."
+      },
       "customDomain": {
         "title": "Own domain",
         "description": "Use this when you already have HTTPS, a reverse proxy, or a Cloudflare Tunnel hostname."
@@ -843,6 +847,30 @@
       "empty": "No LAN link detected. Make sure the server is connected to a network and refresh.",
       "saveLabel": "Same network access",
       "save": "Save this LAN link"
+    },
+    "quickLogin": {
+      "title": "Optional QR quick login",
+      "description": "When enabled, QR codes include a short-lived one-time login token so the scanned device does not ask for username and password.",
+      "enabled": "QR quick login on",
+      "disabled": "QR quick login off",
+      "badge": "quick login",
+      "qrNote": "Scanning this QR signs in once without asking for username and password.",
+      "enabledNote": "New QR tokens expire after {{seconds}} seconds and are consumed after one successful login.",
+      "disabledNote": "QR codes only open the URL; the user still signs in normally."
+    },
+    "cloudflare": {
+      "title": "Cloudflare Tunnel",
+      "description": "For remote access without router changes, Pixcode starts cloudflared and shows the public HTTPS URL here.",
+      "secureLink": "Cloudflare link and QR",
+      "help": "Click start. If cloudflared is installed, Pixcode creates a temporary HTTPS address and QR code automatically.",
+      "running": "Cloudflare tunnel running",
+      "start": "Start Cloudflare",
+      "stop": "Stop Cloudflare",
+      "save": "Save this Cloudflare URL",
+      "saveLabel": "Cloudflare Tunnel access",
+      "qrLabel": "Cloudflare",
+      "installTitle": "Cloudflare setup needed",
+      "installNeeded": "Install cloudflared first, then press Start Cloudflare again."
     },
     "tunnel": {
       "title": "Secure tunnel",

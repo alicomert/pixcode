@@ -44,6 +44,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     }),
+    qrLogin: (token) => fetch('/api/auth/qr-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }),
     register: (username, password) => fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

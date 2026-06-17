@@ -19,6 +19,19 @@ const resolveServerPort = () => {
   return Number.isFinite(port) && port > 0 ? port : 3001;
 };
 
+const PRIVATE_IPV4_REGEX = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/u;
+const VIRTUAL_INTERFACE_REGEX = /(docker|veth|bridge|br-|vmnet|vbox|virtualbox|tailscale|utun|wg|tun|tap|zerotier|zt)/iu;
+
+const classifyEndpoint = (ifaceName, address) => {
+  const isPrivate = PRIVATE_IPV4_REGEX.test(address);
+  const isVirtual = VIRTUAL_INTERFACE_REGEX.test(ifaceName);
+  return {
+    scope: isPrivate ? 'private' : 'public',
+    kind: isVirtual ? 'virtual' : (isPrivate ? 'lan' : 'public'),
+    usableForSameNetwork: isPrivate && !isVirtual,
+  };
+};
+
 // Filter to usable LAN addresses. We skip:
 //  - internal (loopback) addresses, since QR-ing "127.0.0.1" is useless for a phone
 //  - link-local IPv6, since pasting "fe80::…%iface" into a phone browser won't resolve
@@ -32,10 +45,13 @@ const listLanEndpoints = () => {
     for (const addr of addrs) {
       if (addr.internal) continue;
       if (addr.family !== 'IPv4' && addr.family !== 4) continue;
+      const classification = classifyEndpoint(ifaceName, addr.address);
+      if (!classification.usableForSameNetwork) continue;
       endpoints.push({
         host: addr.address,
         label: ifaceName,
         family: 'IPv4',
+        ...classification,
       });
     }
   }
@@ -97,7 +113,8 @@ router.delete('/upnp', (_req, res) => {
 router.post('/tunnel', requireAdmin, async (req, res) => {
   const port = resolveServerPort();
   try {
-    const state = await startTunnel({ port, persistPreference: true });
+    const provider = req.body?.provider === 'ngrok' ? 'ngrok' : 'cloudflare';
+    const state = await startTunnel({ port, provider, persistPreference: true });
     res.json({ success: true, tunnel: state });
   } catch (error) {
     console.error('Tunnel start failed:', error);
