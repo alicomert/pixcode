@@ -30,6 +30,14 @@ const checks = [
     message: 'Backend watchers/file tree scans must be bounded and must not broadcast full project trees.',
   },
   {
+    path: 'server/index.js',
+    assert: (source) =>
+      source.includes('function resizeTerminalPty') &&
+      source.includes("resizeTerminalPty(shellProcess, data.cols, data.rows, 'reconnect resize')") &&
+      source.includes('resizeTerminalPty(activePty, data.cols, data.rows)'),
+    message: 'Shell reconnect must resize existing PTYs with the latest browser rows and columns.',
+  },
+  {
     path: 'server/routes/git.js',
     assert: (source) =>
       source.includes('fs.opendir') &&

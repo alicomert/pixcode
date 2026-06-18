@@ -1458,6 +1458,26 @@ function writeTerminalInputChunks(ptyProcess, data) {
     return true;
 }
 
+function resizeTerminalPty(ptyProcess, cols, rows, context = 'resize') {
+    if (!ptyProcess || typeof ptyProcess.resize !== 'function') return false;
+    const nextCols = Number.parseInt(cols, 10);
+    const nextRows = Number.parseInt(rows, 10);
+    if (!Number.isFinite(nextCols) || !Number.isFinite(nextRows) || nextCols < 2 || nextRows < 1) {
+        return false;
+    }
+
+    try {
+        ptyProcess.resize(nextCols, nextRows);
+        return true;
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/already exited/i.test(message)) {
+            console.warn(`Terminal ${context} failed:`, message);
+        }
+        return false;
+    }
+}
+
 function readPtyTarget(value) {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -4074,6 +4094,7 @@ function handleShellConnection(ws, request) {
                     } else {
                         console.log('♻️  Reconnecting to existing PTY session:', ptySessionKey);
                         shellProcess = existingSession.pty;
+                        resizeTerminalPty(shellProcess, data.cols, data.rows, 'reconnect resize');
 
                         clearTimeout(existingSession.timeoutId);
 
@@ -4411,14 +4432,7 @@ function handleShellConnection(ws, request) {
                 const session = ptySessionKey ? ptySessionsMap.get(ptySessionKey) : null;
                 const activePty = session?.pty || shellProcess;
                 if (activePty && typeof activePty.resize === 'function' && session?.lifecycleState !== 'completed' && session?.lifecycleState !== 'failed') {
-                    try {
-                        activePty.resize(data.cols, data.rows);
-                    } catch (error) {
-                        const message = error instanceof Error ? error.message : String(error);
-                        if (!/already exited/i.test(message)) {
-                            console.warn('Terminal resize failed:', message);
-                        }
-                    }
+                    resizeTerminalPty(activePty, data.cols, data.rows);
                 }
             }
         } catch (error) {
