@@ -294,6 +294,7 @@ export default function Shell({
 
   const overlayMode = !isInitialized ? 'loading' : isConnecting ? 'connecting' : !isConnected ? 'connect' : null;
   const overlayDescription = overlayMode === 'connecting' ? connectingDescription : readyDescription;
+  const isRightCliTerminal = typeof layoutSignal === 'string' && layoutSignal.startsWith('right-cli:');
 
   return (
     <div className={cn('flex h-full min-w-0 w-full flex-col overflow-hidden bg-gray-900', immersive && 'bg-gray-950')}>
@@ -320,7 +321,10 @@ export default function Shell({
       <div className={cn('relative min-h-0 min-w-0 flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
         <div
           ref={terminalContainerRef}
-          className="pixcode-shell-terminal h-full min-h-0 w-full min-w-0 max-w-full focus:outline-none"
+          className={cn(
+            'pixcode-shell-terminal h-full min-h-0 w-full min-w-0 max-w-full focus:outline-none',
+            isRightCliTerminal && 'pixcode-shell-terminal--right-cli',
+          )}
           style={{ outline: 'none' }}
         />
 

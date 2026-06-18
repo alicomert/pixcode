@@ -40,6 +40,27 @@ const XTERM_FOCUS_STYLES = `
     min-width: 0;
     max-width: 100%;
   }
+  .pixcode-shell-terminal--right-cli,
+  .pixcode-shell-terminal--right-cli .xterm,
+  .pixcode-shell-terminal--right-cli .xterm-viewport,
+  .pixcode-shell-terminal--right-cli .xterm-screen {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+  }
+  .pixcode-shell-terminal--right-cli .xterm-rows {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .pixcode-shell-terminal--right-cli .xterm-rows > div {
+    width: 100% !important;
+    max-width: 100% !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
 `;
 
 export function ensureXtermFocusStyles(): void {

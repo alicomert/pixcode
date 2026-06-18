@@ -58,10 +58,12 @@ const checks = [
       source.includes('showHeader?: boolean') &&
       source.includes('showHeader &&') &&
       source.includes('layoutSignal?: string | number | null') &&
+      source.includes('isRightCliTerminal') &&
+      source.includes('pixcode-shell-terminal--right-cli') &&
       source.includes('pixcode-shell-terminal') &&
       source.includes('min-w-0') &&
       source.includes('max-w-full'),
-    message: 'Shell must support true headerless rendering and a stable terminal fit container.',
+    message: 'Shell must support true headerless rendering, right CLI scoping, and a stable terminal fit container.',
   },
   {
     path: 'src/components/shell/hooks/useShellTerminal.ts',
@@ -81,8 +83,12 @@ const checks = [
       source.includes('display: flex') &&
       source.includes('max-width: 100%') &&
       source.includes('.pixcode-shell-terminal .xterm-viewport') &&
-      !source.includes('white-space: pre-wrap !important'),
-    message: 'Terminal styles must preserve xterm row semantics; responsive right pane fit is handled by font scaling.',
+      source.includes('.pixcode-shell-terminal--right-cli .xterm-rows > div') &&
+      source.includes('white-space: pre-wrap !important') &&
+      source.includes('overflow-wrap: anywhere !important') &&
+      source.includes('word-break: break-word !important') &&
+      !source.includes('.pixcode-shell-terminal .xterm-rows > div'),
+    message: 'Terminal styles must preserve global xterm row semantics while wrapping only the scoped right CLI panel.',
   },
   {
     path: 'src/components/vscode-workbench/view/VSCodeWorkbench.tsx',
