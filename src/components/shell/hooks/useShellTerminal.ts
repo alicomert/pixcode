@@ -13,6 +13,7 @@ import {
 } from '../constants/constants';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 import { isCodexLoginCommand } from '../utils/auth';
+import { fitShellTerminal } from '../utils/terminalFit';
 import { sendTerminalInput } from '../utils/input';
 import { sendSocketMessage } from '../utils/socket';
 import { ensureXtermFocusStyles } from '../utils/terminalStyles';
@@ -41,10 +42,6 @@ type UseShellTerminalResult = {
 };
 
 const OSC_COLOR_REPORT_REGEX = /\x1b\](?:10|11|12);rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/giu;
-const RIGHT_CLI_FONT_MIN_WIDTH = 320;
-const RIGHT_CLI_FONT_FULL_WIDTH = 560;
-const RIGHT_CLI_MIN_FONT_SIZE = 10;
-const RIGHT_CLI_FULL_FONT_SIZE = TERMINAL_OPTIONS.fontSize ?? 14;
 
 function sanitizeTerminalInputData(data: string) {
   return data.replace(OSC_COLOR_REPORT_REGEX, '');
@@ -52,22 +49,6 @@ function sanitizeTerminalInputData(data: string) {
 
 function refreshTerminalRows(terminal: Terminal) {
   terminal.refresh(0, Math.max(0, terminal.rows - 1));
-}
-
-function isRightCliLayoutSignal(layoutSignal: string | number | null) {
-  return typeof layoutSignal === 'string' && layoutSignal.startsWith('right-cli:');
-}
-
-function resolveRightCliFontSize(width: number, layoutSignal: string | number | null) {
-  if (!isRightCliLayoutSignal(layoutSignal)) {
-    return null;
-  }
-
-  const ratio = Math.max(
-    0,
-    Math.min(1, (width - RIGHT_CLI_FONT_MIN_WIDTH) / (RIGHT_CLI_FONT_FULL_WIDTH - RIGHT_CLI_FONT_MIN_WIDTH)),
-  );
-  return Math.round(RIGHT_CLI_MIN_FONT_SIZE + (RIGHT_CLI_FULL_FONT_SIZE - RIGHT_CLI_MIN_FONT_SIZE) * ratio);
 }
 
 export function useShellTerminal({
@@ -132,21 +113,14 @@ export function useShellTerminal({
     }
 
     try {
-      const nextFontSize = resolveRightCliFontSize(bounds.width, layoutSignalRef.current);
-      if (nextFontSize !== null && currentTerminal.options.fontSize !== nextFontSize) {
-        currentTerminal.options.fontSize = nextFontSize;
-        currentTerminal.clearTextureAtlas();
-      }
-
-      const dimensions = currentFitAddon.proposeDimensions();
-      if (dimensions && Number.isFinite(dimensions.cols) && Number.isFinite(dimensions.rows)) {
-        const nextCols = Math.max(2, Math.floor(dimensions.cols));
-        const nextRows = Math.max(1, Math.floor(dimensions.rows));
-        if (currentTerminal.cols !== nextCols || currentTerminal.rows !== nextRows) {
-          currentTerminal.resize(nextCols, nextRows);
-        }
-      } else {
-        currentFitAddon.fit();
+      const didFit = fitShellTerminal({
+        terminal: currentTerminal,
+        fitAddon: currentFitAddon,
+        container: terminalContainer,
+        layoutSignal: layoutSignalRef.current,
+      });
+      if (!didFit) {
+        return;
       }
       currentTerminal.scrollToBottom();
       refreshTerminalRows(currentTerminal);

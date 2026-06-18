@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MutableRefObject } from 'react';
+import type { MutableRefObject, RefObject } from 'react';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
 
@@ -7,6 +7,7 @@ import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import { TERMINAL_INIT_DELAY_MS } from '../constants/constants';
 import type { ShellPermissionOverride } from '../types/types';
 import { getShellWebSocketUrl, parseShellMessage, sendSocketMessage } from '../utils/socket';
+import { fitShellTerminal } from '../utils/terminalFit';
 
 const ANSI_ESCAPE_REGEX =
   /(?:\u001B\[[0-?]*[ -/]*[@-~]|\u009B[0-?]*[ -/]*[@-~]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)|\u009D[^\u0007\u009C]*(?:\u0007|\u009C)|\u001B[PX^_][^\u001B]*\u001B\\|[\u0090\u0098\u009E\u009F][^\u009C]*\u009C|\u001B[@-Z\\-_])/g;
@@ -22,6 +23,8 @@ type UseShellConnectionOptions = {
   wsRef: MutableRefObject<WebSocket | null>;
   terminalRef: MutableRefObject<Terminal | null>;
   fitAddonRef: MutableRefObject<FitAddon | null>;
+  terminalContainerRef: RefObject<HTMLDivElement>;
+  layoutSignalRef: MutableRefObject<string | number | null>;
   tabIdRef: MutableRefObject<string>;
   selectedProjectRef: MutableRefObject<Project | null | undefined>;
   selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>;
@@ -161,6 +164,8 @@ export function useShellConnection({
   wsRef,
   terminalRef,
   fitAddonRef,
+  terminalContainerRef,
+  layoutSignalRef,
   tabIdRef,
   selectedProjectRef,
   selectedSessionRef,
@@ -266,12 +271,18 @@ export function useShellConnection({
           window.setTimeout(() => {
             const currentTerminal = terminalRef.current;
             const currentFitAddon = fitAddonRef.current;
+            const currentTerminalContainer = terminalContainerRef.current;
             const currentProject = selectedProjectRef.current;
-            if (!currentTerminal || !currentFitAddon || !currentProject) {
+            if (!currentTerminal || !currentFitAddon || !currentTerminalContainer || !currentProject) {
               return;
             }
 
-            currentFitAddon.fit();
+            fitShellTerminal({
+              terminal: currentTerminal,
+              fitAddon: currentFitAddon,
+              container: currentTerminalContainer,
+              layoutSignal: layoutSignalRef.current,
+            });
 
             const provider = isPlainShellRef.current
               ? 'plain-shell'
@@ -341,6 +352,7 @@ export function useShellConnection({
       isConnected,
       isConnecting,
       isPlainShellRef,
+      layoutSignalRef,
       permissionOverrideRef,
       providerRef,
       selectedProjectRef,
@@ -348,6 +360,7 @@ export function useShellConnection({
       setAuthUrl,
       startupInputRef,
       tabIdRef,
+      terminalContainerRef,
       terminalRef,
       wsRef,
     ],

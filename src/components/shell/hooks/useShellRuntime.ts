@@ -30,6 +30,7 @@ export function useShellRuntime({
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const layoutSignalRef = useRef<string | number | null>(layoutSignal);
 
   const [authUrl, setAuthUrl] = useState('');
   const [authUrlVersion, setAuthUrlVersion] = useState(0);
@@ -60,6 +61,10 @@ export function useShellRuntime({
     providerRef.current = provider;
     onProcessCompleteRef.current = onProcessComplete;
   }, [tabId, selectedProject, selectedSession, initialCommand, isPlainShell, forceNewSession, startupInput, permissionOverride, provider, onProcessComplete]);
+
+  useEffect(() => {
+    layoutSignalRef.current = layoutSignal;
+  }, [layoutSignal]);
 
   const setCurrentAuthUrl = useCallback((nextAuthUrl: string) => {
     authUrlRef.current = nextAuthUrl;
@@ -130,6 +135,8 @@ export function useShellRuntime({
     wsRef,
     terminalRef,
     fitAddonRef,
+    terminalContainerRef,
+    layoutSignalRef,
     tabIdRef,
     selectedProjectRef,
     selectedSessionRef,

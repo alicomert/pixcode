@@ -68,13 +68,30 @@ const checks = [
   {
     path: 'src/components/shell/hooks/useShellTerminal.ts',
     assert: (source) =>
-      source.includes('proposeDimensions()') &&
-      source.includes('currentTerminal.resize(nextCols, nextRows)') &&
-      source.includes('resolveRightCliFontSize') &&
-      source.includes('currentTerminal.options.fontSize = nextFontSize') &&
+      source.includes('fitShellTerminal') &&
       source.includes('layoutSignalRef.current') &&
       !source.includes('}, [fitAddonRef, layoutSignal, terminalContainerRef, terminalRef, wsRef])'),
     message: 'Shell terminal must refit on layout changes without reconnecting the terminal lifecycle.',
+  },
+  {
+    path: 'src/components/shell/hooks/useShellConnection.ts',
+    assert: (source) =>
+      source.includes('terminalContainerRef') &&
+      source.includes('layoutSignalRef') &&
+      source.includes('fitShellTerminal') &&
+      source.includes('cols: currentTerminal.cols') &&
+      source.includes('rows: currentTerminal.rows'),
+    message: 'Shell connection init must fit terminal dimensions from the real container before sending PTY rows and columns.',
+  },
+  {
+    path: 'src/components/shell/utils/terminalFit.ts',
+    assert: (source) =>
+      source.includes('getBoundingClientRect()') &&
+      source.includes('proposeDimensionsFromContainer') &&
+      source.includes('right-cli:') &&
+      source.includes('terminal.resize(nextCols, nextRows)') &&
+      source.includes('terminal.options.fontSize = nextFontSize'),
+    message: 'Terminal fit utility must use real container geometry for the right CLI panel.',
   },
   {
     path: 'src/components/shell/utils/terminalStyles.ts',
