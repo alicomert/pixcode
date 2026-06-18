@@ -95,10 +95,11 @@ const checks = [
     path: 'src/components/shell/utils/terminalFit.ts',
     assert: (source) =>
       source.includes('getBoundingClientRect()') &&
+      source.includes('measureCellFromDom') &&
       source.includes('proposeDimensionsFromContainer') &&
       source.includes('right-cli:') &&
       source.includes('terminal.resize(nextCols, nextRows)') &&
-      source.includes('terminal.options.fontSize = nextFontSize'),
+      !source.includes('terminal.options.fontSize = nextFontSize'),
     message: 'Terminal fit utility must use real container geometry for the right CLI panel.',
   },
   {
@@ -108,12 +109,12 @@ const checks = [
       source.includes('display: flex') &&
       source.includes('max-width: 100%') &&
       source.includes('.pixcode-shell-terminal .xterm-viewport') &&
-      source.includes('.pixcode-shell-terminal--right-cli .xterm-rows > div') &&
-      source.includes('white-space: pre-wrap !important') &&
-      source.includes('overflow-wrap: anywhere !important') &&
-      source.includes('word-break: break-word !important') &&
+      source.includes('.pixcode-shell-terminal--right-cli .xterm-rows') &&
+      !source.includes('white-space: pre-wrap !important') &&
+      !source.includes('overflow-wrap: anywhere !important') &&
+      !source.includes('word-break: break-word !important') &&
       !source.includes('.pixcode-shell-terminal .xterm-rows > div'),
-    message: 'Terminal styles must preserve global xterm row semantics while wrapping only the scoped right CLI panel.',
+    message: 'Terminal styles must preserve xterm row semantics and avoid CSS wrapping terminal rows.',
   },
   {
     path: 'src/components/vscode-workbench/view/VSCodeWorkbench.tsx',

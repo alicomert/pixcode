@@ -1,13 +1,6 @@
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
 
-import { TERMINAL_OPTIONS } from '../constants/constants';
-
-const RIGHT_CLI_FONT_MIN_WIDTH = 320;
-const RIGHT_CLI_FONT_FULL_WIDTH = 560;
-const RIGHT_CLI_MIN_FONT_SIZE = 10;
-const RIGHT_CLI_FULL_FONT_SIZE = TERMINAL_OPTIONS.fontSize ?? 14;
-
 type TerminalCore = {
   _renderService?: {
     dimensions?: {
@@ -50,16 +43,34 @@ function isRightCliLayoutSignal(layoutSignal: string | number | null) {
   return typeof layoutSignal === 'string' && layoutSignal.startsWith('right-cli:');
 }
 
-function resolveRightCliFontSize(width: number, layoutSignal: string | number | null) {
-  if (!isRightCliLayoutSignal(layoutSignal)) {
+function readTerminalOptionNumber(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function measureCellFromDom(terminal: Terminal, container: HTMLElement) {
+  const probe = document.createElement('span');
+  probe.textContent = 'W'.repeat(80);
+  probe.style.position = 'absolute';
+  probe.style.left = '-99999px';
+  probe.style.top = '-99999px';
+  probe.style.visibility = 'hidden';
+  probe.style.whiteSpace = 'pre';
+  probe.style.fontFamily = String(terminal.options.fontFamily || 'monospace');
+  probe.style.fontSize = `${readTerminalOptionNumber(terminal.options.fontSize, 14)}px`;
+  probe.style.fontWeight = String(terminal.options.fontWeight || 'normal');
+  probe.style.lineHeight = String(readTerminalOptionNumber(terminal.options.lineHeight, 1.2));
+
+  container.appendChild(probe);
+  const rect = probe.getBoundingClientRect();
+  probe.remove();
+
+  const width = rect.width / 80;
+  const height = rect.height;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     return null;
   }
 
-  const ratio = Math.max(
-    0,
-    Math.min(1, (width - RIGHT_CLI_FONT_MIN_WIDTH) / (RIGHT_CLI_FONT_FULL_WIDTH - RIGHT_CLI_FONT_MIN_WIDTH)),
-  );
-  return Math.round(RIGHT_CLI_MIN_FONT_SIZE + (RIGHT_CLI_FULL_FONT_SIZE - RIGHT_CLI_MIN_FONT_SIZE) * ratio);
+  return { width, height };
 }
 
 function proposeDimensionsFromContainer(
@@ -73,8 +84,11 @@ function proposeDimensionsFromContainer(
 
   const core = getTerminalCore(terminal);
   const cell = core._renderService?.dimensions?.css?.cell;
-  const cellWidth = Number(cell?.width);
-  const cellHeight = Number(cell?.height);
+  const measuredCell = measureCellFromDom(terminal, container);
+  const maybeCellWidth = Number(cell?.width) > 0 ? Number(cell?.width) : measuredCell?.width;
+  const maybeCellHeight = Number(cell?.height) > 0 ? Number(cell?.height) : measuredCell?.height;
+  const cellWidth = Number(maybeCellWidth);
+  const cellHeight = Number(maybeCellHeight);
   if (!Number.isFinite(cellWidth) || !Number.isFinite(cellHeight) || cellWidth <= 0 || cellHeight <= 0) {
     return null;
   }
@@ -99,7 +113,7 @@ function proposeDimensionsFromContainer(
 
   return {
     cols: Math.max(2, Math.floor(availableWidth / cellWidth)),
-    rows: Math.max(1, Math.floor(availableHeight / cellHeight)),
+    rows: Math.max(2, Math.floor(availableHeight / cellHeight)),
   };
 }
 
@@ -114,15 +128,10 @@ export function fitShellTerminal({
     return false;
   }
 
-  const nextFontSize = resolveRightCliFontSize(bounds.width, layoutSignal);
-  if (nextFontSize !== null && terminal.options.fontSize !== nextFontSize) {
-    terminal.options.fontSize = nextFontSize;
-    terminal.clearTextureAtlas();
-  }
-
+  const containerDimensions = proposeDimensionsFromContainer(terminal, container);
   const dimensions = isRightCliLayoutSignal(layoutSignal)
-    ? proposeDimensionsFromContainer(terminal, container) ?? fitAddon.proposeDimensions()
-    : fitAddon.proposeDimensions() ?? proposeDimensionsFromContainer(terminal, container);
+    ? containerDimensions ?? fitAddon.proposeDimensions()
+    : fitAddon.proposeDimensions() ?? containerDimensions;
   if (!dimensions || !Number.isFinite(dimensions.cols) || !Number.isFinite(dimensions.rows)) {
     return false;
   }

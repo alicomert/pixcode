@@ -54,13 +54,6 @@ const XTERM_FOCUS_STYLES = `
     width: 100% !important;
     max-width: 100% !important;
   }
-  .pixcode-shell-terminal--right-cli .xterm-rows > div {
-    width: 100% !important;
-    max-width: 100% !important;
-    white-space: pre-wrap !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
-  }
 `;
 
 export function ensureXtermFocusStyles(): void {

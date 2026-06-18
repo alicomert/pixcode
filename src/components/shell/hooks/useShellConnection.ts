@@ -227,6 +227,7 @@ export function useShellConnection({
         handleProcessCompletion(output);
         const terminal = terminalRef.current;
         terminal?.write(output, () => {
+          terminal.scrollToBottom();
           terminal.refresh(0, Math.max(0, terminal.rows - 1));
         });
         onOutputRef?.current?.();
@@ -283,6 +284,8 @@ export function useShellConnection({
               container: currentTerminalContainer,
               layoutSignal: layoutSignalRef.current,
             });
+            currentTerminal.scrollToBottom();
+            currentTerminal.refresh(0, Math.max(0, currentTerminal.rows - 1));
 
             const provider = isPlainShellRef.current
               ? 'plain-shell'

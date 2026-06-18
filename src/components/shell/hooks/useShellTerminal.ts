@@ -298,7 +298,12 @@ export function useShellTerminal({
       return true;
     });
 
-    window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS);
+    const startupFitTimers = [
+      window.setTimeout(fitTerminalAndNotify, 0),
+      window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS),
+      window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS * 3),
+      window.setTimeout(fitTerminalAndNotify, TERMINAL_INIT_DELAY_MS * 6),
+    ];
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(fitTerminalAndNotify);
     });
@@ -315,8 +320,14 @@ export function useShellTerminal({
     });
 
     const resizeObserver = new ResizeObserver(scheduleTerminalFit);
+    const observedElements = new Set<HTMLElement>();
+    let observedElement: HTMLElement | null = terminalContainer;
+    while (observedElement && observedElements.size < 4) {
+      observedElements.add(observedElement);
+      observedElement = observedElement.parentElement;
+    }
 
-    resizeObserver.observe(terminalContainer);
+    observedElements.forEach((element) => resizeObserver.observe(element));
     window.addEventListener('resize', scheduleTerminalFit);
     window.visualViewport?.addEventListener('resize', scheduleTerminalFit);
     window.addEventListener('orientationchange', scheduleTerminalFit);
@@ -326,6 +337,7 @@ export function useShellTerminal({
       terminalContainer.removeEventListener('paste', handleTerminalPaste, true);
       terminalContainer.removeEventListener('keydown', handleCopyPasteShortcut, true);
       resizeObserver.disconnect();
+      startupFitTimers.forEach((timerId) => window.clearTimeout(timerId));
       window.visualViewport?.removeEventListener('resize', scheduleTerminalFit);
       window.removeEventListener('orientationchange', scheduleTerminalFit);
       if (resizeTimeoutRef.current !== null) {
