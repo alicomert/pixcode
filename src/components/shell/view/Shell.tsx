@@ -6,6 +6,8 @@ import { PROVIDER_DISPLAY_NAMES } from '../../provider-auth/types';
 import type { LLMProvider, Project, ProjectSession } from '../../../types/app';
 import type { ShellPermissionOverride } from '../types/types';
 import { cn } from '../../../lib/utils';
+import { Cloud } from '../../../lib/icons';
+import { authenticatedFetch } from '../../../utils/api';
 import {
   PROMPT_BUFFER_SCAN_LINES,
   PROMPT_DEBOUNCE_MS,
@@ -70,6 +72,49 @@ export default function Shell({
   const [cliPromptOptions, setCliPromptOptions] = useState<CliPromptOption[] | null>(null);
   const promptCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onOutputRef = useRef<(() => void) | null>(null);
+
+  // Cloudflare tunnel quick-launch state
+  const [tunnelRunning, setTunnelRunning] = useState(false);
+  const [tunnelUrl, setTunnelUrl] = useState<string | null>(null);
+  const [tunnelBusy, setTunnelBusy] = useState(false);
+  const [tunnelError, setTunnelError] = useState<string | null>(null);
+
+  const checkTunnelStatus = useCallback(async () => {
+    try {
+      const res = await authenticatedFetch('/api/network/external');
+      if (!res.ok) return;
+      const body = await res.json();
+      setTunnelRunning(Boolean(body?.tunnel?.running));
+      setTunnelUrl(body?.tunnel?.url ?? null);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    void checkTunnelStatus();
+  }, [checkTunnelStatus]);
+
+  const toggleTunnel = useCallback(async () => {
+    setTunnelBusy(true);
+    setTunnelError(null);
+    try {
+      const method = tunnelRunning ? 'DELETE' : 'POST';
+      const res = await authenticatedFetch('/api/network/tunnel', { method });
+      const body = await res.json();
+      if (!res.ok) {
+        if (res.status === 424) {
+          setTunnelError('cloudflared not found. Install: npm install -g cloudflared or brew install cloudflared');
+        } else {
+          setTunnelError(body?.error || `HTTP ${res.status}`);
+        }
+      }
+      setTunnelRunning(Boolean(body?.tunnel?.running));
+      setTunnelUrl(body?.tunnel?.url ?? null);
+    } catch (err) {
+      setTunnelError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTunnelBusy(false);
+    }
+  }, [tunnelRunning]);
 
   const {
     terminalContainerRef,
@@ -319,6 +364,43 @@ export default function Shell({
       )}
 
       <div className={cn('relative min-h-0 min-w-0 flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
+        {/* Cloudflare tunnel quick-launch */}
+        <div className="pointer-events-auto absolute right-2 top-2 z-20 flex items-center gap-2">
+          {tunnelError && (
+            <span className="max-w-48 truncate rounded-md border border-yellow-500/50 bg-yellow-500/15 px-2 py-1 text-[11px] text-yellow-100" title={tunnelError}>
+              {tunnelError}
+            </span>
+          )}
+          {tunnelRunning && tunnelUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                void navigator.clipboard?.writeText?.(tunnelUrl);
+              }}
+              className="max-w-48 truncate rounded-md border border-emerald-500/50 bg-emerald-500/15 px-2 py-1 text-[11px] text-emerald-100 transition-colors hover:bg-emerald-500/25"
+              title={tunnelUrl}
+            >
+              {tunnelUrl}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void toggleTunnel()}
+            disabled={tunnelBusy}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors select-none',
+              tunnelRunning
+                ? 'border-emerald-500/60 bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30'
+                : 'border-gray-600 bg-gray-700 text-gray-100 hover:bg-gray-600',
+              tunnelBusy && 'cursor-wait opacity-60',
+            )}
+            title={tunnelRunning ? 'Stop tunnel' : 'Start Cloudflare tunnel'}
+          >
+            <Cloud className={cn('h-4 w-4', tunnelRunning && 'animate-pulse text-emerald-400')} />
+            <span className="hidden sm:inline">{tunnelRunning ? 'Tunnel: On' : 'Tunnel'}</span>
+          </button>
+        </div>
+
         <div
           ref={terminalContainerRef}
           className={cn(
