@@ -1738,28 +1738,11 @@ app.disable('x-powered-by');
 // in resolvePublicBaseUrl and for rate-limiting middleware if added later).
 app.set('trust proxy', 1);
 
-// Restrict CORS to known origins instead of reflecting any requester.
-// In production the frontend is same-origin; in dev it's the Vite server.
-const ALLOWED_CORS_ORIGINS = (() => {
-    const envOrigins = process.env.CORS_ALLOWED_ORIGINS;
-    if (envOrigins) {
-        return envOrigins.split(',').map((o) => o.trim()).filter(Boolean);
-    }
-    const devPort = process.env.VITE_PORT || 5173;
-    return [
-        `http://localhost:${devPort}`,
-        `http://127.0.0.1:${devPort}`,
-    ];
-})();
-
+// CORS: self-hosted tool accessed from various IPs/hostnames.
+// Reflect the requesting origin so IP-based access (e.g. http://85.235.74.198:3001)
+// works without configuration. Credentials needed for auth header passthrough.
 app.use(cors({
-    origin(origin, callback) {
-        // Allow same-origin requests (no Origin header) and allowlisted origins.
-        if (!origin || ALLOWED_CORS_ORIGINS.includes(origin)) {
-            return callback(null, true);
-        }
-        return callback(null, false);
-    },
+    origin: true,
     credentials: true,
     exposedHeaders: ['X-Refreshed-Token'],
 }));
@@ -1776,16 +1759,16 @@ app.use((req, res, next) => {
     if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    // CSP for the SPA shell — API responses are JSON so this mainly guards
-    // the served index.html. 'unsafe-inline' is needed for Vite's inline
-    // module preload polyfill; style-src unsafe-inline for Tailwind injected styles.
+    // CSP for the SPA shell — relaxed for self-hosted tool accessed from
+    // various IPs/hostnames. 'unsafe-inline' + 'unsafe-eval' needed for Vite.
+    // ws:/wss: in connect-src allows WebSocket from any origin (IP access).
     res.setHeader('Content-Security-Policy', [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https:",
         "font-src 'self' data:",
-        "connect-src 'self' ws: wss:",
+        "connect-src 'self' ws: wss: http: https:",
         "frame-ancestors 'self'",
         "base-uri 'self'",
         "form-action 'self'",

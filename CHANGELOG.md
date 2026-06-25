@@ -2,6 +2,16 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.2](https://github.com/alicomert/pixcode/compare/v1.54.1...v1.54.2) (2026-06-25)
+
+Pixcode 1.54.2 fixes a server crash caused by the CORS allowlist referencing an out-of-scope variable, and relaxes CSP to allow IP-based access.
+
+### Bug Fixes
+
+* fix server crash on startup — CORS origin function referenced `req` which was out of scope, causing immediate exit
+* revert CORS to reflect-origin mode (`origin: true`) for self-hosted tool compatibility with IP-based access
+* relax CSP `connect-src` to allow `http:` and `https:` alongside `ws:`/`wss:` for IP-based WebSocket access
+
 ## [1.54.1](https://github.com/alicomert/pixcode/compare/v1.54.0...v1.54.1) (2026-06-25)
 
 Pixcode 1.54.1 fixes the terminal "aNM" spam with xterm.js parser handlers, fixes --dangerously-skip-permissions on root, and applies OWASP Top 10 2025 security hardening across the entire backend.
