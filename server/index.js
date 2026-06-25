@@ -5487,24 +5487,37 @@ async function startServer() {
                 console.warn('[external-access] tunnel restore failed:', err?.message || err);
             });
 
-            // Auto-open browser unless explicitly disabled
+            // Auto-open browser unless explicitly disabled or headless
             if (process.env.PIXCODE_NO_BROWSER !== '1') {
                 const openUrl = `http://${DISPLAY_HOST}:${SERVER_PORT}`;
-                try {
-                    // Use spawn with an argument array instead of exec with a
-                    // shell string to prevent command injection through the
-                    // host/port values (which come from env vars).
-                    const { spawn: spawnBrowser } = await import('node:child_process');
-                    const browserBin = process.platform === 'darwin' ? 'open'
-                        : process.platform === 'win32' ? 'cmd'
-                        : 'xdg-open';
-                    const browserArgs = process.platform === 'win32'
-                        ? ['/c', 'start', '', openUrl]
-                        : [openUrl];
-                    spawnBrowser(browserBin, browserArgs, { stdio: 'ignore', timeout: 3000, detached: true, shell: false }).unref();
-                    console.log(`${c.ok('[OK]')}   Opening browser at ${c.bright(openUrl)}`);
-                } catch {
+                // Skip browser opening on headless servers (no DISPLAY on Linux,
+                // or xdg-open not installed) — common for VPS/cloud deployments.
+                const isHeadless = process.platform === 'linux' && (
+                    !process.env.DISPLAY || process.env.DISPLAY === '' ||
+                    !fs.existsSync('/usr/bin/xdg-open') && !fs.existsSync('/usr/local/bin/xdg-open')
+                );
+                if (isHeadless) {
                     console.log(`${c.tip('[TIP]')}  Open ${c.bright(openUrl)} in your browser to start using Pixcode.`);
+                } else {
+                    try {
+                        const { spawn: spawnBrowser } = await import('node:child_process');
+                        const browserBin = process.platform === 'darwin' ? 'open'
+                            : process.platform === 'win32' ? 'cmd'
+                            : 'xdg-open';
+                        const browserArgs = process.platform === 'win32'
+                            ? ['/c', 'start', '', openUrl]
+                            : [openUrl];
+                        const child = spawnBrowser(browserBin, browserArgs, {
+                            stdio: 'ignore', timeout: 3000, detached: true, shell: false,
+                        });
+                        child.on('error', () => {
+                            // Browser binary not found or failed — non-fatal
+                        });
+                        child.unref();
+                        console.log(`${c.ok('[OK]')}   Opening browser at ${c.bright(openUrl)}`);
+                    } catch {
+                        console.log(`${c.tip('[TIP]')}  Open ${c.bright(openUrl)} in your browser to start using Pixcode.`);
+                    }
                 }
             }
 

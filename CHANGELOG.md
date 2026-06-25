@@ -2,6 +2,15 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.3](https://github.com/alicomert/pixcode/compare/v1.54.2...v1.54.3) (2026-06-25)
+
+Pixcode 1.54.3 fixes a server crash on headless Linux servers where `xdg-open` is not installed.
+
+### Bug Fixes
+
+* fix `spawn xdg-open ENOENT` crash on headless Linux/VPS — detect missing DISPLAY or xdg-open binary and skip browser opening silently instead of throwing an unhandled error event
+* add `.on('error')` handler to spawn child processes to prevent unhandled error events from crashing the server
+
 ## [1.54.2](https://github.com/alicomert/pixcode/compare/v1.54.1...v1.54.2) (2026-06-25)
 
 Pixcode 1.54.2 fixes a server crash caused by the CORS allowlist referencing an out-of-scope variable, and relaxes CSP to allow IP-based access.

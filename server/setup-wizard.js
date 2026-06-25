@@ -108,8 +108,16 @@ async function askSelect(question, options) {
 
 function openBrowser(url) {
     const platform = process.platform;
-    // Use spawn with an argument array instead of exec with a shell string
-    // to prevent command injection through the url value.
+    // Skip on headless Linux (no DISPLAY or xdg-open not installed)
+    if (platform === 'linux') {
+        if (!process.env.DISPLAY || process.env.DISPLAY === '') return false;
+        try {
+            const { execSync } = require('child_process');
+            execSync('command -v xdg-open', { stdio: 'pipe' });
+        } catch {
+            return false;
+        }
+    }
     let bin;
     let args;
     if (platform === 'darwin') {
@@ -123,7 +131,9 @@ function openBrowser(url) {
         args = [url];
     }
     try {
-        spawn(bin, args, { stdio: 'ignore', timeout: 3000, detached: true, shell: false }).unref();
+        const child = spawn(bin, args, { stdio: 'ignore', timeout: 3000, detached: true, shell: false });
+        child.on('error', () => {});
+        child.unref();
         return true;
     } catch {
         return false;
