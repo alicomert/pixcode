@@ -43,8 +43,57 @@ type UseShellTerminalResult = {
 
 const OSC_COLOR_REPORT_REGEX = /\x1b\](?:10|11|12);rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/giu;
 
+const OSC_PALETTE_REPORT_REGEX = /\x1b\]4;\d+;rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/giu;
+
+// DA1 response: \x1b[?...c  (Device Attributes primary)
+const DA1_RESPONSE_REGEX = /\x1b\[\?\d+[;:\d]*c/gu;
+// DA2 response: \x1b[>...c  (Device Attributes secondary — self-looping!)
+const DA2_RESPONSE_REGEX = /\x1b\[>\d+[;:\d]*c/gu;
+// DSR cursor: \x1b[row;colR
+const DSR_CURSOR_REGEX = /\x1b\[\d+;\d+R/gu;
+// DSR private cursor: \x1b[?row;colR
+const DSR_PRIVATE_CURSOR_REGEX = /\x1b\[\?\d+;\d+R/gu;
+// DSR status: \x1b[0n or \x1b[3n
+const DSR_STATUS_REGEX = /\x1b\[\d+n/gu;
+// Focus events: \x1b[I (focus in) and \x1b[O (focus out)
+const FOCUS_EVENT_REGEX = /\x1b\[[IO]/gu;
+// Mouse report (default): \x1b[M + 3 bytes — produces visible "aNM" when echoed!
+const MOUSE_REPORT_REGEX = /\x1b\[M[\s\S]{3}/gu;
+// Mouse report (SGR): \x1b[<button,col,row M/m
+const MOUSE_SGR_REPORT_REGEX = /\x1b\[<\d+;\d+;\d+[Mm]/gu;
+// Window size report: \x1b[8;rows;colst
+const WINDOW_SIZE_REPORT_REGEX = /\x1b\[\d+;\d+;\d+t/gu;
+// DECRQM response: \x1b[mode;value$y
+const DECRQM_RESPONSE_REGEX = /\x1b\[\d+;\d+\$y/gu;
+// DCS: \x1bP...\x1b\\
+const DCS_RESPONSE_REGEX = /\x1bP[\s\S]*?\x1b\\/gu;
+
+const TERMINAL_RESPONSE_REGEXES = [
+  OSC_COLOR_REPORT_REGEX,
+  OSC_PALETTE_REPORT_REGEX,
+  DA1_RESPONSE_REGEX,
+  DA2_RESPONSE_REGEX,
+  DSR_CURSOR_REGEX,
+  DSR_PRIVATE_CURSOR_REGEX,
+  DSR_STATUS_REGEX,
+  FOCUS_EVENT_REGEX,
+  MOUSE_REPORT_REGEX,
+  MOUSE_SGR_REPORT_REGEX,
+  WINDOW_SIZE_REPORT_REGEX,
+  DECRQM_RESPONSE_REGEX,
+  DCS_RESPONSE_REGEX,
+];
+
 function sanitizeTerminalInputData(data: string) {
-  return data.replace(OSC_COLOR_REPORT_REGEX, '');
+  let result = data;
+  for (const regex of TERMINAL_RESPONSE_REGEXES) {
+    if (regex.global) {
+      result = result.replace(regex, '');
+    } else {
+      result = result.replace(new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : regex.flags + 'g'), '');
+    }
+  }
+  return result;
 }
 
 function refreshTerminalRows(terminal: Terminal) {
@@ -241,27 +290,65 @@ export function useShellTerminal({
     };
 
     const handleCopyPasteShortcut = (event: KeyboardEvent) => {
-      if (event.type !== 'keydown' || event.altKey || (!event.ctrlKey && !event.metaKey)) {
+      if (event.type !== 'keydown' || (!event.ctrlKey && !event.metaKey)) {
         return false;
       }
 
       const key = event.key?.toLowerCase();
-      if (key === 'c') {
-        if (!nextTerminal.hasSelection()) {
-          if (event.shiftKey) {
-            event.preventDefault();
-            event.stopPropagation();
-            return true;
-          }
 
-          return false;
+      // Ctrl+Shift+C — always copy (even without selection, copy whole line in some terminals)
+      // Ctrl+C with selection — copy selection
+      // Ctrl+C without selection — send SIGINT (Ctrl+C) to terminal, unless Shift is held
+      if (key === 'c') {
+        if (nextTerminal.hasSelection()) {
+          event.preventDefault();
+          event.stopPropagation();
+          void copyTerminalSelection();
+          return true;
         }
 
+        // Shift+Ctrl+C with no selection — copy current line
+        if (event.shiftKey) {
+          const buf = nextTerminal.buffer.active;
+          const line = buf.getLine(buf.baseY + buf.cursorY);
+          const text = line?.translateToString(true) || '';
+          if (text) {
+            event.preventDefault();
+            event.stopPropagation();
+            void copyTextToClipboard(text);
+            return true;
+          }
+        }
+
+        // No selection, no shift — let terminal handle Ctrl+C (SIGINT)
+        return false;
+      }
+
+      // Ctrl+V / Ctrl+Shift+V / Cmd+V — paste from clipboard
+      if (key === 'v') {
         event.preventDefault();
         event.stopPropagation();
-        void copyTerminalSelection();
+        void (async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+              sendClipboardTextToTerminal(text);
+            }
+          } catch {
+            // Fallback: dispatch a synthetic paste event so the browser's
+            // clipboard permission dialog can handle it
+            const pasteEvent = new ClipboardEvent('paste', {
+              bubbles: true,
+              cancelable: true,
+            });
+            terminalContainer.dispatchEvent(pasteEvent);
+          }
+        })();
         return true;
       }
+
+      // Ctrl+Shift+V — same as Ctrl+V (paste), some terminals use this
+      // Already handled above since we don't differentiate shift for paste
 
       return false;
     };
@@ -275,6 +362,7 @@ export function useShellTerminal({
         ? CODEX_DEVICE_AUTH_URL
         : authUrlRef.current;
 
+      // Minimal mode: copy auth URL with bare 'c' key
       if (
         event.type === 'keydown' &&
         minimal &&
@@ -291,7 +379,8 @@ export function useShellTerminal({
         return false;
       }
 
-      if (handleCopyPasteShortcut(event)) {
+      // Handle copy/paste shortcuts (Ctrl+C/V and Shift variants)
+      if (event.type === 'keydown' && handleCopyPasteShortcut(event)) {
         return false;
       }
 

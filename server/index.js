@@ -1119,8 +1119,8 @@ const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 const SHELL_OUTPUT_FLUSH_MAX_CHARS = 128 * 1024;
 const SHELL_WS_BACKPRESSURE_LIMIT = 8 * 1024 * 1024;
 const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUFFER_MAX_BYTES || '', 10) || (512 * 1024);
-const SHELL_INPUT_CHUNK_CHARS = 4096;
-const SHELL_PENDING_INPUT_MAX_BYTES = Number.parseInt(process.env.PIXCODE_SHELL_PENDING_INPUT_MAX_BYTES || '', 10) || (16 * 1024 * 1024);
+const SHELL_INPUT_CHUNK_CHARS = 16384;
+const SHELL_PENDING_INPUT_MAX_BYTES = Number.parseInt(process.env.PIXCODE_SHELL_PENDING_INPUT_MAX_BYTES || '', 10) || (256 * 1024 * 1024);
 const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
 const FILE_TREE_MAX_ITEMS = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ITEMS || '', 10) || 5000;
 const FILE_TREE_MAX_DIRECTORIES = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_DIRECTORIES || '', 10) || 1200;
@@ -3899,22 +3899,36 @@ function handleShellConnection(ws, request) {
         const chunks = splitTerminalInput(data);
         if (chunks.length === 0) return;
 
-        let droppedBytes = 0;
         for (const chunk of chunks) {
-            const chunkBytes = Buffer.byteLength(chunk, 'utf8');
-            if (pendingInputBytes + chunkBytes > SHELL_PENDING_INPUT_MAX_BYTES) {
-                droppedBytes += chunkBytes;
-                continue;
-            }
-            pendingInputQueue.push(chunk);
-            pendingInputBytes += chunkBytes;
-        }
+            // Filter terminal-generated response sequences that xterm.js sends back
+            // via onData. Without this, DA2/mouse/DSR responses get echoed by the PTY,
+            // xterm.js interprets the echo as a new query, and an infinite loop starts.
+            // This is the server-side guard complementing the frontend sanitizer.
+            const filteredChunk = chunk
+                .replace(/\x1b\[>\d+[;:\d]*c/g, '')      // DA2 response (self-looping)
+                .replace(/\x1b\[\?\d+[;:\d]*c/g, '')      // DA1 response
+                .replace(/\x1b\[\d+;\d+R/g, '')            // DSR cursor
+                .replace(/\x1b\[\?\d+;\d+R/g, '')          // DSR private cursor
+                .replace(/\x1b\[\d+n/g, '')                // DSR status
+                .replace(/\x1b\[M[\s\S]{3}/g, '')          // Mouse report (default)
+                .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, '')    // Mouse report (SGR)
+                .replace(/\x1b\[IO]/g, '')                 // Focus events
+                .replace(/\x1b\[\d+;\d+;\d+t/g, '')        // Window size report
+                .replace(/\x1b\[\d+;\d+\$y/g, '');         // DECRQM response
+            if (!filteredChunk) continue;
 
-        if (droppedBytes > 0 && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'output',
-                data: `\r\n\x1b[33m[Pixcode] ${droppedBytes} bytes of pasted terminal input were not sent because the input queue limit was reached. Split very large pastes into smaller chunks.\x1b[0m\r\n`,
-            }));
+            const chunkBytes = Buffer.byteLength(filteredChunk, 'utf8');
+            if (pendingInputBytes + chunkBytes > SHELL_PENDING_INPUT_MAX_BYTES) {
+                // Drop only the oldest queued chunk to make room, not the new one.
+                // This prevents the queue from growing unbounded without silently
+                // discarding the user's latest paste.
+                while (pendingInputQueue.length > 0 && pendingInputBytes + chunkBytes > SHELL_PENDING_INPUT_MAX_BYTES) {
+                    const dropped = pendingInputQueue.shift();
+                    pendingInputBytes = Math.max(0, pendingInputBytes - Buffer.byteLength(dropped, 'utf8'));
+                }
+            }
+            pendingInputQueue.push(filteredChunk);
+            pendingInputBytes += chunkBytes;
         }
 
         scheduleInputFlush();
@@ -5292,6 +5306,21 @@ async function startServer() {
             restoreRequestedTunnel({ port: Number(SERVER_PORT) }).catch((err) => {
                 console.warn('[external-access] tunnel restore failed:', err?.message || err);
             });
+
+            // Auto-open browser unless explicitly disabled
+            if (process.env.PIXCODE_NO_BROWSER !== '1') {
+                const openUrl = `http://${DISPLAY_HOST}:${SERVER_PORT}`;
+                try {
+                    const { exec } = await import('node:child_process');
+                    const opener = process.platform === 'darwin' ? `open "${openUrl}"`
+                        : process.platform === 'win32' ? `start "" "${openUrl}"`
+                        : `xdg-open "${openUrl}"`;
+                    exec(opener, { stdio: 'ignore', timeout: 3000 });
+                    console.log(`${c.ok('[OK]')}   Opening browser at ${c.bright(openUrl)}`);
+                } catch {
+                    console.log(`${c.tip('[TIP]')}  Open ${c.bright(openUrl)} in your browser to start using Pixcode.`);
+                }
+            }
 
             console.log(`${c.tip('[TIP]')}  Run "pixcode status" for full configuration details`);
             console.log('');
