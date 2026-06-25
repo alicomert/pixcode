@@ -2,6 +2,25 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.0](https://github.com/alicomert/pixcode/compare/v1.53.28...v1.54.0) (2026-06-25)
+
+Pixcode 1.54.0 adds an interactive first-run setup wizard, a one-click Cloudflare tunnel launcher in the terminal panel, and fixes a critical terminal feedback loop that produced "aNM" characters on Linux.
+
+### New Features
+
+* add interactive setup wizard for first-run experience — port selection, daemon/foreground mode choice, auto-open browser, and port conflict detection with alternative suggestions
+* add `pixcode setup` command to manually re-run the setup wizard
+* add `--no-browser` CLI flag to disable automatic browser opening on server ready
+* add Cloudflare tunnel quick-launch button in the terminal panel — start/stop tunnel without leaving the terminal, shows public URL (click to copy)
+
+### Bug Fixes
+
+* prevent terminal "aNM" feedback loop on Linux by filtering xterm.js response sequences (DA2, mouse reports, DSR, focus events) that were echoed by the PTY and re-triggered responses indefinitely
+* remove paste input size limit — raised from 16MB to 256MB, increased chunk size from 4KB to 16KB with zero delay, replaced silent drop with queue rotation
+* add Ctrl+V / Cmd+V / Shift+Ctrl+V paste from clipboard support in the terminal
+* add Shift+Ctrl+C copy current line support when no text is selected
+* remove misleading "input queue limit reached" warning message on large pastes
+
 ## [1.53.4](https://github.com/alicomert/pixcode/compare/v1.53.3...v1.53.4) (2026-06-16)
 
 Pixcode 1.53.4 fixes a Telegram bot memory blow-up caused by replaying stale Telegram update backlogs concurrently after startup.
