@@ -7,6 +7,7 @@
  * Commands:
  *   (no args)     - Start the server (default)
  *   start         - Start the server
+ *   setup         - Run the interactive setup wizard
  *   sandbox       - Manage Docker sandbox environments
  *   daemon        - Manage persistent Linux service modes
  *   status        - Show configuration and data locations
@@ -23,6 +24,7 @@ import { spawn } from 'node:child_process';
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import { buildDaemonCliCommand, handleDaemonCommand, hasInstalledDaemonUnit } from './daemon-manager.js';
 import { runStartupAutoUpdate, startupUpdateReexecEnv } from './services/startup-update.js';
+import { runSetupWizard, postStartupGuidance, isFirstRun, isPortAvailable, findAvailablePort, waitForServerReady } from './setup-wizard.js';
 
 const __dirname = getModuleDir(import.meta.url);
 // The CLI is compiled into dist-server/server, but it still needs to read the top-level
@@ -169,6 +171,7 @@ Usage:
 
 Commands:
   start          Start the Pixcode server (default)
+  setup          Run the interactive setup wizard (port, mode, browser)
   daemon         Manage persistent Linux service (system-first)
   sandbox        Manage Docker sandbox environments
   status         Show configuration and data locations
@@ -180,14 +183,17 @@ Options:
   -p, --port <port>           Set server port (default: 3001)
   --database-path <path>      Set custom database location
   --no-daemon                 Disable automatic daemon startup on Linux
+  --no-browser                Do not auto-open browser on startup
   --restart-daemon            Restart daemon automatically after update
   -h, --help                  Show this help information
   -v, --version               Show version information
 
 Examples:
   $ pixcode                        # Start with defaults
+  $ pixcode setup                  # Run the interactive setup wizard
   $ pixcode --port 8080            # Start on port 8080
   $ pixcode --no-daemon            # Force foreground mode
+  $ pixcode --no-browser           # Start without auto-opening browser
   $ sudo pixcode daemon install --mode system --port 3001
   $ pixcode daemon install --mode user --port 3001 --single-port
   $ pixcode daemon doctor --mode system
@@ -945,6 +951,8 @@ function parseArgs(args) {
             parsed.options.databasePath = arg.split('=')[1];
         } else if (arg === '--no-daemon') {
             parsed.options.noDaemon = true;
+        } else if (arg === '--no-browser') {
+            parsed.options.noBrowser = true;
         } else if (arg === '--restart-daemon') {
             parsed.options.restartDaemon = true;
         } else if (arg === '--help' || arg === '-h') {
@@ -982,6 +990,9 @@ async function main() {
     if (options.noDaemon) {
         process.env.PIXCODE_NO_DAEMON = '1';
     }
+    if (options.noBrowser) {
+        process.env.PIXCODE_NO_BROWSER = '1';
+    }
     if (options.databasePath) {
         process.env.DATABASE_PATH = options.databasePath;
     }
@@ -991,10 +1002,66 @@ async function main() {
             if (process.env.PIXCODE_ENABLE_STARTUP_UPDATE === '1' && await runStartupUpdateGate()) {
                 break;
             }
+            {
+                const effectivePort = Number(options.serverPort || process.env.SERVER_PORT || process.env.PORT || '3001');
+
+                // First-run setup wizard
+                if (isFirstRun()) {
+                    const wizardResult = await runSetupWizard(options);
+                    if (wizardResult) {
+                        if (!options.serverPort) {
+                            process.env.SERVER_PORT = String(wizardResult.port);
+                        }
+                        if (wizardResult.useDaemon === false) {
+                            options.noDaemon = true;
+                            process.env.PIXCODE_NO_DAEMON = '1';
+                        }
+                    }
+                }
+
+                // Port conflict detection (every run, not just first)
+                const currentPort = Number(options.serverPort || process.env.SERVER_PORT || process.env.PORT || '3001');
+                if (!await isPortAvailable(currentPort)) {
+                    const alreadyRunning = await waitForServerReady(currentPort, 2000);
+                    if (alreadyRunning) {
+                        console.log(`\n${c.ok('[OK]')} Pixcode is already running on port ${c.bright(String(currentPort))}.`);
+                        await postStartupGuidance(currentPort);
+                        break;
+                    }
+                    console.log(`\n${c.warn('[WARN]')} Port ${c.bright(String(currentPort))} is in use by another process.`);
+                    const altPort = await findAvailablePort(currentPort + 1);
+                    if (altPort) {
+                        console.log(`${c.info('[INFO]')} Switching to port ${c.bright(String(altPort))}.`);
+                        process.env.SERVER_PORT = String(altPort);
+                        options.serverPort = String(altPort);
+                    } else {
+                        console.error(`${c.error('[ERROR]')} No free ports found. Specify one with ${c.bright('--port <port>')}.`);
+                        process.exit(1);
+                    }
+                }
+            }
             if (await maybeAutoDaemonStart(options)) {
+                const daemonPort = Number(options.serverPort || process.env.SERVER_PORT || process.env.PORT || '3001');
+                const ready = await waitForServerReady(daemonPort, 15000);
+                if (ready) {
+                    await postStartupGuidance(daemonPort);
+                }
                 break;
             }
             await startServer();
+            break;
+        case 'setup':
+            {
+                const wizardResult = await runSetupWizard(options);
+                if (wizardResult) {
+                    process.env.SERVER_PORT = String(wizardResult.port);
+                    if (wizardResult.useDaemon === false) {
+                        options.noDaemon = true;
+                        process.env.PIXCODE_NO_DAEMON = '1';
+                    }
+                }
+                console.log(`\n${c.ok('[OK]')} Setup complete! Run ${c.bright('pixcode start')} to launch.`);
+            }
             break;
         case 'sandbox':
             await sandboxCommand(remainingArgs || []);
