@@ -155,7 +155,7 @@ import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
 import { restoreRequestedTunnel } from './services/external-access.js';
 import { notifyTelegramTerminalAttached, restoreBotFromConfig } from './services/telegram/bot.js';
-import { ensurePortOpen } from './utils/port-access.js';
+import { ensurePortOpen, getLanIps } from './utils/port-access.js';
 import {
     applyAllStoredCredentialsToEnv,
 } from './services/provider-credentials.js';
@@ -5466,12 +5466,24 @@ async function startServer() {
         server.listen(SERVER_PORT, HOST, async () => {
             const appInstallPath = APP_ROOT;
 
+            // Detect LAN/public IP for VPS/cloud display
+            const lanIps = getLanIps();
+            const displayUrl = lanIps.length > 0
+                ? `http://${lanIps[0]}:${SERVER_PORT}`
+                : `http://${DISPLAY_HOST}:${SERVER_PORT}`;
+
             console.log('');
             console.log(c.dim('═'.repeat(63)));
             console.log(`  ${c.bright('Pixcode Server - Ready')}`);
             console.log(c.dim('═'.repeat(63)));
             console.log('');
-            console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
+            console.log(`${c.info('[INFO]')} Server URL:  ${c.bright(displayUrl)}`);
+            if (lanIps.length > 1) {
+                for (const extra of lanIps.slice(1)) {
+                    console.log(`${c.dim('       also:')}  http://${extra}:${SERVER_PORT}`);
+                }
+            }
+            console.log(`${c.info('[INFO]')} Local URL:  ${c.dim(`http://localhost:${SERVER_PORT}`)}`);
             console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
 
             // Print LAN IP + open inbound firewall port (Linux auto, Windows/Mac
@@ -5487,39 +5499,9 @@ async function startServer() {
                 console.warn('[external-access] tunnel restore failed:', err?.message || err);
             });
 
-            // Auto-open browser unless explicitly disabled or headless
-            if (process.env.PIXCODE_NO_BROWSER !== '1') {
-                const openUrl = `http://${DISPLAY_HOST}:${SERVER_PORT}`;
-                // Skip browser opening on headless servers (no DISPLAY on Linux,
-                // or xdg-open not installed) — common for VPS/cloud deployments.
-                const isHeadless = process.platform === 'linux' && (
-                    !process.env.DISPLAY || process.env.DISPLAY === '' ||
-                    !fs.existsSync('/usr/bin/xdg-open') && !fs.existsSync('/usr/local/bin/xdg-open')
-                );
-                if (isHeadless) {
-                    console.log(`${c.tip('[TIP]')}  Open ${c.bright(openUrl)} in your browser to start using Pixcode.`);
-                } else {
-                    try {
-                        const { spawn: spawnBrowser } = await import('node:child_process');
-                        const browserBin = process.platform === 'darwin' ? 'open'
-                            : process.platform === 'win32' ? 'cmd'
-                            : 'xdg-open';
-                        const browserArgs = process.platform === 'win32'
-                            ? ['/c', 'start', '', openUrl]
-                            : [openUrl];
-                        const child = spawnBrowser(browserBin, browserArgs, {
-                            stdio: 'ignore', timeout: 3000, detached: true, shell: false,
-                        });
-                        child.on('error', () => {
-                            // Browser binary not found or failed — non-fatal
-                        });
-                        child.unref();
-                        console.log(`${c.ok('[OK]')}   Opening browser at ${c.bright(openUrl)}`);
-                    } catch {
-                        console.log(`${c.tip('[TIP]')}  Open ${c.bright(openUrl)} in your browser to start using Pixcode.`);
-                    }
-                }
-            }
+            // No auto browser opening — headless servers don't have browsers
+            // and desktop users can click the URL. This prevents xdg-open
+            // ENOENT crashes on VPS/cloud deployments.
 
             console.log(`${c.tip('[TIP]')}  Run "pixcode status" for full configuration details`);
             console.log('');

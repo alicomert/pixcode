@@ -151,8 +151,8 @@ function printBanner() {
     console.log('');
 }
 
-function printReady(port) {
-    const url = `http://localhost:${port}`;
+function printReady(port, displayIp = 'localhost') {
+    const url = `http://${displayIp}:${port}`;
     console.log('');
     console.log(c.dim('  ╔═══════════════════════════════════════════════════════════════╗'));
     console.log(c.dim('  ║') + c.bright('  Pixcode is Ready!                          ') + c.dim('║'));
@@ -161,6 +161,9 @@ function printReady(port) {
     console.log(c.dim('  ╚═══════════════════════════════════════════════════════════════╝'));
     console.log('');
     console.log(`  ${c.info('[INFO]')} Web UI:      ${c.bright(url)}`);
+    if (displayIp !== 'localhost') {
+        console.log(`  ${c.info('[INFO]')} Local:      ${c.dim(`http://localhost:${port}`)}`);
+    }
     console.log(`  ${c.info('[INFO]')} Health:      ${c.dim(url + '/health')}`);
     console.log('');
 }
@@ -254,16 +257,23 @@ export async function runSetupWizard(existingOptions = {}) {
 
 export async function postStartupGuidance(port) {
     const effectivePort = Number(port) || DEFAULT_PORT;
-    const url = `http://localhost:${effectivePort}`;
 
-    printReady(effectivePort);
+    // Detect LAN/public IP for VPS display
+    let displayIp = 'localhost';
+    try {
+        const { getLanIps } = await import('./utils/port-access.js');
+        const ips = getLanIps();
+        if (ips.length > 0) displayIp = ips[0];
+    } catch { /* fallback to localhost */ }
 
-    // Try to open browser
-    const opened = openBrowser(url);
-    if (opened) {
-        console.log(`  ${c.ok('[OK]')}   Opening browser...`);
-    } else {
-        console.log(`  ${c.tip('[TIP]')}  Open ${c.bright(url)} in your browser to start using Pixcode.`);
+    const url = `http://${displayIp}:${effectivePort}`;
+    const localUrl = `http://localhost:${effectivePort}`;
+
+    printReady(effectivePort, displayIp);
+
+    console.log(`  ${c.tip('[TIP]')}  Open ${c.bright(url)} in your browser to start using Pixcode.`);
+    if (displayIp !== 'localhost') {
+        console.log(`  ${c.dim('       Local: ' + localUrl)}`);
     }
 
     console.log(`  ${c.dim('Tip: Run "pixcode status" to see full configuration.')}`);

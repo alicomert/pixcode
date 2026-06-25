@@ -2,6 +2,16 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.4](https://github.com/alicomert/pixcode/compare/v1.54.3...v1.54.4) (2026-06-25)
+
+Pixcode 1.54.4 completely removes auto browser opening (fixes xdg-open crash on headless Linux) and shows the server's public IP address instead of localhost.
+
+### Bug Fixes
+
+* remove auto browser opening entirely — was causing `spawn xdg-open ENOENT` crashes on headless Linux/VPS servers
+* show server's public IP address (e.g. `http://85.235.74.198:3001`) instead of `localhost` in the ready banner and setup wizard
+* list all available network IPs when multiple interfaces are present
+
 ## [1.54.3](https://github.com/alicomert/pixcode/compare/v1.54.2...v1.54.3) (2026-06-25)
 
 Pixcode 1.54.3 fixes a server crash on headless Linux servers where `xdg-open` is not installed.
