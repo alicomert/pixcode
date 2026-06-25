@@ -2,6 +2,15 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.5](https://github.com/alicomert/pixcode/compare/v1.54.4...v1.54.5) (2026-06-25)
+
+Pixcode 1.54.5 fixes the API rate limiter that was blocking frontend polling and causing false "rate limit" errors.
+
+### Bug Fixes
+
+* exempt GET/HEAD/OPTIONS requests from API rate limiter — frontend polls update-state, sessions, and file tree endpoints frequently; limiting reads caused false 429 errors
+* raise write-operation rate limit from 120/min to 300/min — prevents false positives during active coding sessions
+
 ## [1.54.4](https://github.com/alicomert/pixcode/compare/v1.54.3...v1.54.4) (2026-06-25)
 
 Pixcode 1.54.4 completely removes auto browser opening (fixes xdg-open crash on headless Linux) and shows the server's public IP address instead of localhost.

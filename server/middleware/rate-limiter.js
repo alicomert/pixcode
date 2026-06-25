@@ -73,10 +73,15 @@ export const authRateLimiter = createRateLimiter({
     message: 'Too many authentication attempts. Please try again in 15 minutes.',
 });
 
+// API rate limiter: only limits state-changing operations (POST/PUT/DELETE/PATCH).
+// GET requests (polling, fetching sessions, file trees, update-state, etc.) are
+// exempt — the frontend polls several endpoints frequently and 120/min was
+// too low, causing false "rate limit" errors on active sessions.
 export const apiRateLimiter = createRateLimiter({
     windowMs: 60 * 1000,
-    max: 120,
+    max: 300,
     message: 'Too many API requests. Please slow down.',
+    skip: (req) => req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS',
 });
 
 export { createRateLimiter };
