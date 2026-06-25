@@ -1,7 +1,7 @@
 import { sendSocketMessage } from './socket';
 
-const TERMINAL_INPUT_CHUNK_SIZE = 4096;
-const TERMINAL_INPUT_CHUNK_DELAY_MS = 1;
+const TERMINAL_INPUT_CHUNK_SIZE = 16384;
+const TERMINAL_INPUT_CHUNK_DELAY_MS = 0;
 
 export function sendTerminalInput(socket: WebSocket | null | undefined, data: string) {
   if (!data) return false;
