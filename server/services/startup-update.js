@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { Readable } from 'node:stream';
 
@@ -68,10 +69,14 @@ async function readLatestPackageMetadata() {
   const latestVersion = metadata?.['dist-tags']?.latest;
   const latestEntry = latestVersion ? metadata?.versions?.[latestVersion] : null;
   const tarballUrl = latestEntry?.dist?.tarball;
+  const integrity = latestEntry?.dist?.integrity;
   if (!latestVersion || !tarballUrl) {
     throw new Error('Registry response missing latest version or tarball URL.');
   }
-  return { latestVersion, tarballUrl };
+  if (!integrity) {
+    console.warn('[startup-update] Registry response missing integrity hash — proceeding without verification.');
+  }
+  return { latestVersion, tarballUrl, integrity };
 }
 
 async function installNpmGlobal(latestVersion, color) {
@@ -119,12 +124,33 @@ function readPackageVersion(appRoot) {
   }
 }
 
-async function extractRuntimeTarball({ runtimeDir, tarballUrl, latestVersion, currentVersion, color }) {
+async function extractRuntimeTarball({ runtimeDir, tarballUrl, latestVersion, currentVersion, color, integrity }) {
   color?.info && console.log(`${color.info('[INFO]')} Updating runtime ${currentVersion} -> ${latestVersion} before opening the port...`);
 
   const tarballRes = await fetch(tarballUrl);
   if (!tarballRes.ok || !tarballRes.body) {
     throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
+  }
+
+  // Download tarball to a buffer first so we can verify integrity before extracting.
+  const tarballBuffer = Buffer.from(await tarballRes.arrayBuffer());
+
+  // Verify integrity hash (SRI format: "sha512-<base64>") if provided by the registry.
+  if (integrity && typeof integrity === 'string') {
+    const match = integrity.match(/^(sha512)-(.+)$/);
+    if (match) {
+      const algo = match[1];
+      const expectedHash = match[2];
+      const actualHash = crypto.createHash(algo).update(tarballBuffer).digest('base64');
+      if (actualHash !== expectedHash) {
+        throw new Error(`Integrity verification failed: expected ${algo}-${expectedHash.slice(0, 16)}..., got ${algo}-${actualHash.slice(0, 16)}...`);
+      }
+      color?.info && console.log(`${color.info('[INFO]')} Tarball integrity verified (${algo}).`);
+    } else {
+      console.warn('[startup-update] Unrecognized integrity format — skipping verification.');
+    }
+  } else {
+    console.warn('[startup-update] No integrity hash available — tarball extracted without verification.');
   }
 
   const stagingDir = path.join(runtimeDir, '.staging');
@@ -137,9 +163,7 @@ async function extractRuntimeTarball({ runtimeDir, tarballUrl, latestVersion, cu
   if (!tarExtract) throw new Error('tar extractor not available');
 
   await new Promise((resolve, reject) => {
-    const nodeStream = typeof Readable.fromWeb === 'function' && tarballRes.body?.getReader
-      ? Readable.fromWeb(tarballRes.body)
-      : tarballRes.body;
+    const nodeStream = Readable.from(tarballBuffer);
     const extractor = tarExtract({ cwd: stagingDir, strip: 1 });
     nodeStream.pipe(extractor);
     extractor.on('finish', resolve);
@@ -199,7 +223,7 @@ export async function runStartupAutoUpdate({
       return await updateGitCheckout(appRoot, color);
     }
 
-    const { latestVersion, tarballUrl } = await readLatestPackageMetadata();
+    const { latestVersion, tarballUrl, integrity } = await readLatestPackageMetadata();
     if (compareVersions(latestVersion, currentVersion) <= 0) {
       return { updated: false, latestVersion };
     }
@@ -211,6 +235,7 @@ export async function runStartupAutoUpdate({
         latestVersion,
         currentVersion,
         color,
+        integrity,
       });
       return { updated: true, version: latestVersion, restartMode: 'exit42' };
     }

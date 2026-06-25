@@ -2,7 +2,7 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 
 import { c } from './colors.js';
 
@@ -65,7 +65,7 @@ function tryUfw(port) {
     const status = execSync('ufw status', { stdio: 'pipe', encoding: 'utf8' });
     // UFW inactive = no rule needed; the port is already reachable.
     if (!/active/i.test(status)) return 'inactive';
-    execSync(`sudo -n ufw allow ${port}/tcp`, { stdio: 'pipe' });
+    execSync('sudo -n ufw allow ' + String(port) + '/tcp', { stdio: 'pipe' });
     return 'applied';
   } catch {
     return null;
@@ -77,7 +77,7 @@ function tryFirewalld(port) {
     execSync('command -v firewall-cmd', { stdio: 'pipe' });
     const state = execSync('firewall-cmd --state', { stdio: 'pipe', encoding: 'utf8' });
     if (!/running/i.test(state)) return 'inactive';
-    execSync(`sudo -n firewall-cmd --add-port=${port}/tcp --permanent`, { stdio: 'pipe' });
+    execSync('sudo -n firewall-cmd --add-port=' + String(port) + '/tcp --permanent', { stdio: 'pipe' });
     execSync('sudo -n firewall-cmd --reload', { stdio: 'pipe' });
     return 'applied';
   } catch {
@@ -89,12 +89,19 @@ function tryFirewalld(port) {
 
 function applyWindowsRule(port) {
   const ruleName = `Pixcode-${port}`;
-  const cmd = `netsh advfirewall firewall add rule name="${ruleName}" dir=in action=allow protocol=TCP localport=${port}`;
+  // Use spawnSync with an argument array instead of execSync with a shell
+  // string to prevent command injection. Port is validated as an integer
+  // at the entry point, but this is defense-in-depth.
   try {
-    execSync(cmd, { stdio: 'pipe' });
-    return { ok: true, cmd, ruleName };
+    spawnSync('netsh', [
+      'advfirewall', 'firewall', 'add', 'rule',
+      `name=${ruleName}`,
+      'dir=in', 'action=allow', 'protocol=TCP',
+      `localport=${port}`,
+    ], { stdio: 'pipe', shell: false });
+    return { ok: true, ruleName };
   } catch (error) {
-    return { ok: false, cmd, ruleName, error: error.message };
+    return { ok: false, ruleName, error: error.message };
   }
 }
 
@@ -125,6 +132,16 @@ function macFirewallHint(port) {
  * without any firewall change.
  */
 export async function ensurePortOpen(port) {
+  // Validate port is a safe integer to prevent command injection via the
+  // firewall commands below. The caller passes SERVER_PORT which comes from
+  // env, so this is defense-in-depth against a tampered environment.
+  const safePort = Number.parseInt(port, 10);
+  if (!Number.isInteger(safePort) || safePort < 1 || safePort > 65535) {
+    console.log(`${c.dim('[INFO]')} Skipping firewall setup: invalid port value.`);
+    return;
+  }
+  port = safePort;
+
   const state = loadState();
   const key = `port:${port}`;
   const entry = state[key];
@@ -185,8 +202,9 @@ export async function ensurePortOpen(port) {
       console.log(`${c.ok('[OK]')}   Firewall rule "${result.ruleName}" added.`);
       saveState({ ...state, [key]: { decision: 'allow', status: 'applied', via: 'windows' } });
     } else {
+      const manualCmd = `netsh advfirewall firewall add rule name="Pixcode-${port}" dir=in action=allow protocol=TCP localport=${port}`;
       console.log(`${c.tip('[TIP]')}  Adding the rule needs Administrator. Run this in an elevated PowerShell:`);
-      console.log(`       ${c.bright(result.cmd)}`);
+      console.log(`       ${c.bright(manualCmd)}`);
       saveState({ ...state, [key]: { decision: 'allow', status: 'manual' } });
     }
     return;

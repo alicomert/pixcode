@@ -42,7 +42,7 @@ router.get('/control-room', async (_req, res) => {
       controlRoom: await buildControlRoomSnapshot(),
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 

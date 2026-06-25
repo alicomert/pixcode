@@ -1,12 +1,17 @@
 import express from 'express';
-// bcryptjs is a pure-JS drop-in (same hash/compare API, same output format)
-// — switching from native `bcrypt` here eliminated one C++ compile from
-// the install path. Existing $2a$/$2b$ hashes in the DB remain valid;
-// bcryptjs recognizes both prefixes so logins work across the swap.
 import bcrypt from 'bcryptjs';
 
 import { userDb, db } from '../database/db.js';
 import { generateToken, authenticateToken, requireAdmin } from '../middleware/auth.js';
+import { authRateLimiter } from '../middleware/rate-limiter.js';
+import {
+  checkAccountLockout,
+  recordFailedLogin,
+  recordSuccessfulLogin,
+  validatePasswordPolicy,
+  validateUsername,
+} from '../middleware/account-lockout.js';
+import { securityLog, getClientIp } from '../utils/security-log.js';
 import {
   consumeQrLoginToken,
   createQrLoginToken,
@@ -49,7 +54,10 @@ router.get('/connection-mode', (req, res) => {
   res.json({ success: true, connection: getPublicRemoteConnectionConfig() });
 });
 
-router.put('/connection-mode', (req, res) => {
+// Changing the connection mode is a state-changing operation that must
+// require authentication. Without auth, any unauthenticated caller could
+// redirect the app to a malicious remote server.
+router.put('/connection-mode', authenticateToken, requireAdmin, (req, res) => {
   try {
     res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
   } catch (error) {
@@ -69,7 +77,7 @@ router.put('/qr-login/settings', authenticateToken, requireAdmin, (req, res) => 
   }
 });
 
-router.post('/qr-login/token', authenticateToken, requireAdmin, (req, res) => {
+router.post('/qr-login/token', authenticateToken, requireAdmin, authRateLimiter, (req, res) => {
   try {
     const baseUrl = typeof req.body?.baseUrl === 'string' && req.body.baseUrl.trim()
       ? req.body.baseUrl.trim()
@@ -81,11 +89,16 @@ router.post('/qr-login/token', authenticateToken, requireAdmin, (req, res) => {
   }
 });
 
-router.post('/qr-login', (req, res) => {
+router.post('/qr-login', authRateLimiter, (req, res) => {
   try {
     const user = consumeQrLoginToken(req.body?.token);
     const token = generateToken(user);
     userDb.updateLastLogin(user.id);
+    securityLog('qr_login_success', {
+      ip: getClientIp(req),
+      userId: user.id,
+      username: user.username,
+    });
     res.json({
       success: true,
       user: publicUser(user),
@@ -93,22 +106,33 @@ router.post('/qr-login', (req, res) => {
     });
   } catch (error) {
     const status = error?.code === 'QR_LOGIN_DISABLED' ? 409 : 401;
+    securityLog('qr_login_failed', {
+      ip: getClientIp(req),
+      reason: error?.code || 'unknown',
+    });
     res.status(status).json({ success: false, error: error.message });
   }
 });
 
 // User registration (setup) - only allowed if no users exist
-router.post('/register', async (req, res) => {
+router.post('/register', authRateLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
+    const clientIp = getClientIp(req);
     
     // Validate input
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
     
-    if (username.length < 3 || password.length < 6) {
-      return res.status(400).json({ error: 'Username must be at least 3 characters, password at least 6 characters' });
+    const usernameValidation = validateUsername(username);
+    if (!usernameValidation.valid) {
+      return res.status(400).json({ error: usernameValidation.error });
+    }
+
+    const passwordValidation = validatePasswordPolicy(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ error: passwordValidation.error });
     }
     
     // Use a transaction to prevent race conditions
@@ -136,6 +160,12 @@ router.post('/register', async (req, res) => {
       // Update last login (non-fatal, outside transaction)
       userDb.updateLastLogin(user.id);
 
+      securityLog('user_registered', {
+        ip: clientIp,
+        userId: user.id,
+        username: user.username,
+      });
+
       res.json({
         success: true,
         user: publicUser(user),
@@ -157,32 +187,72 @@ router.post('/register', async (req, res) => {
 });
 
 // User login
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
+    const clientIp = getClientIp(req);
     
     // Validate input
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
+
+    // Check account lockout before attempting login
+    const lockoutStatus = checkAccountLockout(String(username), clientIp);
+    if (lockoutStatus.locked) {
+      securityLog('login_blocked_locked', {
+        ip: clientIp,
+        username,
+        reason: 'Account locked due to failed attempts',
+      });
+      return res.status(423).json({ error: lockoutStatus.message });
+    }
     
     // Get user from database
     const user = userDb.getUserByUsername(username);
     if (!user) {
+      const failResult = recordFailedLogin(String(username), clientIp);
+      securityLog('login_failed', {
+        ip: clientIp,
+        username,
+        reason: 'User not found',
+      });
+      if (failResult.locked) {
+        return res.status(423).json({ error: failResult.message });
+      }
       return res.status(401).json({ error: 'Invalid username or password' });
     }
     
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
     if (!isValidPassword) {
+      const failResult = recordFailedLogin(String(username), clientIp);
+      securityLog('login_failed', {
+        ip: clientIp,
+        username,
+        userId: user.id,
+        reason: 'Invalid password',
+      });
+      if (failResult.locked) {
+        return res.status(423).json({ error: failResult.message });
+      }
       return res.status(401).json({ error: 'Invalid username or password' });
     }
+
+    // Clear failed attempts on successful login
+    recordSuccessfulLogin(String(username), clientIp);
     
     // Generate token
     const token = generateToken(user);
     
     // Update last login
     userDb.updateLastLogin(user.id);
+
+    securityLog('login_success', {
+      ip: clientIp,
+      userId: user.id,
+      username: user.username,
+    });
     
     res.json({
       success: true,
@@ -205,8 +275,11 @@ router.get('/user', authenticateToken, (req, res) => {
 
 // Logout (client-side token removal, but this endpoint can be used for logging)
 router.post('/logout', authenticateToken, (req, res) => {
-  // In a simple JWT system, logout is mainly client-side
-  // This endpoint exists for consistency and potential future logging
+  securityLog('user_logout', {
+    ip: getClientIp(req),
+    userId: req.user?.id,
+    username: req.user?.username,
+  });
   res.json({ success: true, message: 'Logged out successfully' });
 });
 

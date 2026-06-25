@@ -96,6 +96,42 @@ function sanitizeTerminalInputData(data: string) {
   return result;
 }
 
+/**
+ * Register xterm.js parser handlers that suppress terminal response generation.
+ *
+ * When a program in the PTY sends a query (DA1, DA2, DSR), xterm.js normally
+ * generates a response via onData. That response gets sent back to the PTY,
+ * echoed, and reinterpreted as a new query — creating an infinite feedback loop.
+ *
+ * By registering handlers that consume the queries without generating responses,
+ * we break the loop at the source. Programs that need terminal capabilities
+ * have fallbacks for missing DA/DSR responses.
+ */
+function suppressTerminalResponses(terminal: Terminal) {
+  const disposables: { dispose(): void }[] = [];
+
+  // DA1: CSI c or CSI 0 c — suppress primary device attributes response
+  disposables.push(
+    terminal.parser.registerCsiHandler({ final: 'c' }, () => true),
+  );
+
+  // DA2: CSI > c or CSI > 0 c — suppress secondary device attributes response
+  // This is the self-looping one that causes infinite spam!
+  disposables.push(
+    terminal.parser.registerCsiHandler({ prefix: '>', final: 'c' }, () => true),
+  );
+
+  // DSR status: CSI 5 n — suppress device status report response
+  disposables.push(
+    terminal.parser.registerCsiHandler({ final: 'n' }, () => true),
+  );
+
+  // DSR cursor: CSI 6 n — suppress cursor position report response
+  // (registered above with final: 'n' since both 5n and 6n use final 'n')
+
+  return () => disposables.forEach((d) => d.dispose());
+}
+
 function refreshTerminalRows(terminal: Terminal) {
   terminal.refresh(0, Math.max(0, terminal.rows - 1));
 }
@@ -238,6 +274,11 @@ export function useShellTerminal({
 
     const terminalContainer = terminalContainerRef.current;
     nextTerminal.open(terminalContainer);
+
+    // Suppress terminal response generation (DA1/DA2/DSR) to prevent
+    // the infinite feedback loop that causes "aNM" spam on Linux.
+    // Parser handlers consume query sequences without generating responses.
+    const disposeResponseSuppression = suppressTerminalResponses(nextTerminal);
 
     const sendClipboardTextToTerminal = (text: string) => {
       if (!text) {
@@ -434,6 +475,7 @@ export function useShellTerminal({
         resizeTimeoutRef.current = null;
       }
       dataSubscription.dispose();
+      disposeResponseSuppression();
       window.removeEventListener('resize', scheduleTerminalFit);
       closeSocket();
       disposeTerminal();

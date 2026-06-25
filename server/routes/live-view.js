@@ -298,7 +298,7 @@ router.post('/:projectName/restart', requireLiveViewProjectAccess('useShell'), a
       environment: attachEnvironmentRuntimeState(state.environment, urls, tunnel),
     });
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to restart Live View' });
+    res.status(500).json({ error: 'Failed to restart Live View' });
   }
 });
 
@@ -315,7 +315,7 @@ router.post('/:projectName/stop', requireLiveViewProjectAccess('useShell'), asyn
       environment: attachEnvironmentRuntimeState(null, urls, tunnel),
     });
   } catch (error) {
-    res.status(500).json({ error: error.message || 'Failed to stop Live View' });
+    res.status(500).json({ error: 'Failed to stop Live View' });
   }
 });
 

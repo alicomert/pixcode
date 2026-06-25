@@ -326,7 +326,7 @@ router.get('/:projectName/dir-status', requireAdmin, async (req, res) => {
     }
   } catch (error) {
     console.error(`[projects] dir-status ${projectName}:`, error);
-    res.status(500).json({ error: error.message || 'Failed to check project directory' });
+    res.status(500).json({ error: 'Failed to check project directory' });
   }
 });
 
@@ -410,7 +410,7 @@ router.post('/quick-start', requireAdmin, async (req, res) => {
     res.json({ success: true, project, suggestedName: name, reused: false });
   } catch (error) {
     console.error('[projects] quick-start failed:', error);
-    res.status(500).json({ error: error.message || 'Failed to quick-start project' });
+    res.status(500).json({ error: 'Failed to quick-start project' });
   }
 });
 

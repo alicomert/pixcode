@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import net from 'node:net';
 import readline from 'readline';
-import { exec } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 import { c } from './utils/colors.js';
 
@@ -108,16 +108,22 @@ async function askSelect(question, options) {
 
 function openBrowser(url) {
     const platform = process.platform;
-    let cmd;
+    // Use spawn with an argument array instead of exec with a shell string
+    // to prevent command injection through the url value.
+    let bin;
+    let args;
     if (platform === 'darwin') {
-        cmd = `open "${url}"`;
+        bin = 'open';
+        args = [url];
     } else if (platform === 'win32') {
-        cmd = `start "" "${url}"`;
+        bin = 'cmd';
+        args = ['/c', 'start', '', url];
     } else {
-        cmd = `xdg-open "${url}"`;
+        bin = 'xdg-open';
+        args = [url];
     }
     try {
-        exec(cmd, { stdio: 'ignore', timeout: 3000 });
+        spawn(bin, args, { stdio: 'ignore', timeout: 3000, detached: true, shell: false }).unref();
         return true;
     } catch {
         return false;

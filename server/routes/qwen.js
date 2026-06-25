@@ -20,7 +20,7 @@ router.delete('/sessions/:sessionId', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error(`Error deleting Qwen session ${req.params.sessionId}:`, error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: "Internal server error" });
     }
 });
 

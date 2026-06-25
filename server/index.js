@@ -19,6 +19,7 @@ import cors from 'cors';
 import { AppError, createNormalizedMessage } from '@/shared/utils.js';
 
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
+import { securityLog, getClientIp } from './utils/security-log.js';
 
 
 
@@ -94,7 +95,8 @@ function resolveMonacoAssetsPath() {
 
 import { c } from './utils/colors.js';
 
-console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
+// Server port is logged after binding in startServer() — avoid leaking
+// env configuration to stdout on every import.
 
 
 
@@ -163,6 +165,7 @@ import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, appConfigD
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket, requireAdmin, requireApiScope } from './middleware/auth.js';
+import { apiRateLimiter } from './middleware/rate-limiter.js';
 import { filterFileTreeForUser, filterProjectsForUser, userHasProjectAccess, userHasProjectPathAccess } from './services/platformization.js';
 import { IS_PLATFORM } from './constants/config.js';
 
@@ -368,6 +371,7 @@ async function readLatestPixcodePackageMetadata() {
     return {
         latestVersion,
         tarballUrl: latestEntry?.dist?.tarball || null,
+        tarballIntegrity: latestEntry?.dist?.integrity || null,
     };
 }
 
@@ -380,12 +384,54 @@ function buildPixcodeTarballUrl(version) {
     return `https://registry.npmjs.org/@pixelbyte-software/pixcode/-/pixcode-${version.trim()}.tgz`;
 }
 
-async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl) {
+/**
+ * Verify a downloaded tarball's integrity against the registry-provided
+ * Subresource Integrity (SRI) string. Throws if the hash doesn't match.
+ * @param {Buffer} buffer - The downloaded tarball bytes
+ * @param {string} integrity - SRI string from npm registry (e.g. "sha512-...")
+ */
+function verifyTarballIntegrity(buffer, integrity) {
+    if (!integrity || typeof integrity !== 'string') {
+        throw new Error('Tarball integrity hash missing from registry metadata — refusing to install unverified package.');
+    }
+    const dashIndex = integrity.indexOf('-');
+    if (dashIndex < 0) {
+        throw new Error('Malformed integrity string from registry.');
+    }
+    const algo = integrity.slice(0, dashIndex);
+    const expectedHash = integrity.slice(dashIndex + 1);
+    const validAlgos = ['sha512', 'sha384', 'sha256'];
+    if (!validAlgos.includes(algo)) {
+        throw new Error(`Unsupported integrity algorithm: ${algo}`);
+    }
+    const actualHash = crypto.createHash(algo).update(buffer).digest('base64');
+    if (actualHash !== expectedHash) {
+        throw new Error(`Tarball integrity check failed: expected ${algo}-${expectedHash.slice(0, 16)}…, got ${algo}-${actualHash.slice(0, 16)}…`);
+    }
+}
+
+async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl, tarballIntegrity) {
     appendUpdateJobLog(job, 'meta', `Update mode: runtime-dir\nRuntime: ${runtimeDir}\n`);
     appendUpdateJobLog(job, 'meta', `Downloading ${tarballUrl}\n`);
     const tarballRes = await fetch(tarballUrl);
     if (!tarballRes.ok || !tarballRes.body) {
         throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
+    }
+
+    // Download tarball to a buffer first so we can verify integrity before extracting.
+    const tarballBuffer = Buffer.from(await tarballRes.arrayBuffer());
+
+    // Verify integrity hash against registry-provided SRI string.
+    if (tarballIntegrity) {
+        try {
+            verifyTarballIntegrity(tarballBuffer, tarballIntegrity);
+            appendUpdateJobLog(job, 'meta', 'Tarball integrity verified.\n');
+        } catch (verifyError) {
+            appendUpdateJobLog(job, 'stderr', `Integrity verification failed: ${verifyError.message}\n`);
+            throw verifyError;
+        }
+    } else {
+        appendUpdateJobLog(job, 'meta', 'WARNING: No integrity hash from registry — extracting without verification.\n');
     }
 
     const stagingDir = path.join(runtimeDir, '.staging');
@@ -399,10 +445,7 @@ async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl
     if (!tarExtract) throw new Error('tar extractor not available');
 
     await new Promise((resolve, reject) => {
-        const webStream = tarballRes.body;
-        const nodeStream = typeof Readable.fromWeb === 'function' && webStream?.getReader
-            ? Readable.fromWeb(webStream)
-            : webStream;
+        const nodeStream = Readable.from(tarballBuffer);
         const extractor = tarExtract({ cwd: stagingDir, strip: 1 });
         nodeStream.pipe(extractor);
         extractor.on('finish', resolve);
@@ -514,7 +557,7 @@ function createSystemUpdateJob(actorUser, options = {}) {
             const gitUpdateScript = path.join(APP_ROOT, 'scripts', 'update-git-install.mjs');
             const latest = await readLatestPixcodePackageMetadata().catch((error) => {
                 appendUpdateJobLog(job, 'stderr', `Registry precheck failed: ${error.message}\n`);
-                return { latestVersion: null, tarballUrl: null };
+                return { latestVersion: null, tarballUrl: null, tarballIntegrity: null };
             });
             const requestedVersion = isSafePackageVersion(options.targetVersion) ? options.targetVersion.trim() : null;
             const resolvedVersion = latest.latestVersion || requestedVersion || null;
@@ -536,7 +579,7 @@ function createSystemUpdateJob(actorUser, options = {}) {
                 if (!latest.latestVersion) {
                     appendUpdateJobLog(job, 'meta', `Using requested target version ${resolvedVersion} after registry precheck failed.\n`);
                 }
-                job.toVersion = await runRuntimeDirUpdateJob(job, runtimeDir, resolvedVersion, resolvedTarballUrl);
+                job.toVersion = await runRuntimeDirUpdateJob(job, runtimeDir, resolvedVersion, resolvedTarballUrl, latest.tarballIntegrity);
             } else {
                 const updateCommand = IS_PLATFORM
                     ? 'npm run update:platform'
@@ -1687,7 +1730,69 @@ app.locals.installMode = installMode;
 app.locals.serverVersion = SERVER_VERSION;
 setNotificationWebSocketServer(wss);
 
-app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
+// ── Security hardening ──────────────────────────────────────────────
+// Disable the X-Powered-By header so the framework isn't advertised.
+app.disable('x-powered-by');
+// Trust the first proxy hop so X-Forwarded-* headers are respected when
+// running behind nginx/Caddy/etc. (needed for correct protocol detection
+// in resolvePublicBaseUrl and for rate-limiting middleware if added later).
+app.set('trust proxy', 1);
+
+// Restrict CORS to known origins instead of reflecting any requester.
+// In production the frontend is same-origin; in dev it's the Vite server.
+const ALLOWED_CORS_ORIGINS = (() => {
+    const envOrigins = process.env.CORS_ALLOWED_ORIGINS;
+    if (envOrigins) {
+        return envOrigins.split(',').map((o) => o.trim()).filter(Boolean);
+    }
+    const devPort = process.env.VITE_PORT || 5173;
+    return [
+        `http://localhost:${devPort}`,
+        `http://127.0.0.1:${devPort}`,
+    ];
+})();
+
+app.use(cors({
+    origin(origin, callback) {
+        // Allow same-origin requests (no Origin header) and allowlisted origins.
+        if (!origin || ALLOWED_CORS_ORIGINS.includes(origin)) {
+            return callback(null, true);
+        }
+        return callback(null, false);
+    },
+    credentials: true,
+    exposedHeaders: ['X-Refreshed-Token'],
+}));
+
+// Security headers middleware (replaces helmet which isn't installed).
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    // Strict-Transport-Security only makes sense over HTTPS; skip for plain HTTP
+    // so local dev doesn't pin an HSTS policy on localhost.
+    if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    // CSP for the SPA shell — API responses are JSON so this mainly guards
+    // the served index.html. 'unsafe-inline' is needed for Vite's inline
+    // module preload polyfill; style-src unsafe-inline for Tailwind injected styles.
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob: https:",
+        "font-src 'self' data:",
+        "connect-src 'self' ws: wss:",
+        "frame-ancestors 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
+    ].join('; '));
+    next();
+});
+
 app.use(express.json({
     limit: '50mb',
     type: (req) => {
@@ -1714,8 +1819,9 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Optional API key validation (if configured)
+// Optional API key validation (if configured) + rate limiting for all API routes
 app.use('/api', validateApiKey);
+app.use('/api', apiRateLimiter);
 
 app.post('/api/shell/sessions/terminate', authenticateToken, requireProjectPathAccess('useShell'), (req, res) => {
     const provider = req.body?.provider || 'claude';
@@ -2152,6 +2258,12 @@ app.get('/api/system/update-state', authenticateToken, (req, res) => {
 });
 
 app.post('/api/system/update-jobs', authenticateToken, requireAdmin, requireApiScope('system:update'), (req, res) => {
+    securityLog('system_update_initiated', {
+        ip: getClientIp(req),
+        userId: req.user?.id,
+        username: req.user?.username,
+        endpoint: req.path,
+    });
     const job = createSystemUpdateJob(req.user, {
         targetVersion: req.body?.targetVersion || req.body?.latestVersion,
     });
@@ -2268,6 +2380,7 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
             const latestVersion = metadata['dist-tags']?.latest;
             const latestEntry = latestVersion ? metadata.versions?.[latestVersion] : null;
             const tarballUrl = latestEntry?.dist?.tarball;
+            const tarballIntegrity = latestEntry?.dist?.integrity;
             if (!latestVersion || !tarballUrl) throw new Error('Registry response missing latest/tarball');
 
             send('log', { stream: 'meta', chunk: `Current: ${SERVER_VERSION} → Latest: ${latestVersion}\n` });
@@ -2283,14 +2396,28 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
                 return;
             }
 
-            // 2. Download the tarball stream and pipe it through tar's
-            //    extractor into a staging directory. Doing the extract
-            //    under `.staging` first means the live runtime stays
-            //    intact if the download fails partway through.
+            // 2. Download the tarball to a buffer so we can verify integrity
+            //    before extracting. Doing the extract under `.staging` first
+            //    means the live runtime stays intact if the download fails.
             send('log', { stream: 'meta', chunk: `Downloading ${tarballUrl}\n` });
             const tarballRes = await fetch(tarballUrl);
             if (!tarballRes.ok || !tarballRes.body) {
                 throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
+            }
+
+            const tarballBuffer = Buffer.from(await tarballRes.arrayBuffer());
+
+            // Verify integrity hash against registry-provided SRI string.
+            if (tarballIntegrity) {
+                try {
+                    verifyTarballIntegrity(tarballBuffer, tarballIntegrity);
+                    send('log', { stream: 'meta', chunk: 'Tarball integrity verified.\n' });
+                } catch (verifyError) {
+                    send('log', { stream: 'stderr', chunk: `Integrity verification failed: ${verifyError.message}\n` });
+                    throw verifyError;
+                }
+            } else {
+                send('log', { stream: 'meta', chunk: 'WARNING: No integrity hash from registry — extracting without verification.\n' });
             }
 
             const stagingDir = path.join(runtimeDir, '.staging');
@@ -2307,10 +2434,7 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
             // contents to the staging dir directly so paths match the
             // existing runtime layout.
             await new Promise((resolve, reject) => {
-                const webStream = tarballRes.body;
-                const nodeStream = typeof Readable.fromWeb === 'function' && webStream?.getReader
-                    ? Readable.fromWeb(webStream)
-                    : webStream;
+                const nodeStream = Readable.from(tarballBuffer);
                 const extractor = tarExtract({ cwd: stagingDir, strip: 1 });
                 nodeStream.pipe(extractor);
                 extractor.on('finish', resolve);
@@ -2541,6 +2665,11 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
 // (systemd/pm2/daemon manager) can bring the server back on the new code.
 // Foreground installs without a wrapper will simply stop; the UI reports this.
 app.post('/api/system/restart', authenticateToken, requireAdmin, requireApiScope('system:restart'), (req, res) => {
+    securityLog('system_restart_requested', {
+        ip: getClientIp(req),
+        userId: req.user?.id,
+        username: req.user?.username,
+    });
     const forceRestart = req.body?.force === true || req.query.force === 'true';
     const activeWork = getActiveWorkSummary();
     if (!forceRestart && activeWork.hasActiveWork) {
@@ -2569,7 +2698,7 @@ app.get('/api/projects', authenticateToken, async (req, res) => {
         const projects = await getProjects(broadcastProgress);
         res.json(filterProjectsForUser(projects, req.user).map((project) => filterProjectSessionsForUser(project, req.user)));
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -2583,7 +2712,7 @@ app.get('/api/projects/:projectName/sessions', authenticateToken, requireProject
         applyCustomSessionNames(result.sessions, 'claude');
         res.json(result);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -2594,7 +2723,7 @@ app.put('/api/projects/:projectName/rename', authenticateToken, requireProjectAc
         await renameProject(req.params.projectName, displayName);
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -2609,7 +2738,7 @@ app.delete('/api/projects/:projectName/sessions/:sessionId', authenticateToken, 
         res.json({ success: true });
     } catch (error) {
         console.error(`[API] Error deleting session ${req.params.sessionId}:`, error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -2635,7 +2764,7 @@ app.put('/api/sessions/:sessionId/rename', authenticateToken, async (req, res) =
         res.json({ success: true });
     } catch (error) {
         console.error(`[API] Error renaming session ${req.params.sessionId}:`, error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -2655,7 +2784,7 @@ app.delete('/api/projects/:projectName', authenticateToken, requireProjectAccess
         // catch it and prompt the user to pass `?force=true` (or clean
         // sessions first) instead of treating it like a crash.
         const conflict = typeof error?.message === 'string' && error.message.includes('existing sessions');
-        res.status(conflict ? 409 : 500).json({ error: error.message });
+        res.status(conflict ? 409 : 500).json({ error: conflict ? error.message : 'Internal server error' });
     }
 });
 
@@ -2892,7 +3021,7 @@ app.get('/api/projects/:projectName/file', authenticateToken, requireProjectAcce
         } else if (error.code === 'EACCES') {
             res.status(403).json({ error: 'Permission denied' });
         } else {
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: "Internal server error" });
         }
     }
 });
@@ -2952,7 +3081,7 @@ app.get('/api/projects/:projectName/files/content', authenticateToken, requirePr
     } catch (error) {
         console.error('Error serving binary file:', error);
         if (!res.headersSent) {
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: "Internal server error" });
         }
     }
 });
@@ -3005,7 +3134,7 @@ app.put('/api/projects/:projectName/file', authenticateToken, requireProjectAcce
         } else if (error.code === 'EACCES') {
             res.status(403).json({ error: 'Permission denied' });
         } else {
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: "Internal server error" });
         }
     }
 });
@@ -3045,7 +3174,7 @@ app.get('/api/projects/:projectName/files', authenticateToken, requireProjectAcc
         }, 'viewFiles'));
     } catch (error) {
         console.error('[ERROR] File tree error:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -3171,7 +3300,7 @@ app.post('/api/projects/:projectName/files/create', authenticateToken, requirePr
         } else if (error.code === 'ENOENT') {
             res.status(404).json({ error: 'Parent directory not found' });
         } else {
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: "Internal server error" });
         }
     }
 });
@@ -3254,7 +3383,7 @@ app.put('/api/projects/:projectName/files/rename', authenticateToken, requirePro
         } else if (error.code === 'EXDEV') {
             res.status(400).json({ error: 'Cannot move across different filesystems' });
         } else {
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: "Internal server error" });
         }
     }
 });
@@ -3322,7 +3451,7 @@ app.delete('/api/projects/:projectName/files', authenticateToken, requireProject
         } else if (error.code === 'ENOTEMPTY') {
             res.status(400).json({ error: 'Directory is not empty' });
         } else {
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: "Internal server error" });
         }
     }
 });
@@ -3341,7 +3470,7 @@ const uploadFilesHandler = async (req, res) => {
             filename: (req, file, cb) => {
                 // Use a unique temp name, but preserve original name in file.originalname
                 // Note: file.originalname may contain path separators for folder uploads
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(8).toString('hex');
                 // For temp file, just use a safe unique name without the path
                 cb(null, `upload-${uniqueSuffix}`);
             }
@@ -3490,7 +3619,7 @@ const uploadFilesHandler = async (req, res) => {
             if (error.code === 'EACCES') {
                 res.status(403).json({ error: 'Permission denied' });
             } else {
-                res.status(500).json({ error: error.message });
+                res.status(500).json({ error: "Internal server error" });
             }
         }
     });
@@ -3831,10 +3960,15 @@ function handleChatConnection(ws, request) {
                 });
             }
         } catch (error) {
-            console.error('[ERROR] Chat WebSocket error:', error.message);
+            console.error('[ERROR] Chat WebSocket error:', error?.message || error);
+            securityLog('ws_chat_error', {
+                userId: request?.user?.id,
+                username: request?.user?.username,
+                reason: error?.name || 'UnknownError',
+            });
             writer.send({
                 type: 'error',
-                error: error.message
+                error: 'An error occurred while processing your request.'
             });
         }
     });
@@ -4313,11 +4447,16 @@ function handleShellConnection(ws, request) {
                     const termCols = data.cols || 80;
                     const termRows = data.rows || 24;
                     console.log('📐 Using terminal dimensions:', termCols, 'x', termRows);
+                    const isRunningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
                     const shellEnv = {
                         ...process.env,
                         TERM: 'xterm-256color',
                         COLORTERM: 'truecolor',
                         FORCE_COLOR: '3',
+                        // When running as root, Claude CLI refuses --dangerously-skip-permissions
+                        // for security reasons. Setting IS_SANDBOX=1 tells it the environment is
+                        // already sandboxed, so the flag is safe to use.
+                        ...(isRunningAsRoot ? { IS_SANDBOX: '1' } : {}),
                     };
 
                     shellProcess = pty.spawn(shell, shellArgs, {
@@ -4435,7 +4574,7 @@ function handleShellConnection(ws, request) {
                     console.error('[ERROR] Error spawning process:', spawnError);
                     ws.send(JSON.stringify({
                         type: 'output',
-                        data: `\r\n\x1b[31mError: ${spawnError.message}\x1b[0m\r\n`
+                        data: `\r\n\x1b[31mError: Failed to start terminal process.\x1b[0m\r\n`
                     }));
                 }
 
@@ -4450,11 +4589,11 @@ function handleShellConnection(ws, request) {
                 }
             }
         } catch (error) {
-            console.error('[ERROR] Shell WebSocket error:', error.message);
+            console.error('[ERROR] Shell WebSocket error:', error?.message || error);
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'output',
-                    data: `\r\n\x1b[31mError: ${error.message}\x1b[0m\r\n`
+                    data: `\r\n\x1b[31mError: An internal error occurred.\x1b[0m\r\n`
                 }));
             }
         }
@@ -4517,7 +4656,7 @@ app.post('/api/projects/:projectName/upload-images', authenticateToken, requireP
                 cb(null, uploadDir);
             },
             filename: (req, file, cb) => {
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(8).toString('hex');
                 const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
                 cb(null, uniqueSuffix + '-' + sanitizedName);
             }
@@ -4882,8 +5021,16 @@ app.get(/.*/, (req, res) => {
 });
 
 // global error middleware must be last
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   if (err instanceof AppError) {
+    securityLog('app_error', {
+      ip: getClientIp(req),
+      endpoint: req.path,
+      method: req.method,
+      statusCode: err.statusCode,
+      userId: req.user?.id,
+      reason: err.code,
+    });
     return res.status(err.statusCode).json({
       success: false,
       error: {
@@ -4894,7 +5041,37 @@ app.use((err, req, res, next) => {
     });
   }
 
-  console.error(err);
+  // Log the error internally but never expose stack traces, file paths,
+  // or internal IPs to the client.
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({
+      success: false,
+      error: {
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Request payload exceeds size limit.',
+      },
+    });
+  }
+
+  if (err?.type === 'entity.parse.failed' || err?.type === 'entity.parse.failed.utf8') {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_JSON',
+        message: 'Request body contains invalid JSON.',
+      },
+    });
+  }
+
+  console.error('[UNHANDLED ERROR]', err?.message || err);
+  securityLog('unhandled_error', {
+    ip: getClientIp(req),
+    endpoint: req.path,
+    method: req.method,
+    statusCode: 500,
+    userId: req.user?.id,
+    reason: err?.name || 'UnknownError',
+  });
 
   return res.status(500).json({
     success: false,
@@ -5228,6 +5405,26 @@ async function maybeAutoDaemonBootstrapFromIndex() {
     }
 }
 
+// Process-level error handlers to prevent silent crashes and log security events.
+// These catch errors that escape Express's own error middleware (e.g. from
+// timers, WebSocket handlers, or un-awaited promises in route handlers).
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[FATAL] Unhandled promise rejection:', reason);
+    securityLog('unhandled_rejection', {
+        reason: reason instanceof Error ? reason.name : String(reason).slice(0, 200),
+    });
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('[FATAL] Uncaught exception:', error?.message || error);
+    securityLog('uncaught_exception', {
+        reason: error?.name || 'UnknownError',
+    });
+    // Give the security log time to flush, then exit. A clean exit lets the
+    // daemon manager (systemd/pm2) restart the server automatically.
+    setTimeout(() => process.exit(1), 100);
+});
+
 // Initialize database and start server
 async function startServer() {
     try {
@@ -5311,11 +5508,17 @@ async function startServer() {
             if (process.env.PIXCODE_NO_BROWSER !== '1') {
                 const openUrl = `http://${DISPLAY_HOST}:${SERVER_PORT}`;
                 try {
-                    const { exec } = await import('node:child_process');
-                    const opener = process.platform === 'darwin' ? `open "${openUrl}"`
-                        : process.platform === 'win32' ? `start "" "${openUrl}"`
-                        : `xdg-open "${openUrl}"`;
-                    exec(opener, { stdio: 'ignore', timeout: 3000 });
+                    // Use spawn with an argument array instead of exec with a
+                    // shell string to prevent command injection through the
+                    // host/port values (which come from env vars).
+                    const { spawn: spawnBrowser } = await import('node:child_process');
+                    const browserBin = process.platform === 'darwin' ? 'open'
+                        : process.platform === 'win32' ? 'cmd'
+                        : 'xdg-open';
+                    const browserArgs = process.platform === 'win32'
+                        ? ['/c', 'start', '', openUrl]
+                        : [openUrl];
+                    spawnBrowser(browserBin, browserArgs, { stdio: 'ignore', timeout: 3000, detached: true, shell: false }).unref();
                     console.log(`${c.ok('[OK]')}   Opening browser at ${c.bright(openUrl)}`);
                 } catch {
                     console.log(`${c.tip('[TIP]')}  Open ${c.bright(openUrl)} in your browser to start using Pixcode.`);

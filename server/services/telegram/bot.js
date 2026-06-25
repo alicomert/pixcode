@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import crypto from 'node:crypto';
 
 import { telegramConfigDb, telegramLinksDb } from '../../database/db.js';
 
@@ -43,10 +44,11 @@ export const telegramEvents = new EventEmitter();
 const now = () => Date.now();
 
 const generate6DigitCode = () => {
-  // Zero-padded random 6-digit code. Using rand instead of crypto is fine
-  // here: the code is short-lived (10min), single-use, and verified against
-  // a per-user row — brute-force requires both the code AND a live pairing.
-  const n = Math.floor(Math.random() * 1_000_000);
+  // Zero-padded random 6-digit code. Using crypto.randomInt prevents
+  // modulo bias and ensures uniform distribution across the 000000–999999
+  // range. The code is short-lived (10min), single-use, and verified
+  // against a per-user row.
+  const n = crypto.randomInt(0, 1_000_000);
   return n.toString().padStart(6, '0');
 };
 

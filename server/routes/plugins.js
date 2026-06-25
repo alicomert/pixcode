@@ -317,7 +317,7 @@ router.get('/marketplace', (req, res) => {
       categories: ['popular', 'skills', 'plugin', 'workflow', 'new'],
     });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to read marketplace', details: err.message });
+    res.status(500).json({ error: 'Failed to read marketplace' });
   }
 });
 
@@ -358,7 +358,7 @@ router.get('/marketplace/search', async (req, res) => {
     res.json({ entries });
   } catch (err) {
     const status = err?.name === 'AbortError' ? 504 : 502;
-    res.status(status).json({ error: 'GitHub search failed', details: err.message });
+    res.status(status).json({ error: 'GitHub search failed' });
   } finally {
     clearTimeout(timeout);
   }
@@ -378,7 +378,7 @@ router.post('/marketplace/sources', (req, res) => {
     writeMarketplaceSources(sources.slice(0, 200));
     res.json({ success: true, source, installedSources: readMarketplaceSources() });
   } catch (err) {
-    res.status(400).json({ error: 'Failed to add source', details: err.message });
+    res.status(400).json({ error: 'Failed to add source' });
   }
 });
 
@@ -391,7 +391,7 @@ router.delete('/marketplace/sources/:id', (req, res) => {
     writeMarketplaceSources(next);
     res.json({ success: true, installedSources: next });
   } catch (err) {
-    res.status(400).json({ error: 'Failed to remove source', details: err.message });
+    res.status(400).json({ error: 'Failed to remove source' });
   }
 });
 
@@ -404,7 +404,7 @@ router.get('/', (req, res) => {
     }));
     res.json({ plugins });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to scan plugins', details: err.message });
+    res.status(500).json({ error: 'Failed to scan plugins' });
   }
 });
 
@@ -421,7 +421,7 @@ router.get('/:name/manifest', (req, res) => {
     }
     res.json(plugin);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to read plugin manifest', details: err.message });
+    res.status(500).json({ error: 'Failed to read plugin manifest' });
   }
 });
 
@@ -512,7 +512,7 @@ router.put('/:name/enable', async (req, res) => {
 
     res.json({ success: true, name: req.params.name, enabled });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update plugin', details: err.message });
+    res.status(500).json({ error: 'Failed to update plugin' });
   }
 });
 
@@ -545,7 +545,7 @@ router.post('/install', async (req, res) => {
 
     res.json({ success: true, plugin: manifest });
   } catch (err) {
-    res.status(400).json({ error: 'Failed to install plugin', details: err.message });
+    res.status(400).json({ error: 'Failed to install plugin' });
   }
 });
 
@@ -579,7 +579,7 @@ router.post('/:name/update', async (req, res) => {
 
     res.json({ success: true, plugin: manifest });
   } catch (err) {
-    res.status(400).json({ error: 'Failed to update plugin', details: err.message });
+    res.status(400).json({ error: 'Failed to update plugin' });
   }
 });
 
@@ -610,7 +610,7 @@ router.all(/^\/([a-zA-Z0-9_-]+)\/rpc\/(.*)$/, async (req, res) => {
     try {
       port = await startPluginServer(pluginName, pluginDir, plugin.server);
     } catch (err) {
-      return res.status(503).json({ error: 'Plugin server failed to start', details: err.message });
+      return res.status(503).json({ error: 'Plugin server failed to start' });
     }
   }
 
@@ -646,7 +646,7 @@ router.all(/^\/([a-zA-Z0-9_-]+)\/rpc\/(.*)$/, async (req, res) => {
 
   proxyReq.on('error', (err) => {
     if (!res.headersSent) {
-      res.status(502).json({ error: 'Plugin server error', details: err.message });
+      res.status(502).json({ error: 'Plugin server error' });
     } else {
       res.end();
     }
@@ -683,7 +683,7 @@ router.delete('/:name', async (req, res) => {
     await uninstallPlugin(pluginName);
     res.json({ success: true, name: pluginName });
   } catch (err) {
-    res.status(400).json({ error: 'Failed to uninstall plugin', details: err.message });
+    res.status(400).json({ error: 'Failed to uninstall plugin' });
   }
 });
 

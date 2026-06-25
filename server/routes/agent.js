@@ -1412,8 +1412,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       if (!res.writableEnded) {
         writer.send({
           type: 'error',
-          error: error.message,
-          message: `Failed: ${error.message}`
+          error: 'Failed to process agent request.',
+          message: 'Failed to process agent request.'
         });
         writer.end();
       }
@@ -1435,14 +1435,13 @@ router.post('/', validateExternalApiKey, async (req, res) => {
           if (errorText) collectedError = errorText;
         } catch { /* ignore — fall back to error.message */ }
       }
-      const failureDetails = describeProviderFailure(collectedError || error.message, provider);
+      const failureDetails = describeProviderFailure(collectedError || 'Provider returned no assistant text.', provider);
       res.status(502).json({
         success: false,
         sessionId: writer && typeof writer.getSessionId === 'function' ? writer.getSessionId() : null,
         error: failureDetails.message,
         rawError: failureDetails.rawMessage,
         errorDetails: failureDetails,
-        wrapperError: collectedError ? error.message : undefined,
         messages: collectedMessages,
       });
     }

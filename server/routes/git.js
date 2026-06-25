@@ -887,7 +887,7 @@ router.post('/initial-commit', async (req, res) => {
       });
     }
 
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -918,7 +918,7 @@ router.post('/commit', async (req, res) => {
     res.json({ success: true, output: stdout });
   } catch (error) {
     console.error('Git commit error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -965,7 +965,7 @@ router.post('/revert-local-commit', async (req, res) => {
     });
   } catch (error) {
     console.error('Git revert local commit error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -1031,7 +1031,7 @@ router.post('/checkout', async (req, res) => {
     res.json({ success: true, output: stdout });
   } catch (error) {
     console.error('Git checkout error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -1053,7 +1053,7 @@ router.post('/create-branch', async (req, res) => {
     res.json({ success: true, output: stdout });
   } catch (error) {
     console.error('Git create branch error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -1079,7 +1079,7 @@ router.post('/delete-branch', async (req, res) => {
     res.json({ success: true, output: stdout });
   } catch (error) {
     console.error('Git delete branch error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -1234,7 +1234,7 @@ router.post('/generate-commit-message', async (req, res) => {
     res.json({ message });
   } catch (error) {
     console.error('Generate commit message error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -1764,7 +1764,7 @@ router.post('/discard', async (req, res) => {
     res.json({ success: true, message: `Changes discarded for ${repositoryRelativeFilePath}` });
   } catch (error) {
     console.error('Git discard error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -1815,7 +1815,7 @@ router.post('/delete-untracked', async (req, res) => {
     }
   } catch (error) {
     console.error('Git delete untracked error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

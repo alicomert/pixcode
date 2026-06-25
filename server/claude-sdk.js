@@ -195,6 +195,13 @@ function mapCliOptionsToSDK(options = {}) {
   // ANTHROPIC_BASE_URL, HTTP(S)_PROXY, etc. would silently lose those settings.
   sdkOptions.env = { ...process.env, ...loadClaudeSettingsEnv(cwd) };
 
+  // When running as root, Claude CLI refuses --dangerously-skip-permissions.
+  // IS_SANDBOX=1 tells it the environment is sandboxed so the flag is accepted.
+  const isRunningAsRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  if (isRunningAsRoot) {
+    sdkOptions.env.IS_SANDBOX = '1';
+  }
+
   // Claude Code on Windows hard-requires a POSIX bash (typically from Git
   // for Windows) and reads its path from CLAUDE_CODE_GIT_BASH_PATH. If the
   // user has git-bash installed but hasn't exported that var, the CLI

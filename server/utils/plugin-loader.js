@@ -3,6 +3,8 @@ import path from 'path';
 import os from 'os';
 import { spawn } from 'child_process';
 
+import { securityLog } from './security-log.js';
+
 const PLUGINS_DIR = path.join(os.homedir(), '.pixcode', 'plugins');
 const PLUGINS_CONFIG_PATH = path.join(os.homedir(), '.pixcode', 'plugins.json');
 
@@ -290,6 +292,7 @@ export function installPluginFromGit(url) {
         cleanupTemp();
         return reject(new Error(`Failed to move plugin into place: ${err.message}`));
       }
+      securityLog('plugin_installed', { reason: manifest.name });
       resolve(manifest);
     };
 
@@ -303,6 +306,7 @@ export function installPluginFromGit(url) {
     gitProcess.on('close', (code) => {
       if (code !== 0) {
         cleanupTemp();
+        securityLog('plugin_install_failed', { reason: `git clone failed: exit code ${code}` });
         return reject(new Error(`git clone failed (exit code ${code}): ${stderr.trim()}`));
       }
 
