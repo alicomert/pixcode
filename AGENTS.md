@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Web UI (`pixcode`) for Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins. Also ships an Electron wrapper (`desktop/`, separate private package pinned to the main package version) and Docker sandbox images (`docker/`). `CLAUDE.md` / `GEMINI.md` are slimmer companions that defer to this file.
+Web UI (`pixcode`) for Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins. Also ships an Electron wrapper (`desktop/`, separate private package that tracks its own version) and Docker sandbox images (`docker/`).
 
 ## Stack & topology
 
@@ -17,11 +17,12 @@ Web UI (`pixcode`) for Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, an
 - `npm run dev` — **not** a vite dev server. It calls `server:dev`, which invokes the daemon manager (`node server/cli.js daemon install --mode system ...`). On Linux this installs a systemd unit. For a plain foreground dev loop, run `npm run client` (Vite on 5173) and `npm run server` (built backend) separately, or use `node server/cli.js start`.
 - `npm run client` — Vite dev server only (port from `VITE_PORT`, default 5173, `strictPort: true`).
 - `npm run server` — runs the **built** backend from `dist-server/`. Requires `npm run build:server` first.
+- `npm run server:dev-watch` — restarts the daemon from source (same as `server:dev` but with `daemon restart`). Use for iterative backend changes when working via the daemon.
 - `npm run build` = `build:client` (→ `dist/`) + `build:server` (→ `dist-server/`, rm'd first by `prebuild:server`).
 - `npm run typecheck` — both tsconfigs; run this after TS edits.
 - `npm run lint` / `lint:fix` — scopes to `src/` and `server/`.
-- `npm run smoke:*` — smoke scripts in `scripts/smoke/*.mjs` (only some have npm scripts; run others via `node scripts/smoke/<name>.mjs`). Two kinds: static source-regex checks (no server needed, e.g. `chat-session-state`) and live API checks that require a running backend plus `PIXCODE_API_KEY` (e.g. `provider-rest-api`, `orchestration-live-run`).
-- `./release.sh` / `npm run release` — release-it; requires `main` + clean tree. CI workflow: `.github/workflows/release.yml` (manual dispatch, runs `npx release-it --ci`). No CI runs lint/typecheck on PRs — local hooks are the only gate.
+- `npm run smoke:*` — smoke scripts in `scripts/smoke/*.mjs` (73 scripts total; only 13 have `npm run smoke:*` aliases, run others via `node scripts/smoke/<name>.mjs`). Two kinds: static source-regex checks (no server needed, e.g. `chat-session-state`) and live API checks that require a running backend plus `PIXCODE_API_KEY` (e.g. `provider-rest-api`, `orchestration-live-run`).
+- `./release.sh` / `npm run release` — release-it; requires `main` + clean tree. CI workflow: `.github/workflows/release.yml` (manual dispatch, runs `npx release-it --ci`). No CI runs lint/typecheck on PRs — local hooks are the only gate. `static.yml` deploys `public/` to GitHub Pages on push to `main`.
 
 ## Don't-get-burned list
 
@@ -61,12 +62,12 @@ Config: `eslint.config.js` (flat config, two blocks).
 - `server/cli.js` — CLI (`start`, `daemon`, `sandbox`, `status`, `version`, ...). Installed as `pixcode`.
 - `server/daemon/manager.js` + `server/daemon-manager.js` — systemd-based daemon management (Linux focus).
 - `server/modules/providers/` — provider code:
-  - `list/{claude,codex,cursor,gemini,opencode,qwen}/*-{auth,mcp,sessions}.provider.ts` — per-provider auth, MCP, sessions
+  - `list/{claude,codex,cursor,gemini,opencode,qwen}/*-{auth,mcp,sessions}.provider.ts` — per-provider auth, MCP, sessions (plus a base `*.provider.ts` per provider)
   - `services/{provider-auth,mcp,sessions}.service.ts` — orchestration
   - `provider.registry.ts` — registry wiring
   - `provider.routes.ts` — router mounted at `/api/providers`
   - `shared/base/abstract.provider.ts` + `shared/mcp/mcp.provider.ts` — base classes
-- `server/modules/orchestration/` — multi-agent orchestration module: `a2a/` (A2A protocol + per-provider adapters), `workflows/` (runner, templates, traces), `tasks/`, `workspace/` (docker + git-worktree workspaces), `preview/`.
+- `server/modules/orchestration/` — multi-agent orchestration module: `a2a/` (A2A protocol + per-provider adapters), `workflows/` (runner, templates, traces), `tasks/`, `workspace/` (docker + git-worktree workspaces), `preview/`, `security/`.
 - `server/shared/{types,interfaces,utils}.ts` — shared TypeScript contracts (see boundaries rules above).
 - `server/routes/*.js` — legacy routes (auth, projects, git, mcp-utils, codex, cursor, gemini, qwen, plugins, agent, commands, settings, user, messages, telegram, remote, webhooks, live-view, diagnostics, network, platformization, production-agent-loop, public-api).
 - `server/database/{db.js,json-store.js}` — `better-sqlite3` auth/user/token storage (`backend-legacy-runtime`).
