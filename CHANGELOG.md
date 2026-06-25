@@ -2,6 +2,31 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.1](https://github.com/alicomert/pixcode/compare/v1.54.0...v1.54.1) (2026-06-25)
+
+Pixcode 1.54.1 fixes the terminal "aNM" spam with xterm.js parser handlers, fixes --dangerously-skip-permissions on root, and applies OWASP Top 10 2025 security hardening across the entire backend.
+
+### Bug Fixes
+
+* prevent terminal "aNM" feedback loop by registering xterm.js parser handlers that suppress DA1/DA2/DSR response generation at the source (regex sanitizers were insufficient for split chunks)
+* fix `--dangerously-skip-permissions` refusing to run as root by setting `IS_SANDBOX=1` environment variable in both PTY shell and Claude SDK paths
+* remove cloudflare tunnel quick-launch button from terminal panel
+* sanitize error messages across all route handlers to prevent stack trace / file path leakage to clients
+* add process-level uncaughtException and unhandledRejection handlers with clean exit
+
+### Security (OWASP Top 10 2025)
+
+* **A01 Broken Access Control**: require admin auth on connection-mode PUT and all diagnostics routes; replace wildcard CORS with origin allowlist
+* **A02 Security Misconfiguration**: add security headers (CSP, X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy); disable x-powered-by; set trust proxy; remove debug env logging
+* **A03 Supply Chain**: verify npm tarball SRI integrity (SHA-512) before extraction in both runtime-dir and startup-update paths
+* **A04 Cryptographic Failures**: replace Math.random with crypto.randomBytes for upload filenames and crypto.randomInt for Telegram pairing codes
+* **A05 Injection**: validate port input before firewall commands; replace exec() with spawn() argument arrays for browser opening
+* **A06 Insecure Design**: add rate limiting (10/15min auth, 120/min API); add account lockout after 5 failed logins; enforce strong password policy (8+ chars, mixed case, numbers, special)
+* **A07 Auth Failures**: pin JWT algorithm to HS256; reduce JWT expiry from 7d to 24h; audit-log credentials passed via URL query params
+* **A08 Integrity Failures**: add audit trail for plugin loading; verify tarball integrity in startup-update extraction
+* **A09 Logging Failures**: add centralized security logger writing to ~/.pixcode/logs/security.log with log rotation and injection prevention; log all auth events, admin actions, rate limit hits, and system updates
+* **A10 Exception Handling**: add global Express error middleware with safe messages; guard WebSocket error handlers; add process-level error handlers
+
 ## [1.54.0](https://github.com/alicomert/pixcode/compare/v1.53.28...v1.54.0) (2026-06-25)
 
 Pixcode 1.54.0 adds an interactive first-run setup wizard, a one-click Cloudflare tunnel launcher in the terminal panel, and fixes a critical terminal feedback loop that produced "aNM" characters on Linux.
