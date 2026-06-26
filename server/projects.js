@@ -63,8 +63,6 @@ import readline from 'readline';
 import crypto from 'crypto';
 import os from 'os';
 
-import Database from 'better-sqlite3';
-
 import sessionManager from './sessionManager.js';
 import { applyCustomSessionNames } from './database/db.js';
 
@@ -1622,7 +1620,15 @@ async function getCursorSessions(projectPath) {
           dbStatMtimeMs = stat.mtimeMs;
         } catch (_) { }
 
-        // Open SQLite database
+        // Open SQLite database (dynamic require — better-sqlite3 is a native
+        // module that may not be compiled on all installs; fail gracefully)
+        let Database;
+        try {
+          Database = require('better-sqlite3');
+        } catch {
+          // Native module not available — skip SQLite store reads
+          break;
+        }
         const db = new Database(storeDbPath, { readonly: true, fileMustExist: true });
 
         // Get metadata from meta table

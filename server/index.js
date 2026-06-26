@@ -100,7 +100,16 @@ import { c } from './utils/colors.js';
 
 
 
-import pty from 'node-pty';
+// node-pty is a native module — use dynamic require so the server doesn't
+// crash on startup if it isn't compiled (allow-scripts blocking, etc.)
+let pty;
+try {
+    pty = require('node-pty');
+} catch (e) {
+    console.warn('[WARN] node-pty native module not available. Terminal/shell features will be disabled.');
+    console.warn('[WARN] Run: npm install -g --allow-scripts=better-sqlite3,node-pty @pixelbyte-software/pixcode');
+    pty = null;
+}
 import mime from 'mime-types';
 
 import { getProjects, getSessions, renameProject, deleteSession, deleteProject, extractProjectDirectory, clearProjectDirectoryCache, searchConversations } from './projects.js';
@@ -4442,6 +4451,10 @@ function handleShellConnection(ws, request) {
                         ...(isRunningAsRoot ? { IS_SANDBOX: '1' } : {}),
                     };
 
+                    if (!pty) {
+                        ws.send(JSON.stringify({ type: 'error', message: 'Terminal not available — node-pty native module is not installed. Run: npm install -g --allow-scripts=better-sqlite3,node-pty @pixelbyte-software/pixcode' }));
+                        return;
+                    }
                     shellProcess = pty.spawn(shell, shellArgs, {
                         name: 'xterm-256color',
                         cols: termCols,

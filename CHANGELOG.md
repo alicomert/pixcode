@@ -2,6 +2,16 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.6](https://github.com/alicomert/pixcode/compare/v1.54.5...v1.54.6) (2026-06-25)
+
+Pixcode 1.54.6 fixes the server crash caused by static imports of native modules (better-sqlite3, node-pty) that fail when npm blocks install scripts.
+
+### Bug Fixes
+
+* make `better-sqlite3` import dynamic in `projects.js` — static top-level import crashed the server when the native module wasn't compiled (npm `allow-scripts` blocking)
+* make `node-pty` import dynamic in `index.js` — server now starts even without the native module; terminal features show a helpful error message instead of crashing
+* add guard before `pty.spawn()` — returns clear error to WebSocket client instead of throwing
+
 ## [1.54.5](https://github.com/alicomert/pixcode/compare/v1.54.4...v1.54.5) (2026-06-25)
 
 Pixcode 1.54.5 fixes the API rate limiter that was blocking frontend polling and causing false "rate limit" errors.
