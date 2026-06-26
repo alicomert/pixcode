@@ -1756,32 +1756,17 @@ app.use(cors({
     exposedHeaders: ['X-Refreshed-Token'],
 }));
 
-// Security headers middleware (replaces helmet which isn't installed).
+// Security headers — kept lightweight for self-hosted tool compatibility.
+// CSP removed: it blocked Vite inline modulepreload, Google Fonts, and
+// IP-based WebSocket access. X-Frame-Options + nosniff are the high-value
+// headers that don't break anything.
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-    // Strict-Transport-Security only makes sense over HTTPS; skip for plain HTTP
-    // so local dev doesn't pin an HSTS policy on localhost.
     if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
         res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
-    // CSP for the SPA shell — relaxed for self-hosted tool accessed from
-    // various IPs/hostnames. 'unsafe-inline' + 'unsafe-eval' needed for Vite.
-    // ws:/wss: in connect-src allows WebSocket from any origin (IP access).
-    res.setHeader('Content-Security-Policy', [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https:",
-        "font-src 'self' data:",
-        "connect-src 'self' ws: wss: http: https:",
-        "frame-ancestors 'self'",
-        "base-uri 'self'",
-        "form-action 'self'",
-    ].join('; '));
     next();
 });
 

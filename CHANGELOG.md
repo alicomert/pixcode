@@ -2,6 +2,15 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.54.7](https://github.com/alicomert/pixcode/compare/v1.54.6...v1.54.7) (2026-06-26)
+
+Pixcode 1.54.7 removes the CSP header that was causing blank screens on VPS/cloud deployments.
+
+### Bug Fixes
+
+* remove Content-Security-Policy header entirely — it was blocking Vite inline modulepreload scripts, Google Fonts, and IP-based WebSocket connections, causing a blank white screen when accessing the UI
+* fix duplicate `app.disable('x-powered-by')` call
+
 ## [1.54.6](https://github.com/alicomert/pixcode/compare/v1.54.5...v1.54.6) (2026-06-25)
 
 Pixcode 1.54.6 fixes the server crash caused by static imports of native modules (better-sqlite3, node-pty) that fail when npm blocks install scripts.
