@@ -12,6 +12,8 @@
     <a href="https://github.com/alicomert/pixcode/releases/latest"><img src="https://img.shields.io/github/v/release/alicomert/pixcode?style=for-the-badge&color=0ea5e9" alt="latest release" /></a>
     <img src="https://img.shields.io/badge/Node.js-22%2B-3c873a?style=for-the-badge" alt="Node.js 22+" />
     <img src="https://img.shields.io/badge/Desktop-Windows%20%7C%20macOS%20%7C%20Linux-6366f1?style=for-the-badge" alt="desktop platforms" />
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="MIT License" /></a>
+    <a href="https://github.com/alicomert/pixcode/discussions"><img src="https://img.shields.io/badge/Discussions-open-9ca3af?style=for-the-badge" alt="Discussions" /></a>
   </p>
   <p>
     <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
@@ -371,7 +373,7 @@ Pixcode is prepared for public contribution with the basics contributors expect:
 
 - Clear README with purpose, install commands, screenshots, API examples, and
   architecture map.
-- Open-source license in [`LICENSE`](LICENSE).
+- MIT-licensed — see [`LICENSE`](LICENSE). Free for commercial and personal use.
 - Contribution guide in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 - Code of conduct in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 - Security policy in [`SECURITY.md`](SECURITY.md).
@@ -403,6 +405,21 @@ short recordings for UI work when possible.
 For community behavior expectations, read
 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). For private vulnerability reports,
 read [`SECURITY.md`](SECURITY.md).
+
+## Cloud (Coming Soon)
+
+Pixcode Cloud will offer a fully managed SaaS experience — no server setup,
+no Docker, no daemon configuration. Connect your GitHub repos, pick an AI
+coding agent, and let it work in an isolated container that we manage for you.
+
+- **BYOK** (Bring Your Own Key) or use our managed API pool
+- Isolated Docker containers per project
+- Team collaboration and shared workspaces
+- Cost analytics and token usage dashboards
+- Workflow marketplace with pre-built orchestration templates
+
+Join the discussion or request early access in
+[GitHub Discussions](https://github.com/alicomert/pixcode/discussions).
 
 ## Links
 
