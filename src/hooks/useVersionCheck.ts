@@ -67,6 +67,7 @@ export type VersionCheckResult = {
   latestVersion: string | null;
   releaseInfo: ReleaseInfo | null;
   currentVersion: string;
+  nodeVersion: string | null;
   checkedAt: number | null;
   status: VersionCheckStatus;
 };
@@ -130,6 +131,9 @@ export const useVersionCheck = (owner: string, repo: string) => {
   const [updateCheckPreferences, setUpdateCheckPreferencesState] = useState<UpdateCheckPreferences>(() => (
     readUpdateCheckPreferences()
   ));
+  // Node.js version reported by the server via /health
+  const [nodeVersion, setNodeVersion] = useState<string | null>(null);
+
   // Seed from the bundled version so the UI never starts out with a
   // blank "Current Version" field, even before /health responds.
   const [currentVersion, setCurrentVersion] = useState<string>(BUNDLED_UI_VERSION);
@@ -178,6 +182,9 @@ export const useVersionCheck = (owner: string, repo: string) => {
         if (typeof data.version === 'string' && /^\d+\.\d+\.\d+/.test(data.version)) {
           setCurrentVersion(data.version);
         }
+        if (typeof data.nodeVersion === 'string') {
+          setNodeVersion(data.nodeVersion);
+        }
       } catch {
         // Network/daemon trouble — keep the bundled fallback in place.
       }
@@ -207,6 +214,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
       latestVersion: latest,
       releaseInfo: info,
       currentVersion,
+      nodeVersion,
       checkedAt,
       status,
     });
@@ -358,6 +366,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
     updateAvailable,
     latestVersion,
     currentVersion,
+    nodeVersion,
     releaseInfo,
     installMode,
     checkStatus,

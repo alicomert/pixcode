@@ -43,7 +43,7 @@ function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
-  const { updateAvailable, latestVersion, currentVersion, releaseInfo, installMode } = useVersionCheck(
+  const { updateAvailable, latestVersion, currentVersion, nodeVersion, releaseInfo, installMode } = useVersionCheck(
     'alicomert',
     'pixcode',
   );
@@ -314,33 +314,31 @@ function Sidebar({
   };
 
   const sidebarModals = (
-    <SidebarModals
-      projects={projects}
-      showSettings={showSettings}
-      settingsInitialTab={settingsInitialTab}
-      onCloseSettings={onCloseSettings}
-      showNewProject={showNewProject}
-      newProjectInitialType={newProjectInitialType}
-      onCloseNewProject={() => setShowNewProject(false)}
-      onProjectCreated={handleProjectCreated}
-      deleteConfirmation={deleteConfirmation}
-      onCancelDeleteProject={() => setDeleteConfirmation(null)}
-      onConfirmDeleteProject={confirmDeleteProject}
-      sessionDeleteConfirmation={sessionDeleteConfirmation}
-      onCancelDeleteSession={() => setSessionDeleteConfirmation(null)}
-      onConfirmDeleteSession={confirmDeleteSession}
-      showVersionModal={showVersionModal}
-      onCloseVersionModal={() => {
-        setShowVersionModal(false);
-        setVersionModalSnapshot(null);
-      }}
-      releaseInfo={versionModalSnapshot?.releaseInfo ?? releaseInfo}
-      currentVersion={versionModalSnapshot?.currentVersion ?? currentVersion}
-      latestVersion={versionModalSnapshot?.latestVersion ?? latestVersion}
-      installMode={installMode}
-      isUpdateAvailable={versionModalSnapshot?.updateAvailable ?? updateAvailable}
-      t={t}
-    />
+      <SidebarModals
+        projects={projects}
+        showSettings={showSettings}
+        settingsInitialTab={settingsInitialTab}
+        onCloseSettings={onCloseSettings}
+        showNewProject={showNewProject}
+        newProjectInitialType={newProjectInitialType}
+        onCloseNewProject={onCloseNewProject}
+        onProjectCreated={handleProjectCreated}
+        deleteConfirmation={deleteConfirmation}
+        onCancelDeleteProject={onCancelDeleteProject}
+        onConfirmDeleteProject={confirmDeleteProject}
+        sessionDeleteConfirmation={sessionDeleteConfirmation}
+        onCancelDeleteSession={onCancelDeleteSession}
+        onConfirmDeleteSession={confirmDeleteSession}
+        showVersionModal={showVersionModal}
+        onCloseVersionModal={onCloseVersionModal}
+        releaseInfo={releaseInfo}
+        currentVersion={currentVersion}
+        latestVersion={latestVersion}
+        nodeVersion={nodeVersion}
+        installMode={installMode}
+        isUpdateAvailable={updateAvailable}
+        t={t}
+      />
   );
 
   if (modalsOnly) {

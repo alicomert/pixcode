@@ -17,6 +17,7 @@ interface VersionUpgradeModalProps {
     releaseInfo: ReleaseInfo | null;
     currentVersion: string;
     latestVersion: string | null;
+    nodeVersion: string | null;
     installMode: InstallMode;
     isUpdateAvailable?: boolean;
 }
@@ -24,6 +25,14 @@ interface VersionUpgradeModalProps {
 const RELOAD_COUNTDOWN_START = 30;
 const HEALTH_POLL_TIMEOUT_MS = 60_000;
 const HEALTH_POLL_INTERVAL_MS = 1500;
+const MIN_NODE_MAJOR = 20;
+
+function isNodeVersionSupported(v: string | null): boolean {
+    if (!v) return true; // unknown, assume ok
+    const match = v.match(/^v(\d+)\./);
+    if (!match) return true;
+    return parseInt(match[1], 10) >= MIN_NODE_MAJOR;
+}
 
 type DoneEvent = {
     success: boolean;
@@ -96,6 +105,7 @@ export function VersionUpgradeModal({
     releaseInfo,
     currentVersion,
     latestVersion,
+    nodeVersion,
     isUpdateAvailable = true,
 }: VersionUpgradeModalProps) {
     const { t } = useTranslation('common');
@@ -115,6 +125,10 @@ export function VersionUpgradeModal({
     const pollingJobIdRef = useRef<string | null>(null);
     useGsapEntrance(modalRef, 'modal');
     const showUpdateActions = Boolean(isUpdateAvailable && latestVersion);
+    const nodeVersionOk = isNodeVersionSupported(nodeVersion);
+    const nodeVersionWarning = !nodeVersionOk && nodeVersion
+        ? `Node.js ${nodeVersion} detected. Pixcode requires Node.js ${MIN_NODE_MAJOR}+. Update may fail.`
+        : null;
 
     // Auto-scroll the log pane as new output streams in.
     useEffect(() => {
@@ -423,6 +437,12 @@ export function VersionUpgradeModal({
     }, [currentVersion, finishUpdateResult, isOpen, isUpdateAvailable, pollUpdateJob]);
 
     const handleUpdateNow = useCallback(async () => {
+        if (!nodeVersionOk && nodeVersion) {
+            const proceed = window.confirm(
+                `Node.js ${nodeVersion} is too old. Pixcode requires Node.js ${MIN_NODE_MAJOR}+.\n\nThe update may fail. Continue anyway?`
+            );
+            if (!proceed) return;
+        }
         setIsUpdating(true);
         setUpdateOutput('Starting update…\n');
         setReloadCountdown(IS_PLATFORM ? RELOAD_COUNTDOWN_START : null);
@@ -440,7 +460,7 @@ export function VersionUpgradeModal({
             appendOutput(`\n❌ Update failed: ${error.message}\n`);
             setIsUpdating(false);
         }
-    }, [appendOutput, finishUpdateResult, streamUpdate]);
+    }, [appendOutput, finishUpdateResult, nodeVersion, nodeVersionOk, streamUpdate]);
 
     if (!isOpen) return null;
 
@@ -507,6 +527,34 @@ export function VersionUpgradeModal({
                         </span>
                         <span className="font-mono text-sm text-blue-900 dark:text-blue-100">{latestVersion || currentVersion}</span>
                     </div>
+                    {nodeVersion && (
+                        <div className={`flex items-center justify-between rounded-lg p-3 ${
+                            nodeVersionOk
+                                ? 'bg-gray-50 dark:bg-gray-700/50'
+                                : 'border border-yellow-200 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-900/20'
+                        }`}>
+                            <span className={`text-sm font-medium ${
+                                nodeVersionOk
+                                    ? 'text-gray-700 dark:text-gray-300'
+                                    : 'text-yellow-800 dark:text-yellow-200'
+                            }`}>
+                                Node.js {nodeVersionOk ? '' : '(unsupported) '}Version
+                            </span>
+                            <span className={`font-mono text-sm ${
+                                nodeVersionOk
+                                    ? 'text-gray-900 dark:text-white'
+                                    : 'text-yellow-900 dark:text-yellow-100'
+                            }`}>
+                                {nodeVersion}
+                                {!nodeVersionOk && <span className="ml-2 text-xs">(min: v{MIN_NODE_MAJOR})</span>}
+                            </span>
+                        </div>
+                    )}
+                    {nodeVersionWarning && (
+                        <div className="rounded-md border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-800 dark:border-yellow-900/40 dark:bg-yellow-900/20 dark:text-yellow-200">
+                            {nodeVersionWarning}
+                        </div>
+                    )}
                 </div>
 
                 <ReleaseIssueProgress

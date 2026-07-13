@@ -506,10 +506,21 @@ async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl
     return latestVersion;
 }
 
+function isNodeVersionSupported() {
+    const match = process.version?.match(/^v(\d+)\./);
+    if (!match) return true; // can't detect, assume ok
+    return parseInt(match[1], 10) >= 20;
+}
+
 async function runCommandUpdateJob(job, updateCommand, updateCwd) {
-    appendUpdateJobLog(job, 'meta', `Running: ${updateCommand}\n`);
-    await new Promise((resolve, reject) => {
-        const child = spawn(updateCommand, {
+    if (!isNodeVersionSupported()) {
+        const msg = `Node.js ${process.version} is too old. Pixcode requires Node.js 20+. Please upgrade Node.js first.\n`;
+        appendUpdateJobLog(job, 'stderr', msg);
+        throw new Error(msg.trim());
+    }
+
+    const runCommand = (cmd) => new Promise((resolve, reject) => {
+        const child = spawn(cmd, {
             cwd: updateCwd,
             env: process.env,
             shell: true,
@@ -518,13 +529,40 @@ async function runCommandUpdateJob(job, updateCommand, updateCwd) {
         });
         try { child.unref(); } catch { /* noop */ }
         child.stdout?.on('data', (data) => appendUpdateJobLog(job, 'stdout', data.toString()));
-        child.stderr?.on('data', (data) => appendUpdateJobLog(job, 'stderr', data.toString()));
+        let stderrBuf = '';
+        child.stderr?.on('data', (data) => {
+            const chunk = data.toString();
+            stderrBuf += chunk;
+            appendUpdateJobLog(job, 'stderr', chunk);
+        });
         child.on('error', reject);
         child.on('close', (code) => {
             if (code === 0) resolve();
-            else reject(new Error(`Update command exited with code ${code}`));
+            else reject({ code, stderr: stderrBuf });
         });
     });
+
+    appendUpdateJobLog(job, 'meta', `Running: ${updateCommand}\n`);
+    try {
+        await runCommand(updateCommand);
+    } catch (err) {
+        // On Linux/macOS, retry with sudo if the initial attempt failed with EACCES.
+        // npm install -g needs write access to /usr/local/lib/node_modules/,
+        // which the running user may not have.
+        if (process.platform !== 'win32' && (err.stderr?.includes('EACCES') || err.stderr?.includes('permission denied'))) {
+            const sudoCmd = `sudo -n ${updateCommand}`;
+            appendUpdateJobLog(job, 'meta', `Permission denied. Retrying with sudo...\n`);
+            try {
+                await runCommand(sudoCmd);
+                return;
+            } catch (sudoErr) {
+                appendUpdateJobLog(job, 'stderr', `Sudo update also failed: ${sudoErr.stderr || sudoErr.code}\n`);
+                appendUpdateJobLog(job, 'meta', 'Tip: Run the update manually with: sudo npm install -g @pixelbyte-software/pixcode@latest\n');
+                throw new Error(`Update command exited with code ${err.code}`);
+            }
+        }
+        throw new Error(`Update command exited with code ${err.code}`);
+    }
 }
 
 function readCurrentPackageVersion() {
@@ -1791,6 +1829,7 @@ app.get('/health', (req, res) => {
         timestamp: new Date().toISOString(),
         installMode,
         version: SERVER_VERSION,
+        nodeVersion: process.version,
         pendingRestart: updateState.pendingRestart,
         lastAppliedUpdate: updateState.lastAppliedUpdate,
     });
@@ -2573,6 +2612,15 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
         }
     }
 
+    // Check Node.js version before starting update
+    if (!isNodeVersionSupported()) {
+        send('log', { stream: 'stderr', chunk: `Node.js ${process.version} is too old. Pixcode requires Node.js 20+.\n` });
+        send('log', { stream: 'meta', chunk: 'Please upgrade Node.js and try again.\n' });
+        send('done', { success: false, error: `Node.js ${process.version} is too old. Pixcode requires Node.js 20+. Please upgrade Node.js first.` });
+        endStream();
+        return;
+    }
+
     send('log', { stream: 'meta', chunk: `Running: ${updateCommandLabel}\n` });
 
     // Cross-platform shell invocation. `detached: true` + `unref()` below
@@ -2582,7 +2630,7 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
     // can segfault or the supervisor kills it). Without detachment, a
     // killed parent tears down the npm child too and users end up with
     // a half-installed package and no server at all.
-    const child = spawn(updateCommand, {
+    let child = spawn(updateCommand, {
         cwd: updateCwd,
         env: process.env,
         shell: true,
@@ -2605,7 +2653,9 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
         send('log', { stream: 'stdout', chunk: data.toString() });
     });
 
+    let stderrBuf = '';
     child.stderr?.on('data', (data) => {
+        stderrBuf += data.toString();
         send('log', { stream: 'stderr', chunk: data.toString() });
     });
 
@@ -2616,7 +2666,7 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
         endStream();
     });
 
-    child.on('close', (code) => {
+    child.on('close', async (code) => {
         if (ended) return;
         if (clientAborted) {
             endStream();
@@ -2628,12 +2678,53 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
                 version: SERVER_VERSION,
                 message: 'Update completed. Restart the server to apply changes.',
             });
-        } else {
-            send('done', {
-                success: false,
-                error: `Update command exited with code ${code}`,
-            });
+            endStream();
+            return;
         }
+
+        // On Linux/macOS, retry with sudo on EACCES (npm install -g permission error)
+        if (code !== 0 && process.platform !== 'win32' && (stderrBuf.includes('EACCES') || stderrBuf.includes('permission denied'))) {
+            const sudoCmd = `sudo -n ${updateCommand}`;
+            send('log', { stream: 'meta', chunk: 'Permission denied. Retrying with sudo...\n' });
+            try {
+                await new Promise((resolveSudo, rejectSudo) => {
+                    let sudoEnded = false;
+                    const sudoChild = spawn(sudoCmd, {
+                        cwd: updateCwd,
+                        env: process.env,
+                        shell: true,
+                        detached: true,
+                        stdio: ['ignore', 'pipe', 'pipe'],
+                    });
+                    try { sudoChild.unref(); } catch { /* noop */ }
+                    sudoChild.stdout?.on('data', (d) => send('log', { stream: 'stdout', chunk: d.toString() }));
+                    let sudoStderr = '';
+                    sudoChild.stderr?.on('data', (d) => { sudoStderr += d.toString(); send('log', { stream: 'stderr', chunk: d.toString() }); });
+                    sudoChild.on('error', (e) => { if (!sudoEnded) { sudoEnded = true; rejectSudo(e); } });
+                    sudoChild.on('close', (sudoCode) => {
+                        if (sudoEnded) return;
+                        sudoEnded = true;
+                        if (sudoCode === 0) resolveSudo();
+                        else rejectSudo(new Error(`Sudo update exited with code ${sudoCode}`));
+                    });
+                });
+                send('done', {
+                    success: true,
+                    version: SERVER_VERSION,
+                    message: 'Update completed (with sudo). Restart the server to apply changes.',
+                });
+                endStream();
+                return;
+            } catch (sudoErr) {
+                send('log', { stream: 'stderr', chunk: `Sudo update failed: ${sudoErr.message}\n` });
+                send('log', { stream: 'meta', chunk: 'Tip: Run the update manually with: sudo npm install -g @pixelbyte-software/pixcode@latest\n' });
+            }
+        }
+
+        send('done', {
+            success: false,
+            error: `Update command exited with code ${code}`,
+        });
         endStream();
     });
 });

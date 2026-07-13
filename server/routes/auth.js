@@ -54,12 +54,24 @@ router.get('/connection-mode', (req, res) => {
   res.json({ success: true, connection: getPublicRemoteConnectionConfig() });
 });
 
-// Changing the connection mode is a state-changing operation that must
-// require authentication. Without auth, any unauthenticated caller could
-// redirect the app to a malicious remote server.
-router.put('/connection-mode', authenticateToken, requireAdmin, (req, res) => {
+// Connection mode can be set during initial setup (no users exist yet) without
+// authentication. After setup, only authenticated admins may change it — an
+// unauthenticated caller could otherwise redirect the app to a malicious
+// remote server.
+router.put('/connection-mode', async (req, res) => {
   try {
-    res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
+    // During first-run setup no users exist yet, so we skip auth.
+    // The setup form calls this endpoint before creating the admin account.
+    const hasUsers = await userDb.hasUsers();
+    if (!hasUsers) {
+      return res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
+    }
+    // Post-setup: require authenticated admin
+    authenticateToken(req, res, () => {
+      requireAdmin(req, res, () => {
+        res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
+      });
+    });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }

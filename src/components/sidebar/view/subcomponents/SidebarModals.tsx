@@ -35,6 +35,7 @@ type SidebarModalsProps = {
   releaseInfo: ReleaseInfo | null;
   currentVersion: string;
   latestVersion: string | null;
+  nodeVersion: string | null;
   installMode: InstallMode;
   isUpdateAvailable: boolean;
   t: TFunction;
@@ -73,6 +74,7 @@ export default function SidebarModals({
   releaseInfo,
   currentVersion,
   latestVersion,
+  nodeVersion,
   installMode,
   isUpdateAvailable,
   t,
@@ -210,6 +212,7 @@ export default function SidebarModals({
         releaseInfo={releaseInfo}
         currentVersion={currentVersion}
         latestVersion={latestVersion}
+        nodeVersion={nodeVersion}
         installMode={installMode}
         isUpdateAvailable={isUpdateAvailable}
       />

@@ -39,8 +39,28 @@ function validateSetupForm(formState: SetupFormState): string | null {
     return 'Username must be at least 3 characters long.';
   }
 
-  if (formState.password.length < 6) {
-    return 'Password must be at least 6 characters long.';
+  if (formState.password.length < 8) {
+    return 'Password must be at least 8 characters long.';
+  }
+
+  if (formState.password.length > 128) {
+    return 'Password must not exceed 128 characters.';
+  }
+
+  if (!/[a-z]/.test(formState.password)) {
+    return 'Password must contain at least one lowercase letter.';
+  }
+
+  if (!/[A-Z]/.test(formState.password)) {
+    return 'Password must contain at least one uppercase letter.';
+  }
+
+  if (!/[0-9]/.test(formState.password)) {
+    return 'Password must contain at least one number.';
+  }
+
+  if (!/[^a-zA-Z0-9]/.test(formState.password)) {
+    return 'Password must contain at least one special character.';
   }
 
   if (formState.password !== formState.confirmPassword) {
