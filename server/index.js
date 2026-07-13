@@ -1216,6 +1216,10 @@ const FILE_TREE_MAX_ITEMS = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_IT
 const FILE_TREE_MAX_DIRECTORIES = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_DIRECTORIES || '', 10) || 1200;
 const FILE_TREE_SCAN_MAX_MS = Number.parseInt(process.env.PIXCODE_FILE_TREE_SCAN_MAX_MS || '', 10) || 4000;
 const FILE_TREE_MAX_ENTRIES_PER_DIRECTORY = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ENTRIES_PER_DIRECTORY || '', 10) || 1500;
+const FILE_TREE_MAX_DEPTH_DEFAULT = 5; // was 10, reduced to avoid deep traversal on huge projects
+const FILE_TREE_CACHE_TTL_MS = 3000; // short-lived cache for rapid successive requests
+const FILE_TREE_CACHE_MAX_ENTRIES = 50;
+const fileTreeCache = new Map();
 const FILE_TREE_EXCLUDED_ENTRY_NAMES = new Set([
     '.cache',
     '.git',
@@ -3233,7 +3237,7 @@ app.get('/api/projects/:projectName/files', authenticateToken, requireProjectAcc
             return res.status(404).json({ error: `Project path not found: ${actualPath}` });
         }
 
-        const files = await getFileTree(actualPath, 10, 0, true);
+        const files = await getFileTree(actualPath, FILE_TREE_MAX_DEPTH_DEFAULT, 0, true);
         res.json(filterFileTreeForUser(files, req.user, {
             name: req.params.projectName,
             projectName: req.params.projectName,
@@ -5162,6 +5166,27 @@ function permToRwx(perm) {
     return r + w + x;
 }
 
+// File tree result cache (keyed by path:depth:showHidden, TTL 3s)
+function readFileTreeCache(cacheKey) {
+    const entry = fileTreeCache.get(cacheKey);
+    if (!entry || entry.expiresAt <= Date.now()) {
+        if (entry) fileTreeCache.delete(cacheKey);
+        // Prune stale entries
+        if (fileTreeCache.size > FILE_TREE_CACHE_MAX_ENTRIES) {
+            const keys = [...fileTreeCache.keys()];
+            for (const k of keys.slice(0, keys.length - FILE_TREE_CACHE_MAX_ENTRIES)) {
+                fileTreeCache.delete(k);
+            }
+        }
+        return undefined;
+    }
+    return entry.tree;
+}
+
+function writeFileTreeCache(cacheKey, tree) {
+    fileTreeCache.set(cacheKey, { tree, expiresAt: Date.now() + FILE_TREE_CACHE_TTL_MS });
+}
+
 function createFileTreeScanContext() {
     return {
         startedAt: Date.now(),
@@ -5226,6 +5251,12 @@ async function readDirectoryEntriesBounded(dirPath, context) {
 }
 
 async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true, scanContext = null) {
+    // Check cache on top-level call
+    if (currentDepth === 0 && !scanContext) {
+        const cacheKey = `${path.resolve(dirPath)}:${maxDepth}:${showHidden}`;
+        const cached = readFileTreeCache(cacheKey);
+        if (cached) return cached;
+    }
     const context = scanContext || createFileTreeScanContext();
     const items = [];
 
@@ -5280,12 +5311,20 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
         items.push(item);
     }
 
-    return items.sort((a, b) => {
+    const sorted = items.sort((a, b) => {
         if (a.type !== b.type) {
             return a.type === 'directory' ? -1 : 1;
         }
         return a.name.localeCompare(b.name);
     });
+
+    // Store in cache on top-level call
+    if (currentDepth === 0 && !scanContext) {
+        const cacheKey = `${path.resolve(dirPath)}:${maxDepth}:${showHidden}`;
+        writeFileTreeCache(cacheKey, sorted);
+    }
+
+    return sorted;
 }
 
 const SERVER_PORT = process.env.SERVER_PORT || 3001;

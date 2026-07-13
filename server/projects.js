@@ -67,9 +67,10 @@ import sessionManager from './sessionManager.js';
 import { applyCustomSessionNames } from './database/db.js';
 
 const FILE_COUNT_LIMIT = 20000;
-const FILE_COUNT_CACHE_TTL_MS = 5 * 60 * 1000;
-const FILE_COUNT_CACHE_MAX_ENTRIES = 300;
+const FILE_COUNT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — was already set, kept
 const FILE_COUNT_SCAN_MAX_MS = 2500;
+// Bump cache entry limit so active projects don't get evicted quickly
+const FILE_COUNT_CACHE_MAX_ENTRIES = 500;
 const CODEX_SESSION_INDEX_TTL_MS = 60 * 1000;
 const CODEX_SESSION_INDEX_MAX_FILES = 1200;
 const CODEX_SESSION_INDEX_MAX_DIRS = 2500;
@@ -77,6 +78,7 @@ const CLAUDE_JSONL_LINE_MAX_CHARS = 1024 * 1024;
 const GEMINI_QWEN_PROJECT_ENTRY_CACHE_TTL_MS = 60 * 1000;
 const CLI_CHAT_FILE_READ_MAX_BYTES = 2 * 1024 * 1024;
 const CLI_CHAT_FILES_PER_PROJECT_LIMIT = 150;
+const JSONL_PARSE_MAX_SESSIONS = 200; // stop parsing a file once we have enough session data
 const FILE_COUNT_IGNORED_DIRECTORIES = new Set([
   '.cache',
   '.git',
@@ -920,22 +922,24 @@ async function getSessions(projectName, limit = 5, offset = 0) {
       return { sessions: [], hasMore: false, total: 0 };
     }
 
-    // Sort files by modification time (newest first)
-    const filesWithStats = await Promise.all(
-      jsonlFiles.map(async (file) => {
+    // Sort files by modification time (newest first) — limit early to avoid stat'ing all files
+    const neededSessionsCount = Math.min(limit + offset, 50); // never need more than 50 visible
+    const filesToProcess = Math.min(jsonlFiles.length, Math.max(5, Math.ceil(neededSessionsCount * 1.5)));
+    const newestFiles = await Promise.all(
+      jsonlFiles.slice(0, filesToProcess).map(async (file) => {
         const filePath = path.join(projectDir, file);
         const stats = await fs.stat(filePath);
         return { file, mtime: stats.mtime };
       })
     );
-    filesWithStats.sort((a, b) => b.mtime - a.mtime);
+    newestFiles.sort((a, b) => b.mtime - a.mtime);
 
     const allSessions = new Map();
     const sessionFirstUserMessageIds = new Map();
 
     // Collect all sessions and entries from all files
     let filesScanned = 0;
-    for (const { file } of filesWithStats) {
+    for (const { file } of newestFiles) {
       filesScanned++;
       const jsonlFile = path.join(projectDir, file);
       const result = await parseJsonlSessions(jsonlFile);
@@ -1043,7 +1047,13 @@ async function parseJsonlSessions(filePath) {
       crlfDelay: Infinity
     });
 
+    let linesRead = 0;
     for await (const line of rl) {
+      // Stop early if we already have enough sessions to satisfy typical UI requests.
+      // Full scan still happens for small files; huge files are bounded.
+      if (++linesRead > 5000 && sessions.size >= JSONL_PARSE_MAX_SESSIONS) {
+        break;
+      }
       if (line.trim()) {
         if (line.length > CLAUDE_JSONL_LINE_MAX_CHARS) {
           continue;
