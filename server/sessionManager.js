@@ -20,7 +20,7 @@ class SessionManager {
     try {
       await fs.mkdir(this.sessionsDir, { recursive: true });
     } catch (error) {
-      // console.error('Error creating sessions directory:', error);
+      console.warn('SessionManager: Error creating sessions directory:', error?.message || error);
     }
   }
 
@@ -151,7 +151,7 @@ class SessionManager {
       const filePath = this._safeFilePath(sessionId);
       await fs.writeFile(filePath, JSON.stringify(session, null, 2));
     } catch (error) {
-      // console.error('Error saving session:', error);
+      console.warn(`SessionManager: Error saving session ${sessionId}:`, error?.message || error);
     }
   }
 
@@ -176,7 +176,7 @@ class SessionManager {
 
             this.sessions.set(session.id, session);
           } catch (error) {
-            // console.error(`Error loading session ${file}:`, error);
+            console.warn(`SessionManager: Error loading session ${file}:`, error?.message || error);
           }
         }
       }
@@ -187,7 +187,7 @@ class SessionManager {
         if (oldestKey) this.sessions.delete(oldestKey);
       }
     } catch (error) {
-      // console.error('Error loading sessions:', error);
+      console.warn('SessionManager: Error loading sessions:', error?.message || error);
     }
   }
 
@@ -199,7 +199,7 @@ class SessionManager {
       const filePath = this._safeFilePath(sessionId);
       await fs.unlink(filePath);
     } catch (error) {
-      // console.error('Error deleting session file:', error);
+      console.warn(`SessionManager: Error deleting session file ${sessionId}:`, error?.message || error);
     }
   }
 

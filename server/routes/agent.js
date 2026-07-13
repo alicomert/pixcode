@@ -20,6 +20,12 @@ import { getDefaultProviderModel } from '../services/model-registry.js';
 
 const router = express.Router();
 const isPixcodeApiKey = (token) => typeof token === 'string' && (token.startsWith('px_') || token.startsWith('ck_'));
+const EXTERNAL_PROJECTS_BASE = path.join(os.homedir(), '.claude', 'external-projects');
+
+function isPathWithinExternalProjects(resolvedPath) {
+  const normalized = path.resolve(resolvedPath);
+  return normalized.startsWith(EXTERNAL_PROJECTS_BASE + path.sep) || normalized === EXTERNAL_PROJECTS_BASE;
+}
 
 /**
  * Middleware to authenticate agent API requests.
@@ -409,6 +415,10 @@ async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
 
       const cloneDir = path.resolve(projectPath);
 
+      if (!isPathWithinExternalProjects(cloneDir)) {
+        throw new Error('Clone directory must be within ~/.claude/external-projects');
+      }
+
       // Check if directory already exists
       try {
         await fs.access(cloneDir);
@@ -489,7 +499,8 @@ async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
 async function cleanupProject(projectPath, sessionId = null) {
   try {
     // Only clean up projects in the external-projects directory
-    if (!projectPath.includes('.claude/external-projects')) {
+    const resolvedPath = path.resolve(projectPath);
+    if (!isPathWithinExternalProjects(resolvedPath)) {
       console.warn('⚠️ Refusing to clean up non-external project:', projectPath);
       return;
     }

@@ -4984,10 +4984,18 @@ app.get('/api/projects/:projectName/sessions/:sessionId/token-usage', authentica
             throw error; // Re-throw other errors to be caught by outer try-catch
         }
         const fileStream = fs.createReadStream(jsonlPath, { encoding: 'utf8' });
+
+        // Clean up the file stream on error to avoid fd leaks
+        const destroyStream = () => {
+            try { fileStream.destroy(); } catch { /* noop */ }
+        };
+        fileStream.on('error', destroyStream);
+
         const rl = readline.createInterface({
             input: fileStream,
             crlfDelay: Infinity,
         });
+        rl.on('error', destroyStream);
 
         const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
         const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
@@ -5524,6 +5532,10 @@ process.on('unhandledRejection', (reason, promise) => {
     securityLog('unhandled_rejection', {
         reason: reason instanceof Error ? reason.name : String(reason).slice(0, 200),
     });
+    // Give the security log time to flush, then exit.
+    // In Node 15+, unhandled rejections crash the process anyway, but this
+    // ensures a clean exit that the daemon manager (systemd/pm2) can detect.
+    setTimeout(() => process.exit(1), 100);
 });
 
 process.on('uncaughtException', (error) => {
