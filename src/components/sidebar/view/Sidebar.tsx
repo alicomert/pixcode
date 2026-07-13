@@ -313,6 +313,11 @@ function Sidebar({
     setShowNewProject(true);
   };
 
+  const onCloseNewProject = () => setShowNewProject(false);
+  const onCancelDeleteProject = () => setDeleteConfirmation(null);
+  const onCancelDeleteSession = () => setSessionDeleteConfirmation(null);
+  const onCloseVersionModal = () => setShowVersionModal(false);
+
   const sidebarModals = (
       <SidebarModals
         projects={projects}
