@@ -3,10 +3,12 @@ import type { ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Send as TelegramIcon } from 'lucide-react';
+import { ClipboardCheck as TasksIcon } from '@/lib/icons';
 
 import CodeEditor from '../../code-editor/view/CodeEditor';
 import type { CodeEditorDiffInfo, CodeEditorFile } from '../../code-editor/types/types';
 import ControlRoomPage from '../../control-room/ControlRoomPage';
+import { TasksPage } from '../../tasks/TasksPage';
 import FileTree from '../../file-tree/view/FileTree';
 import GitPanel from '../../git-panel/view/GitPanel';
 import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
@@ -194,6 +196,7 @@ function isCenterSystemTab(activeTab: AppTab) {
   return (
     activeTab === 'remote'
     || activeTab === 'controlRoom'
+    || activeTab === 'tasks'
     || activeTab.startsWith('plugin:')
   );
 }
@@ -808,6 +811,12 @@ function VSCodeWorkbench({
   const systemButtons = useMemo(
     () => [
       {
+        id: 'tasks',
+        icon: TasksIcon,
+        label: t('tabs.tasks') || 'Tasks',
+        tab: 'tasks' as AppTab,
+      },
+      {
         id: 'controlRoom',
         icon: Sparkles,
         label: t('tabs.controlRoom'),
@@ -1043,6 +1052,10 @@ function VSCodeWorkbench({
 
     if (activeTab === 'controlRoom') {
       return <ControlRoomPage selectedProject={selectedProject} />;
+    }
+
+    if (activeTab === 'tasks') {
+      return <TasksPage projectId={selectedProject?.name} />;
     }
 
     if (activeTab.startsWith('plugin:')) {

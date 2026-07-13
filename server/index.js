@@ -147,19 +147,8 @@ import productionAgentLoopRoutes from './routes/production-agent-loop.js';
 import platformizationRoutes from './routes/platformization.js';
 import liveViewRoutes, { createLiveViewPublicRouter } from './routes/live-view.js';
 import providerRoutes from './modules/providers/provider.routes.js';
-import {
-  adapterRegistry,
-  ClaudeCodeA2AAdapter,
-  CodexA2AAdapter,
-  CursorA2AAdapter,
-  GeminiA2AAdapter,
-  OpenCodeA2AAdapter,
-  QwenA2AAdapter,
-  JsonEventA2AAdapter,
-  createPreviewProxyRouter,
-  createOrchestrationTaskRouter,
-  createWorkflowRouter,
-} from './modules/orchestration/index.js';
+import { evaluatePermissionRequest } from './modules/security/permission-policy.js';
+import { taskRouter, taskScheduler } from './modules/tasks/index.js';
 import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
 import { restoreRequestedTunnel } from './services/external-access.js';
@@ -2201,16 +2190,10 @@ app.use('/api/live-view', authenticateToken, liveViewRoutes);
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
 
-adapterRegistry.register(new ClaudeCodeA2AAdapter());
-adapterRegistry.register(new CodexA2AAdapter());
-adapterRegistry.register(new CursorA2AAdapter());
-adapterRegistry.register(new GeminiA2AAdapter());
-adapterRegistry.register(new QwenA2AAdapter());
-adapterRegistry.register(new OpenCodeA2AAdapter());
-adapterRegistry.register(new JsonEventA2AAdapter());
-app.use('/preview', authenticateToken, requireAdmin, createPreviewProxyRouter());
-app.use('/api/orchestration', authenticateToken, requireAdmin, createOrchestrationTaskRouter());
-app.use('/api/orchestration', authenticateToken, requireAdmin, createWorkflowRouter());
+// Task system routes
+app.use('/api/tasks', authenticateToken, taskRouter());
+// Start the task scheduler
+taskScheduler.start();
 app.use('/live', createLiveViewPublicRouter());
 
 // Network discovery / QR endpoints (protected)

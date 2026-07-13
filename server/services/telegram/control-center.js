@@ -65,7 +65,7 @@ const CONTROL_COMMANDS = new Set([
   '/model',
   '/models',
   '/workflows',
-  '/orchestration',
+  '/tasks',
   '/runs',
   '/approvals',
   '/controlroom',
@@ -1101,7 +1101,7 @@ export async function showModelMenu({ bot, chatId, link, refresh = false, editMe
 
 export async function showWorkflowMenu({ bot, chatId, link, editMessageId }) {
   const lang = languageFor(link);
-  const workflows = await localApi(link.user_id, '/api/orchestration/workflows');
+  const workflows = await localApi(link.user_id, '/api/tasks');
   const list = Array.isArray(workflows?.workflows) ? workflows.workflows : [];
   const state = getState(link.user_id);
   const workflowButtons = list.map((workflow) => button(
@@ -1118,7 +1118,7 @@ export async function showWorkflowMenu({ bot, chatId, link, editMessageId }) {
 
 async function showRuns({ bot, chatId, link, editMessageId }) {
   const lang = languageFor(link);
-  const data = await localApi(link.user_id, '/api/orchestration/workflows/runs?limit=10');
+  const data = await localApi(link.user_id, '/api/tasks/runs?limit=10');
   const runs = Array.isArray(data?.runs) ? data.runs : [];
   if (runs.length === 0) {
     await send(bot, chatId, t(lang, 'control.noRuns'), { editMessageId });
@@ -1137,7 +1137,7 @@ async function showRuns({ bot, chatId, link, editMessageId }) {
 
 async function showApprovalQueue({ bot, chatId, link, editMessageId }) {
   const lang = languageFor(link);
-  const data = await localApi(link.user_id, '/api/orchestration/workflows/approvals');
+  const data = await localApi(link.user_id, '/api/tasks/approvals');
   const approvals = Array.isArray(data?.pendingApprovals) ? data.pendingApprovals : [];
   if (approvals.length === 0) {
     await send(bot, chatId, t(lang, 'control.noApprovals'), { editMessageId });
@@ -1554,7 +1554,7 @@ export async function runWorkflow({ bot, chatId, link, input, activity = null })
   const result = await runTelegramTool({
     userId: link.user_id,
     action: 'run_workflow',
-    execute: () => localApi(link.user_id, `/api/orchestration/workflows/${workflowId}/runs`, {
+    execute: () => localApi(link.user_id, `/api/tasks/${workflowId}/runs`, {
       method: 'POST',
       body: {
         input,
@@ -1610,7 +1610,7 @@ async function cancelRun({ bot, chatId, link, runId, editMessageId, confirmed = 
   const result = await runTelegramTool({
     userId: link.user_id,
     action: 'run_cancel',
-    execute: () => localApi(link.user_id, `/api/orchestration/workflows/runs/${encodeURIComponent(runId)}/cancel`, {
+    execute: () => localApi(link.user_id, `/api/tasks/runs/${encodeURIComponent(runId)}/cancel`, {
       method: 'POST',
     }),
   });
@@ -1662,7 +1662,7 @@ async function findProjectByQuery(query) {
 
 async function listWorkflowSummaries(userId) {
   try {
-    const data = await localApi(userId, '/api/orchestration/workflows', { timeoutMs: 10_000 });
+    const data = await localApi(userId, '/api/tasks', { timeoutMs: 10_000 });
     if (Array.isArray(data)) return data;
     if (Array.isArray(data?.workflows)) return data.workflows;
   } catch {
@@ -1840,7 +1840,7 @@ async function handleRoutedIntent({ bot, chatId, link, text, activity }) {
 }
 
 async function fetchRun(userId, runId) {
-  return localApi(userId, `/api/orchestration/workflows/runs/${runId}`);
+  return localApi(userId, `/api/tasks/runs/${runId}`);
 }
 
 function summarizeRun(run, mode) {
@@ -2097,7 +2097,7 @@ async function handleCommand({ bot, chatId, link, text }) {
     await showModelMenu({ bot, chatId, link, refresh: command === '/models' && argText === 'refresh' });
     return true;
   }
-  if (command === '/workflows' || command === '/orchestration') {
+  if (command === '/workflows' || command === '/tasks') {
     await showWorkflowMenu({ bot, chatId, link });
     return true;
   }
@@ -2385,7 +2385,7 @@ async function handleTelegramControlCallbackInternal({ bot, query, link }) {
     const toolResult = await runTelegramTool({
       userId: link.user_id,
       action: 'approval_decide',
-      execute: () => localApi(link.user_id, `/api/orchestration/workflows/approvals/${encodeURIComponent(payload.approvalId)}`, {
+      execute: () => localApi(link.user_id, `/api/tasks/approvals/${encodeURIComponent(payload.approvalId)}`, {
         method: 'POST',
         body: {
           allow: payload.allow === true,

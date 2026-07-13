@@ -2,6 +2,46 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+## [1.55.0] — 2026-07-13
+
+### Breaking Change — Orchestration System Replaced
+
+The old orchestration system (workflows, a2a adapters, task dispatcher) has been
+completely removed and replaced with a new, simpler, more reliable task system
+inspired by FastVibe and VibeHQ.
+
+### New Task System
+
+- **Task queue with dependency support** — Tasks can chain: "Backend first, then frontend"
+- **Scheduler** — Polls every 2 seconds, respects concurrency limits (default: 3)
+- **Multi-CLI agent runners** — Claude Code (SDK), Codex (SDK), Gemini/Qwen/OpenCode (spawn)
+- **Role presets** — Backend, Frontend, Fullstack, Reviewer, Tester (from VibeHQ model)
+- **Git worktree isolation** — Each task gets its own branch and working directory
+- **User interaction** — Agent can ask questions, user answers via Web UI
+- **Budget tracking** — Per-task USD budget limit, token counting (input/output)
+- **Session continuation** — Follow-up tasks can continue a predecessor's session
+- **Task summary** — Automatic AI-generated summary on completion
+- **Real-time updates** — SSE event stream for task status, logs, and interactions
+- **REST API** — Full CRUD at `/api/tasks`, `/api/tasks/:id`, `/api/tasks/:id/logs`, etc.
+
+### Frontend
+
+- New **Tasks tab** in the sidebar with clipboard icon
+- Task list with status filters, cost/token/file counts
+- Task creation dialog with agent, role, model, priority, budget selection
+- Task detail modal with logs, pending interactions, summary, changed files
+
+### Removed
+
+- `server/modules/orchestration/` — All workflow, a2a, task dispatcher code
+- `src/components/orchestration/` — All orchestration UI components
+- Preview proxy, workflow store, approval queue, built-in workflows
+- A2A adapter registry and all provider adapters (Claude/Codex/Gemini/etc.)
+
+### Kept
+
+- `server/modules/security/permission-policy.ts` — Moved out of orchestration
+
 
 ## [v1.54.11](https://github.com/alicomert/pixcode/compare/v1.54.10...vv1.54.11) (2026-07-13)
 

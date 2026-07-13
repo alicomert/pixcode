@@ -8,7 +8,7 @@ export type PixcodeRunStateRefreshReason =
   | 'canceled'
   | 'reconnect';
 
-export type PixcodeRunStateRefreshSource = 'chat' | 'orchestration' | 'system';
+export type PixcodeRunStateRefreshSource = 'chat' | 'tasks' | 'system';
 
 export type PixcodeRunStateRefreshDetail = {
   source: PixcodeRunStateRefreshSource;

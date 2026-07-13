@@ -20,7 +20,7 @@ export default function App() {
                   <Routes>
                     <Route path="/" element={<AppContent />} />
                     <Route path="/session/:sessionId" element={<AppContent />} />
-                    <Route path="/orchestration" element={<AppContent />} />
+                    <Route path="/tasks" element={<AppContent />} />
                   </Routes>
                 </Router>
               </PluginsProvider>

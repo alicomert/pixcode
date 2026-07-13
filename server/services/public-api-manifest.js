@@ -4,7 +4,7 @@ const API_GROUPS = [
   { id: 'sessions', title: 'Sessions and messages', basePath: '/api/sessions', scopes: ['sessions:read', 'sessions:write'] },
   { id: 'providers', title: 'CLI providers', basePath: '/api/providers', scopes: ['providers:read', 'providers:write'] },
   { id: 'terminal', title: 'Visible terminal sessions', basePath: '/api/shell/sessions', scopes: ['terminal:launch'] },
-  { id: 'orchestration', title: 'Orchestration runs', basePath: '/api/orchestration', scopes: ['orchestration:read', 'orchestration:write'] },
+  { id: 'tasks', title: 'Task management', basePath: '/api/tasks', scopes: ['tasks:read', 'tasks:write'] },
   { id: 'notifications', title: 'Notifications', basePath: '/api/settings/notifications', scopes: ['notifications:read', 'notifications:write'] },
   { id: 'files', title: 'Files', basePath: '/api/projects/:projectName/files', scopes: ['files:read', 'files:write'] },
   { id: 'git', title: 'Source control', basePath: '/api/git', scopes: ['git:read', 'git:write'] },
@@ -93,11 +93,11 @@ export class PixcodeClient {
   }
 
   approvals() {
-    return this.request<{ pendingApprovals: unknown[] }>('/api/orchestration/workflows/approvals');
+    return this.request<{ pendingApprovals: unknown[] }>('/api/tasks');
   }
 
   decideApproval(approvalId: string, allow: boolean) {
-    return this.request(\`/api/orchestration/workflows/approvals/\${encodeURIComponent(approvalId)}\`, {
+    return this.request(\`/api/tasks/\${encodeURIComponent(approvalId)}\`, {
       method: 'POST',
       body: JSON.stringify({ allow, source: 'api' }),
     });
@@ -132,11 +132,11 @@ export function buildCurlCookbook({ baseUrl = '' } = {}) {
       },
       {
         title: 'List pending approvals',
-        command: `curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/orchestration/workflows/approvals"`,
+        command: `curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/tasks"`,
       },
       {
         title: 'Approve a pending action',
-        command: `curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" -d '{"allow":true,"source":"api"}' "$PIXCODE_URL/api/orchestration/workflows/approvals/approval_id"`,
+        command: `curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" -d '{"allow":true,"source":"api"}' "$PIXCODE_URL/api/tasks/approval_id"`,
       },
       {
         title: 'Create a webhook',

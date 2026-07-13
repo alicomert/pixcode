@@ -15,7 +15,7 @@ const EVENT_KEY_MAP: Record<string, string> = {
   'approval.needed': 'actionRequired',
   stop: 'stop',
   'chat.done': 'stop',
-  'orchestration.done': 'stop',
+  'task.done': 'stop',
   'run.stopped': 'stop',
   error: 'error',
   'run.failed': 'error',

@@ -1,7 +1,16 @@
-import { listPendingApprovals, workflowStore } from '../modules/orchestration/index.js';
 import { getProjects } from '../projects.js';
 
 import { listWebhooks } from './webhooks.js';
+
+// Stubs for removed orchestration module — will be replaced by task system
+function workflowStoreStub() {
+  return { listRuns: () => [] };
+}
+function listPendingApprovalsStub() {
+  return [];
+}
+const workflowStore = workflowStoreStub();
+const listPendingApprovals = listPendingApprovalsStub;
 
 const TERMINAL_RUN_STATES = new Set(['completed', 'failed', 'canceled']);
 

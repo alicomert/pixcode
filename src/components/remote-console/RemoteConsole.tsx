@@ -104,7 +104,7 @@ export default function RemoteConsole() {
     try {
       const [controlRoom, approvalQueue] = await Promise.all([
         readJson<ControlRoomResponse>('/api/remote/control-room'),
-        readJson<ApprovalResponse>('/api/orchestration/workflows/approvals'),
+        readJson<ApprovalResponse>('/api/tasks'),
       ]);
       setSnapshot(controlRoom.controlRoom);
       setApprovals(approvalQueue.pendingApprovals);
@@ -120,7 +120,7 @@ export default function RemoteConsole() {
   }, [refresh]);
 
   const decideApproval = useCallback(async (approvalId: string, allow: boolean) => {
-    await readJson(`/api/orchestration/workflows/approvals/${encodeURIComponent(approvalId)}`, {
+    await readJson(`/api/tasks/${encodeURIComponent(approvalId)}`, {
       method: 'POST',
       body: JSON.stringify({ allow, source: 'ui' }),
     });

@@ -1,6 +1,6 @@
 export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode';
 
-export type AppTab = 'chat' | 'remote' | 'controlRoom' | 'files' | 'shell' | 'git' | 'changes' | 'preview' | `plugin:${string}`;
+export type AppTab = 'chat' | 'remote' | 'controlRoom' | 'tasks' | 'files' | 'shell' | 'git' | 'changes' | 'preview' | `plugin:${string}`;
 
 export interface ProjectSession {
   id: string;
