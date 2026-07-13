@@ -2,6 +2,22 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+
+## [v1.54.11](https://github.com/alicomert/pixcode/compare/v1.54.10...vv1.54.11) (2026-07-13)
+
+### Bug Fixes
+
+* add missing sidebar modal handler functions ([65caf69](https://github.com/alicomert/pixcode/commit/65caf6945239e0727adaefa6499519965b77e589))
+
+### Documentation
+
+* add MIT license badge, discussions badge, and Cloud SaaS section to README ([2e457f5](https://github.com/alicomert/pixcode/commit/2e457f5756faeba44f8d1033fc178c7b4e94d786))
+* update landing page license label to MIT ([87aa34d](https://github.com/alicomert/pixcode/commit/87aa34d04e3ae4276cb324ce03004755a08d4f3e))
+
+### CI/CD
+
+* add CI workflow for lint, typecheck, and build on PRs and pushes ([cebb509](https://github.com/alicomert/pixcode/commit/cebb509e24574410fbd950bfd396dfd19ea37d7d))
+
 ## [1.54.7](https://github.com/alicomert/pixcode/compare/v1.54.6...v1.54.7) (2026-06-26)
 
 Pixcode 1.54.7 removes the CSP header that was causing blank screens on VPS/cloud deployments.
