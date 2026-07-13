@@ -714,7 +714,7 @@
         "description": "Ekibin icin coklu kullanici, rol tabanli erisim ve paylasilan projeler."
       }
     },
-    "license": "AGPL-3.0 lisanslidir",
+    "license": "MIT lisanslidir",
     "relativeTime": {
       "justNow": "az once",
       "secondsAgo": "{{count}} sn once",

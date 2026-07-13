@@ -42,7 +42,7 @@ info:
     name: Pixcode on GitHub
     url: https://github.com/alicomert/pixcode
   license:
-    name: AGPL-3.0-or-later
+    name: MIT
     url: https://www.gnu.org/licenses/agpl-3.0.txt
 
 servers:

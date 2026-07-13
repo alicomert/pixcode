@@ -111,7 +111,7 @@
     "yapay zeka kodlama"
   ],
   "author": "Pixcode Contributors",
-  "license": "AGPL-3.0-or-later",
+  "license": "MIT",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.116",
     "@iarna/toml": "^2.2.5",

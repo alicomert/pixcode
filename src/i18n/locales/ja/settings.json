@@ -712,7 +712,7 @@
         "description": "Multiple users, role-based access, and shared projects for your team."
       }
     },
-    "license": "Licensed under AGPL-3.0",
+    "license": "Licensed under MIT",
     "relativeTime": {
       "justNow": "just now",
       "secondsAgo": "{{count}}s ago",

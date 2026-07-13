@@ -157,4 +157,4 @@ The web UI itself doesn't need a policy — access it via `sbx ports`.
 
 ## License
 
-AGPL-3.0-or-later
+MIT

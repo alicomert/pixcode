@@ -69,4 +69,4 @@ Installers ship unsigned for now. Windows SmartScreen will show an "Unknown publ
 
 ## License
 
-AGPL-3.0-or-later (same as Pixcode).
+MIT (same as Pixcode).

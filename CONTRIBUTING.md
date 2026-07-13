@@ -153,4 +153,4 @@ This automatically:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [AGPL-3.0-or-later License](LICENSE), including the additional terms specified in Section 7 of the LICENSE file.
+By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
