@@ -336,14 +336,18 @@ async function updatePackage(options = {}) {
         }
 
         console.log(`${c.info('[INFO]')} Updating from ${currentVersion} to ${latestVersion}...`);
-        execSync('npm update -g @pixelbyte-software/pixcode', { stdio: 'inherit' });
+        // Global npm install requires root on system-wide installs
+        const npmCmd = process.getuid && process.getuid() === 0
+            ? 'npm update -g @pixelbyte-software/pixcode'
+            : 'sudo npm update -g @pixelbyte-software/pixcode';
+        execSync(npmCmd, { stdio: 'inherit' });
         console.log(`${c.ok('[OK]')} Update complete!`);
         await maybeRestartDaemonAfterUpdate(options);
     } catch (e) {
         console.error(`${c.error('[ERROR]')} Update failed: ${e.message}`);
         const fallbackCommand = installMode === 'git'
             ? 'pixcode update --restart-daemon'
-            : 'npm update -g @pixelbyte-software/pixcode';
+            : 'sudo npm update -g @pixelbyte-software/pixcode';
         console.log(`${c.tip('[TIP]')} Try running manually: ${fallbackCommand}`);
     }
 }
