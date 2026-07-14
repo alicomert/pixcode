@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-
 import { useTranslation } from 'react-i18next';
+
 import { authenticatedFetch } from '../../utils/api';
+
 import type { AgentType, TaskRole, TaskPriority, RoleInfo, AgentInfo } from './types';
 
 interface TaskCreateDialogProps {
@@ -69,52 +70,52 @@ export function TaskCreateDialog({ projectId, onClose, onCreated, predecessorTit
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-[#1a1a2e] border border-white/10 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-white/10 sticky top-0 bg-[#1a1a2e] z-10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-white/10 bg-[#1a1a2e]">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1a1a2e] p-4">
           <h2 className="text-lg font-semibold text-white">New Task</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-2">✕</button>
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-white">✕</button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="space-y-4 p-4">
           {predecessorTitle && (
-            <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg text-sm text-blue-200">
+            <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-200">
               Follow-up to: <strong>{predecessorTitle}</strong>
             </div>
           )}
 
           {/* Title */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Title *</label>
+            <label className="mb-1 block text-sm text-gray-400">Title *</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Add user authentication API"
-              className="w-full bg-black/30 text-white text-sm px-3 py-2 rounded-lg border border-white/10 focus:border-blue-500/50 outline-none"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-blue-500/50"
             />
           </div>
 
           {/* Prompt */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Prompt *</label>
+            <label className="mb-1 block text-sm text-gray-400">Prompt *</label>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Describe what you want the agent to do..."
               rows={5}
-              className="w-full bg-black/30 text-white text-sm px-3 py-2 rounded-lg border border-white/10 focus:border-blue-500/50 outline-none resize-y"
+              className="w-full resize-y rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-blue-500/50"
             />
           </div>
 
           {/* Agent + Role */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">CLI Agent</label>
+              <label className="mb-1 block text-sm text-gray-400">CLI Agent</label>
               <select
                 value={agentType}
                 onChange={(e) => setAgentType(e.target.value as AgentType)}
-                className="w-full bg-black/30 text-white text-sm px-3 py-2 rounded-lg border border-white/10 outline-none"
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
               >
                 {agents.map((a) => (
                   <option key={a.value} value={a.value}>{a.label}</option>
@@ -122,11 +123,11 @@ export function TaskCreateDialog({ projectId, onClose, onCreated, predecessorTit
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Role</label>
+              <label className="mb-1 block text-sm text-gray-400">Role</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as TaskRole)}
-                className="w-full bg-black/30 text-white text-sm px-3 py-2 rounded-lg border border-white/10 outline-none"
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
               >
                 {roles.map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
@@ -138,21 +139,21 @@ export function TaskCreateDialog({ projectId, onClose, onCreated, predecessorTit
           {/* Model + Priority */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Model (optional)</label>
+              <label className="mb-1 block text-sm text-gray-400">Model (optional)</label>
               <input
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 placeholder="e.g. claude-sonnet-4-20250514"
-                className="w-full bg-black/30 text-white text-sm px-3 py-2 rounded-lg border border-white/10 outline-none"
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Priority</label>
+              <label className="mb-1 block text-sm text-gray-400">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full bg-black/30 text-white text-sm px-3 py-2 rounded-lg border border-white/10 outline-none"
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
               >
                 <option value="low">Low</option>
                 <option value="normal">Normal</option>
@@ -165,18 +166,18 @@ export function TaskCreateDialog({ projectId, onClose, onCreated, predecessorTit
           {/* Budget + Thinking */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Max Budget USD (optional)</label>
+              <label className="mb-1 block text-sm text-gray-400">Max Budget USD (optional)</label>
               <input
                 type="number"
                 step="0.01"
                 value={maxBudgetUsd}
                 onChange={(e) => setMaxBudgetUsd(e.target.value)}
                 placeholder="e.g. 1.00"
-                className="w-full bg-black/30 text-white text-sm px-3 py-2 rounded-lg border border-white/10 outline-none"
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none"
               />
             </div>
             <div className="flex flex-col gap-2 pt-6">
-              <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
                 <input
                   type="checkbox"
                   checked={thinkingEnabled}
@@ -186,7 +187,7 @@ export function TaskCreateDialog({ projectId, onClose, onCreated, predecessorTit
                 Enable thinking/reasoning
               </label>
               {predecessorId && (
-                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
                   <input
                     type="checkbox"
                     checked={continueSession}
@@ -201,17 +202,17 @@ export function TaskCreateDialog({ projectId, onClose, onCreated, predecessorTit
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-4 border-t border-white/10 sticky bottom-0 bg-[#1a1a2e]">
+        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-white/10 bg-[#1a1a2e] p-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/10"
+            className="rounded-lg px-4 py-2 text-sm text-gray-400 hover:bg-white/10 hover:text-white"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={!title || !prompt || creating}
-            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-600"
           >
             {creating ? 'Creating...' : 'Create Task'}
           </button>

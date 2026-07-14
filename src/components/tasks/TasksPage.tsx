@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-
 import { useTranslation } from 'react-i18next';
+
 import { authenticatedFetch } from '../../utils/api';
+
 import type { Task, TaskStatus } from './types';
 import { TaskDetail } from './TaskDetail';
 import { TaskCreateDialog } from './TaskCreateDialog';
@@ -43,7 +44,7 @@ export function TasksPage({ projectId }: { projectId?: string }) {
       const es = new EventSource('/api/tasks/events');
       es.onmessage = () => fetchTasks();
       return () => es.close();
-    } catch (_err) {
+    } catch {
       // EventSource may not be available in all environments
     }
   }, [fetchTasks]);
@@ -77,30 +78,30 @@ export function TasksPage({ projectId }: { projectId?: string }) {
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
 
   return (
-    <div className="h-full flex flex-col bg-[#0f0f1e] text-white">
+    <div className="flex h-full flex-col bg-[#0f0f1e] text-white">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10">
+      <div className="flex items-center justify-between border-b border-white/10 p-4">
         <div>
           <h1 className="text-xl font-bold">Tasks</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="mt-1 text-sm text-gray-500">
             {tasks.length} total · {activeCount} active · {completedCount} completed
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg flex items-center gap-2"
+          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
         >
           <span>+</span> New Task
         </button>
       </div>
 
       {/* Filter bar */}
-      <div className="flex gap-2 p-3 border-b border-white/10 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto border-b border-white/10 p-3">
         {statusFilters.map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`text-xs px-3 py-1.5 rounded-full whitespace-nowrap ${
+            className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${
               filter === f ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'
             }`}
           >
@@ -113,14 +114,14 @@ export function TasksPage({ projectId }: { projectId?: string }) {
       {/* Task list */}
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
-          <div className="text-center text-gray-500 py-8">Loading tasks...</div>
+          <div className="py-8 text-center text-gray-500">Loading tasks...</div>
         ) : filteredTasks.length === 0 ? (
-          <div className="text-center text-gray-500 py-16">
-            <div className="text-4xl mb-3">📋</div>
+          <div className="py-16 text-center text-gray-500">
+            <div className="mb-3 text-4xl">📋</div>
             <div className="text-lg">No tasks found</div>
             <button
               onClick={() => setShowCreate(true)}
-              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg"
+              className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
             >
               Create your first task
             </button>
@@ -131,23 +132,23 @@ export function TasksPage({ projectId }: { projectId?: string }) {
               <div
                 key={task.id}
                 onClick={() => setSelectedTask(task)}
-                className="bg-[#1a1a2e] hover:bg-[#22223e] border border-white/5 rounded-lg p-4 cursor-pointer transition-colors"
+                className="cursor-pointer rounded-lg border border-white/5 bg-[#1a1a2e] p-4 transition-colors hover:bg-[#22223e]"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[task.status]}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[task.status]}`}>
                         {task.status.replace('_', ' ')}
                       </span>
                       <span className="text-xs text-gray-500">{task.agentType}</span>
                       <span className="text-xs text-gray-600">{task.role}</span>
                     </div>
-                    <h3 className="text-sm font-medium text-white truncate">{task.title}</h3>
-                    <p className="text-xs text-gray-500 mt-1 truncate">{task.prompt.slice(0, 120)}</p>
+                    <h3 className="truncate text-sm font-medium text-white">{task.title}</h3>
+                    <p className="mt-1 truncate text-xs text-gray-500">{task.prompt.slice(0, 120)}</p>
                     {task.summary && (
-                      <p className="text-xs text-green-400/70 mt-1 truncate">{task.summary.slice(0, 120)}</p>
+                      <p className="mt-1 truncate text-xs text-green-400/70">{task.summary.slice(0, 120)}</p>
                     )}
-                    <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
+                    <div className="mt-2 flex items-center gap-3 text-xs text-gray-600">
                       <span>${(task.costUsd || 0).toFixed(4)}</span>
                       {task.tokenCount && (
                         <span>{task.tokenCount.input + task.tokenCount.output} tokens</span>
@@ -162,7 +163,7 @@ export function TasksPage({ projectId }: { projectId?: string }) {
                     {(task.status === 'RUNNING' || task.status === 'QUEUED' || task.status === 'AWAITING_INPUT' || task.status === 'PENDING') && (
                       <button
                         onClick={() => handleCancel(task.id)}
-                        className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-red-500/10"
+                        className="rounded px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300"
                       >
                         Cancel
                       </button>
@@ -170,7 +171,7 @@ export function TasksPage({ projectId }: { projectId?: string }) {
                     {(task.status === 'COMPLETED' || task.status === 'FAILED' || task.status === 'CANCELLED') && (
                       <button
                         onClick={() => handleDelete(task.id)}
-                        className="text-xs text-gray-500 hover:text-gray-400 px-2 py-1 rounded hover:bg-white/5"
+                        className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-white/5 hover:text-gray-400"
                       >
                         Delete
                       </button>
