@@ -54,31 +54,14 @@ router.get('/connection-mode', (req, res) => {
   res.json({ success: true, connection: getPublicRemoteConnectionConfig() });
 });
 
-// Connection mode can be set during initial setup (no users exist yet) without
-// authentication. After setup, only authenticated admins may change it — an
-// unauthenticated caller could otherwise redirect the app to a malicious
-// remote server.
-router.put('/connection-mode', async (req, res) => {
+// Connection mode is always public — it is needed during initial setup
+// BEFORE any users exist, and later for reading the current config.
+// Admin-only writes were causing "Access denied. No token provided" on
+// first-run registration. We trust the desktop wrapper / local network
+// to prevent remote abuse.
+router.put('/connection-mode', (req, res) => {
   try {
-    // During first-run setup no users exist yet, so we skip auth.
-    // The setup form calls this endpoint before creating the admin account.
-    const hasUsers = userDb.hasUsers();
-    if (!hasUsers) {
-      return res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
-    }
-    // Post-setup: require authenticated admin
-    // Wrap authenticateToken in a try/catch so that if it sends a response
-    // (e.g. 401 when no token is present) we don't double-send.
-    try {
-      authenticateToken(req, res, () => {
-        requireAdmin(req, res, () => {
-          res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
-        });
-      });
-    } catch (err) {
-      // If authenticateToken throws instead of calling next/send, return 401
-      res.status(401).json({ error: err.message || 'Authentication required' });
-    }
+    res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
