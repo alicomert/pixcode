@@ -111,12 +111,16 @@ export default function SetupForm() {
           remoteUrl: formState.connectionMode === 'remote' ? formState.remoteUrl.trim() : null,
           apiKey: formState.connectionMode === 'remote' ? formState.remoteApiKey.trim() : null,
         }),
-      });
+      }).catch(() => ({ ok: false }));
       if (!connectionResponse.ok) {
-        const payload = await connectionResponse.json().catch(() => null);
-        setErrorMessage(payload?.error || 'Could not save connection mode.');
-        setIsSubmitting(false);
-        return;
+        // Connection mode save is non-critical during local setup.
+        // If it fails (e.g. auth required but no token yet), continue anyway.
+        if (formState.connectionMode === 'remote') {
+          const payload = await connectionResponse.json().catch(() => null);
+          setErrorMessage(payload?.error || 'Could not save connection mode.');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       const result = await register(formState.username.trim(), formState.password);

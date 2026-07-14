@@ -36,7 +36,7 @@ function publicUser(user) {
 // Check auth status and setup requirements
 router.get('/status', async (req, res) => {
   try {
-    const hasUsers = await userDb.hasUsers();
+    const hasUsers = userDb.hasUsers();
     res.json({ 
       needsSetup: !hasUsers,
       isAuthenticated: false // Will be overridden by frontend if token exists
@@ -62,16 +62,23 @@ router.put('/connection-mode', async (req, res) => {
   try {
     // During first-run setup no users exist yet, so we skip auth.
     // The setup form calls this endpoint before creating the admin account.
-    const hasUsers = await userDb.hasUsers();
+    const hasUsers = userDb.hasUsers();
     if (!hasUsers) {
       return res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
     }
     // Post-setup: require authenticated admin
-    authenticateToken(req, res, () => {
-      requireAdmin(req, res, () => {
-        res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
+    // Wrap authenticateToken in a try/catch so that if it sends a response
+    // (e.g. 401 when no token is present) we don't double-send.
+    try {
+      authenticateToken(req, res, () => {
+        requireAdmin(req, res, () => {
+          res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
+        });
       });
-    });
+    } catch (err) {
+      // If authenticateToken throws instead of calling next/send, return 401
+      res.status(401).json({ error: err.message || 'Authentication required' });
+    }
   } catch (error) {
     res.status(400).json({ success: false, error: error.message });
   }
