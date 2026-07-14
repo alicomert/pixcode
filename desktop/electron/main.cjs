@@ -849,11 +849,28 @@ function createMainWindow() {
   mainWindow.on('show', () => rebuildTrayMenu());
   mainWindow.on('hide', () => rebuildTrayMenu());
 
-  // External links (e.g. <a href="https://…" target="_blank">) go to the
-  // user's real browser, not a new Electron window. Matches Chrome-shell
-  // apps' expected behaviour.
+  // Redirect external links (OAuth, provider auth, docs, etc.) to open
+  // inside a new Electron BrowserWindow instead of launching the user's
+  // system browser (Chrome, Firefox, etc.). Keeps everything in one place.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url).catch(() => {});
+    // Don't redirect localhost — that's the app itself
+    if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
+      return { action: 'allow' };
+    }
+    // External URLs open in a new Electron window, not Chrome
+    const popup = new BrowserWindow({
+      width: 1024,
+      height: 768,
+      show: false,
+      autoHideMenuBar: true,
+      title: 'External Link',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    popup.loadURL(url).catch(() => {});
+    popup.once('ready-to-show', () => popup.show());
     return { action: 'deny' };
   });
 }
