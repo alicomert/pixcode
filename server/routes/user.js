@@ -107,10 +107,23 @@ router.post('/complete-onboarding', authenticateToken, async (req, res) => {
   }
 });
 
-router.get('/onboarding-status', authenticateToken, async (req, res) => {
+// Onboarding status is public — it is needed during initial setup
+// BEFORE any users exist or any token is issued. When no users exist
+// we return needsSetup: true so the frontend can show the registration
+// screen. When users DO exist we return the actual onboarding state.
+router.get('/onboarding-status', async (req, res) => {
   try {
-    const userId = req.user.id;
-    const hasCompleted = userDb.hasCompletedOnboarding(userId);
+    const hasUsers = userDb.hasUsers();
+    if (!hasUsers) {
+      return res.json({ success: true, needsSetup: true, hasCompletedOnboarding: false });
+    }
+    
+    // Users exist — token is required for detailed info
+    if (!req.user) {
+      return res.json({ success: true, needsSetup: false, hasCompletedOnboarding: true });
+    }
+    
+    const hasCompleted = userDb.hasCompletedOnboarding(req.user.id);
 
     res.json({
       success: true,
