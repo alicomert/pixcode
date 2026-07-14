@@ -23,7 +23,10 @@ try {
     }
   });
 } catch (e) {
-  console.log('No .env file found or error reading it:', e.message);
+  // .env is optional — only warn on unexpected errors (ENOENT is normal)
+  if (e.code !== 'ENOENT') {
+    console.warn('Error reading .env file:', e.message);
+  }
 }
 
 // Keep the default database in a stable user-level location so rebuilding dist-server

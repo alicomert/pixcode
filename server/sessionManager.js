@@ -6,6 +6,7 @@ class SessionManager {
   constructor() {
     // Store sessions in memory with conversation history
     this.sessions = new Map();
+    this.corruptedSessions = new Set();
     this.maxSessions = 100;
     this.sessionsDir = path.join(os.homedir(), '.gemini', 'sessions');
     this.ready = this.init();
@@ -150,6 +151,21 @@ class SessionManager {
     try {
       const filePath = this._safeFilePath(sessionId);
       await fs.writeFile(filePath, JSON.stringify(session, null, 2));
+      
+      // Clean up any corrupted sessions that were marked during load
+      if (this.corruptedSessions.size > 0) {
+        const deleted = [];
+        for (const corruptedFile of this.corruptedSessions) {
+          try {
+            await fs.unlink(path.join(this.sessionsDir, corruptedFile));
+            deleted.push(corruptedFile);
+          } catch { /* already gone */ }
+        }
+        deleted.forEach(d => this.corruptedSessions.delete(d));
+        if (deleted.length > 0) {
+          console.warn(`SessionManager: Cleaned up ${deleted.length} corrupted session file(s): ${deleted.join(', ')}`);
+        }
+      }
     } catch (error) {
       console.warn(`SessionManager: Error saving session ${sessionId}:`, error?.message || error);
     }
@@ -176,7 +192,15 @@ class SessionManager {
 
             this.sessions.set(session.id, session);
           } catch (error) {
-            console.warn(`SessionManager: Error loading session ${file}:`, error?.message || error);
+            // Corrupted session file — skip it and optionally clean up
+            const isCorrupted = error instanceof SyntaxError && error.message.includes('JSON');
+            if (isCorrupted) {
+              console.warn(`SessionManager: Skipping corrupted session file ${file} — will auto-clean on next save.`);
+              // Mark for deletion on next successful save cycle
+              this.corruptedSessions.add(file);
+            } else {
+              console.warn(`SessionManager: Error loading session ${file}:`, error?.message || error);
+            }
           }
         }
       }
