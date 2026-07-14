@@ -103,25 +103,34 @@ export default function SetupForm() {
       }
 
       setIsSubmitting(true);
-      const connectionResponse = await fetch('/api/auth/connection-mode', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mode: formState.connectionMode,
-          remoteUrl: formState.connectionMode === 'remote' ? formState.remoteUrl.trim() : null,
-          apiKey: formState.connectionMode === 'remote' ? formState.remoteApiKey.trim() : null,
-        }),
-      }).catch(() => ({ ok: false }));
-      if (!connectionResponse.ok) {
-        // Connection mode save is non-critical during local setup.
-        // If it fails (e.g. auth required but no token yet), continue anyway.
-        if (formState.connectionMode === 'remote') {
-          const payload = await connectionResponse.json().catch(() => null);
-          setErrorMessage(payload?.error || 'Could not save connection mode.');
-          setIsSubmitting(false);
-          return;
+      let connectionOk = true;
+      let connectionError = '';
+      try {
+        const connectionResponse = await fetch('/api/auth/connection-mode', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: formState.connectionMode,
+            remoteUrl: formState.connectionMode === 'remote' ? formState.remoteUrl.trim() : null,
+            apiKey: formState.connectionMode === 'remote' ? formState.remoteApiKey.trim() : null,
+          }),
+        });
+        if (!connectionResponse.ok) {
+          if (formState.connectionMode === 'remote') {
+            const payload = await connectionResponse.json().catch(() => null);
+            connectionError = payload?.error || 'Could not save connection mode.';
+          }
+          connectionOk = false;
         }
+      } catch {
+        connectionOk = false;
       }
+      if (!connectionOk && formState.connectionMode === 'remote') {
+        setErrorMessage(connectionError);
+        setIsSubmitting(false);
+        return;
+      }
+      // Non-remote (local) setup continues even if connection-mode save fails
 
       const result = await register(formState.username.trim(), formState.password);
       if (!result.success) {
