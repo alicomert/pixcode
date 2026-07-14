@@ -1,6 +1,6 @@
 {
   "name": "pixcode-desktop",
-  "version": "1.53.16",
+  "version": "1.55.3",
   "description": "Electron installer shell for Pixcode. Tray + autostart + native installers for Windows, macOS, and Linux. Built and published alongside the main @pixelbyte-software/pixcode release.",
   "private": true,
   "license": "MIT",
