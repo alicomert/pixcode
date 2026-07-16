@@ -8,6 +8,10 @@ import { TERMINAL_INIT_DELAY_MS } from '../constants/constants';
 import type { ShellPermissionOverride } from '../types/types';
 import { getShellWebSocketUrl, parseShellMessage, sendSocketMessage } from '../utils/socket';
 import { fitShellTerminal } from '../utils/terminalFit';
+import {
+  MOUSE_TRACKING_OFF,
+  sanitizeTerminalOutputData,
+} from '../utils/terminalSanitize';
 
 const ANSI_ESCAPE_REGEX =
   /(?:\u001B\[[0-?]*[ -/]*[@-~]|\u009B[0-?]*[ -/]*[@-~]|\u001B\][^\u0007\u001B]*(?:\u0007|\u001B\\)|\u009D[^\u0007\u009C]*(?:\u0007|\u009C)|\u001B[PX^_][^\u001B]*\u001B\\|[\u0090\u0098\u009E\u009F][^\u009C]*\u009C|\u001B[@-Z\\-_])/g;
@@ -227,10 +231,30 @@ export function useShellConnection({
         const output = typeof message.data === 'string' ? message.data : '';
         handleProcessCompletion(output);
         const terminal = terminalRef.current;
-        terminal?.write(output, () => {
-          terminal.scrollToBottom();
-          terminal.refresh(0, Math.max(0, terminal.rows - 1));
-        });
+        if (terminal) {
+          // Strip mouse-mode enables so CLIs cannot arm tracking that then
+          // emits \x1b[<…;NaNM spam on every mouse move.
+          const { text, mouseModeRequested } = sanitizeTerminalOutputData(output);
+          if (text) {
+            terminal.write(text, () => {
+              if (mouseModeRequested) {
+                try {
+                  terminal.write(MOUSE_TRACKING_OFF);
+                } catch {
+                  // ignore
+                }
+              }
+              terminal.scrollToBottom();
+              terminal.refresh(0, Math.max(0, terminal.rows - 1));
+            });
+          } else if (mouseModeRequested) {
+            try {
+              terminal.write(MOUSE_TRACKING_OFF);
+            } catch {
+              // ignore
+            }
+          }
+        }
         onOutputRef?.current?.();
         return;
       }

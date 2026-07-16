@@ -17,6 +17,10 @@ import { fitShellTerminal } from '../utils/terminalFit';
 import { sendTerminalInput } from '../utils/input';
 import { sendSocketMessage } from '../utils/socket';
 import { ensureXtermFocusStyles } from '../utils/terminalStyles';
+import {
+  MOUSE_TRACKING_OFF,
+  sanitizeTerminalInputData,
+} from '../utils/terminalSanitize';
 
 type UseShellTerminalOptions = {
   terminalContainerRef: RefObject<HTMLDivElement>;
@@ -41,71 +45,11 @@ type UseShellTerminalResult = {
   disposeTerminal: () => void;
 };
 
-const OSC_COLOR_REPORT_REGEX = /\x1b\](?:10|11|12);rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/giu;
-
-const OSC_PALETTE_REPORT_REGEX = /\x1b\]4;\d+;rgb:[0-9a-f]{1,4}\/[0-9a-f]{1,4}\/[0-9a-f]{1,4}(?:\x07|\x1b\\)?/giu;
-
-// DA1 response: \x1b[?...c  (Device Attributes primary)
-const DA1_RESPONSE_REGEX = /\x1b\[\?\d+[;:\d]*c/gu;
-// DA2 response: \x1b[>...c  (Device Attributes secondary — self-looping!)
-const DA2_RESPONSE_REGEX = /\x1b\[>\d+[;:\d]*c/gu;
-// DSR cursor: \x1b[row;colR
-const DSR_CURSOR_REGEX = /\x1b\[\d+;\d+R/gu;
-// DSR private cursor: \x1b[?row;colR
-const DSR_PRIVATE_CURSOR_REGEX = /\x1b\[\?\d+;\d+R/gu;
-// DSR status: \x1b[0n or \x1b[3n
-const DSR_STATUS_REGEX = /\x1b\[\d+n/gu;
-// Focus events: \x1b[I (focus in) and \x1b[O (focus out)
-const FOCUS_EVENT_REGEX = /\x1b\[[IO]/gu;
-// Mouse report (default): \x1b[M + 3 bytes — produces visible "aNM" when echoed!
-const MOUSE_REPORT_REGEX = /\x1b\[M[\s\S]{3}/gu;
-// Mouse report (SGR): \x1b[<button,col,row M/m
-const MOUSE_SGR_REPORT_REGEX = /\x1b\[<\d+;\d+;\d+[Mm]/gu;
-// Window size report: \x1b[8;rows;colst
-const WINDOW_SIZE_REPORT_REGEX = /\x1b\[\d+;\d+;\d+t/gu;
-// DECRQM response: \x1b[mode;value$y
-const DECRQM_RESPONSE_REGEX = /\x1b\[\d+;\d+\$y/gu;
-// DCS: \x1bP...\x1b\\
-const DCS_RESPONSE_REGEX = /\x1bP[\s\S]*?\x1b\\/gu;
-
-const TERMINAL_RESPONSE_REGEXES = [
-  OSC_COLOR_REPORT_REGEX,
-  OSC_PALETTE_REPORT_REGEX,
-  DA1_RESPONSE_REGEX,
-  DA2_RESPONSE_REGEX,
-  DSR_CURSOR_REGEX,
-  DSR_PRIVATE_CURSOR_REGEX,
-  DSR_STATUS_REGEX,
-  FOCUS_EVENT_REGEX,
-  MOUSE_REPORT_REGEX,
-  MOUSE_SGR_REPORT_REGEX,
-  WINDOW_SIZE_REPORT_REGEX,
-  DECRQM_RESPONSE_REGEX,
-  DCS_RESPONSE_REGEX,
-];
-
-function sanitizeTerminalInputData(data: string) {
-  let result = data;
-  for (const regex of TERMINAL_RESPONSE_REGEXES) {
-    // Reset lastIndex so reused global regexes never skip matches across calls.
-    regex.lastIndex = 0;
-    result = result.replace(regex, '');
-  }
-
-  // Partial/corrupted mouse-report leftovers sometimes survive as printable
-  // "aNM" / "aMaN" spam when ESC bytes are dropped mid-sequence.
-  result = result.replace(/(?:\x1b\[M)[\s\S]{0,3}/g, '');
-  result = result.replace(/(?:aNM){2,}/gi, '');
-  result = result.replace(/(?:aMaN){2,}/gi, '');
-
-  return result;
-}
-
 function suppressMouseTracking(terminal: Terminal) {
   // Programs may enable xterm mouse tracking; disable it so mouse moves never
-  // produce \x1b[M... sequences that loop through onData → PTY → screen.
+  // produce \x1b[<...M / NaNM loops through onData → PTY → screen.
   try {
-    terminal.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l');
+    terminal.write(MOUSE_TRACKING_OFF);
   } catch {
     // Terminal may not be ready yet.
   }

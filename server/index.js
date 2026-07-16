@@ -3988,6 +3988,9 @@ function handleShellConnection(ws, request) {
             // via onData. Without this, DA2/mouse/DSR responses get echoed by the PTY,
             // xterm.js interprets the echo as a new query, and an infinite loop starts.
             // This is the server-side guard complementing the frontend sanitizer.
+            // Mouse SGR can carry literal "NaN" coords when xterm cell metrics
+            // glitch (\x1b[<35;11;NaNM). Digit-only filters miss those and the
+            // sequence loops as type:input spam forever.
             const filteredChunk = chunk
                 .replace(/\x1b\[>\d+[;:\d]*c/g, '')      // DA2 response (self-looping)
                 .replace(/\x1b\[\?\d+[;:\d]*c/g, '')      // DA1 response
@@ -3995,14 +3998,19 @@ function handleShellConnection(ws, request) {
                 .replace(/\x1b\[\?\d+;\d+R/g, '')          // DSR private cursor
                 .replace(/\x1b\[\d+n/g, '')                // DSR status
                 .replace(/\x1b\[M[\s\S]{0,3}/g, '')        // Mouse report (default, incl. partial)
-                .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, '')    // Mouse report (SGR)
+                .replace(/\x1b\[<(?:NaN|\d+)(?:;(?:NaN|\d+))*[Mm]/gi, '') // SGR mouse (NaN-safe)
+                .replace(/\x1b\[<[^Mm\x1b]{0,40}[Mm]/g, '') // SGR mouse loose / partial
+                .replace(/\x1b\[\d+;\d+;\d+M/g, '')         // URXVT mouse
                 .replace(/\x1b\[IO]/g, '')                 // Focus events
                 .replace(/\x1b\[\d+;\d+;\d+t/g, '')        // Window size report
                 .replace(/\x1b\[\d+;\d+\$y/g, '')          // DECRQM response
                 .replace(/\x1b\](?:10|11|12);[^\x07\x1b]*(?:\x07|\x1b\\)?/g, '') // OSC color reports
-                .replace(/(?:aNM){2,}/gi, '')              // printable leftovers of mouse reports
-                .replace(/(?:aMaN){2,}/gi, '');
+                .replace(/(?:aNM|aMaN|NaNM|NaN[Mm])+/gi, ''); // printable leftovers
             if (!filteredChunk) continue;
+            // Absolute ban: any remaining SGR mouse CSI dies here.
+            if (filteredChunk.includes('\x1b[<') || /NaN[Mm]/i.test(filteredChunk)) {
+                continue;
+            }
 
             const chunkBytes = Buffer.byteLength(filteredChunk, 'utf8');
             if (pendingInputBytes + chunkBytes > SHELL_PENDING_INPUT_MAX_BYTES) {
