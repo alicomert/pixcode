@@ -18,6 +18,10 @@ export interface Task {
   predecessorTaskId?: string;
   continueSession?: boolean;
   sessionId?: string;
+  conversationId?: string;
+  proposalId?: string;
+  cronId?: string;
+  trigger?: string;
   maxBudgetUsd?: number;
   costUsd?: number;
   tokenCount?: { input: number; output: number };
@@ -33,6 +37,7 @@ export interface Task {
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
+  updatedAt?: string;
 }
 
 export interface TaskLog {
@@ -66,4 +71,69 @@ export interface AgentInfo {
   provider: string;
   installed?: boolean;
   authenticated?: boolean;
+}
+
+export type ProposalKind = 'task' | 'cron';
+export type ProposalStatus = 'pending' | 'approved' | 'rejected';
+
+export interface BotProposal {
+  id: string;
+  conversationId?: string;
+  projectId: string;
+  kind: ProposalKind;
+  status: ProposalStatus;
+  title: string;
+  prompt: string;
+  agentType: AgentType;
+  model?: string;
+  role?: TaskRole;
+  priority?: TaskPriority;
+  permissionMode?: string;
+  recurrence?: TaskRecurrence;
+  taskId?: string;
+  cronId?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface BotCron {
+  id: string;
+  conversationId?: string;
+  projectId: string;
+  title: string;
+  prompt: string;
+  agentType: AgentType;
+  model?: string;
+  role?: TaskRole;
+  recurrence: TaskRecurrence;
+  enabled: boolean;
+  nextRunAt?: string | null;
+  lastRunAt?: string | null;
+  lastTaskId?: string | null;
+  lastError?: string;
+  createdAt: string;
+  updatedAt?: string;
+  deleted?: boolean;
+}
+
+export interface BotConversation {
+  id: string;
+  projectId: string;
+  title: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface BotMessage {
+  id: string;
+  conversationId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  createdAt: string;
+  kind?: string;
+  proposalIds?: string[];
+  taskId?: string;
+  cronId?: string;
+  interactionId?: string;
+  taskStatus?: string;
 }

@@ -38,6 +38,16 @@ assert.match(
   'Tunnel restore should distinguish automatic restart attempts from direct user starts.',
 );
 assert.match(
+  externalAccess,
+  /isUnusableTunnelPreferenceRaw/,
+  'Tunnel preference reader should tolerate empty or null-padded preference files.',
+);
+assert.match(
+  externalAccess,
+  /writeTunnelPreferenceAtomic/,
+  'Tunnel preference writes should be atomic (tmp + rename) to avoid corrupt files.',
+);
+assert.match(
   networkRoutes,
   /persistPreference:\s*true/,
   'Manual tunnel starts should persist the user preference through the network route.',

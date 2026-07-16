@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
   AgentInfo,
+  BotConversation,
+  BotCron,
+  BotMessage,
+  BotProposal,
   RoleInfo,
   Task,
   TaskInteraction,
@@ -78,11 +82,11 @@ export function useTasks(projectId?: string) {
     stream.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (typeof payload?.type === 'string' && payload.type.startsWith('task:')) {
+        if (typeof payload?.type === 'string' && (payload.type.startsWith('task:') || payload.type.startsWith('bot:'))) {
           void fetchTasks();
         }
       } catch {
-        // Polling remains the fallback for malformed or proxy-buffered events.
+        // Polling remains the fallback.
       }
     };
 
@@ -104,6 +108,12 @@ export function useTasks(projectId?: string) {
 
   const cancelTask = useCallback(async (taskId: string) => {
     const response = await authenticatedFetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
+    await readResponse(response);
+    await fetchTasks();
+  }, [fetchTasks]);
+
+  const retryTask = useCallback(async (taskId: string) => {
+    const response = await authenticatedFetch(`/api/tasks/${taskId}/retry`, { method: 'POST', body: JSON.stringify({}) });
     await readResponse(response);
     await fetchTasks();
   }, [fetchTasks]);
@@ -141,11 +151,242 @@ export function useTasks(projectId?: string) {
     error,
     createTask,
     cancelTask,
+    retryTask,
     deleteTask,
     getTaskLogs,
     getTaskInteractions,
     answerInteraction,
     refresh: fetchTasks,
+  };
+}
+
+export function usePixBot(projectId?: string) {
+  const [conversations, setConversations] = useState<BotConversation[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<BotMessage[]>([]);
+  const [proposals, setProposals] = useState<BotProposal[]>([]);
+  const [crons, setCrons] = useState<BotCron[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const refreshSide = useCallback(async () => {
+    if (!projectId) {
+      setProposals([]);
+      setCrons([]);
+      return;
+    }
+    const [proposalRes, cronRes] = await Promise.all([
+      authenticatedFetch(`/api/tasks/bot/proposals?status=pending&projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' }),
+      authenticatedFetch(`/api/tasks/bot/crons?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' }),
+    ]);
+    const proposalPayload = await readResponse<{ proposals?: BotProposal[] }>(proposalRes);
+    const cronPayload = await readResponse<{ crons?: BotCron[] }>(cronRes);
+    setProposals(proposalPayload.proposals || []);
+    setCrons(cronPayload.crons || []);
+  }, [projectId]);
+
+  const loadMessages = useCallback(async (id: string) => {
+    const response = await authenticatedFetch(`/api/tasks/bot/conversations/${id}/messages`, { cache: 'no-store' });
+    const payload = await readResponse<{ messages?: BotMessage[] }>(response);
+    setMessages(payload.messages || []);
+  }, []);
+
+  const refreshConversations = useCallback(async (preferId?: string | null) => {
+    if (!projectId) {
+      setConversations([]);
+      setConversationId(null);
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await authenticatedFetch(`/api/tasks/bot/conversations?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+      const payload = await readResponse<{ conversations?: BotConversation[] }>(response);
+      const list = payload.conversations || [];
+      setConversations(list);
+      const nextId = preferId && list.some((entry) => entry.id === preferId)
+        ? preferId
+        : conversationId && list.some((entry) => entry.id === conversationId)
+          ? conversationId
+          : list[0]?.id || null;
+      setConversationId(nextId);
+      if (nextId) await loadMessages(nextId);
+      else setMessages([]);
+      await refreshSide();
+      setError(null);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId, loadMessages, projectId, refreshSide]);
+
+  useEffect(() => {
+    void refreshConversations();
+  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps -- reset when workspace changes
+
+  useEffect(() => {
+    const token = window.localStorage.getItem('auth-token');
+    if (!token) return undefined;
+    const stream = new EventSource(`/api/tasks/events?token=${encodeURIComponent(token)}`);
+    eventSourceRef.current = stream;
+    stream.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload?.type === 'bot:message' && payload.message?.conversationId === conversationId) {
+          setMessages((current) => {
+            if (current.some((entry) => entry.id === payload.message.id)) return current;
+            return [...current, payload.message as BotMessage];
+          });
+        }
+        if (typeof payload?.type === 'string' && payload.type.startsWith('bot:')) {
+          void refreshSide();
+        }
+        if (payload?.type === 'bot:message' && payload.conversation) {
+          setConversations((current) => {
+            const exists = current.some((entry) => entry.id === payload.conversation.id);
+            if (exists) {
+              return current.map((entry) => (entry.id === payload.conversation.id ? payload.conversation : entry));
+            }
+            return [payload.conversation as BotConversation, ...current];
+          });
+        }
+      } catch {
+        // ignore
+      }
+    };
+    return () => {
+      stream.close();
+      eventSourceRef.current = null;
+    };
+  }, [conversationId, refreshSide]);
+
+  const ensureConversation = useCallback(async () => {
+    if (!projectId) throw new Error('Select a workspace first.');
+    if (conversationId) return conversationId;
+    const response = await authenticatedFetch('/api/tasks/bot/conversations', {
+      method: 'POST',
+      body: JSON.stringify({ projectId }),
+    });
+    const payload = await readResponse<{ conversation: BotConversation }>(response);
+    setConversations((current) => [payload.conversation, ...current]);
+    setConversationId(payload.conversation.id);
+    await loadMessages(payload.conversation.id);
+    return payload.conversation.id;
+  }, [conversationId, loadMessages, projectId]);
+
+  const sendMessage = useCallback(async (message: string, opts?: { agentType?: string; model?: string }) => {
+    if (!projectId) throw new Error('Select a workspace first.');
+    setSending(true);
+    setError(null);
+    try {
+      const response = await authenticatedFetch('/api/tasks/bot/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          projectId,
+          conversationId,
+          message,
+          agentType: opts?.agentType,
+          model: opts?.model,
+        }),
+      });
+      const payload = await readResponse<{
+        conversation: BotConversation;
+        messages: BotMessage[];
+        proposals?: BotProposal[];
+      }>(response);
+      setConversationId(payload.conversation.id);
+      setConversations((current) => {
+        const rest = current.filter((entry) => entry.id !== payload.conversation.id);
+        return [payload.conversation, ...rest];
+      });
+      setMessages((current) => {
+        const ids = new Set(current.map((entry) => entry.id));
+        const merged = [...current];
+        for (const entry of payload.messages || []) {
+          if (!ids.has(entry.id)) merged.push(entry);
+        }
+        return merged;
+      });
+      await refreshSide();
+      return payload;
+    } catch (caughtError) {
+      const messageText = caughtError instanceof Error ? caughtError.message : String(caughtError);
+      setError(messageText);
+      throw caughtError;
+    } finally {
+      setSending(false);
+    }
+  }, [conversationId, projectId, refreshSide]);
+
+  const approveProposal = useCallback(async (proposalId: string) => {
+    const response = await authenticatedFetch(`/api/tasks/bot/proposals/${proposalId}/approve`, { method: 'POST', body: '{}' });
+    await readResponse(response);
+    await refreshSide();
+    if (conversationId) await loadMessages(conversationId);
+  }, [conversationId, loadMessages, refreshSide]);
+
+  const rejectProposal = useCallback(async (proposalId: string) => {
+    const response = await authenticatedFetch(`/api/tasks/bot/proposals/${proposalId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    await readResponse(response);
+    await refreshSide();
+    if (conversationId) await loadMessages(conversationId);
+  }, [conversationId, loadMessages, refreshSide]);
+
+  const toggleCron = useCallback(async (cronId: string, enabled?: boolean) => {
+    const response = await authenticatedFetch(`/api/tasks/bot/crons/${cronId}/toggle`, {
+      method: 'POST',
+      body: JSON.stringify(enabled === undefined ? {} : { enabled }),
+    });
+    await readResponse(response);
+    await refreshSide();
+  }, [refreshSide]);
+
+  const deleteCron = useCallback(async (cronId: string) => {
+    const response = await authenticatedFetch(`/api/tasks/bot/crons/${cronId}`, { method: 'DELETE' });
+    if (!response.ok) await readResponse(response);
+    await refreshSide();
+  }, [refreshSide]);
+
+  const startNewChat = useCallback(async () => {
+    if (!projectId) throw new Error('Select a workspace first.');
+    const response = await authenticatedFetch('/api/tasks/bot/conversations', {
+      method: 'POST',
+      body: JSON.stringify({ projectId }),
+    });
+    const payload = await readResponse<{ conversation: BotConversation }>(response);
+    setConversations((current) => [payload.conversation, ...current]);
+    setConversationId(payload.conversation.id);
+    await loadMessages(payload.conversation.id);
+  }, [loadMessages, projectId]);
+
+  return {
+    conversations,
+    conversationId,
+    setConversationId: async (id: string) => {
+      setConversationId(id);
+      await loadMessages(id);
+    },
+    messages,
+    proposals,
+    crons,
+    loading,
+    sending,
+    error,
+    sendMessage,
+    ensureConversation,
+    approveProposal,
+    rejectProposal,
+    toggleCron,
+    deleteCron,
+    startNewChat,
+    refresh: () => refreshConversations(conversationId),
   };
 }
 
@@ -163,7 +404,7 @@ export function useTaskMeta() {
       setRoles(rolePayload.roles || []);
       setAgents(agentPayload.agents || []);
     }).catch(() => {
-      // The create dialog has safe local defaults if metadata is unavailable.
+      // safe defaults in UI
     });
 
     return () => {

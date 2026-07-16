@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins. Also ships an Electron wrapper (`desktop/`, separate private package that tracks its own version) and Docker sandbox images (`docker/`).
+Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins. Also ships an isolated Electron wrapper (`desktop/`) and Docker sandbox images (`docker/`).
 
 ## Stack & topology
 
@@ -21,13 +21,13 @@ Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen C
 - `npm run build` = `build:client` (→ `dist/`) + `build:server` (→ `dist-server/`, cleaned first by `prebuild:server`).
 - `npm run typecheck` — both tsconfigs; run this after TS edits.
 - `npm run lint` / `lint:fix` — eslint on `src/` and `server/`.
-- `npm run release` — interactive release-it. Requires `main` + clean tree. Also available via GitHub Actions (`release.yml`, manual dispatch with version increment input).
-- `npm run smoke:*` — a subset of smoke scripts (14 aliased in `package.json` scripts). Run any other of the 73 scripts in `scripts/smoke/` via `node scripts/smoke/<name>.mjs`. Two kinds: static source-regex checks (no server needed) and live API checks (need running backend + `PIXCODE_API_KEY`).
-- CI: `static.yml` deploys `public/` to GitHub Pages on push to `main`. No CI runs lint/typecheck on PRs — local hooks are the only gate.
+- `npm run release` — runs `release.sh`, which exports `GITHUB_TOKEN` from `.env` and then `npx release-it "$@"`. Release-it requires `main` + clean tree and runs `npm run build` before publishing.
+- `npm run smoke:*` — a subset of smoke scripts aliased in `package.json`. Run any other script in `scripts/smoke/` via `node scripts/smoke/<name>.mjs`. Two kinds: static source-regex checks (no server needed) and live API checks (need running backend + `PIXCODE_API_KEY`).
+- No `.github/workflows/` are present in this checkout; local hooks/checks are the only verified gate.
 
 ## Don't-get-burned list
 
-- **No `test` script / runner.** `*.test.ts` files exist under `server/modules/**` (node:test style) but are only typechecked, never executed. Verify via `lint` + `typecheck` + relevant smoke script + manual run.
+- **No `test` script / runner.** A node:test-style file exists under `server/modules/providers/tests/`, but tests are not wired into npm scripts. Verify via `lint` + `typecheck` + relevant smoke script + manual run.
 - **`npm run dev` installs/starts a daemon**, not a foreground process. On servers it persists after the shell exits. Use `pixcode --no-daemon` or `PIXCODE_NO_DAEMON=1` for foreground, or run `client` + `server` scripts directly.
 - `npm run server` runs **compiled** output (`dist-server/server/cli.js`). Editing `server/*.js` without rebuilding will not take effect. `server:dev` runs from source (`server/cli.js`).
 - `better-sqlite3` and `node-pty` are native modules — `npm install` may need build tools (python3, make, g++). `node-pty` on macOS needs the postinstall fix (already wired). Password hashing uses pure-JS `bcryptjs`, not native `bcrypt`.
@@ -43,11 +43,11 @@ Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen C
 Config: `eslint.config.js` (flat config, two blocks).
 
 - Frontend: import ordering enforced (`import-x/order` with groups + blank lines), Tailwind classname order (`tailwindcss/classnames-order`), React hooks rules, `unused-imports/no-unused-imports` as warn. `@typescript-eslint/no-explicit-any` is **off** by choice.
-- Backend: `eslint-plugin-boundaries` has live rules. Boundary elements:
+- Backend: `eslint-plugin-boundaries` has live rules. Boundary elements include:
   - `backend-shared-type-contract` → `server/shared/types.{js,ts}`, `server/shared/interfaces.{js,ts}` — backend modules may only `import type` from these (no value/runtime imports).
   - `backend-shared-utils` → `server/shared/utils.{js,ts}` and `shared/modelConstants.{js,ts}` — runtime helpers, free to import.
   - `backend-legacy-runtime` → `server/projects.js`, `server/sessionManager.js`, `server/database/*`, `server/services/**`, `server/utils/runtime-paths.js` — still exists during migration, modules can reach into it.
-  - `backend-module` → `server/modules/*` (currently `providers`, `orchestration`) — each folder is one module. Cross-module imports must go through the module's barrel file (`index.{ts,js}`); deep paths into another module's internals are disallowed.
+  - `backend-module` → `server/modules/*` (currently `providers`, `tasks`) — each folder is one module. Cross-module imports must go through the module's barrel file (`index.{ts,js}`); deep paths into another module's internals are disallowed.
 - `boundaries/no-unknown` is an error: a backend import that boundaries cannot classify fails lint — new shared files may need an element entry in `eslint.config.js`.
 - `import-x/no-unresolved` is an error on backend; keep path aliases resolvable via `server/tsconfig.json` (`@/*` → `server/*`).
 
@@ -59,7 +59,7 @@ Config: `eslint.config.js` (flat config, two blocks).
 
 ## Backend layout
 
-- `server/index.js` — Express app, route mounting, static serving of `public/` + `dist/`, WS setup. All `/api/*` routes pass `validateApiKey`, most also `authenticateToken`. Mounts provider routes under `/api/providers`, orchestration under `/api/orchestration`, legacy per-provider routes under `/api/{codex,cursor,gemini,qwen,...}`.
+- `server/index.js` — Express app, route mounting, static serving of `public/` + `dist/`, WS setup. All `/api/*` routes pass `validateApiKey`, most also `authenticateToken`. Mounts provider routes under `/api/providers` and legacy per-provider routes under `/api/{codex,cursor,gemini,qwen,...}`.
 - `server/cli.js` — CLI (`start`, `daemon`, `sandbox`, `status`, `version`, ...). Installed as `pixcode`.
 - `server/daemon/manager.js` + `server/daemon-manager.js` — systemd-based daemon management (Linux focus).
 - `server/modules/providers/` — modular provider code with barrel-export boundary enforcement:
@@ -68,7 +68,7 @@ Config: `eslint.config.js` (flat config, two blocks).
   - `provider.registry.ts` — registry wiring
   - `provider.routes.ts` — router at `/api/providers`
   - `shared/base/abstract.provider.ts` + `shared/mcp/mcp.provider.ts` — base classes
-- `server/modules/orchestration/` — multi-agent orchestration: `a2a/` (A2A protocol + adapters), `workflows/` (runner, templates, traces), `tasks/`, `workspace/` (docker + git-worktree), `preview/`, `security/`.
+- `server/modules/tasks/` — lightweight module that imports provider services only through `server/modules/providers/index.ts`.
 - `server/shared/{types,interfaces,utils}.ts` — TypeScript contracts (see boundaries rules above).
 - `server/routes/*.js` — 23 legacy route files (auth, projects, git, mcp-utils, per-provider routes, plugins, agent, commands, settings, user, messages, telegram, remote, webhooks, live-view, diagnostics, network, platformization, production-agent-loop, public-api).
 - `server/database/{db.js,json-store.js}` — `better-sqlite3` auth/user/token storage.
@@ -89,6 +89,6 @@ Config: `eslint.config.js` (flat config, two blocks).
 - Prefer bottom sheets, active-section switchers, icon buttons with tooltips, and full-width form controls over long horizontal pill bars or fixed edge handles.
 - Terminal/CLI work must preserve real xterm behavior and session continuity on mobile.
 
-## Relationship with other instruction files
+## Other instruction files
 
-`CLAUDE.md` covers overlapping ground (commands, lint, commits) plus Claude-specific context (agent SDK, install jobs, Windows quirks). If you change architecture facts here, update `CLAUDE.md` too — they tend to drift.
+- No repo-local `CLAUDE.md`, Cursor rules, Copilot instructions, or `opencode.json` are present in this checkout.

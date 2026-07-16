@@ -63,17 +63,61 @@ const DEFAULT_TUNNEL_PREFERENCE = Object.freeze({
   updatedAt: null,
 });
 
+/** True when on-disk content cannot be treated as a tunnel preference object. */
+function isUnusableTunnelPreferenceRaw(raw) {
+  if (typeof raw !== 'string') return true;
+  // Empty, whitespace-only, or null-padded files (seen on Windows after a
+  // partial/interrupted write) are not valid JSON objects.
+  const stripped = raw.replace(/\u0000/g, '').trim();
+  return stripped.length === 0;
+}
+
+async function writeTunnelPreferenceAtomic(preference) {
+  await fs.mkdir(path.dirname(TUNNEL_PERSISTENCE_PATH), { recursive: true });
+  const payload = `${JSON.stringify(preference, null, 2)}\n`;
+  const temporaryPath = `${TUNNEL_PERSISTENCE_PATH}.${process.pid}.tmp`;
+  await fs.writeFile(temporaryPath, payload, 'utf8');
+  try {
+    await fs.rename(temporaryPath, TUNNEL_PERSISTENCE_PATH);
+  } catch {
+    // Windows can refuse rename-over-existing while another handle is open.
+    await fs.copyFile(temporaryPath, TUNNEL_PERSISTENCE_PATH);
+    await fs.unlink(temporaryPath).catch(() => {});
+  }
+}
+
 const readTunnelPreference = async () => {
   try {
     const raw = await fs.readFile(TUNNEL_PERSISTENCE_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
+    if (isUnusableTunnelPreferenceRaw(raw)) {
+      // Self-heal empty / null-padded preference files so startup does not
+      // keep warning and restore logic does not treat garbage as "desired".
+      const defaults = { ...DEFAULT_TUNNEL_PREFERENCE };
+      try {
+        await writeTunnelPreferenceAtomic(defaults);
+      } catch {
+        // Best-effort repair; still return safe defaults below.
+      }
+      return defaults;
+    }
+
+    const parsed = JSON.parse(raw.replace(/\u0000/g, '').trim());
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { ...DEFAULT_TUNNEL_PREFERENCE };
+    }
     return {
       ...DEFAULT_TUNNEL_PREFERENCE,
-      ...(parsed && typeof parsed === 'object' ? parsed : {}),
+      ...parsed,
     };
   } catch (error) {
     if (error?.code !== 'ENOENT') {
       console.warn('[external-access] Failed to read tunnel preference:', error?.message || error);
+      // Corrupt JSON: rewrite defaults so the next boot is clean.
+      try {
+        await writeTunnelPreferenceAtomic({ ...DEFAULT_TUNNEL_PREFERENCE });
+      } catch {
+        // ignore secondary write failures
+      }
     }
     return { ...DEFAULT_TUNNEL_PREFERENCE };
   }
@@ -86,8 +130,7 @@ export const persistTunnelPreference = async (patch) => {
     ...patch,
     updatedAt: new Date().toISOString(),
   };
-  await fs.mkdir(path.dirname(TUNNEL_PERSISTENCE_PATH), { recursive: true });
-  await fs.writeFile(TUNNEL_PERSISTENCE_PATH, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  await writeTunnelPreferenceAtomic(next);
   return next;
 };
 
