@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.56.1](https://github.com/alicomert/pixcode/compare/v1.56.0...v1.56.1) (2026-07-16)
+
+### Bug Fixes
+
+* stop first-run Access denied on missing auth token ([0bcdaa1](https://github.com/alicomert/pixcode/commit/0bcdaa1a866edc9c506050c190a803ce46edf881))
+
+### Maintenance
+
+* sync desktop/package.json to 1.56.1 ([353c025](https://github.com/alicomert/pixcode/commit/353c025f3d3e3b6e6add5f2feef3119cfb0f9a98))
+
 ## [1.56.0](https://github.com/alicomert/pixcode/compare/v1.55.11...v1.56.0) (2026-07-16)
 
 ### New Features
