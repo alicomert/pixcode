@@ -30,7 +30,7 @@ type UseShellTerminalOptions = {
   isPlainShellRef: MutableRefObject<boolean>;
   authUrlRef: MutableRefObject<string>;
   copyAuthUrlToClipboard: (url?: string) => Promise<boolean>;
-  closeSocket: () => void;
+  closeSocket: (options?: { killSession?: boolean }) => void;
   isActive: boolean;
   layoutSignal?: string | number | null;
 };
@@ -87,13 +87,28 @@ const TERMINAL_RESPONSE_REGEXES = [
 function sanitizeTerminalInputData(data: string) {
   let result = data;
   for (const regex of TERMINAL_RESPONSE_REGEXES) {
-    if (regex.global) {
-      result = result.replace(regex, '');
-    } else {
-      result = result.replace(new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : regex.flags + 'g'), '');
-    }
+    // Reset lastIndex so reused global regexes never skip matches across calls.
+    regex.lastIndex = 0;
+    result = result.replace(regex, '');
   }
+
+  // Partial/corrupted mouse-report leftovers sometimes survive as printable
+  // "aNM" / "aMaN" spam when ESC bytes are dropped mid-sequence.
+  result = result.replace(/(?:\x1b\[M)[\s\S]{0,3}/g, '');
+  result = result.replace(/(?:aNM){2,}/gi, '');
+  result = result.replace(/(?:aMaN){2,}/gi, '');
+
   return result;
+}
+
+function suppressMouseTracking(terminal: Terminal) {
+  // Programs may enable xterm mouse tracking; disable it so mouse moves never
+  // produce \x1b[M... sequences that loop through onData → PTY → screen.
+  try {
+    terminal.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l');
+  } catch {
+    // Terminal may not be ready yet.
+  }
 }
 
 /**
@@ -277,9 +292,10 @@ export function useShellTerminal({
     nextTerminal.open(terminalContainer);
 
     // Suppress terminal response generation (DA1/DA2/DSR) to prevent
-    // the infinite feedback loop that causes "aNM" spam on Linux.
+    // the infinite feedback loop that causes "aNM"/"aMaNMaN" spam on Linux.
     // Parser handlers consume query sequences without generating responses.
     const disposeResponseSuppression = suppressTerminalResponses(nextTerminal);
+    suppressMouseTracking(nextTerminal);
 
     const sendClipboardTextToTerminal = (text: string) => {
       if (!text) {
@@ -478,6 +494,8 @@ export function useShellTerminal({
       dataSubscription.dispose();
       disposeResponseSuppression();
       window.removeEventListener('resize', scheduleTerminalFit);
+      // Do not killSession here: panel hide / tab remount reuses provider PTYs.
+      // Explicit user disconnect uses disconnectFromShell(manual) → stop.
       closeSocket();
       disposeTerminal();
     };

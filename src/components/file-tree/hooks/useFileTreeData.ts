@@ -19,16 +19,53 @@ type UseFileTreeDataResult = {
 const FETCH_RETRY_DELAY_MS = 1500;
 const FETCH_MAX_ATTEMPTS = 2;
 
+// Coalesce structure-changing watcher events into a single full tree scan.
+// Content-only edits (`change`) never need a full HTTP re-fetch — the node
+// is already in the tree and FileTree highlights it via changedFile.
+const STRUCTURE_REFRESH_DEBOUNCE_MS = 1800;
+
+type FileTreeRefreshDetail = {
+  projectName?: string | null;
+  changeType?: string | null;
+  changedFile?: string | null;
+};
+
+function isStructureChange(changeType: string | null | undefined): boolean {
+  if (!changeType) {
+    // Unknown event — refresh to stay correct, but only via debounce.
+    return true;
+  }
+
+  return (
+    changeType === 'add'
+    || changeType === 'unlink'
+    || changeType === 'addDir'
+    || changeType === 'unlinkDir'
+  );
+}
+
 export function useFileTreeData(selectedProject: Project | null): UseFileTreeDataResult {
   const [files, setFiles] = useState<FileTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const structureRefreshTimerRef = useRef<number | null>(null);
   const { sendMessage, latestMessage, isConnected } = useWebSocket();
 
   const refreshFiles = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
+  }, []);
+
+  const scheduleStructureRefresh = useCallback(() => {
+    if (structureRefreshTimerRef.current !== null) {
+      window.clearTimeout(structureRefreshTimerRef.current);
+    }
+
+    structureRefreshTimerRef.current = window.setTimeout(() => {
+      structureRefreshTimerRef.current = null;
+      setRefreshKey((prev) => prev + 1);
+    }, STRUCTURE_REFRESH_DEBOUNCE_MS);
   }, []);
 
   useEffect(() => {
@@ -110,8 +147,7 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
 
   // Live updates: subscribe to server-side workspace watching over the chat
   // WebSocket. The backend pushes `project_files_updated` when files change in
-  // the project working directory, so the explorer stays fresh without HTTP
-  // polling or manual refresh.
+  // the project working directory.
   useEffect(() => {
     const projectName = selectedProject?.name;
     if (!projectName || !isConnected) {
@@ -124,10 +160,7 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
     };
   }, [selectedProject?.name, isConnected, sendMessage]);
 
-  // `project_files_updated` itself is routed through the global
-  // `pixcode:file-tree-refresh` bridge in AppContent (so the changed-file
-  // highlight in FileTree keeps working); here we only need to catch up after
-  // a reconnect, when push events may have been missed.
+  // After a reconnect, push events may have been missed — do one full refresh.
   useEffect(() => {
     if (!selectedProject?.name || !latestMessage) {
       return;
@@ -145,19 +178,31 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
     }
 
     const handleExternalRefresh = (event: Event) => {
-      const detail = (event as CustomEvent<{ projectName?: string | null }>).detail;
+      const detail = (event as CustomEvent<FileTreeRefreshDetail>).detail;
       if (detail?.projectName && detail.projectName !== projectName) {
         return;
       }
 
-      refreshFiles();
+      // Pure content edits: FileTree already highlights `changedFile`.
+      // Re-scanning thousands of files over HTTP is wasteful and races the
+      // scan budget (FILE_TREE_SCAN_MAX_MS), which is why trees sometimes
+      // looked incomplete under heavy agent activity.
+      if (!isStructureChange(detail?.changeType)) {
+        return;
+      }
+
+      scheduleStructureRefresh();
     };
 
     window.addEventListener('pixcode:file-tree-refresh', handleExternalRefresh);
     return () => {
       window.removeEventListener('pixcode:file-tree-refresh', handleExternalRefresh);
+      if (structureRefreshTimerRef.current !== null) {
+        window.clearTimeout(structureRefreshTimerRef.current);
+        structureRefreshTimerRef.current = null;
+      }
     };
-  }, [refreshFiles, selectedProject?.name]);
+  }, [scheduleStructureRefresh, selectedProject?.name]);
 
   return {
     files,

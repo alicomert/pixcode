@@ -4140,11 +4140,14 @@ function handleShellConnection(ws, request) {
                 .replace(/\x1b\[\d+;\d+R/g, '')            // DSR cursor
                 .replace(/\x1b\[\?\d+;\d+R/g, '')          // DSR private cursor
                 .replace(/\x1b\[\d+n/g, '')                // DSR status
-                .replace(/\x1b\[M[\s\S]{3}/g, '')          // Mouse report (default)
+                .replace(/\x1b\[M[\s\S]{0,3}/g, '')        // Mouse report (default, incl. partial)
                 .replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, '')    // Mouse report (SGR)
                 .replace(/\x1b\[IO]/g, '')                 // Focus events
                 .replace(/\x1b\[\d+;\d+;\d+t/g, '')        // Window size report
-                .replace(/\x1b\[\d+;\d+\$y/g, '');         // DECRQM response
+                .replace(/\x1b\[\d+;\d+\$y/g, '')          // DECRQM response
+                .replace(/\x1b\](?:10|11|12);[^\x07\x1b]*(?:\x07|\x1b\\)?/g, '') // OSC color reports
+                .replace(/(?:aNM){2,}/gi, '')              // printable leftovers of mouse reports
+                .replace(/(?:aMaN){2,}/gi, '');
             if (!filteredChunk) continue;
 
             const chunkBytes = Buffer.byteLength(filteredChunk, 'utf8');
@@ -4687,6 +4690,22 @@ function handleShellConnection(ws, request) {
 
             } else if (data.type === 'input') {
                 enqueueShellInput(data.data);
+            } else if (data.type === 'stop') {
+                // Explicit client teardown (panel/tab close). Kill the PTY now
+                // instead of leaving it alive for PTY_SESSION_TIMEOUT.
+                if (ptySessionKey) {
+                    const session = ptySessionsMap.get(ptySessionKey);
+                    if (session) {
+                        terminatePtySession(ptySessionKey, session, 'client stop');
+                    }
+                    ptySessionKey = null;
+                }
+                shellProcess = null;
+                try {
+                    ws.close();
+                } catch {
+                    // already closed
+                }
             } else if (data.type === 'resize') {
                 // Handle terminal resize
                 const session = ptySessionKey ? ptySessionsMap.get(ptySessionKey) : null;
@@ -4723,6 +4742,13 @@ function handleShellConnection(ws, request) {
         if (ptySessionKey) {
             const session = ptySessionsMap.get(ptySessionKey);
             if (session) {
+                // Plain shell is interactive local use — never keep orphans.
+                // Provider CLIs may reconnect; keepAlive/timeout still apply.
+                if (session.isPlainShell) {
+                    terminatePtySession(ptySessionKey, session, 'plain shell disconnect');
+                    return;
+                }
+
                 if (session.keepAliveUntilExit) {
                     console.log('⏳ PTY session kept alive until process exit:', ptySessionKey);
                     if (session.ws === ws) session.ws = null;
@@ -4732,12 +4758,12 @@ function handleShellConnection(ws, request) {
                 console.log('⏳ PTY session kept alive, will timeout in 30 minutes:', ptySessionKey);
                 if (session.ws === ws) session.ws = null;
 
+                if (session.timeoutId) {
+                    clearTimeout(session.timeoutId);
+                }
                 session.timeoutId = setTimeout(() => {
                     console.log('⏰ PTY session timeout, killing process:', ptySessionKey);
-                    if (session.pty && session.pty.kill) {
-                        session.pty.kill();
-                    }
-                    ptySessionsMap.delete(ptySessionKey);
+                    terminatePtySession(ptySessionKey, session, 'session timeout');
                 }, PTY_SESSION_TIMEOUT);
             }
         }

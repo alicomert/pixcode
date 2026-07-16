@@ -72,10 +72,23 @@ export function useShellRuntime({
     setAuthUrlVersion((previous) => previous + 1);
   }, []);
 
-  const closeSocket = useCallback(() => {
+  const closeSocket = useCallback((options?: { killSession?: boolean }) => {
     const activeSocket = wsRef.current;
     if (!activeSocket) {
       return;
+    }
+
+    // Tell the server to tear down the PTY immediately. Without this the
+    // shell stays alive for up to 30 minutes after the tab/panel closes.
+    if (
+      options?.killSession
+      && activeSocket.readyState === WebSocket.OPEN
+    ) {
+      try {
+        activeSocket.send(JSON.stringify({ type: 'stop' }));
+      } catch {
+        // Ignore send failures during teardown.
+      }
     }
 
     if (

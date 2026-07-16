@@ -37,7 +37,7 @@ type UseShellConnectionOptions = {
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
-  closeSocket: () => void;
+  closeSocket: (options?: { killSession?: boolean }) => void;
   clearTerminalScreen: () => void;
   setAuthUrl: (nextAuthUrl: string) => void;
   onOutputRef?: MutableRefObject<(() => void) | null>;
@@ -46,7 +46,7 @@ type UseShellConnectionOptions = {
 type UseShellConnectionResult = {
   isConnected: boolean;
   isConnecting: boolean;
-  closeSocket: () => void;
+  closeSocket: (options?: { killSession?: boolean }) => void;
   connectToShell: () => void;
   disconnectFromShell: (manual?: boolean) => void;
 };
@@ -399,7 +399,9 @@ export function useShellConnection({
     if (manual) {
       manualDisconnectRef.current = true;
     }
-    closeSocket();
+    // Manual close (user closed terminal / left tab) must kill the backend PTY.
+    // Non-manual teardowns keep provider CLI sessions reusable for reconnect.
+    closeSocket(manual ? { killSession: true } : undefined);
     if (initTimeoutRef.current !== null) {
       window.clearTimeout(initTimeoutRef.current);
       initTimeoutRef.current = null;

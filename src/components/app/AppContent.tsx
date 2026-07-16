@@ -138,21 +138,23 @@ export default function AppContent() {
       return;
     }
 
-    // `projects_updated` comes from the provider-folder watcher (~/.claude etc.);
-    // `project_files_updated` comes from the per-project workspace watcher that
-    // clients subscribe to via `watch-project`. Both feed the same window-event
-    // bridge so FileTree refreshes and highlights changed files uniformly.
-    if (latestMessage.type !== 'projects_updated' && latestMessage.type !== 'project_files_updated') {
+    // Only workspace watcher events should drive the file explorer.
+    // `projects_updated` (provider metadata under ~/.claude etc.) used to
+    // trigger a full HTTP file-tree re-scan on every agent session write —
+    // that caused the explorer to spam /files, drop nodes under the scan
+    // budget, and look like a constant refresh loop.
+    if (latestMessage.type !== 'project_files_updated') {
       return;
     }
 
-    const eventProjectName = latestMessage.type === 'project_files_updated'
-      ? (typeof latestMessage.projectName === 'string' ? latestMessage.projectName : null)
+    const eventProjectName = typeof latestMessage.projectName === 'string'
+      ? latestMessage.projectName
       : selectedProject?.name ?? null;
 
     window.dispatchEvent(new CustomEvent('pixcode:file-tree-refresh', {
       detail: {
         projectName: eventProjectName,
+        changeType: typeof latestMessage.changeType === 'string' ? latestMessage.changeType : null,
         changedFile: typeof latestMessage.changedFile === 'string' ? latestMessage.changedFile : null,
         oldContent: typeof latestMessage.oldContent === 'string' ? latestMessage.oldContent : null,
         currentContent: typeof latestMessage.currentContent === 'string' ? latestMessage.currentContent : null,

@@ -40,7 +40,15 @@ export type ShellInputMessage = {
   data: string;
 };
 
-export type ShellOutgoingMessage = ShellInitMessage | ShellResizeMessage | ShellInputMessage;
+export type ShellStopMessage = {
+  type: 'stop';
+};
+
+export type ShellOutgoingMessage =
+  | ShellInitMessage
+  | ShellResizeMessage
+  | ShellInputMessage
+  | ShellStopMessage;
 
 export type ShellIncomingMessage =
   | { type: 'output'; data: string }
