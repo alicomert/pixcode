@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.57.0](https://github.com/alicomert/pixcode/compare/v1.56.3...v1.57.0) (2026-07-16)
+
+### New Features
+
+* delta product updates for desktop runtime installs ([9c6b65a](https://github.com/alicomert/pixcode/commit/9c6b65a690156b11759d15f2f0ca7d48826cd121))
+
+### Maintenance
+
+* sync desktop/package.json to 1.57.0 ([bc3bda8](https://github.com/alicomert/pixcode/commit/bc3bda8ff4b5f56f2ad1589559039d8fa6ab663a))
+
 ## [1.56.3](https://github.com/alicomert/pixcode/compare/v1.56.2...v1.56.3) (2026-07-16)
 
 ### Bug Fixes
