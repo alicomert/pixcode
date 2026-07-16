@@ -1049,7 +1049,12 @@ function VSCodeWorkbench({
     }
 
     if (activeTab === 'tasks') {
-      return <TasksPage projectId={selectedProject?.name} />;
+      return (
+        <TasksPage
+          projectId={selectedProject?.name}
+          projectLabel={selectedProject?.displayName || selectedProject?.name}
+        />
+      );
     }
 
     if (activeTab.startsWith('plugin:')) {

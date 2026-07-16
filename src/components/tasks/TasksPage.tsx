@@ -48,7 +48,13 @@ function formatDate(value?: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
-export function TasksPage({ projectId }: { projectId?: string }) {
+export function TasksPage({
+  projectId,
+  projectLabel,
+}: {
+  projectId?: string;
+  projectLabel?: string;
+}) {
   const { t } = useTranslation('common');
   const {
     tasks,
@@ -166,9 +172,17 @@ export function TasksPage({ projectId }: { projectId?: string }) {
           </button>
           <button
             type="button"
-            onClick={() => setShowCreate(true)}
-            disabled={!projectId}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-primary px-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => {
+              if (!projectId) {
+                setActionError(t('taskSystem.selectWorkspace', {
+                  defaultValue: 'Select a workspace in the sidebar first, then create a task.',
+                }));
+                return;
+              }
+              setActionError(null);
+              setShowCreate(true);
+            }}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl bg-primary px-3.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:brightness-105"
             title={!projectId ? t('taskSystem.selectWorkspace', { defaultValue: 'Select a workspace to create a task' }) : undefined}
           >
             <Plus className="h-4 w-4" />
@@ -239,9 +253,12 @@ export function TasksPage({ projectId }: { projectId?: string }) {
         )}
       </div>
 
-      {showCreate && projectId && !followUpTask && (
+      {showCreate && projectId && (
         <TaskCreateDialog
           projectId={projectId}
+          projectLabel={projectLabel || projectId}
+          predecessorId={followUpTask?.id}
+          predecessorTitle={followUpTask?.title}
           onClose={() => {
             setShowCreate(false);
             setFollowUpTask(null);
@@ -257,22 +274,16 @@ export function TasksPage({ projectId }: { projectId?: string }) {
           getInteractions={getTaskInteractions}
           answerInteraction={answerInteraction}
           onFollowUp={() => {
+            if (!projectId) {
+              setActionError(t('taskSystem.selectWorkspace', {
+                defaultValue: 'Select a workspace in the sidebar first, then create a task.',
+              }));
+              return;
+            }
             setFollowUpTask(selectedTask);
             setSelectedTask(null);
             setShowCreate(true);
           }}
-        />
-      )}
-      {showCreate && projectId && followUpTask && (
-        <TaskCreateDialog
-          projectId={projectId}
-          predecessorId={followUpTask.id}
-          predecessorTitle={followUpTask.title}
-          onClose={() => {
-            setShowCreate(false);
-            setFollowUpTask(null);
-          }}
-          onCreate={async (input) => { await createTask(input); }}
         />
       )}
     </div>
