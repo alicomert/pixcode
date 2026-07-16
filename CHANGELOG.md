@@ -2,6 +2,17 @@
 
 All notable changes to Pixcode will be documented in this file.
 
+
+## [1.56.0](https://github.com/alicomert/pixcode/compare/v1.55.11...v1.56.0) (2026-07-16)
+
+### New Features
+
+* task runtime overhaul and fix missing UI after npm update ([6681aca](https://github.com/alicomert/pixcode/commit/6681acaa8fba391dcbe9d911b3b3a4d14d7fdc2e))
+
+### Bug Fixes
+
+* sync desktop/package.json to 1.55.11 — installers must match release ([ca14343](https://github.com/alicomert/pixcode/commit/ca14343081a33129d69420674cd9d72b21e7d1cd))
+
 ## [1.55.0] — 2026-07-13
 
 ### Breaking Change — Orchestration System Replaced
