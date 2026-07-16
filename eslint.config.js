@@ -163,6 +163,12 @@ export default tseslint.config(
           pattern: [
             "server/projects.js",
             "server/sessionManager.js",
+            "server/claude-sdk.js",
+            "server/cursor-cli.js",
+            "server/openai-codex.js",
+            "server/gemini-cli.js",
+            "server/qwen-code-cli.js",
+            "server/opencode-cli.js",
             "server/database/*.{js,ts}",
             "server/services/**/*.{js,ts}",
             "server/utils/runtime-paths.js",

@@ -29,6 +29,27 @@
     "controlRoom": "Kontrol",
     "orchestration": "Orkestrasyon"
   },
+  "taskSystem": {
+    "title": "Ajan Görevleri",
+    "workspaceSubtitle": "{{project}} için arka plan CLI çalışmaları",
+    "allSubtitle": "Tüm çalışma alanlarındaki işleri çalıştır ve incele",
+    "newTask": "Yeni görev",
+    "search": "Görevlerde ara",
+    "loading": "Görevler yükleniyor...",
+    "selectWorkspace": "Görev oluşturmak için bir çalışma alanı seç",
+    "cancel": "İptal",
+    "metrics": { "active": "Aktif", "completed": "Bitti", "attention": "İlgilen" },
+    "filters": { "all": "Tümü", "active": "Aktif" },
+    "status": { "pending": "Planlandı", "queued": "Sırada", "running": "Çalışıyor", "awaiting_input": "Yanıt bekliyor", "completed": "Tamamlandı", "failed": "Hata", "cancelled": "İptal edildi" },
+    "empty": { "title": "İlk görevini ajana devret", "filtered": "Bu görünüme uygun görev yok", "description": "Claude Code, Codex, OpenCode, Gemini, Qwen veya Cursor seç. Pixcode ayarlı CLI'ı bu çalışma alanında çalıştırır ve tüm akışı burada tutar.", "adjust": "Daha fazla iş görmek için filtreyi veya arama metnini değiştir." },
+    "priority": { "low": "Düşük", "normal": "Normal", "high": "Yüksek", "urgent": "Acil" },
+    "permissions": { "plan": "Plan / salt okunur", "ask": "Gerektiğinde sor", "edits": "Çalışma alanı düzenlemelerine izin ver", "bypass": "Tam otomatik (güvensiz)" },
+    "recurrence": { "none": "Bir kez çalıştır", "hourly": "Her saat", "daily": "Her gün", "weekly": "Her hafta" },
+    "create": {
+      "title": "Ajan görevi oluştur", "projectRequired": "Önce çalışma alanı seç", "followUp": "Devam görevi", "taskTitle": "Görev başlığı", "taskTitlePlaceholder": "Kimlik doğrulamayı düzelt ve akışı doğrula", "priority": "Öncelik", "prompt": "Talimatlar", "promptPlaceholder": "İstenen sonucu, sınırları ve ajanın çalıştıracağı kontrolleri açıkla.", "agent": "CLI ajanı", "notInstalled": "kurulu değil", "model": "Model", "modelDefault": "CLI varsayılanını kullan", "freeModels": "Ücretsiz modeller", "allModels": "Tüm modeller", "role": "Çalışma rolü", "permissions": "İzinler", "schedule": "Başlama zamanı", "recurrence": "Otomasyon", "continueSession": "Önceki ajanın oturumu ve çalışma alanı bağlamıyla devam et.", "creating": "Oluşturuluyor...", "scheduleAction": "Görevi planla", "action": "Oluştur ve çalıştır"
+    },
+    "detail": { "instructions": "Talimatlar", "result": "Ajan sonucu", "answerPlaceholder": "Ajana yanıt ver", "changedFiles": "Değişen dosyalar", "activity": "Aktivite", "noActivity": "Henüz aktivite yok", "followUp": "Devam görevi oluştur" }
+  },
   "status": {
     "loading": "Yükleniyor...",
     "success": "Başarılı",

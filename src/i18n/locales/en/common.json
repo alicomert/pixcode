@@ -29,6 +29,27 @@
     "controlRoom": "Control",
     "orchestration": "Orchestration"
   },
+  "taskSystem": {
+    "title": "Agent Tasks",
+    "workspaceSubtitle": "Background CLI work for {{project}}",
+    "allSubtitle": "Run and review work across every workspace",
+    "newTask": "New task",
+    "search": "Search tasks",
+    "loading": "Loading tasks...",
+    "selectWorkspace": "Select a workspace to create a task",
+    "cancel": "Cancel",
+    "metrics": { "active": "Active", "completed": "Done", "attention": "Attention" },
+    "filters": { "all": "All", "active": "Active" },
+    "status": { "pending": "Pending", "queued": "Queued", "running": "Running", "awaiting_input": "Needs input", "completed": "Completed", "failed": "Failed", "cancelled": "Cancelled" },
+    "empty": { "title": "Hand off your first task", "filtered": "No tasks match this view", "description": "Choose Claude Code, Codex, OpenCode, Gemini, Qwen, or Cursor. Pixcode runs the configured CLI in this workspace and keeps the transcript here.", "adjust": "Change the filter or search phrase to see more work." },
+    "priority": { "low": "Low", "normal": "Normal", "high": "High", "urgent": "Urgent" },
+    "permissions": { "plan": "Plan / read only", "ask": "Ask when needed", "edits": "Allow workspace edits", "bypass": "Autonomous (unsafe)" },
+    "recurrence": { "none": "Run once", "hourly": "Every hour", "daily": "Every day", "weekly": "Every week" },
+    "create": {
+      "title": "Create an agent task", "projectRequired": "Select a workspace first", "followUp": "Follow-up to", "taskTitle": "Task title", "taskTitlePlaceholder": "Fix authentication and verify the flow", "priority": "Priority", "prompt": "Instructions", "promptPlaceholder": "Describe the outcome, constraints, and checks the agent should run.", "agent": "CLI agent", "notInstalled": "not installed", "model": "Model", "modelDefault": "Use CLI default", "freeModels": "Free models", "allModels": "All models", "role": "Work role", "permissions": "Permissions", "schedule": "Start time", "recurrence": "Automation", "continueSession": "Continue in the predecessor agent session and workspace context.", "creating": "Creating...", "scheduleAction": "Schedule task", "action": "Create and run"
+    },
+    "detail": { "instructions": "Instructions", "result": "Agent result", "answerPlaceholder": "Reply to the agent", "changedFiles": "Changed files", "activity": "Activity", "noActivity": "No activity yet", "followUp": "Create follow-up" }
+  },
   "status": {
     "loading": "Loading...",
     "success": "Success",

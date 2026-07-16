@@ -1,63 +1,44 @@
-// Task system hook — manages task state and API calls
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import type {
+  AgentInfo,
+  RoleInfo,
+  Task,
+  TaskInteraction,
+  TaskLog,
+  TaskPriority,
+  TaskRecurrence,
+  TaskRole,
+} from '../components/tasks/types';
 import { authenticatedFetch } from '../utils/api';
 
-export interface Task {
-  id: string;
+async function readResponse<T>(response: Response): Promise<T> {
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = typeof payload?.error === 'string'
+      ? payload.error
+      : payload?.error?.message || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return payload as T;
+}
+
+export type CreateTaskInput = {
   projectId: string;
   title: string;
   prompt: string;
-  status: 'PENDING' | 'QUEUED' | 'RUNNING' | 'AWAITING_INPUT' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-  agentType: 'claude-code' | 'codex' | 'gemini' | 'qwen' | 'opencode';
+  agentType: string;
   model?: string;
-  role: string;
-  priority: string;
+  role?: TaskRole;
+  priority?: TaskPriority;
   predecessorTaskId?: string;
   continueSession?: boolean;
-  sessionId?: string;
   maxBudgetUsd?: number;
-  costUsd?: number;
-  tokenCount?: { input: number; output: number };
-  branchName?: string;
-  worktreePath?: string;
-  result?: string;
-  summary?: string;
-  changedFiles?: string[];
-  createdAt: string;
-  startedAt?: string;
-  completedAt?: string;
-}
-
-export interface TaskLog {
-  id: string;
-  taskId: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  timestamp: string;
-}
-
-export interface TaskInteraction {
-  id: string;
-  taskId: string;
-  question: string;
-  options?: string[];
-  answer?: string;
-  status: 'pending' | 'answered' | 'timeout';
-  createdAt: string;
-}
-
-export interface RoleInfo {
-  value: string;
-  label: string;
-  description: string;
-  defaultAgent: string;
-}
-
-export interface AgentInfo {
-  value: string;
-  label: string;
-  provider: string;
-}
+  thinkingEnabled?: boolean;
+  permissionMode?: string;
+  scheduledAt?: string;
+  recurrence?: TaskRecurrence;
+};
 
 export function useTasks(projectId?: string) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -65,113 +46,94 @@ export function useTasks(projectId?: string) {
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
     try {
       const url = projectId
         ? `/api/tasks?projectId=${encodeURIComponent(projectId)}`
-        : '/api/tasks?limit=50';
-      const res = await authenticatedFetch(url);
-      if (!res.ok) throw new Error('Failed to fetch tasks');
-      const data = await res.json();
-      setTasks(data.tasks || []);
-    } catch (err: any) {
-      setError(err.message);
+        : '/api/tasks?limit=100';
+      const response = await authenticatedFetch(url, { cache: 'no-store' });
+      const payload = await readResponse<{ tasks?: Task[] }>(response);
+      setTasks(payload.tasks || []);
+      setError(null);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
     } finally {
       setLoading(false);
     }
   }, [projectId]);
 
   useEffect(() => {
-    fetchTasks();
-    // Poll every 5 seconds as fallback
-    const pollInterval = setInterval(fetchTasks, 5000);
-    return () => clearInterval(pollInterval);
+    void fetchTasks(true);
+    const intervalId = window.setInterval(() => void fetchTasks(), 5000);
+    return () => window.clearInterval(intervalId);
   }, [fetchTasks]);
 
-  // SSE event stream for real-time updates
   useEffect(() => {
-    try {
-      const es = new EventSource('/api/tasks/events');
-      eventSourceRef.current = es;
+    const token = window.localStorage.getItem('auth-token');
+    if (!token) return undefined;
 
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'task:status' || data.type === 'task:completed' || data.type === 'task:failed') {
-            fetchTasks();
-          }
-        } catch {}
-      };
+    const stream = new EventSource(`/api/tasks/events?token=${encodeURIComponent(token)}`);
+    eventSourceRef.current = stream;
+    stream.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (typeof payload?.type === 'string' && payload.type.startsWith('task:')) {
+          void fetchTasks();
+        }
+      } catch {
+        // Polling remains the fallback for malformed or proxy-buffered events.
+      }
+    };
 
-      es.onerror = () => {
-        // SSE will auto-reconnect
-      };
-
-      return () => {
-        es.close();
-        eventSourceRef.current = null;
-      };
-    } catch {
-      // SSE not available — polling will handle it
-    }
+    return () => {
+      stream.close();
+      eventSourceRef.current = null;
+    };
   }, [fetchTasks]);
 
-  const createTask = useCallback(async (input: {
-    projectId: string;
-    title: string;
-    prompt: string;
-    agentType: string;
-    model?: string;
-    role?: string;
-    priority?: string;
-    predecessorTaskId?: string;
-    continueSession?: boolean;
-    maxBudgetUsd?: number;
-    thinkingEnabled?: boolean;
-    permissionMode?: string;
-  }): Promise<Task> => {
-    const res = await authenticatedFetch('/api/tasks', {
+  const createTask = useCallback(async (input: CreateTaskInput): Promise<Task> => {
+    const response = await authenticatedFetch('/api/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     });
-    if (!res.ok) throw new Error('Failed to create task');
-    const data = await res.json();
-    fetchTasks();
-    return data.task;
+    const payload = await readResponse<{ task: Task }>(response);
+    await fetchTasks();
+    return payload.task;
   }, [fetchTasks]);
 
-  const cancelTask = useCallback(async (taskId: string): Promise<void> => {
-    await authenticatedFetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
-    fetchTasks();
+  const cancelTask = useCallback(async (taskId: string) => {
+    const response = await authenticatedFetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
+    await readResponse(response);
+    await fetchTasks();
   }, [fetchTasks]);
 
-  const deleteTask = useCallback(async (taskId: string): Promise<void> => {
-    await authenticatedFetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
-    fetchTasks();
+  const deleteTask = useCallback(async (taskId: string) => {
+    const response = await authenticatedFetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+    if (!response.ok) await readResponse(response);
+    await fetchTasks();
   }, [fetchTasks]);
 
   const getTaskLogs = useCallback(async (taskId: string): Promise<TaskLog[]> => {
-    const res = await authenticatedFetch(`/api/tasks/${taskId}/logs`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.logs || [];
+    const response = await authenticatedFetch(`/api/tasks/${taskId}/logs?limit=500`, { cache: 'no-store' });
+    const payload = await readResponse<{ logs?: TaskLog[] }>(response);
+    return payload.logs || [];
   }, []);
 
   const getTaskInteractions = useCallback(async (taskId: string): Promise<TaskInteraction[]> => {
-    const res = await authenticatedFetch(`/api/tasks/${taskId}/interactions`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.interactions || [];
+    const response = await authenticatedFetch(`/api/tasks/${taskId}/interactions`, { cache: 'no-store' });
+    const payload = await readResponse<{ interactions?: TaskInteraction[] }>(response);
+    return payload.interactions || [];
   }, []);
 
-  const answerInteraction = useCallback(async (interactionId: string, answer: string): Promise<void> => {
-    await authenticatedFetch(`/api/tasks/interactions/${interactionId}/answer`, {
+  const answerInteraction = useCallback(async (interactionId: string, answer: string) => {
+    const response = await authenticatedFetch(`/api/tasks/interactions/${interactionId}/answer`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answer }),
     });
-  }, []);
+    await readResponse(response);
+    await fetchTasks();
+  }, [fetchTasks]);
 
   return {
     tasks,
@@ -192,15 +154,21 @@ export function useTaskMeta() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
 
   useEffect(() => {
-    authenticatedFetch('/api/tasks/meta/roles')
-      .then((r) => r.json())
-      .then((d) => setRoles(d.roles || []))
-      .catch(() => {});
+    let cancelled = false;
+    void Promise.all([
+      authenticatedFetch('/api/tasks/meta/roles').then((response) => readResponse<{ roles?: RoleInfo[] }>(response)),
+      authenticatedFetch('/api/tasks/meta/agents').then((response) => readResponse<{ agents?: AgentInfo[] }>(response)),
+    ]).then(([rolePayload, agentPayload]) => {
+      if (cancelled) return;
+      setRoles(rolePayload.roles || []);
+      setAgents(agentPayload.agents || []);
+    }).catch(() => {
+      // The create dialog has safe local defaults if metadata is unavailable.
+    });
 
-    authenticatedFetch('/api/tasks/meta/agents')
-      .then((r) => r.json())
-      .then((d) => setAgents(d.agents || []))
-      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return { roles, agents };

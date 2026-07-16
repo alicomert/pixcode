@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import Sidebar from '../sidebar/view/Sidebar';
@@ -14,6 +14,7 @@ import { useProjectsState } from '../../hooks/useProjectsState';
 
 export default function AppContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
@@ -51,6 +52,12 @@ export default function AppContent() {
     isMobile,
     activeSessions,
   });
+
+  useEffect(() => {
+    if (location.pathname.endsWith('/tasks')) {
+      setActiveTab('tasks');
+    }
+  }, [location.pathname, setActiveTab]);
 
   useEffect(() => {
     // Expose a non-blocking refresh for chat/session flows.

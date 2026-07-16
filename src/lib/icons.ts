@@ -213,6 +213,7 @@ export const ShieldAlertIcon = ShieldExclamationIcon;
 export const BookOpen = BookOpenIcon;
 export const Clipboard = ClipboardIcon;
 export const ClipboardCheck = ClipboardDocumentCheckIcon;
+export const Calendar = ClockIcon;
 export const Clock = ClockIcon;
 export const Code2 = CodeBracketIcon;
 export const Copy = DocumentDuplicateIcon;

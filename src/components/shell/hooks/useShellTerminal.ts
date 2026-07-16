@@ -170,6 +170,7 @@ export function useShellTerminal({
       return;
     }
 
+    terminalRef.current.reset();
     terminalRef.current.clear();
     terminalRef.current.write('\x1b[2J\x1b[H');
   }, [terminalRef]);

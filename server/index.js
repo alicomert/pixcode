@@ -464,6 +464,12 @@ async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl
     }
     fs.rmSync(stagingDir, { recursive: true, force: true });
 
+    // Guard against incomplete npm packages (historically shipped without
+    // frontend dist/). Prefer the new UI, but restore .previous/dist when the
+    // tarball has no web assets so Linux users do not land on the infinite
+    // "finishing an update" page after restart.
+    ensureFrontendDistAssets(runtimeDir, backupDir, (line) => appendUpdateJobLog(job, 'meta', line));
+
     const depsChanged = (() => {
         try {
             const prevPkg = JSON.parse(fs.readFileSync(path.join(backupDir, 'package.json'), 'utf8'));
@@ -493,6 +499,33 @@ async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl
         });
     });
     return latestVersion;
+}
+
+/**
+ * Ensure dist/index.html exists under appRoot. If the newly installed package
+ * omitted frontend assets but .previous/dist still has them, restore that
+ * snapshot so the SPA continues to load after update/restart.
+ */
+function ensureFrontendDistAssets(appRoot, backupRoot = path.join(appRoot, '.previous'), log = console.warn) {
+    const indexPath = path.join(appRoot, 'dist', 'index.html');
+    if (fs.existsSync(indexPath)) return true;
+
+    const previousDist = path.join(backupRoot, 'dist');
+    const previousIndex = path.join(previousDist, 'index.html');
+    if (!fs.existsSync(previousIndex)) {
+        log(`[startup] Frontend dist/index.html is missing under ${appRoot}. Web UI will show a recovery page until the package is reinstalled/rebuilt.`);
+        return false;
+    }
+
+    try {
+        fs.mkdirSync(path.join(appRoot, 'dist'), { recursive: true });
+        fs.cpSync(previousDist, path.join(appRoot, 'dist'), { recursive: true, force: true });
+        log('[startup] Restored frontend dist/ from .previous after incomplete package install.\n');
+        return fs.existsSync(indexPath);
+    } catch (error) {
+        log(`[startup] Failed to restore frontend dist from .previous: ${error?.message || error}\n`);
+        return false;
+    }
 }
 
 function isNodeVersionSupported() {
@@ -2463,6 +2496,11 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
                 fs.renameSync(src, dst);
             }
             fs.rmSync(stagingDir, { recursive: true, force: true });
+
+            // Keep a usable UI even if the npm tarball omitted frontend dist/.
+            ensureFrontendDistAssets(runtimeDir, backupDir, (line) => {
+                send('log', { stream: 'meta', chunk: line.endsWith('\n') ? line : `${line}\n` });
+            });
 
             // 3a. Reconcile node_modules with the NEW package.json.
             //     npm tarballs intentionally ship WITHOUT node_modules, so
@@ -4513,6 +4551,13 @@ function handleShellConnection(ws, request) {
                         // already sandboxed, so the flag is safe to use.
                         ...(isRunningAsRoot ? { IS_SANDBOX: '1' } : {}),
                     };
+                    // A daemon launched from inside tmux/screen may inherit stale
+                    // multiplexer markers even though this PTY is a direct xterm.js
+                    // session. Clear them so CLIs trust TERM=xterm-256color instead
+                    // of trying to address a terminal they are not attached to.
+                    delete shellEnv.TMUX;
+                    delete shellEnv.TMUX_PANE;
+                    delete shellEnv.STY;
 
                     if (!pty) {
                         ws.send(JSON.stringify({ type: 'error', message: 'Terminal not available — node-pty native module is not installed. Run: npm install -g --allow-scripts=better-sqlite3,node-pty @pixelbyte-software/pixcode' }));
@@ -4616,7 +4661,7 @@ function handleShellConnection(ws, request) {
                             clearTimeout(session.timeoutId);
                         }
                         if (session) {
-                            session.ws = null;
+                            if (session.ws === ws) session.ws = null;
                             session.timeoutId = setTimeout(() => {
                                 const current = ptySessionsMap.get(ptySessionKey);
                                 if (current && current.lifecycleState !== 'running') {
@@ -4677,12 +4722,12 @@ function handleShellConnection(ws, request) {
             if (session) {
                 if (session.keepAliveUntilExit) {
                     console.log('⏳ PTY session kept alive until process exit:', ptySessionKey);
-                    session.ws = null;
+                    if (session.ws === ws) session.ws = null;
                     return;
                 }
 
                 console.log('⏳ PTY session kept alive, will timeout in 30 minutes:', ptySessionKey);
-                session.ws = null;
+                if (session.ws === ws) session.ws = null;
 
                 session.timeoutId = setTimeout(() => {
                     console.log('⏰ PTY session timeout, killing process:', ptySessionKey);
@@ -5073,16 +5118,24 @@ app.get(/.*/, (req, res) => {
         // update endpoint moves dist/ under .previous/ and back). Instead
         // of bouncing the browser to :5173 (the Vite dev port, which
         // production users never have running), show a graceful "updating
-        // — will reload automatically" page with a short retry. Fixes the
-        // "page suddenly redirected to 5173" bug users hit mid-update.
+        // — will reload automatically" page with a short retry. After a few
+        // reloads, stop looping and surface recovery steps so Linux users
+        // are not stuck forever when a package ships without frontend assets.
         res.status(503);
         res.setHeader('Retry-After', '2');
         res.setHeader('Cache-Control', 'no-store');
         res.type('html').send(
             '<!doctype html><html><head><meta charset="utf-8"><title>Pixcode</title>'
-            + '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0d1a;color:#e8ecf7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:center;padding:40px}h2{margin:0 0 8px;font-weight:600;letter-spacing:-.01em}p{color:#9aa3bf;font-size:14px;margin:0}.s{width:24px;height:24px;border:2px solid rgba(255,255,255,.14);border-top-color:#4f7bff;border-radius:50%;animation:r .9s linear infinite;margin:20px auto 0}@keyframes r{to{transform:rotate(360deg)}}</style>'
-            + '<meta http-equiv="refresh" content="2">'
-            + '</head><body><div><h2>Pixcode is finishing an update…</h2><p>This page will reload automatically.</p><div class="s"></div></div></body></html>'
+            + '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0d1a;color:#e8ecf7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;text-align:center;padding:40px}h2{margin:0 0 8px;font-weight:600;letter-spacing:-.01em}p{color:#9aa3bf;font-size:14px;margin:8px 0 0;line-height:1.5;max-width:34rem}.s{width:24px;height:24px;border:2px solid rgba(255,255,255,.14);border-top-color:#4f7bff;border-radius:50%;animation:r .9s linear infinite;margin:20px auto 0}@keyframes r{to{transform:rotate(360deg)}}code{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:4px;font-size:12px;color:#c7d2fe}.hidden{display:none}</style>'
+            + '</head><body><div id="waiting"><h2>Pixcode is finishing an update…</h2><p>This page will reload automatically.</p><div class="s"></div></div>'
+            + '<div id="stuck" class="hidden"><h2>Web UI assets are missing</h2>'
+            + '<p>The server is running, but <code>dist/index.html</code> was not found under the install directory. This usually means the installed package is incomplete or a mid-update restore failed.</p>'
+            + '<p>On Linux, reinstall the latest package and restart:</p>'
+            + '<p><code>sudo npm install -g @pixelbyte-software/pixcode@latest</code></p>'
+            + '<p>Then: <code>pixcode daemon restart</code> (or restart your systemd service).</p>'
+            + '<p>Source installs: run <code>npm run build</code> in the repo root, then restart.</p></div>'
+            + '<script>(function(){try{var k="pixcode-ui-missing-retries",n=Number(sessionStorage.getItem(k)||0)+1;sessionStorage.setItem(k,String(n));if(n<=12){setTimeout(function(){location.reload()},2000);}else{document.getElementById("waiting").classList.add("hidden");document.getElementById("stuck").classList.remove("hidden");}}catch(e){setTimeout(function(){location.reload()},2000);}})();</script>'
+            + '</body></html>'
         );
     }
 });
@@ -5570,6 +5623,12 @@ async function startServer() {
             console.warn('[telegram] restore failed:', err?.message || err);
         });
 
+        // If an incomplete npm package overwrote a previous install and dropped
+        // frontend assets, recover dist/ from .previous before serving.
+        ensureFrontendDistAssets(APP_ROOT, path.join(APP_ROOT, '.previous'), (line) => {
+            console.warn(String(line).replace(/\n$/, ''));
+        });
+
         // Check if running in production mode (dist folder exists)
         const distIndexPath = path.join(APP_ROOT, 'dist', 'index.html');
         const isProduction = fs.existsSync(distIndexPath);
@@ -5640,6 +5699,7 @@ async function startServer() {
 
         // Clean up plugin processes on shutdown
         const shutdownPlugins = async () => {
+            taskScheduler.stop();
             await stopAllPlugins();
             process.exit(0);
         };

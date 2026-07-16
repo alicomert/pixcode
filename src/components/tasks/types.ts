@@ -1,7 +1,8 @@
 export type TaskStatus = 'PENDING' | 'QUEUED' | 'RUNNING' | 'AWAITING_INPUT' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-export type AgentType = 'claude-code' | 'codex' | 'gemini' | 'qwen' | 'opencode';
+export type AgentType = 'claude-code' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode';
 export type TaskRole = 'backend' | 'frontend' | 'fullstack' | 'reviewer' | 'tester' | 'custom';
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type TaskRecurrence = 'none' | 'hourly' | 'daily' | 'weekly';
 
 export interface Task {
   id: string;
@@ -10,6 +11,7 @@ export interface Task {
   prompt: string;
   status: TaskStatus;
   agentType: AgentType;
+  provider?: string;
   model?: string;
   role: TaskRole;
   priority: TaskPriority;
@@ -24,6 +26,10 @@ export interface Task {
   result?: string;
   summary?: string;
   changedFiles?: string[];
+  error?: string;
+  permissionMode?: string;
+  scheduledAt?: string;
+  recurrence?: TaskRecurrence;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -58,4 +64,6 @@ export interface AgentInfo {
   value: AgentType;
   label: string;
   provider: string;
+  installed?: boolean;
+  authenticated?: boolean;
 }

@@ -187,6 +187,7 @@ export function useShellConnection({
   const [isConnecting, setIsConnecting] = useState(false);
   const connectingRef = useRef(false);
   const manualDisconnectRef = useRef(false);
+  const initTimeoutRef = useRef<number | null>(null);
 
   const handleProcessCompletion = useCallback(
     (output: string) => {
@@ -264,12 +265,18 @@ export function useShellConnection({
         wsRef.current = socket;
 
         socket.onopen = () => {
+          if (wsRef.current !== socket) return;
           setIsConnected(true);
           setIsConnecting(false);
           connectingRef.current = false;
           setAuthUrl('');
 
-          window.setTimeout(() => {
+          if (initTimeoutRef.current !== null) {
+            window.clearTimeout(initTimeoutRef.current);
+          }
+          initTimeoutRef.current = window.setTimeout(() => {
+            initTimeoutRef.current = null;
+            if (wsRef.current !== socket || socket.readyState !== WebSocket.OPEN) return;
             const currentTerminal = terminalRef.current;
             const currentFitAddon = fitAddonRef.current;
             const currentTerminalContainer = terminalContainerRef.current;
@@ -324,11 +331,18 @@ export function useShellConnection({
         };
 
         socket.onmessage = (event) => {
+          if (wsRef.current !== socket) return;
           const rawPayload = typeof event.data === 'string' ? event.data : String(event.data ?? '');
           handleSocketMessage(rawPayload);
         };
 
         socket.onclose = () => {
+          if (wsRef.current !== socket) return;
+          wsRef.current = null;
+          if (initTimeoutRef.current !== null) {
+            window.clearTimeout(initTimeoutRef.current);
+            initTimeoutRef.current = null;
+          }
           setIsConnected(false);
           setIsConnecting(false);
           connectingRef.current = false;
@@ -336,6 +350,7 @@ export function useShellConnection({
         };
 
         socket.onerror = () => {
+          if (wsRef.current !== socket) return;
           setIsConnected(false);
           setIsConnecting(false);
           connectingRef.current = false;
@@ -385,6 +400,10 @@ export function useShellConnection({
       manualDisconnectRef.current = true;
     }
     closeSocket();
+    if (initTimeoutRef.current !== null) {
+      window.clearTimeout(initTimeoutRef.current);
+      initTimeoutRef.current = null;
+    }
     clearTerminalScreen();
     setIsConnected(false);
     setIsConnecting(false);

@@ -1,209 +1,134 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { authenticatedFetch } from '../../utils/api';
+import { AlertCircle, Bot, Clock, FileText, Loader2, MessageSquare, RefreshCw, Sparkles, X } from '@/lib/icons';
 
-import type { Task, TaskLog, TaskInteraction } from './types';
+import { cn } from '../../lib/utils';
 
-export function TaskDetail({ task, onClose }: { task: Task; onClose: () => void }) {
-  const _t = useTranslation('common');
+import type { Task, TaskInteraction, TaskLog } from './types';
+
+type TaskDetailProps = {
+  task: Task;
+  onClose: () => void;
+  getLogs: (taskId: string) => Promise<TaskLog[]>;
+  getInteractions: (taskId: string) => Promise<TaskInteraction[]>;
+  answerInteraction: (interactionId: string, answer: string) => Promise<void>;
+  onFollowUp: () => void;
+};
+
+export function TaskDetail({ task, onClose, getLogs, getInteractions, answerInteraction, onFollowUp }: TaskDetailProps) {
+  const { t } = useTranslation('common');
   const [logs, setLogs] = useState<TaskLog[]>([]);
   const [interactions, setInteractions] = useState<TaskInteraction[]>([]);
-  const [answerInput, setAnswerInput] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchLogs = useCallback(async () => {
-    const res = await authenticatedFetch(`/api/tasks/${task.id}/logs?limit=500`);
-    if (res.ok) {
-      const data = await res.json();
-      setLogs(data.logs || []);
+  const refresh = useCallback(async () => {
+    try {
+      const [nextLogs, nextInteractions] = await Promise.all([getLogs(task.id), getInteractions(task.id)]);
+      setLogs(nextLogs);
+      setInteractions(nextInteractions);
+      setError(null);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
+    } finally {
+      setLoading(false);
     }
-  }, [task.id]);
-
-  const fetchInteractions = useCallback(async () => {
-    const res = await authenticatedFetch(`/api/tasks/${task.id}/interactions`);
-    if (res.ok) {
-      const data = await res.json();
-      setInteractions(data.interactions || []);
-    }
-  }, [task.id]);
+  }, [getInteractions, getLogs, task.id]);
 
   useEffect(() => {
-    fetchLogs();
-    fetchInteractions();
-    const interval = setInterval(() => {
-      if (task.status === 'RUNNING' || task.status === 'AWAITING_INPUT') {
-        fetchLogs();
-        fetchInteractions();
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [task.status, fetchLogs, fetchInteractions]);
+    void refresh();
+    const active = task.status === 'RUNNING' || task.status === 'AWAITING_INPUT' || task.status === 'QUEUED';
+    if (!active) return undefined;
+    const intervalId = window.setInterval(() => void refresh(), 2500);
+    return () => window.clearInterval(intervalId);
+  }, [refresh, task.status]);
 
-  const submitAnswer = async (interactionId: string) => {
-    const answer = answerInput[interactionId];
-    if (!answer) return;
-    await authenticatedFetch(`/api/tasks/interactions/${interactionId}/answer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answer }),
-    });
-    setAnswerInput({ ...answerInput, [interactionId]: '' });
-    fetchInteractions();
-  };
-
-  const statusColor: Record<string, string> = {
-    PENDING: 'text-gray-400',
-    QUEUED: 'text-blue-400',
-    RUNNING: 'text-green-400 animate-pulse',
-    AWAITING_INPUT: 'text-yellow-400 animate-pulse',
-    COMPLETED: 'text-green-500',
-    FAILED: 'text-red-500',
-    CANCELLED: 'text-gray-500',
+  const sendAnswer = async (interactionId: string, explicitAnswer?: string) => {
+    const answer = explicitAnswer || answers[interactionId];
+    if (!answer?.trim()) return;
+    try {
+      await answerInteraction(interactionId, answer.trim());
+      setAnswers((current) => ({ ...current, [interactionId]: '' }));
+      await refresh();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-white/10 bg-[#1a1a2e]">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 p-4">
-          <div>
-            <h2 className="text-lg font-semibold text-white">{task.title}</h2>
-            <div className="mt-1 flex items-center gap-3 text-sm">
-              <span className={statusColor[task.status] || 'text-gray-400'}>{task.status}</span>
-              <span className="text-gray-500">{task.agentType}</span>
-              {task.model && <span className="text-gray-500">{task.model}</span>}
-              <span className="text-gray-500">{task.role}</span>
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 backdrop-blur-sm sm:items-center sm:p-5">
+      <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:max-h-[92vh] sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-gradient-to-r from-primary/8 via-background to-amber-500/8 px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="rounded-full border border-border bg-card px-2 py-1">{task.status.replace('_', ' ')}</span>
+              <span>{task.agentType}{task.model ? ` · ${task.model}` : ''}</span>
             </div>
+            <h2 className="mt-2 truncate text-lg font-semibold text-foreground">{task.title}</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 hover:bg-white/10 hover:text-white"
-          >
-            ✕
-          </button>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
 
-        {/* Body */}
-        <div className="space-y-4 overflow-y-auto p-4">
-          {/* Prompt */}
-          <div>
-            <h3 className="mb-1 text-sm font-medium text-gray-400">Prompt</h3>
-            <pre className="whitespace-pre-wrap rounded-lg bg-black/30 p-3 text-sm text-gray-300">
-              {task.prompt}
-            </pre>
+        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
+          <div className="space-y-5 p-5 lg:overflow-y-auto">
+            {error && <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
+
+            <section>
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><MessageSquare className="h-3.5 w-3.5" />{t('taskSystem.detail.instructions', { defaultValue: 'Instructions' })}</div>
+              <div className="whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm leading-6 text-foreground">{task.prompt}</div>
+            </section>
+
+            {(task.summary || task.result || task.error) && (
+              <section>
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Sparkles className="h-3.5 w-3.5" />{t('taskSystem.detail.result', { defaultValue: 'Agent result' })}</div>
+                <div className={cn('whitespace-pre-wrap rounded-2xl border p-4 text-sm leading-6', task.error ? 'border-destructive/30 bg-destructive/5 text-destructive' : 'border-emerald-500/20 bg-emerald-500/5 text-foreground')}>{task.error || task.result || task.summary}</div>
+              </section>
+            )}
+
+            {interactions.map((interaction) => (
+              <section key={interaction.id} className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
+                <div className="text-sm font-medium text-foreground">{interaction.question}</div>
+                {interaction.options && interaction.options.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {interaction.options.map((option) => <button type="button" key={option} onClick={() => void sendAnswer(interaction.id, option)} className="rounded-lg border border-amber-500/30 bg-background px-3 py-2 text-xs font-medium text-foreground transition hover:bg-amber-500/10">{option}</button>)}
+                  </div>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <input value={answers[interaction.id] || ''} onChange={(event) => setAnswers((current) => ({ ...current, [interaction.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter') void sendAnswer(interaction.id); }} placeholder={t('taskSystem.detail.answerPlaceholder', { defaultValue: 'Reply to the agent' })} className="h-10 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-amber-500/50" />
+                  <button type="button" onClick={() => void sendAnswer(interaction.id)} className="rounded-xl bg-amber-500 px-4 text-sm font-semibold text-black">{t('buttons.submit')}</button>
+                </div>
+              </section>
+            ))}
+
+            {task.changedFiles && task.changedFiles.length > 0 && (
+              <section>
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><FileText className="h-3.5 w-3.5" />{t('taskSystem.detail.changedFiles', { defaultValue: 'Changed files' })}</div>
+                <div className="rounded-2xl border border-border bg-card p-2 font-mono text-xs">{task.changedFiles.map((file) => <div key={file} className="rounded-lg px-2 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">{file}</div>)}</div>
+              </section>
+            )}
           </div>
 
-          {/* Summary */}
-          {task.summary && (
-            <div>
-              <h3 className="mb-1 text-sm font-medium text-gray-400">Summary</h3>
-              <pre className="whitespace-pre-wrap rounded-lg bg-black/30 p-3 text-sm text-green-300">
-                {task.summary}
-              </pre>
+          <aside className="flex min-h-80 flex-col border-t border-border bg-muted/15 lg:min-h-0 lg:border-l lg:border-t-0">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Bot className="h-3.5 w-3.5" />{t('taskSystem.detail.activity', { defaultValue: 'Activity' })}</div>
+              <button type="button" onClick={() => void refresh()} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} /></button>
             </div>
-          )}
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3 font-mono text-xs">
+              {loading && logs.length === 0 ? <div className="flex items-center justify-center py-12 text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('status.loading')}</div> : logs.length === 0 ? <div className="py-12 text-center text-muted-foreground">{t('taskSystem.detail.noActivity', { defaultValue: 'No activity yet' })}</div> : logs.map((log) => (
+                <div key={log.id} className="rounded-xl border border-border/70 bg-background p-3">
+                  <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-wider"><span className={log.level === 'error' ? 'text-destructive' : log.level === 'warn' ? 'text-amber-600 dark:text-amber-400' : 'text-primary'}>{log.level}</span><span className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{new Date(log.timestamp).toLocaleTimeString()}</span></div>
+                  <div className="mt-1.5 whitespace-pre-wrap break-words leading-5 text-foreground/85">{log.message}</div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
 
-          {/* Cost & tokens */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg bg-black/30 p-3">
-              <div className="text-xs text-gray-500">Cost</div>
-              <div className="text-sm text-white">${(task.costUsd || 0).toFixed(4)}</div>
-            </div>
-            <div className="rounded-lg bg-black/30 p-3">
-              <div className="text-xs text-gray-500">Input tokens</div>
-              <div className="text-sm text-white">{task.tokenCount?.input || 0}</div>
-            </div>
-            <div className="rounded-lg bg-black/30 p-3">
-              <div className="text-xs text-gray-500">Output tokens</div>
-              <div className="text-sm text-white">{task.tokenCount?.output || 0}</div>
-            </div>
-          </div>
-
-          {/* Changed files */}
-          {task.changedFiles && task.changedFiles.length > 0 && (
-            <div>
-              <h3 className="mb-1 text-sm font-medium text-gray-400">Changed files ({task.changedFiles.length})</h3>
-              <div className="space-y-1">
-                {task.changedFiles.map((f) => (
-                  <div key={f} className="rounded bg-black/30 px-3 py-1 text-sm text-gray-300">
-                    {f}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pending interactions */}
-          {interactions.length > 0 && (
-            <div>
-              <h3 className="mb-1 text-sm font-medium text-yellow-400">Agent questions ({interactions.length})</h3>
-              <div className="space-y-3">
-                {interactions.map((interaction) => (
-                  <div key={interaction.id} className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3">
-                    <div className="mb-2 text-sm text-yellow-200">{interaction.question}</div>
-                    {interaction.options && interaction.options.length > 0 ? (
-                      <div className="space-y-2">
-                        {interaction.options.map((opt) => (
-                          <button
-                            key={opt}
-                            onClick={() => setAnswerInput({ ...answerInput, [interaction.id]: opt })}
-                            className={`block w-full rounded px-3 py-2 text-left text-sm ${
-                              answerInput[interaction.id] === opt
-                                ? 'bg-yellow-500/30 text-yellow-100'
-                                : 'bg-black/30 text-gray-300 hover:bg-black/50'
-                            }`}
-                          >
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                    <div className="mt-2 flex gap-2">
-                      <input
-                        type="text"
-                        value={answerInput[interaction.id] || ''}
-                        onChange={(e) => setAnswerInput({ ...answerInput, [interaction.id]: e.target.value })}
-                        onKeyDown={(e) => e.key === 'Enter' && submitAnswer(interaction.id)}
-                        placeholder="Type your answer..."
-                        className="flex-1 rounded border border-white/10 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-yellow-500/50"
-                      />
-                      <button
-                        onClick={() => submitAnswer(interaction.id)}
-                        className="rounded bg-yellow-500/20 px-4 py-2 text-sm text-yellow-200 hover:bg-yellow-500/30"
-                      >
-                        Send
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Logs */}
-          <div>
-            <h3 className="mb-1 text-sm font-medium text-gray-400">Logs ({logs.length})</h3>
-            <div className="max-h-96 space-y-1 overflow-y-auto rounded-lg bg-black/30 p-3 font-mono text-xs">
-              {logs.length === 0 ? (
-                <div className="text-gray-600">No logs yet</div>
-              ) : (
-                logs.map((log) => (
-                  <div key={log.id} className="flex gap-2">
-                    <span className="text-gray-600">{log.timestamp.slice(11, 19)}</span>
-                    <span className={
-                      log.level === 'error' ? 'text-red-400' :
-                      log.level === 'warn' ? 'text-yellow-400' :
-                      log.level === 'info' ? 'text-gray-300' :
-                      'text-gray-500'
-                    }>
-                      [{log.level.toUpperCase()}]
-                    </span>
-                    <span className="text-gray-300">{log.message}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+        <div className="flex justify-end gap-2 border-t border-border bg-background p-4">
+          <button type="button" onClick={onClose} className="h-9 rounded-xl px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground">{t('buttons.close')}</button>
+          <button type="button" onClick={onFollowUp} className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Sparkles className="h-4 w-4" />{t('taskSystem.detail.followUp', { defaultValue: 'Create follow-up' })}</button>
         </div>
       </div>
     </div>

@@ -121,7 +121,7 @@ const isUpdateAdditive = (
   );
 };
 
-const VALID_TABS: Set<string> = new Set(['chat', 'remote', 'controlRoom', 'files', 'shell', 'git', 'changes', 'preview']);
+const VALID_TABS: Set<string> = new Set(['chat', 'remote', 'controlRoom', 'tasks', 'files', 'shell', 'git', 'changes', 'preview']);
 const NON_RESTORABLE_TABS: Set<AppTab> = new Set(['controlRoom']);
 
 const isValidTab = (tab: string): tab is AppTab => {

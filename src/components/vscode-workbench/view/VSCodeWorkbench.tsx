@@ -811,12 +811,6 @@ function VSCodeWorkbench({
   const systemButtons = useMemo(
     () => [
       {
-        id: 'tasks',
-        icon: TasksIcon,
-        label: t('tabs.tasks') || 'Tasks',
-        tab: 'tasks' as AppTab,
-      },
-      {
         id: 'controlRoom',
         icon: Sparkles,
         label: t('tabs.controlRoom'),
@@ -1301,6 +1295,13 @@ function VSCodeWorkbench({
                 onClick={() => selectActivityPanel(item.id, item.tab)}
               />
             ))}
+            <ActivityButton
+              label={t('tabs.tasks') || 'Tasks'}
+              icon={TasksIcon}
+              active={activeTab === 'tasks'}
+              badge={false}
+              onClick={() => openSystemTab('tasks')}
+            />
             <ActivityButton
               label={hasPendingRestartUpdate
                 ? t('vscodeWorkbench.activity.updateReady', { defaultValue: 'Update ready' })

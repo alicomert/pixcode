@@ -60,7 +60,7 @@
     "issues:v1.38": "node scripts/github/create-v1.38-issues.mjs --apply",
     "start": "npm run build && npm run server",
     "release": "./release.sh",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm run build && node scripts/verify-package-assets.mjs",
     "postinstall": "node scripts/fix-node-pty.js",
     "prepare": "husky",
     "update:platform": "./update-platform.sh"

@@ -28,6 +28,10 @@ function getTabTitle(activeTab: AppTab, t: (key: string) => string, pluginDispla
     return t('tabs.controlRoom');
   }
 
+  if (activeTab === 'tasks') {
+    return t('tabs.tasks');
+  }
+
   if (activeTab === 'git') {
     return t('tabs.git');
   }

@@ -1,3 +1,8 @@
+# Local dependencies and build output
+/node_modules/
+/dist/
+/dist-server/
+
 # Task files
 tasks.json
 tasks/ 

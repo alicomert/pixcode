@@ -15,6 +15,7 @@ import {
   Folder,
   GitBranch,
   FileCode,
+  ClipboardCheck,
   Smartphone,
   X,
   type LucideIcon,
@@ -49,6 +50,7 @@ type TabDefinition = BuiltInTab | PluginTab;
 
 const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'chat',  labelKey: 'tabs.chat',  icon: MessageSquare },
+  { kind: 'builtin', id: 'tasks', labelKey: 'tabs.tasks', icon: ClipboardCheck },
   { kind: 'builtin', id: 'remote', labelKey: 'tabs.remote', icon: Smartphone },
   { kind: 'builtin', id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
