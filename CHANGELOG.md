@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.57.2](https://github.com/alicomert/pixcode/compare/v1.57.1...v1.57.2) (2026-07-16)
+
+### New Features
+
+* **tasks:** CLI-first create flow with free model auto-select ([eca68e8](https://github.com/alicomert/pixcode/commit/eca68e8a6eb470309856f112cc65361b180d4ae4))
+
+### Maintenance
+
+* sync desktop/package.json to 1.57.2 ([744e544](https://github.com/alicomert/pixcode/commit/744e544a787810f675b992ec40f19181a505fc80))
+
 ## [1.57.1](https://github.com/alicomert/pixcode/compare/v1.57.0...v1.57.1) (2026-07-16)
 
 ### Bug Fixes
