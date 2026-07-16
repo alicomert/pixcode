@@ -293,6 +293,7 @@ function snapshotUpdateJob(job) {
         runtimeDir: job.runtimeDir || null,
         alreadyLatest: Boolean(job.alreadyLatest),
         pendingRestart: Boolean(job.pendingRestart),
+        selfRestarting: Boolean(job.selfRestarting),
         error: job.error || null,
         logs: job.logs,
     };
@@ -677,7 +678,21 @@ function createSystemUpdateJob(actorUser, options = {}) {
                     logs: job.logs.slice(-80),
                 },
             });
-            appendUpdateJobLog(job, 'meta', 'Update is ready. Restart when convenient to apply it.\n');
+
+            // Desktop wrapper (PIXCODE_RUNTIME_DIR): files are already swapped
+            // in-place. Exit 42 so Electron respawns against the new runtime
+            // instead of leaving the UI on "update ready" forever. Non-desktop
+            // installs keep the deferred restart UX (active terminals, etc.).
+            if (runtimeDir) {
+                job.selfRestarting = true;
+                appendUpdateJobLog(job, 'meta', 'Update applied. Restarting desktop runtime automatically…\n');
+                setTimeout(() => {
+                    console.log('[update] Restarting for runtime-dir update (job path)');
+                    process.exit(42);
+                }, 800);
+            } else {
+                appendUpdateJobLog(job, 'meta', 'Update is ready. Restart when convenient to apply it.\n');
+            }
         } catch (error) {
             job.status = 'failed';
             job.completedAt = new Date().toISOString();
@@ -2783,9 +2798,17 @@ app.post('/api/system/restart', authenticateToken, requireAdmin, requireApiScope
     });
 
     // Give the response time to flush before we exit.
+    // Exit code 42 is the desktop Electron wrapper's "please respawn me"
+    // convention (see desktop/electron/main.cjs). Without it, the wrapper
+    // treats a normal exit(0) as a crash and leaves the UI stuck on the
+    // update screen after "Restart now". Non-desktop installs (systemd/pm2
+    // /daemon) treat any non-zero/zero exit as a restart signal either way.
     setTimeout(() => {
-        console.log('Restart requested via /api/system/restart — exiting process.');
-        process.exit(0);
+        const runtimeDir = process.env.PIXCODE_RUNTIME_DIR;
+        const pending = readSystemUpdateState()?.pendingRestart;
+        const exitCode = (runtimeDir || pending?.toVersion) ? 42 : 0;
+        console.log(`Restart requested via /api/system/restart — exiting process (code ${exitCode}).`);
+        process.exit(exitCode);
     }, 250);
 });
 

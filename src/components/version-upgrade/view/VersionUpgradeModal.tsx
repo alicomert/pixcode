@@ -52,6 +52,7 @@ type UpdateJob = {
     toVersion?: string | null;
     alreadyLatest?: boolean;
     pendingRestart?: boolean;
+    selfRestarting?: boolean;
     error?: string | null;
     logs?: Array<{ stream: string; chunk: string; timestamp?: string }>;
 };
@@ -274,14 +275,17 @@ export function VersionUpgradeModal({
                 if (pollingJobIdRef.current === job.id) {
                     pollingJobIdRef.current = null;
                 }
+                const selfRestarting = Boolean(job.selfRestarting);
                 return {
                     success: true,
                     version: job.toVersion || latestVersion || undefined,
                     alreadyLatest: Boolean(job.alreadyLatest),
-                    selfRestarting: false,
-                    message: job.pendingRestart
-                        ? 'Update is ready. Restart when convenient to apply it.'
-                        : 'Update completed.',
+                    selfRestarting,
+                    message: selfRestarting
+                        ? 'Update applied. Waiting for the app to restart…'
+                        : job.pendingRestart
+                            ? 'Update is ready. Restart when convenient to apply it.'
+                            : 'Update completed.',
                 };
             }
 
