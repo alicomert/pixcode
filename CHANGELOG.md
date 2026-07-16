@@ -3,6 +3,12 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.58.0](https://github.com/alicomert/pixcode/compare/v1.57.3...v1.58.0) (2026-07-16)
+
+### New Features
+
+* **tasks:** introduce PixBot chat with approve-to-run tasks and crons ([fdaabb7](https://github.com/alicomert/pixcode/commit/fdaabb7143692d998d73a3d70506ba5335e6933e))
+
 ## [1.57.3](https://github.com/alicomert/pixcode/compare/v1.57.2...v1.57.3) (2026-07-16)
 
 ### New Features
