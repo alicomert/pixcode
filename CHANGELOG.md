@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.56.3](https://github.com/alicomert/pixcode/compare/v1.56.2...v1.56.3) (2026-07-16)
+
+### Bug Fixes
+
+* make desktop in-app updates actually restart after download ([e6959a7](https://github.com/alicomert/pixcode/commit/e6959a7b063da5d9d9e54dcedd5c02fdc2a9f9ec))
+
+### Maintenance
+
+* sync desktop/package.json to 1.56.3 ([781c6f6](https://github.com/alicomert/pixcode/commit/781c6f6ae489722014763b7c8563f8bf7752539b))
+
 ## [1.56.2](https://github.com/alicomert/pixcode/compare/v1.56.1...v1.56.2) (2026-07-16)
 
 ### Bug Fixes
