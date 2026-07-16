@@ -158,6 +158,10 @@ import {
     applyAllStoredCredentialsToEnv,
 } from './services/provider-credentials.js';
 import { primeCliBinPath } from './services/install-jobs.js';
+import {
+    applyRuntimeDeltaUpdate,
+    extractFullTarballToRuntime,
+} from './services/runtime-delta-update.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, sessionNamesDb, applyCustomSessionNames, appConfigDb, telegramLinksDb } from './database/db.js';
 import { setNotificationWebSocketServer } from './services/notification-orchestrator.js';
@@ -410,95 +414,39 @@ function verifyTarballIntegrity(buffer, integrity) {
 }
 
 async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl, tarballIntegrity) {
-    appendUpdateJobLog(job, 'meta', `Update mode: runtime-dir\nRuntime: ${runtimeDir}\n`);
-    appendUpdateJobLog(job, 'meta', `Downloading ${tarballUrl}\n`);
-    const tarballRes = await fetch(tarballUrl);
-    if (!tarballRes.ok || !tarballRes.body) {
-        throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
-    }
+    appendUpdateJobLog(job, 'meta', `Update mode: runtime-dir (delta-first)\nRuntime: ${runtimeDir}\n`);
+    appendUpdateJobLog(job, 'meta', `Target: ${latestVersion}\n`);
 
-    // Download tarball to a buffer first so we can verify integrity before extracting.
-    const tarballBuffer = Buffer.from(await tarballRes.arrayBuffer());
-
-    // Verify integrity hash against registry-provided SRI string.
-    if (tarballIntegrity) {
-        try {
-            verifyTarballIntegrity(tarballBuffer, tarballIntegrity);
-            appendUpdateJobLog(job, 'meta', 'Tarball integrity verified.\n');
-        } catch (verifyError) {
-            appendUpdateJobLog(job, 'stderr', `Integrity verification failed: ${verifyError.message}\n`);
-            throw verifyError;
-        }
-    } else {
-        appendUpdateJobLog(job, 'meta', 'WARNING: No integrity hash from registry — extracting without verification.\n');
-    }
-
-    const stagingDir = path.join(runtimeDir, '.staging');
-    const backupDir = path.join(runtimeDir, '.previous');
-    fs.rmSync(stagingDir, { recursive: true, force: true });
-    fs.mkdirSync(stagingDir, { recursive: true });
-
-    const { Readable } = await import('node:stream');
-    const tarModule = await import('tar');
-    const tarExtract = tarModule.x || tarModule.default?.x;
-    if (!tarExtract) throw new Error('tar extractor not available');
-
-    await new Promise((resolve, reject) => {
-        const nodeStream = Readable.from(tarballBuffer);
-        const extractor = tarExtract({ cwd: stagingDir, strip: 1 });
-        nodeStream.pipe(extractor);
-        extractor.on('finish', resolve);
-        extractor.on('error', reject);
-        nodeStream.on('error', reject);
+    const result = await applyRuntimeDeltaUpdate({
+        runtimeDir,
+        targetVersion: latestVersion,
+        tarballUrl,
+        tarballIntegrity,
+        appendLog: (stream, message) => appendUpdateJobLog(job, stream, message),
+        verifyTarballIntegrity,
+        fetchTarballFallback: async ({ runtimeDir: dir, tarballUrl: url, tarballIntegrity: integrity, appendLog }) => {
+            await extractFullTarballToRuntime({
+                runtimeDir: dir,
+                tarballUrl: url,
+                tarballIntegrity: integrity,
+                appendLog,
+                verifyTarballIntegrity,
+            });
+            ensureFrontendDistAssets(dir, path.join(dir, '.previous'), (line) => appendLog('meta', line));
+        },
     });
 
-    appendUpdateJobLog(job, 'meta', 'Staging runtime update for next restart...\n');
-    fs.rmSync(backupDir, { recursive: true, force: true });
-    fs.mkdirSync(backupDir, { recursive: true });
-    for (const entry of fs.readdirSync(stagingDir)) {
-        const src = path.join(stagingDir, entry);
-        const dst = path.join(runtimeDir, entry);
-        if (fs.existsSync(dst)) {
-            fs.renameSync(dst, path.join(backupDir, entry));
-        }
-        fs.renameSync(src, dst);
-    }
-    fs.rmSync(stagingDir, { recursive: true, force: true });
-
-    // Guard against incomplete npm packages (historically shipped without
-    // frontend dist/). Prefer the new UI, but restore .previous/dist when the
-    // tarball has no web assets so Linux users do not land on the infinite
-    // "finishing an update" page after restart.
-    ensureFrontendDistAssets(runtimeDir, backupDir, (line) => appendUpdateJobLog(job, 'meta', line));
-
-    const depsChanged = (() => {
-        try {
-            const prevPkg = JSON.parse(fs.readFileSync(path.join(backupDir, 'package.json'), 'utf8'));
-            const nextPkg = JSON.parse(fs.readFileSync(path.join(runtimeDir, 'package.json'), 'utf8'));
-            return JSON.stringify(prevPkg.dependencies || {}) !== JSON.stringify(nextPkg.dependencies || {});
-        } catch {
-            return true;
-        }
-    })();
-
-    if (!depsChanged) return latestVersion;
-
-    appendUpdateJobLog(job, 'meta', 'Reconciling node_modules with new package.json...\n');
-    await new Promise((resolve, reject) => {
-        const npmChild = spawn('npm', ['install', '--production', '--no-audit', '--no-fund', '--no-save'], {
-            cwd: runtimeDir,
-            env: process.env,
-            shell: true,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        npmChild.stdout?.on('data', (chunk) => appendUpdateJobLog(job, 'stdout', chunk.toString()));
-        npmChild.stderr?.on('data', (chunk) => appendUpdateJobLog(job, 'stderr', chunk.toString()));
-        npmChild.on('error', reject);
-        npmChild.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`npm install exited with code ${code}`));
-        });
+    ensureFrontendDistAssets(runtimeDir, path.join(runtimeDir, '.previous'), (line) => {
+        appendUpdateJobLog(job, 'meta', line);
     });
+
+    appendUpdateJobLog(
+        job,
+        'meta',
+        result.mode === 'delta'
+            ? `Delta apply finished (${result.downloaded} files).\n`
+            : 'Full package apply finished.\n',
+    );
     return latestVersion;
 }
 
@@ -2450,167 +2398,50 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
                 return;
             }
 
-            // 2. Download the tarball to a buffer so we can verify integrity
-            //    before extracting. Doing the extract under `.staging` first
-            //    means the live runtime stays intact if the download fails.
-            send('log', { stream: 'meta', chunk: `Downloading ${tarballUrl}\n` });
-            const tarballRes = await fetch(tarballUrl);
-            if (!tarballRes.ok || !tarballRes.body) {
-                throw new Error(`Tarball fetch failed: HTTP ${tarballRes.status}`);
-            }
-
-            const tarballBuffer = Buffer.from(await tarballRes.arrayBuffer());
-
-            // Verify integrity hash against registry-provided SRI string.
-            if (tarballIntegrity) {
-                try {
-                    verifyTarballIntegrity(tarballBuffer, tarballIntegrity);
-                    send('log', { stream: 'meta', chunk: 'Tarball integrity verified.\n' });
-                } catch (verifyError) {
-                    send('log', { stream: 'stderr', chunk: `Integrity verification failed: ${verifyError.message}\n` });
-                    throw verifyError;
-                }
-            } else {
-                send('log', { stream: 'meta', chunk: 'WARNING: No integrity hash from registry — extracting without verification.\n' });
-            }
-
-            const stagingDir = path.join(runtimeDir, '.staging');
-            const backupDir = path.join(runtimeDir, '.previous');
-            fs.rmSync(stagingDir, { recursive: true, force: true });
-            fs.mkdirSync(stagingDir, { recursive: true });
-
-            const { Readable } = await import('node:stream');
-            const tarModule = await import('tar');
-            const tarExtract = tarModule.x || tarModule.default?.x;
-            if (!tarExtract) throw new Error('tar extractor not available');
-
-            // npm tarballs always root at `package/` — strip:1 lifts the
-            // contents to the staging dir directly so paths match the
-            // existing runtime layout.
-            await new Promise((resolve, reject) => {
-                const nodeStream = Readable.from(tarballBuffer);
-                const extractor = tarExtract({ cwd: stagingDir, strip: 1 });
-                nodeStream.pipe(extractor);
-                extractor.on('finish', resolve);
-                extractor.on('error', reject);
-                nodeStream.on('error', reject);
+            // 2. Delta-first product update (OmniRoute-style): download only
+            //    changed files from the package CDN, fall back to full tarball
+            //    when the manifest is missing or the delta is huge.
+            send('log', { stream: 'meta', chunk: `Delta update to ${latestVersion}…\n` });
+            const deltaResult = await applyRuntimeDeltaUpdate({
+                runtimeDir,
+                targetVersion: latestVersion,
+                tarballUrl,
+                tarballIntegrity,
+                appendLog: (stream, chunk) => send('log', { stream, chunk }),
+                verifyTarballIntegrity,
+                fetchTarballFallback: async ({ runtimeDir: dir, tarballUrl: url, tarballIntegrity: integrity, appendLog }) => {
+                    await extractFullTarballToRuntime({
+                        runtimeDir: dir,
+                        tarballUrl: url,
+                        tarballIntegrity: integrity,
+                        appendLog,
+                        verifyTarballIntegrity,
+                    });
+                },
             });
-
-            send('log', { stream: 'meta', chunk: 'Swapping runtime…\n' });
-
-            // 3. Atomic swap: move every top-level entry from staging into
-            //    the runtime, keeping a .previous snapshot for rollback.
-            //    We don't blow away the whole runtime because userData
-            //    may contain wrapper-managed files (auth DB cache, etc.)
-            //    that we don't want to touch.
-            fs.rmSync(backupDir, { recursive: true, force: true });
-            fs.mkdirSync(backupDir, { recursive: true });
-            for (const entry of fs.readdirSync(stagingDir)) {
-                const src = path.join(stagingDir, entry);
-                const dst = path.join(runtimeDir, entry);
-                if (fs.existsSync(dst)) {
-                    fs.renameSync(dst, path.join(backupDir, entry));
-                }
-                fs.renameSync(src, dst);
-            }
-            fs.rmSync(stagingDir, { recursive: true, force: true });
-
-            // Keep a usable UI even if the npm tarball omitted frontend dist/.
-            ensureFrontendDistAssets(runtimeDir, backupDir, (line) => {
+            ensureFrontendDistAssets(runtimeDir, path.join(runtimeDir, '.previous'), (line) => {
                 send('log', { stream: 'meta', chunk: line.endsWith('\n') ? line : `${line}\n` });
             });
-
-            // 3a. Reconcile node_modules with the NEW package.json.
-            //     npm tarballs intentionally ship WITHOUT node_modules, so
-            //     if this release changed `dependencies` (e.g. bcrypt →
-            //     bcryptjs in 1.32.0) the runtime dir now has new code
-            //     importing packages that aren't installed. We fix that
-            //     by running `npm install --production` in-place.
-            //     Skipped when the NEW package.json's dependency set is
-            //     identical to the .previous/ one — no need to pay the
-            //     10-30 sec cost for pure-code updates.
-            const depsChanged = (() => {
-                try {
-                    const prevPkg = JSON.parse(fs.readFileSync(path.join(backupDir, 'package.json'), 'utf8'));
-                    const nextPkg = JSON.parse(fs.readFileSync(path.join(runtimeDir, 'package.json'), 'utf8'));
-                    const prevDeps = JSON.stringify(prevPkg.dependencies || {});
-                    const nextDeps = JSON.stringify(nextPkg.dependencies || {});
-                    return prevDeps !== nextDeps;
-                } catch {
-                    // Can't read either side — reconcile to be safe.
-                    return true;
-                }
-            })();
-
-            if (depsChanged) {
-                send('log', { stream: 'meta', chunk: 'Reconciling node_modules with new package.json…\n' });
-                const npmOk = await new Promise((resolveInstall) => {
-                    const npmChild = spawn('npm', ['install', '--production', '--no-audit', '--no-fund', '--no-save'], {
-                        cwd: runtimeDir,
-                        env: process.env,
-                        shell: true,
-                    });
-                    // Stream output so the user sees progress (and so
-                    // a mid-install hang is obvious rather than silent).
-                    npmChild.stdout?.on('data', (chunk) => {
-                        send('log', { stream: 'stdout', chunk: chunk.toString() });
-                    });
-                    npmChild.stderr?.on('data', (chunk) => {
-                        // npm writes warnings to stderr even on success, so
-                        // we surface them but don't treat them as failure.
-                        send('log', { stream: 'stderr', chunk: chunk.toString() });
-                    });
-                    npmChild.on('error', (err) => {
-                        send('log', { stream: 'meta', chunk: `npm install spawn failed: ${err.message}\n` });
-                        resolveInstall(false);
-                    });
-                    npmChild.on('close', (code) => {
-                        if (code === 0) {
-                            send('log', { stream: 'meta', chunk: 'node_modules reconciled.\n' });
-                            resolveInstall(true);
-                        } else {
-                            send('log', { stream: 'meta', chunk: `npm install exited with code ${code}\n` });
-                            resolveInstall(false);
-                        }
-                    });
-                });
-                if (!npmOk) {
-                    // The swap already happened — rolling back is expensive
-                    // and leaves node_modules in an uncertain state either
-                    // way. Report failure with a clear remediation hint so
-                    // the user knows what to do next (quit + run npm install
-                    // manually, or reinstall from the .exe/.dmg/.deb).
-                    send('done', {
-                        success: false,
-                        error: `Update downloaded to ${latestVersion} but \`npm install\` failed — node_modules may be missing packages. Quit Pixcode and run "npm install --production" in ${runtimeDir}, or reinstall from the latest installer.`,
-                    });
-                    endStream();
-                    return;
-                }
-            }
+            send('log', {
+                stream: 'meta',
+                chunk: deltaResult.mode === 'delta'
+                    ? `Delta applied (${deltaResult.downloaded} files changed, ${deltaResult.unchanged} kept).\n`
+                    : 'Full package applied.\n',
+            });
 
             send('done', {
                 success: true,
                 version: latestVersion,
                 // `selfRestarting` tells the UI "don't POST /restart —
                 // we're about to exit on our own, just poll /health until
-                // the wrapper brings us back". Without this flag the
-                // client sees the server disappear, gets a connection
-                // refused on /restart, and shows the user a spurious
-                // "Restart request failed" error — even though the
-                // update actually succeeded.
+                // the wrapper brings us back".
                 selfRestarting: true,
                 message: `Updated to ${latestVersion}. Restarting automatically…`,
             });
             endStream();
 
-            // 4. Self-exit so the Electron wrapper respawns the server
-            //    against the freshly-extracted files. 500 ms gives the
-            //    SSE stream time to flush the done event + arrive at
-            //    the client across slow loopback / virtual adapters.
+            // 3. Self-exit so the Electron wrapper respawns against the new files.
             setTimeout(() => {
-                // Exit code 42 is a convention the wrapper watches for —
-                // it means "clean update restart, please respawn".
                 console.log('[update] Restarting for runtime-dir update');
                 process.exit(42);
             }, 500);

@@ -16,6 +16,7 @@ const required = [
   'dist-server/server/cli.js',
   'dist-server/server/index.js',
   'package.json',
+  'files-manifest.json',
 ];
 
 const missing = required.filter((rel) => !fs.existsSync(path.join(root, rel)));

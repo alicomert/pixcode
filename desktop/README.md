@@ -42,8 +42,8 @@ open "/Applications/Pixcode.app"
 
 ## Updates (two-tier)
 
-1. **Product updates (95%+)** — when a new `@pixelbyte-software/pixcode` version ships, the installed Electron wrapper downloads only the ~4 MB npm tarball and swaps it into its writable runtime dir. No installer re-download, no user action beyond clicking the "Update available" button in the UI.
-2. **Wrapper updates (rare)** — when the Electron shell itself changes (tray menu, autostart mechanics, Electron version bump), `electron-updater` polls the GitHub Releases feed and prompts for a full installer re-download.
+1. **Product updates (95%+)** — when a new `@pixelbyte-software/pixcode` version ships, the desktop app downloads a **file-level delta** against `files-manifest.json` (only changed paths from the package CDN). If the delta is huge or the manifest is missing it falls back to the full npm tarball. Files land in the writable `userData/pixcode-runtime/` dir, then the server exits with code **42** so Electron respawns automatically — no reinstall of the `.exe` / `.AppImage` / `.dmg`.
+2. **Wrapper updates (rare)** — when the Electron shell itself changes (tray menu, autostart mechanics, Electron version bump), `electron-updater` polls the GitHub Releases feed and prompts for a full installer re-download. Pure product tags **reuse** the previous installer binaries (see `desktop.yml`) so users are not forced through SmartScreen/Gatekeeper again.
 
 ## Releases
 

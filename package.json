@@ -14,6 +14,7 @@
     "dist/",
     "dist-server/",
     "scripts/",
+    "files-manifest.json",
     "README.md",
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
@@ -60,7 +61,7 @@
     "issues:v1.38": "node scripts/github/create-v1.38-issues.mjs --apply",
     "start": "npm run build && npm run server",
     "release": "./release.sh",
-    "prepublishOnly": "npm run build && node scripts/verify-package-assets.mjs",
+    "prepublishOnly": "npm run build && node scripts/generate-files-manifest.mjs && node scripts/verify-package-assets.mjs",
     "postinstall": "node scripts/fix-node-pty.js",
     "prepare": "husky",
     "update:platform": "./update-platform.sh"
