@@ -2182,7 +2182,10 @@ app.use('/api/commands', authenticateToken, commandsRoutes);
 app.use('/api/settings', authenticateToken, settingsRoutes);
 
 // User API Routes (protected)
-app.use('/api/user', authenticateToken, userRoutes);
+// Per-route auth lives in user routes so /onboarding-status can stay public
+// for first-run setup. Mount-level authenticateToken was re-blocking it and
+// surfacing "Access denied. No token provided." before registration.
+app.use('/api/user', userRoutes);
 
 // Codex API Routes (protected)
 app.use('/api/codex', authenticateToken, codexRoutes);

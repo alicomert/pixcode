@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { api } from '../../../utils/api';
 import { AUTH_ERROR_MESSAGES, AUTH_TOKEN_STORAGE_KEY } from '../constants';
@@ -41,6 +41,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Prevent login/register from racing with a second bootstrap pass that
+  // could clear a brand-new session when a parallel status check finishes late.
+  const bootstrapGenerationRef = useRef(0);
 
   const setSession = useCallback((nextUser: AuthUser, nextToken: string) => {
     setUser(nextUser);
@@ -58,10 +61,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await api.user.onboardingStatus();
       if (!response.ok) {
+        // Public endpoint should not fail closed for first-run / login.
+        setHasCompletedOnboarding(true);
         return;
       }
 
       const payload = await parseJsonSafely<OnboardingStatusPayload>(response);
+      if (typeof payload?.needsSetup === 'boolean' && payload.needsSetup) {
+        setNeedsSetup(true);
+        setHasCompletedOnboarding(false);
+        return;
+      }
+
       setHasCompletedOnboarding(Boolean(payload?.hasCompletedOnboarding));
     } catch (caughtError) {
       console.error('Error checking onboarding status:', caughtError);
@@ -105,6 +116,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [checkOnboardingStatus, setSession]);
 
   const checkAuthStatus = useCallback(async () => {
+    const generation = ++bootstrapGenerationRef.current;
+
     try {
       setIsLoading(true);
       setError(null);
@@ -112,23 +125,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const statusResponse = await api.auth.status();
       const statusPayload = await parseJsonSafely<AuthStatusPayload>(statusResponse);
 
+      if (generation !== bootstrapGenerationRef.current) {
+        return;
+      }
+
       if (statusPayload?.needsSetup) {
         setNeedsSetup(true);
+        // Fresh install: ignore any stale token from a previous install.
+        clearSession();
         return;
       }
 
       setNeedsSetup(false);
 
       const qrLoginConsumed = await consumeQrLoginFromUrl();
+      if (generation !== bootstrapGenerationRef.current) {
+        return;
+      }
       if (qrLoginConsumed) {
         return;
       }
 
-      if (!token) {
+      // Always read storage at call time so a concurrent login/register that
+      // just wrote a token is visible, and so this callback does not need to
+      // re-run (and flash loading) every time token state changes.
+      const storedToken = readStoredToken();
+      if (!storedToken) {
+        setUser(null);
+        setToken(null);
         return;
       }
 
+      setToken(storedToken);
+
       const userResponse = await api.auth.user();
+      if (generation !== bootstrapGenerationRef.current) {
+        return;
+      }
+
       if (!userResponse.ok) {
         clearSession();
         return;
@@ -144,11 +178,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await checkOnboardingStatus();
     } catch (caughtError) {
       console.error('[Auth] Auth status check failed:', caughtError);
-      setError(AUTH_ERROR_MESSAGES.authStatusCheckFailed);
+      if (generation === bootstrapGenerationRef.current) {
+        setError(AUTH_ERROR_MESSAGES.authStatusCheckFailed);
+      }
     } finally {
-      setIsLoading(false);
+      if (generation === bootstrapGenerationRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [checkOnboardingStatus, clearSession, consumeQrLoginFromUrl, token]);
+  }, [checkOnboardingStatus, clearSession, consumeQrLoginFromUrl]);
 
   useEffect(() => {
     void checkAuthStatus();
@@ -158,6 +196,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     async (username, password) => {
       try {
         setError(null);
+        // Invalidate any in-flight bootstrap so it cannot clear this session.
+        bootstrapGenerationRef.current += 1;
+
         const response = await api.auth.login(username, password);
         const payload = await parseJsonSafely<AuthSessionPayload>(response);
 
@@ -169,6 +210,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         setSession(payload.user, payload.token);
         setNeedsSetup(false);
+        setIsLoading(false);
         await checkOnboardingStatus();
         return { success: true };
       } catch (caughtError) {
@@ -184,6 +226,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     async (username, password) => {
       try {
         setError(null);
+        bootstrapGenerationRef.current += 1;
+
         const response = await api.auth.register(username, password);
         const payload = await parseJsonSafely<AuthSessionPayload>(response);
 
@@ -195,6 +239,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         setSession(payload.user, payload.token);
         setNeedsSetup(false);
+        setIsLoading(false);
         await checkOnboardingStatus();
         return { success: true };
       } catch (caughtError) {
@@ -208,6 +253,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = useCallback(() => {
     const tokenToInvalidate = token;
+    bootstrapGenerationRef.current += 1;
     clearSession();
 
     if (tokenToInvalidate) {

@@ -198,7 +198,19 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ gitName, gitEmail }),
       }),
-    onboardingStatus: () => authenticatedFetch('/api/user/onboarding-status'),
+    // Public first-run endpoint — never require a token. Attach Authorization
+    // when present so authenticated users get their real onboarding progress.
+    onboardingStatus: () => {
+      const token = localStorage.getItem('auth-token');
+      const headers = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      return fetch('/api/user/onboarding-status', {
+        headers,
+        cache: 'no-store',
+      });
+    },
     completeOnboarding: () =>
       authenticatedFetch('/api/user/complete-onboarding', {
         method: 'POST',

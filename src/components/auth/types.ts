@@ -26,10 +26,11 @@ export type AuthUserPayload = {
 
 export type OnboardingStatusPayload = {
   hasCompletedOnboarding?: boolean;
+  needsSetup?: boolean;
 };
 
 export type ApiErrorPayload = {
-  error?: string;
+  error?: string | { message?: string; code?: string };
   message?: string;
 };
 

@@ -31,23 +31,7 @@ const validateApiKey = (req, res, next) => {
   next();
 };
 
-// JWT authentication middleware
-const authenticateToken = async (req, res, next) => {
-  // Platform mode:  use single database user
-  if (PLATFORM_AUTH_BYPASS_ENABLED) {
-    try {
-      const user = userDb.getFirstUser();
-      if (!user) {
-        return res.status(500).json({ error: 'Platform mode: No user found in database' });
-      }
-      req.user = user;
-      return next();
-    } catch (error) {
-      console.error('Platform mode error:', error);
-      return res.status(500).json({ error: 'Platform mode: Failed to fetch user' });
-    }
-  }
-
+function readRequestCredentials(req) {
   // Pull credentials from any of the supported transports.
   //  - Authorization: Bearer <jwt-or-apikey>
   //  - X-API-Key: <apikey>            (legacy, kept for /api/agent compatibility)
@@ -72,10 +56,33 @@ const authenticateToken = async (req, res, next) => {
     });
   }
 
-  // Try API-key paths first when the credential is unambiguously an API key.
   const explicitApiKey = apiKeyHeader || queryApiKey
     || (isPixcodeApiKey(bearerToken) ? bearerToken : null)
     || (isPixcodeApiKey(queryToken) ? queryToken : null);
+
+  return {
+    bearerToken,
+    queryToken,
+    explicitApiKey,
+    jwtToken: bearerToken || queryToken,
+  };
+}
+
+async function resolveUserFromCredentials(req, { allowMissing = false, issueRefreshHeader = false, res = null } = {}) {
+  if (PLATFORM_AUTH_BYPASS_ENABLED) {
+    try {
+      const user = userDb.getFirstUser();
+      if (!user) {
+        return { error: { status: 500, body: { error: 'Platform mode: No user found in database' } } };
+      }
+      return { user };
+    } catch (error) {
+      console.error('Platform mode error:', error);
+      return { error: { status: 500, body: { error: 'Platform mode: Failed to fetch user' } } };
+    }
+  }
+
+  const { explicitApiKey, jwtToken } = readRequestCredentials(req);
 
   if (explicitApiKey) {
     try {
@@ -85,9 +92,9 @@ const authenticateToken = async (req, res, next) => {
           ip: getClientIp(req),
           endpoint: req.path,
           method: req.method,
-          userId: user?.id,
         });
-        return res.status(401).json({ error: 'Invalid or inactive API key' });
+        if (allowMissing) return { user: null };
+        return { error: { status: 401, body: { error: 'Invalid or inactive API key' } } };
       }
       securityLog('api_key_auth_success', {
         ip: getClientIp(req),
@@ -96,29 +103,25 @@ const authenticateToken = async (req, res, next) => {
         userId: user.id,
         username: user.username,
       });
-      req.user = user;
-      return next();
+      return { user };
     } catch (error) {
       console.error('API key validation error:', error);
-      return res.status(500).json({ error: 'Authentication backend error' });
+      return { error: { status: 500, body: { error: 'Authentication backend error' } } };
     }
   }
 
-  // Otherwise fall back to JWT.
-  const jwtToken = bearerToken || queryToken;
   if (!jwtToken) {
+    if (allowMissing) return { user: null };
     securityLog('auth_no_token', {
       ip: getClientIp(req),
       endpoint: req.path,
       method: req.method,
     });
-    return res.status(401).json({ error: 'Access denied. No token provided.' });
+    return { error: { status: 401, body: { error: 'Access denied. No token provided.' } } };
   }
 
   try {
     const decoded = jwt.verify(jwtToken, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
-
-    // Verify user still exists and is active
     const user = userDb.getUserById(decoded.userId);
     if (!user) {
       securityLog('jwt_user_not_found', {
@@ -127,11 +130,12 @@ const authenticateToken = async (req, res, next) => {
         method: req.method,
         userId: decoded.userId,
       });
-      return res.status(401).json({ error: 'Invalid token. User not found.' });
+      if (allowMissing) return { user: null };
+      return { error: { status: 401, body: { error: 'Invalid token. User not found.' } } };
     }
 
     // Auto-refresh: if token is past halfway through its lifetime, issue a new one
-    if (decoded.exp && decoded.iat) {
+    if (issueRefreshHeader && res && decoded.exp && decoded.iat) {
       const now = Math.floor(Date.now() / 1000);
       const halfLife = (decoded.exp - decoded.iat) / 2;
       if (now > decoded.iat + halfLife) {
@@ -140,8 +144,7 @@ const authenticateToken = async (req, res, next) => {
       }
     }
 
-    req.user = user;
-    next();
+    return { user };
   } catch (error) {
     securityLog('jwt_verification_failed', {
       ip: getClientIp(req),
@@ -149,8 +152,46 @@ const authenticateToken = async (req, res, next) => {
       method: req.method,
       reason: error.name || 'unknown',
     });
-    return res.status(403).json({ error: 'Invalid token' });
+    if (allowMissing) return { user: null };
+    return { error: { status: 403, body: { error: 'Invalid token' } } };
   }
+}
+
+// JWT authentication middleware
+const authenticateToken = async (req, res, next) => {
+  const result = await resolveUserFromCredentials(req, {
+    allowMissing: false,
+    issueRefreshHeader: true,
+    res,
+  });
+
+  if (result.error) {
+    return res.status(result.error.status).json(result.error.body);
+  }
+
+  req.user = result.user;
+  return next();
+};
+
+/**
+ * Soft auth: attaches req.user when a valid token is present, otherwise
+ * continues anonymously. Used for first-run endpoints (e.g. onboarding-status)
+ * that must never return "Access denied. No token provided."
+ */
+const optionalAuthenticateToken = async (req, res, next) => {
+  const result = await resolveUserFromCredentials(req, {
+    allowMissing: true,
+    issueRefreshHeader: true,
+    res,
+  });
+
+  if (result.error) {
+    // Unexpected backend failures still surface; missing/invalid tokens do not.
+    return res.status(result.error.status).json(result.error.body);
+  }
+
+  req.user = result.user || null;
+  return next();
 };
 
 const requireAdmin = (req, res, next) => {
@@ -269,6 +310,7 @@ const authenticateWebSocket = (token) => {
 export {
   validateApiKey,
   authenticateToken,
+  optionalAuthenticateToken,
   requireAdmin,
   requireApiScope,
   generateToken,

@@ -118,7 +118,10 @@ export default function SetupForm() {
         if (!connectionResponse.ok) {
           if (formState.connectionMode === 'remote') {
             const payload = await connectionResponse.json().catch(() => null);
-            connectionError = payload?.error || 'Could not save connection mode.';
+            const rawError = payload?.error;
+            connectionError = typeof rawError === 'string'
+              ? rawError
+              : (rawError?.message || payload?.message || 'Could not save connection mode.');
           }
           connectionOk = false;
         }

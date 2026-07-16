@@ -13,5 +13,19 @@ export function resolveApiErrorMessage(payload: ApiErrorPayload | null, fallback
     return fallback;
   }
 
-  return payload.error ?? payload.message ?? fallback;
+  const { error, message } = payload;
+  if (typeof error === 'string' && error.trim()) {
+    return error;
+  }
+  if (error && typeof error === 'object') {
+    const nested = error as { message?: unknown; code?: unknown };
+    if (typeof nested.message === 'string' && nested.message.trim()) {
+      return nested.message;
+    }
+  }
+  if (typeof message === 'string' && message.trim()) {
+    return message;
+  }
+
+  return fallback;
 }

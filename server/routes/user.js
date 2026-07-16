@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import express from 'express';
 
 import { userDb } from '../database/db.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, optionalAuthenticateToken } from '../middleware/auth.js';
 import { getSystemGitConfig } from '../utils/gitConfig.js';
 
 const router = express.Router();
@@ -108,26 +108,28 @@ router.post('/complete-onboarding', authenticateToken, async (req, res) => {
 });
 
 // Onboarding status is public — it is needed during initial setup
-// BEFORE any users exist or any token is issued. When no users exist
-// we return needsSetup: true so the frontend can show the registration
-// screen. When users DO exist we return the actual onboarding state.
-router.get('/onboarding-status', async (req, res) => {
+// BEFORE any users exist or any token is issued. optionalAuthenticateToken
+// never 401s for a missing token (that was the first-run "Access denied.
+// No token provided." bug when this route was mounted behind auth).
+router.get('/onboarding-status', optionalAuthenticateToken, async (req, res) => {
   try {
     const hasUsers = userDb.hasUsers();
     if (!hasUsers) {
       return res.json({ success: true, needsSetup: true, hasCompletedOnboarding: false });
     }
-    
-    // Users exist — token is required for detailed info
+
+    // Anonymous: users already exist → send them to login, not setup.
+    // Authenticated: return that user's real onboarding progress.
     if (!req.user) {
       return res.json({ success: true, needsSetup: false, hasCompletedOnboarding: true });
     }
-    
+
     const hasCompleted = userDb.hasCompletedOnboarding(req.user.id);
 
     res.json({
       success: true,
-      hasCompletedOnboarding: hasCompleted
+      needsSetup: false,
+      hasCompletedOnboarding: hasCompleted,
     });
   } catch (error) {
     console.error('Error checking onboarding status:', error);
