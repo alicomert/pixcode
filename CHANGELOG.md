@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.56.2](https://github.com/alicomert/pixcode/compare/v1.56.1...v1.56.2) (2026-07-16)
+
+### Bug Fixes
+
+* stop file-tree refresh spam and terminal aNM background sessions ([5925d37](https://github.com/alicomert/pixcode/commit/5925d37cb38c13c8ece1634e507a4e8998d7db53))
+
+### Maintenance
+
+* sync desktop/package.json to 1.56.2 ([98a7443](https://github.com/alicomert/pixcode/commit/98a74439c9a06b1c45153465839452430cc09969))
+
 ## [1.56.1](https://github.com/alicomert/pixcode/compare/v1.56.0...v1.56.1) (2026-07-16)
 
 ### Bug Fixes
