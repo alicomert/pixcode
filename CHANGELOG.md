@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.57.1](https://github.com/alicomert/pixcode/compare/v1.57.0...v1.57.1) (2026-07-16)
+
+### Bug Fixes
+
+* drop SGR mouse reports with NaN coords that loop as terminal input ([6a93059](https://github.com/alicomert/pixcode/commit/6a9305994b276b6f61830426561b960d5d534393))
+
+### Maintenance
+
+* sync desktop/package.json to 1.57.1 ([992813a](https://github.com/alicomert/pixcode/commit/992813ae51017472e440a3dff22cf9d342e9bf89))
+
 ## [1.57.0](https://github.com/alicomert/pixcode/compare/v1.56.3...v1.57.0) (2026-07-16)
 
 ### New Features
