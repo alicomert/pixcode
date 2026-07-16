@@ -106,11 +106,54 @@ function createTaskWriter(task, callbacks) {
   };
 }
 
+/**
+ * Prefer an explicit task model; for OpenCode with no model, pick a free/Zen
+ * entry from the live catalog so tasks run without login when possible.
+ */
+export async function resolveTaskModel(task) {
+  if (typeof task?.model === 'string' && task.model.trim()) {
+    return task.model.trim();
+  }
+  if (task?.agentType !== 'opencode') {
+    return undefined;
+  }
+  try {
+    const { getProviderModels } = await import('./provider-models.js');
+    const catalog = await getProviderModels('opencode', { forceRefresh: false });
+    const models = Array.isArray(catalog?.models) ? catalog.models : [];
+    const free = models.find((entry) => entry.free);
+    if (free?.value) return free.value;
+    const zenLike = models.find((entry) => /free|zen/i.test(`${entry.label || ''} ${entry.value || ''}`));
+    if (zenLike?.value) return zenLike.value;
+    return models[0]?.value || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function buildTaskPrompt(task) {
+  const base = String(task.prompt || '').trim();
+  const role = task.role && task.role !== 'custom' ? String(task.role) : '';
+  if (!role) return base;
+  const roleHints = {
+    backend: 'Focus on server, data, APIs, and reliability. Prefer minimal UI changes.',
+    frontend: 'Focus on UI, accessibility, and responsive behavior. Prefer minimal backend changes.',
+    fullstack: 'Plan and implement across the workspace end-to-end.',
+    reviewer: 'Inspect changes and report risks. Prefer analysis over large rewrites unless asked.',
+    tester: 'Run checks, reproduce failures, and repair tests with evidence.',
+  };
+  const hint = roleHints[role] || `Work in the "${role}" specialty.`;
+  return `[Task role: ${role}] ${hint}\n\n${base}`;
+}
+
 export async function executeTaskWithProvider(task, callbacks = {}) {
   const runner = RUNNERS[task.agentType];
   if (!runner) {
     throw new Error(`Unsupported task agent: ${task.agentType}`);
   }
+
+  const resolvedModel = await resolveTaskModel(task);
+  const prompt = buildTaskPrompt(task);
 
   const writer = createTaskWriter(task, callbacks);
   const active = {
@@ -128,7 +171,7 @@ export async function executeTaskWithProvider(task, callbacks = {}) {
     projectPath: task.projectPath,
     projectName: task.projectId,
     cwd: task.projectPath,
-    model: task.model || undefined,
+    model: resolvedModel || undefined,
     permissionMode,
     skipPermissions: permissionMode === 'bypassPermissions',
     suppressNotifications: true,
@@ -141,10 +184,20 @@ export async function executeTaskWithProvider(task, callbacks = {}) {
     },
   };
 
-  callbacks.onLog?.('info', `Starting ${PROVIDER_IDS[task.agentType] || task.agentType}${task.model ? ` with ${task.model}` : ''}.`);
+  const cliLabel = PROVIDER_IDS[task.agentType] || task.agentType;
+  callbacks.onLog?.(
+    'info',
+    `Starting CLI=${cliLabel}`
+      + (resolvedModel ? ` model=${resolvedModel}` : ' model=cli-default')
+      + (task.role && task.role !== 'custom' ? ` role=${task.role}` : '')
+      + '.',
+  );
+  if (task.agentType === 'opencode' && resolvedModel && /free|zen/i.test(resolvedModel)) {
+    callbacks.onLog?.('info', 'Using OpenCode free-tier model (no paid key required for Zen free).');
+  }
 
   try {
-    await runner(task.prompt, options, writer);
+    await runner(prompt, options, writer);
     if (writer.state.errors.length > 0) {
       throw new Error(writer.state.errors[writer.state.errors.length - 1]);
     }
@@ -155,6 +208,7 @@ export async function executeTaskWithProvider(task, callbacks = {}) {
       result,
       summary: result ? result.slice(-4000) : 'The CLI agent completed without a text summary.',
       tokenCount: writer.state.tokenCount,
+      model: resolvedModel || null,
     };
   } finally {
     activeRuns.delete(task.id);

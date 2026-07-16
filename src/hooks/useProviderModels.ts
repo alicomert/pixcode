@@ -72,11 +72,13 @@ export function useProviderModels(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
 
+  const refresh = useCallback(() => load({ force: true }), [load]);
+
   return {
     models,
     loading,
     error,
     fetchedAt,
-    refresh: () => load({ force: true }),
+    refresh,
   };
 }

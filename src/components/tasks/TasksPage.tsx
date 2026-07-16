@@ -206,11 +206,18 @@ export function TasksPage({
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary"><Bot className="h-7 w-7" /></div>
             <h2 className="text-base font-semibold">{tasks.length === 0 ? t('taskSystem.empty.title', { defaultValue: 'Hand off your first task' }) : t('taskSystem.empty.filtered', { defaultValue: 'No tasks match this view' })}</h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              {tasks.length === 0
-                ? t('taskSystem.empty.description', { defaultValue: 'Choose Claude Code, Codex, OpenCode, Gemini, Qwen, or Cursor. Pixcode runs the configured CLI in this workspace and keeps the transcript here.' })
-                : t('taskSystem.empty.adjust', { defaultValue: 'Change the filter or search phrase to see more work.' })}
+              {!projectId
+                ? t('taskSystem.empty.needWorkspace', { defaultValue: 'Select a workspace in the sidebar first. Then create a task: pick a CLI, a model (free for OpenCode when available), and write what to do.' })
+                : tasks.length === 0
+                  ? t('taskSystem.empty.description', { defaultValue: '1) Pick a CLI  2) Pick its model (OpenCode free auto)  3) Write instructions  4) Create and run — Pixcode runs that CLI in this workspace.' })
+                  : t('taskSystem.empty.adjust', { defaultValue: 'Change the filter or search phrase to see more work.' })}
             </p>
-            {projectId && tasks.length === 0 && <button type="button" onClick={() => setShowCreate(true)} className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Sparkles className="h-4 w-4" />{t('taskSystem.newTask', { defaultValue: 'New task' })}</button>}
+            {projectId && tasks.length === 0 && (
+              <button type="button" onClick={() => setShowCreate(true)} className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                <Sparkles className="h-4 w-4" />
+                {t('taskSystem.newTask', { defaultValue: 'New task' })}
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid gap-3 xl:grid-cols-2 2xl:grid-cols-3">

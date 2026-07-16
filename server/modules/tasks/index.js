@@ -167,7 +167,13 @@ function enqueueRecurringCopy(task) {
 
 async function runTask(task) {
   updateTask(task, { status: 'RUNNING', startedAt: new Date().toISOString(), error: undefined });
-  addLog(task.id, 'info', `Task started in ${task.projectId}.`);
+  addLog(
+    task.id,
+    'info',
+    `Task started · workspace=${task.projectId} · cli=${task.agentType}`
+      + (task.model ? ` · model=${task.model}` : ' · model=auto')
+      + ` · path=${task.projectPath}`,
+  );
 
   try {
     const result = await executeTaskWithProvider(task, {
@@ -190,10 +196,15 @@ async function runTask(task) {
     });
 
     if (task.status === 'CANCELLED') return;
+    // Persist resolved model when runtime auto-picked free OpenCode, etc.
+    if (result?.model && !task.model) {
+      task.model = result.model;
+    }
     updateTask(task, {
       status: 'COMPLETED',
       completedAt: new Date().toISOString(),
       sessionId: result.sessionId || task.sessionId,
+      model: result.model || task.model,
       result: result.result,
       summary: result.summary,
       tokenCount: result.tokenCount,
@@ -339,10 +350,24 @@ export function taskRouter() {
       const input = parseCreateInput(req.body);
       const projectPath = await extractProjectDirectory(input.projectId).catch(() => null);
       if (!projectPath || !fs.existsSync(projectPath)) {
-        return res.status(404).json({ error: 'Project workspace could not be resolved.' });
+        return res.status(404).json({
+          error: 'Project workspace could not be resolved. Select a workspace in the sidebar, then create the task again.',
+        });
       }
       if (!userHasProjectPathAccess(req.user, { name: input.projectId, path: projectPath, fullPath: projectPath }, projectPath, 'chatAgents')) {
         return res.status(403).json({ error: 'Project access denied.' });
+      }
+
+      // Soft gate: warn via status when CLI is missing; still allow create so UI can show agent list state.
+      try {
+        const status = await providerAuthService.getProviderAuthStatus(getTaskProviderId(input.agentType));
+        if (status && status.installed === false) {
+          return res.status(400).json({
+            error: `${input.agentType} CLI is not installed on this machine. Install it or pick another CLI.`,
+          });
+        }
+      } catch {
+        // Auth probe failures should not block task creation.
       }
 
       const now = new Date().toISOString();
@@ -360,7 +385,14 @@ export function taskRouter() {
       };
       state.tasks.push(task);
       saveState();
-      addLog(task.id, 'info', task.status === 'PENDING' ? `Scheduled for ${task.scheduledAt}.` : 'Task queued.');
+      addLog(
+        task.id,
+        'info',
+        (task.status === 'PENDING' ? `Scheduled for ${task.scheduledAt}. ` : 'Task queued. ')
+          + `cli=${task.agentType}`
+          + (task.model ? ` model=${task.model}` : ' model=auto')
+          + '.',
+      );
       emitTaskEvent('task:created', task.id);
       res.status(201).json({ task: publicTask(task) });
       void schedulerTick();

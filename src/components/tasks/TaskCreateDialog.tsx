@@ -126,6 +126,13 @@ export function TaskCreateDialog({
     });
   }, [agents]);
 
+  // OpenCode free catalog rotates — force a live refresh when this CLI is selected.
+  // Matches 9router-style free tier freshness without waiting on a stale 6h cache.
+  useEffect(() => {
+    if (provider !== 'opencode') return;
+    void refreshModels();
+  }, [provider, refreshModels]);
+
   // When CLI changes or catalog loads: auto-select free / first model.
   useEffect(() => {
     if (modelsLoading) return;
