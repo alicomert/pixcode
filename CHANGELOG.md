@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.57.3](https://github.com/alicomert/pixcode/compare/v1.57.2...v1.57.3) (2026-07-16)
+
+### New Features
+
+* **tasks:** wire CLI+model into runs with live OpenCode free catalog ([6adaf49](https://github.com/alicomert/pixcode/commit/6adaf49f189348a24d951dca99c5c4d8a9790c13))
+
+### Maintenance
+
+* sync desktop/package.json to 1.57.3 ([57ed7eb](https://github.com/alicomert/pixcode/commit/57ed7eb858504aef209b12c7c3b41a1fb2e23bcc))
+
 ## [1.57.2](https://github.com/alicomert/pixcode/compare/v1.57.1...v1.57.2) (2026-07-16)
 
 ### New Features
