@@ -45,6 +45,7 @@ const PROVIDER_LABELS: Record<LLMProvider, string> = {
   gemini: 'Gemini',
   qwen: 'Qwen Code',
   opencode: 'OpenCode',
+  grok: 'Grok Build',
 };
 
 // Provider accent colors kept subtle so they work on both light and dark backgrounds
@@ -56,6 +57,7 @@ const PROVIDER_ACCENT: Record<LLMProvider, string> = {
   gemini: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-300 ring-1 ring-emerald-500/15',
   qwen: 'bg-amber-500/10 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300 ring-1 ring-amber-500/15',
   opencode: 'bg-teal-500/10 text-teal-600 dark:bg-teal-400/10 dark:text-teal-300 ring-1 ring-teal-500/15',
+  grok: 'bg-zinc-500/10 text-zinc-700 dark:bg-zinc-400/10 dark:text-zinc-200 ring-1 ring-zinc-500/20',
 };
 
 export default function SidebarSessionItem({

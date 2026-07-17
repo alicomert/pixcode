@@ -2,6 +2,7 @@ import { ClaudeProvider } from '@/modules/providers/list/claude/claude.provider.
 import { CodexProvider } from '@/modules/providers/list/codex/codex.provider.js';
 import { CursorProvider } from '@/modules/providers/list/cursor/cursor.provider.js';
 import { GeminiProvider } from '@/modules/providers/list/gemini/gemini.provider.js';
+import { GrokProvider } from '@/modules/providers/list/grok/grok.provider.js';
 import { OpencodeProvider } from '@/modules/providers/list/opencode/opencode.provider.js';
 import { QwenProvider } from '@/modules/providers/list/qwen/qwen.provider.js';
 import type { IProvider } from '@/shared/interfaces.js';
@@ -15,6 +16,7 @@ const providers: Record<LLMProvider, IProvider> = {
   gemini: new GeminiProvider(),
   qwen: new QwenProvider(),
   opencode: new OpencodeProvider(),
+  grok: new GrokProvider(),
 };
 
 /**

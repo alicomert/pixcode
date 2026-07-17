@@ -44,6 +44,20 @@ const providerCards = [
     iconContainerClassName: 'bg-orange-100 dark:bg-orange-900/30',
     loginButtonClassName: 'bg-orange-600 hover:bg-orange-700',
   },
+  {
+    provider: 'opencode' as const,
+    title: 'OpenCode',
+    connectedClassName: 'bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800',
+    iconContainerClassName: 'bg-teal-100 dark:bg-teal-900/30',
+    loginButtonClassName: 'bg-teal-600 hover:bg-teal-700',
+  },
+  {
+    provider: 'grok' as const,
+    title: 'Grok Build',
+    connectedClassName: 'bg-zinc-50 dark:bg-zinc-900/40 border-zinc-300 dark:border-zinc-600',
+    iconContainerClassName: 'bg-zinc-100 dark:bg-zinc-800',
+    loginButtonClassName: 'bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+  },
 ];
 
 export default function AgentConnectionsStep({

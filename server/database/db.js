@@ -780,10 +780,10 @@ const DEFAULT_TELEGRAM_CONTROL_STATE = {
 
 function normalizeTelegramControlState(value = {}) {
     const raw = value && typeof value === 'object' ? value : {};
-    const selectedProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.selectedProvider)
+    const selectedProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode', 'grok'].includes(raw.selectedProvider)
         ? raw.selectedProvider
         : DEFAULT_TELEGRAM_CONTROL_STATE.selectedProvider;
-    const routerProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.routerProvider)
+    const routerProvider = ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode', 'grok'].includes(raw.routerProvider)
         ? raw.routerProvider
         : null;
     const progressMode = ['final', 'steps', 'all', 'errors'].includes(raw.progressMode)
@@ -803,7 +803,7 @@ function normalizeTelegramControlState(value = {}) {
         }
         : null;
     const activeTerminal = raw.activeTerminal && typeof raw.activeTerminal === 'object'
-        && ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(raw.activeTerminal.provider)
+        && ['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode', 'grok'].includes(raw.activeTerminal.provider)
         && typeof raw.activeTerminal.projectPath === 'string'
         && raw.activeTerminal.projectPath.trim()
         ? {

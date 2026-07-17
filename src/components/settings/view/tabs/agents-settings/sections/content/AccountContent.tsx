@@ -91,6 +91,15 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     subtextClass: 'text-teal-700 dark:text-teal-300',
     buttonClass: 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800',
   },
+  grok: {
+    name: 'Grok Build',
+    description: 'xAI Grok Build coding agent CLI (install from https://x.ai/cli)',
+    bgClass: 'bg-zinc-50 dark:bg-zinc-900/40',
+    borderClass: 'border-zinc-300 dark:border-zinc-600',
+    textClass: 'text-zinc-900 dark:text-zinc-100',
+    subtextClass: 'text-zinc-700 dark:text-zinc-300',
+    buttonClass: 'bg-zinc-800 hover:bg-zinc-900 active:bg-zinc-950 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+  },
 };
 
 // ---------- Install-runner dialog ----------

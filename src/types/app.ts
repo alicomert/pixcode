@@ -1,4 +1,4 @@
-export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode';
+export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode' | 'grok';
 
 export type AppTab = 'chat' | 'remote' | 'controlRoom' | 'tasks' | 'files' | 'shell' | 'git' | 'changes' | 'preview' | `plugin:${string}`;
 

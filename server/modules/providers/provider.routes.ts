@@ -65,6 +65,8 @@ const PROVIDER_INSTALL_PACKAGES: Record<LLMProvider, string | null> = {
   // Cursor ships via a bash script hosted at cursor.com; safer to ask
   // users to run it themselves than to pipe-to-bash from our server.
   cursor: null,
+  // Grok Build installs via https://x.ai/cli (not npm).
+  grok: null,
 };
 
 const PROVIDER_INSTALL_COMMANDS: Record<LLMProvider, string | null> = {
@@ -74,6 +76,7 @@ const PROVIDER_INSTALL_COMMANDS: Record<LLMProvider, string | null> = {
   qwen: 'npm install -g @qwen-code/qwen-code',
   opencode: 'npm install -g opencode-ai',
   cursor: null,
+  grok: null,
 };
 
 /**
@@ -98,6 +101,15 @@ const PROVIDER_MANUAL_INSTALL: Partial<Record<LLMProvider, {
       { platform: 'windows', command: 'iwr https://cursor.com/install.ps1 -useb | iex' },
     ],
     note: 'Cursor ships outside npm — run the command for your platform in a separate terminal, then click "Refresh" on this page once the binary is on PATH.',
+  },
+  grok: {
+    docsUrl: 'https://docs.x.ai/build/overview',
+    steps: [
+      { platform: 'macos',   command: 'curl -fsSL https://x.ai/cli/install.sh | bash' },
+      { platform: 'linux',   command: 'curl -fsSL https://x.ai/cli/install.sh | bash' },
+      { platform: 'windows', command: 'irm https://x.ai/cli/install.ps1 | iex' },
+    ],
+    note: 'Grok Build (xAI) installs via https://x.ai/cli. After install, ensure `grok` is on PATH (or set PIXCODE_GROK_BIN), then refresh this panel.',
   },
 };
 
@@ -256,7 +268,8 @@ const parseProvider = (value: unknown): LLMProvider => {
     normalized === 'cursor' ||
     normalized === 'gemini' ||
     normalized === 'qwen' ||
-    normalized === 'opencode'
+    normalized === 'opencode' ||
+    normalized === 'grok'
   ) {
     return normalized;
   }

@@ -28,6 +28,7 @@ const PROVIDER_DEFAULT_MODELS: Record<LLMProvider, string> = {
   gemini: GEMINI_MODELS.DEFAULT,
   qwen: QWEN_MODELS.DEFAULT,
   opencode: OPENCODE_MODELS.DEFAULT,
+  grok: 'default',
 };
 
 export const WORKER_SLOT_PROVIDERS: LLMProvider[] = [
@@ -37,6 +38,7 @@ export const WORKER_SLOT_PROVIDERS: LLMProvider[] = [
   'gemini',
   'qwen',
   'opencode',
+  'grok',
 ];
 
 export function createWorkerSlot(overrides: Partial<WorkerSlot> = {}): WorkerSlot {

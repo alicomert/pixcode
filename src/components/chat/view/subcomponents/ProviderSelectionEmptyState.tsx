@@ -67,6 +67,7 @@ const PROVIDER_CARDS: ProviderCard[] = [
   { id: "gemini", name: "Gemini", accentBorder: "border-indigo-500/60", accentBg: "bg-indigo-500/5 dark:bg-indigo-400/10" },
   { id: "qwen", name: "Qwen Code", accentBorder: "border-orange-500/60", accentBg: "bg-orange-500/5 dark:bg-orange-400/10" },
   { id: "opencode", name: "OpenCode", accentBorder: "border-teal-500/60", accentBg: "bg-teal-500/5 dark:bg-teal-400/10" },
+  { id: "grok", name: "Grok Build", accentBorder: "border-zinc-400/60", accentBg: "bg-zinc-400/5 dark:bg-zinc-300/10" },
 ];
 
 function getStaticConfig(p: LLMProvider) {
@@ -75,6 +76,12 @@ function getStaticConfig(p: LLMProvider) {
   if (p === "gemini") return GEMINI_MODELS;
   if (p === "qwen") return QWEN_MODELS;
   if (p === "opencode") return OPENCODE_MODELS;
+  if (p === "grok") {
+    return {
+      OPTIONS: [{ value: 'default', label: 'Grok Build (default)' }],
+      DEFAULT: 'default',
+    };
+  }
   return CURSOR_MODELS;
 }
 
@@ -155,6 +162,7 @@ export default function ProviderSelectionEmptyState({
       gemini: geminiModel,
       qwen: qwenModel,
       opencode: opencodeModel,
+      grok: 'default',
     }),
     [claudeModel, cursorModel, codexModel, geminiModel, qwenModel, opencodeModel],
   );
@@ -166,6 +174,7 @@ export default function ProviderSelectionEmptyState({
       else if (p === "gemini") { setGeminiModel(value); localStorage.setItem("gemini-model", value); }
       else if (p === "qwen") { setQwenModel(value); localStorage.setItem("qwen-model", value); }
       else if (p === "opencode") { setOpencodeModel(value); localStorage.setItem("opencode-model", value); }
+      else if (p === "grok") { localStorage.setItem("grok-model", value); }
       else { setCursorModel(value); localStorage.setItem("cursor-model", value); }
     },
     [setClaudeModel, setCodexModel, setCursorModel, setGeminiModel, setQwenModel, setOpencodeModel],

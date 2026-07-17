@@ -4,10 +4,9 @@ import ClaudeLogo from './ClaudeLogo';
 import CodexLogo from './CodexLogo';
 import CursorLogo from './CursorLogo';
 import GeminiLogo from './GeminiLogo';
+import GrokLogo from './GrokLogo';
 import OpencodeLogo from './OpencodeLogo';
 import QwenLogo from './QwenLogo';
-
-
 
 type SessionProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -36,6 +35,10 @@ export default function SessionProviderLogo({
 
   if (provider === 'opencode') {
     return <OpencodeLogo className={className} />;
+  }
+
+  if (provider === 'grok' || provider === 'grok-build') {
+    return <GrokLogo className={className} />;
   }
 
   return <ClaudeLogo className={className} />;

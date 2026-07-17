@@ -37,6 +37,11 @@ const providerConfigs = {
     args: ['--version'],
     packageName: 'opencode-ai',
   },
+  grok: {
+    command: () => process.env.PIXCODE_GROK_BIN || process.env.GROK_BIN || 'grok',
+    args: ['--version'],
+    packageName: null,
+  },
 };
 
 function normalizeVersion(value) {

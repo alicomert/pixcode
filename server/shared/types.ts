@@ -9,7 +9,7 @@ export type AnyRecord = Record<string, any>;
 
 // ---------------------------------------------------------------------------------------------
 
-export type LLMProvider = 'claude' | 'codex' | 'gemini' | 'cursor' | 'qwen' | 'opencode';
+export type LLMProvider = 'claude' | 'codex' | 'gemini' | 'cursor' | 'qwen' | 'opencode' | 'grok';
 
 // ---------------------------------------------------------------------------------------------
 

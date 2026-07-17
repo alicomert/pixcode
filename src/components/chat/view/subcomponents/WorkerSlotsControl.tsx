@@ -32,6 +32,7 @@ const providerLabels: Record<string, string> = {
   gemini: 'Gemini',
   qwen: 'Qwen',
   opencode: 'OpenCode',
+  grok: 'Grok Build',
 };
 
 export default function WorkerSlotsControl({

@@ -176,7 +176,7 @@ import { getConnectableHost } from '../shared/networkHosts.js';
 
 import { buildDaemonCliCommand, handleDaemonCommand } from './daemon-manager.js';
 
-const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode'];
+const VALID_PROVIDERS = ['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode', 'grok'];
 const SYSTEM_UPDATE_STATE_KEY = 'system_update_state';
 const SESSION_OWNERSHIP_KEY = 'session_ownership';
 const SYSTEM_UPDATE_LOG_LIMIT = 600;
@@ -1304,7 +1304,7 @@ const SHELL_WS_BACKPRESSURE_LIMIT = 8 * 1024 * 1024;
 const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUFFER_MAX_BYTES || '', 10) || (512 * 1024);
 const SHELL_INPUT_CHUNK_CHARS = 16384;
 const SHELL_PENDING_INPUT_MAX_BYTES = Number.parseInt(process.env.PIXCODE_SHELL_PENDING_INPUT_MAX_BYTES || '', 10) || (256 * 1024 * 1024);
-const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
+const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode', 'grok']);
 // Higher defaults: truncated scans used to be cached and left the Files panel
 // missing folders until a manual refresh after TTL. Truncated results are no
 // longer cached (see writeFileTreeCache / getFileTree).
@@ -1783,6 +1783,11 @@ function buildProviderShellPermissionFlags(provider, permissionMode, skipPermiss
         }
         // OpenCode's interactive TUI rejects the headless run-only bypass
         // option; passing it makes the CLI print help and exit before opening.
+        return [];
+    }
+
+    if (provider === 'grok') {
+        // Grok Build TUI — no Pixcode-side permission flags yet.
         return [];
     }
 
@@ -4398,6 +4403,7 @@ function handleShellConnection(ws, request) {
                         : provider === 'gemini' ? 'Gemini'
                         : provider === 'qwen' ? 'Qwen Code'
                         : provider === 'opencode' ? 'OpenCode'
+                        : provider === 'grok' ? 'Grok Build'
                         : 'Claude';
                     welcomeMsg = hasSession ?
                         `\x1b[36mResuming ${providerName} session ${sessionId} in: ${projectPath}\x1b[0m\r\n` :
@@ -4517,6 +4523,15 @@ function handleShellConnection(ws, request) {
                         const command = buildProviderShellCommand(initialCommand || 'opencode', shellPermissionFlags);
                         if (hasSession && sessionId && safeSessionIdPattern.test(sessionId)) {
                             shellCommand = `${command} --session "${sessionId}"`;
+                        } else {
+                            shellCommand = command;
+                        }
+                    } else if (provider === 'grok') {
+                        // Grok Build (xAI) interactive TUI — binary `grok` (or PIXCODE_GROK_BIN).
+                        const grokBin = process.env.PIXCODE_GROK_BIN || process.env.GROK_BIN || initialCommand || 'grok';
+                        const command = buildProviderShellCommand(grokBin, shellPermissionFlags);
+                        if (commandStartupInput) {
+                            shellCommand = `${command} ${quoteShellArgForPlatform(commandStartupInput)}`;
                         } else {
                             shellCommand = command;
                         }

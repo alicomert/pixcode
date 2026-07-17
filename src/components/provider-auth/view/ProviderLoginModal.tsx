@@ -40,6 +40,8 @@ const getProviderCommand = (provider: LLMProvider, customCommand?: string) => {
   // Gemini's `/auth`), so no TUI-in-TUI fight. Picks up the browser /
   // device-code flow for the upstream provider the user chose.
   if (provider === 'opencode') return 'opencode auth login';
+  // Grok Build: launch TUI; auth is interactive inside the CLI.
+  if (provider === 'grok') return 'grok';
   return 'gemini'; // Gemini opens its own /auth panel
 };
 
@@ -105,6 +107,14 @@ const PROVIDER_KEY_META: Record<
     keyConsoleUrl: 'https://console.anthropic.com/settings/keys',
     keyConsoleLabel: 'Anthropic Console',
     notes: 'OpenCode is multi-provider — this sets the Anthropic credentials. Switch providers via `opencode auth login` or opencode.json.',
+  },
+  grok: {
+    keyLabel: 'xAI API Key (optional)',
+    keyExample: 'xai-...',
+    supportsBaseUrl: false,
+    keyConsoleUrl: 'https://console.x.ai/',
+    keyConsoleLabel: 'xAI Console',
+    notes: 'Grok Build primarily uses its own CLI login flow. Install from https://x.ai/cli then open the Grok terminal.',
   },
 };
 
