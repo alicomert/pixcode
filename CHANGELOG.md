@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.3](https://github.com/alicomert/pixcode/compare/v1.63.2...v1.63.3) (2026-07-17)
+
+### Bug Fixes
+
+* **pixbot:** no path hardcodes; fix opencode/codex NL routing ([fd4080d](https://github.com/alicomert/pixcode/commit/fd4080df401a993d6fe5c13ff766089a0358e23e))
+
+### Maintenance
+
+* **desktop:** bump version label to 1.63.2 (no installer rebuild) ([4079331](https://github.com/alicomert/pixcode/commit/407933145d368af686a02f51afba985405917b4f))
+
 ## [1.63.2](https://github.com/alicomert/pixcode/compare/v1.63.1...v1.63.2) (2026-07-17)
 
 ### Bug Fixes
