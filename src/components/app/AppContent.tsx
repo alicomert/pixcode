@@ -7,14 +7,10 @@ import MainContent from '../main-content/view/MainContent';
 import VSCodeWorkbench from '../vscode-workbench/view/VSCodeWorkbench';
 import { QuickSettingsPanel } from '../quick-settings-panel';
 import InAppNotificationCenter from '../notifications/InAppNotificationCenter';
-import { TasksPage } from '../tasks/TasksPage';
-import ShellModeSwitcher from '../shell-mode/ShellModeSwitcher';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
-import { useUiPreferences } from '../../hooks/useUiPreferences';
-import { Settings } from '@/lib/icons';
 
 export default function AppContent() {
   const navigate = useNavigate();
@@ -23,8 +19,6 @@ export default function AppContent() {
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { ws, sendMessage, latestMessage, isConnected } = useWebSocket();
-  const { preferences } = useUiPreferences();
-  const shellMode = preferences.shellMode || 'hybrid';
   const wasConnectedRef = useRef(false);
 
   const {
@@ -188,45 +182,7 @@ export default function AppContent() {
     return () => vv.removeEventListener('resize', update);
   }, []);
 
-  // Mode 1 — NanoClaw control plane only (no VS Code chrome). Messaging always NanoClaw.
-  if (shellMode === 'nanoclaw' && !isMobile) {
-    return (
-      <div className="fixed inset-0 flex flex-col bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
-        <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border px-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="text-sm font-semibold tracking-tight">PixBot</span>
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">NanoClaw control</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <ShellModeSwitcher compact />
-            <button
-              type="button"
-              onClick={() => setShowSettings(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted"
-              title={t('navigation.settings')}
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-            <InAppNotificationCenter latestMessage={latestMessage} />
-          </div>
-        </header>
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <TasksPage
-            projectId={selectedProject?.name || 'general'}
-            projectLabel={selectedProject?.displayName || selectedProject?.name || 'General (no coding project)'}
-            projects={(sidebarSharedProps.projects || []).map((project: { name: string; displayName?: string; fullPath?: string; path?: string }) => ({
-              id: project.name,
-              name: project.name,
-              label: project.displayName || project.name,
-              path: project.fullPath || project.path,
-            }))}
-          />
-        </div>
-        <QuickSettingsPanel />
-      </div>
-    );
-  }
-
+  // Always hybrid (Both): full workbench + NanoClaw Tasks. No NC/Both/IDE switcher.
   return (
     <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
       {isMobile ? (
@@ -259,19 +215,12 @@ export default function AppContent() {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {!isMobile && shellMode === 'hybrid' ? (
-          <div className="pointer-events-none absolute right-3 top-1.5 z-[60]">
-            <div className="pointer-events-auto">
-              <ShellModeSwitcher compact />
-            </div>
-          </div>
-        ) : null}
         {!isMobile ? (
           <VSCodeWorkbench
             sidebarProps={sidebarSharedProps}
             selectedProject={selectedProject}
             selectedSession={selectedSession}
-            activeTab={shellMode === 'pixcode' && activeTab === 'tasks' ? 'chat' : activeTab}
+            activeTab={activeTab}
             setActiveTab={setActiveTab}
             ws={ws}
             sendMessage={sendMessage}
@@ -290,8 +239,8 @@ export default function AppContent() {
             onShowSettings={() => setShowSettings(true)}
             externalMessageUpdate={externalMessageUpdate}
             onQuickStartSession={sidebarSharedProps.onQuickStartSession}
-            hidePixBot={shellMode === 'pixcode'}
-            showShellModeSwitcher={shellMode === 'pixcode'}
+            hidePixBot={false}
+            showShellModeSwitcher={false}
           />
         ) : (
           <MainContent

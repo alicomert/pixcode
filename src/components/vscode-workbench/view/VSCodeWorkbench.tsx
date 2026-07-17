@@ -9,7 +9,7 @@ import CodeEditor from '../../code-editor/view/CodeEditor';
 import type { CodeEditorDiffInfo, CodeEditorFile } from '../../code-editor/types/types';
 import ControlRoomPage from '../../control-room/ControlRoomPage';
 import { TasksPage } from '../../tasks/TasksPage';
-import ShellModeSwitcher from '../../shell-mode/ShellModeSwitcher';
+
 import FileTree from '../../file-tree/view/FileTree';
 import GitPanel from '../../git-panel/view/GitPanel';
 import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
@@ -72,6 +72,7 @@ import {
 type VSCodeWorkbenchProps = MainContentProps & {
   /** When true, hide the PixBot activity button (pixcode-only shell). NanoClaw still runs in backend. */
   hidePixBot?: boolean;
+  /** @deprecated Shell mode switcher removed — always hybrid (Both). */
   showShellModeSwitcher?: boolean;
   sidebarProps: SidebarProps;
 };
@@ -1287,11 +1288,6 @@ function VSCodeWorkbench({
         onShowSettings={onShowSettings}
         onQuickStartSession={onQuickStartSession}
       />
-      {showShellModeSwitcher && (
-        <div className="absolute right-16 top-1.5 z-[55]">
-          <ShellModeSwitcher compact />
-        </div>
-      )}
       <WorkbenchWorkspaceTabs
         tabs={workspaceTabs}
         projects={sidebarProps.projects}

@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef } from 'react';
 
 export type HistoryViewMode = 'flat' | 'grouped';
 export type AutoShowAgentDiffMode = 'always' | 'openOnly' | 'off';
-/** Shell layout: NanoClaw-only | NanoClaw+VS Code | classic Pixcode (messaging still NanoClaw). */
+/** @deprecated Always hybrid (Both). Kept for stored preference compatibility. */
 export type ShellMode = 'nanoclaw' | 'hybrid' | 'pixcode';
 
 type UiPreferences = {
@@ -102,7 +102,8 @@ const coercePreferenceValue = <K extends UiPreferenceKey>(
     return (isAutoShowAgentDiffMode(rawValue) ? rawValue : fallback) as UiPreferences[K];
   }
   if (key === 'shellMode') {
-    return (isShellMode(rawValue) ? rawValue : fallback) as UiPreferences[K];
+    // Product always runs hybrid (Both). Ignore stored NC/IDE values.
+    return 'hybrid' as UiPreferences[K];
   }
   // All other preferences are booleans.
   return parseBoolean(rawValue, fallback as boolean) as UiPreferences[K];
