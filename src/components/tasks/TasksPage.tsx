@@ -137,7 +137,8 @@ export function TasksPage({
   const { agents } = useTaskMeta();
 
   const [draft, setDraft] = useState('');
-  const [agentType, setAgentType] = useState<AgentType>('claude-code');
+  // Prefer a healthy local-friendly default; user can still switch.
+  const [agentType, setAgentType] = useState<AgentType>('opencode');
   const [actionError, setActionError] = useState<string | null>(null);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);

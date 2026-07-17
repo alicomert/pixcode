@@ -154,11 +154,16 @@ export function detectScheduleIntent(text) {
   return null;
 }
 
-/** Lightweight greeting / small-talk — still answered by agent, never scheduled. */
+/** Lightweight greeting / small-talk — answered locally, never spawns a CLI. */
 export function looksLikeSmallTalk(text) {
   const t = String(text || '').trim();
-  if (t.length > 120) return false;
-  return /^(selam|merhaba|hello|hi|hey|salaam|salam|مرحبا|你好|hola|bonjour|nasılsın|nasilsin|ne haber|thanks|teşekkür|tesekkur|ok|tamam|günaydın|iyi akşamlar)[\s!?.]*$/i.test(t);
+  if (!t || t.length > 160) return false;
+  // Pure short greetings, optional filler ("kanka selam", "hey there")
+  if (/^(?:kanka|bro|abi|lan|ya|hey|hi|yo)?\s*(selam|merhaba|hello|hi|hey|salaam|salam|مرحبا|你好|hola|bonjour|nasılsın|nasilsin|ne haber|naber|thanks|teşekkür|tesekkur|sağol|sagol|ok|tamam|günaydın|iyi akşamlar|iyi geceler)(?:\s+kanka)?[\s!?.]*$/i.test(t)) {
+    return true;
+  }
+  // Very short single-token greetings
+  return /^(selam+|merhaba+|hello+|hi+|hey+)\W*$/i.test(t);
 }
 
 /**
@@ -352,8 +357,28 @@ export async function handleChatTurn({
     agentType,
   });
 
+  // Casual chat — answer in-process. Never spawn OpenCode/Grok/Claude for "selam".
+  if (smallTalk) {
+    const reply = localSmallTalkReply(routing.prompt, agentType);
+    const assistantMsg = appendMessage(conv.id, {
+      role: 'assistant',
+      content: reply,
+      kind: 'text',
+      agentType: 'local',
+      meta: { mode: 'smalltalk' },
+    });
+    return {
+      conversation: publicConversation(store.conversations[conv.id]),
+      messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+      proposals: [],
+      tasks: [],
+      mode: 'chat',
+      agentType: 'local',
+    };
+  }
+
   // Explicit schedule intent → nanoclaw scheduler only (still a chat reply)
-  if (schedule && scheduleTools?.toolScheduleTask && !smallTalk) {
+  if (schedule && scheduleTools?.toolScheduleTask) {
     let schedule_value = schedule.schedule_value;
     if (schedule.schedule_type === 'once' && !schedule_value) {
       const d = new Date(Date.now() + 60_000);
@@ -387,33 +412,26 @@ export async function handleChatTurn({
     };
   }
 
-  // Normal chat / agent work via multi-CLI (session warm reuse)
+  // Coding / real work via multi-CLI. Keep the prompt CLEAN:
+  // do not inject multi-line system dumps (breaks Grok argv, confuses OpenCode).
   const { text: promptWithFiles, files } = resolveFileMentions(routing.prompt, projectPath);
   const history = (store.messages[conv.id] || [])
-    .slice(-12)
-    .filter((m) => m.id !== userMsg.id)
-    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .slice(-8)
+    .filter((m) => m.id !== userMsg.id && m.role !== 'system')
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${String(m.content || '').slice(0, 500)}`)
     .join('\n');
 
-  const system = buildSystemPreamble({
-    projectId: conv.projectId,
-    projectPath,
-    agentType,
-    isSmallTalk: smallTalk,
-  });
-
-  // Seed system once per conversation into the prompt (not re-MCP each time)
+  // Short context only — user message last. No "Task role:" / giant preamble.
   const fullPrompt = [
-    system,
-    history ? `\nRecent conversation:\n${history}\n` : '',
-    `\nUser:\n${promptWithFiles}`,
-  ].join('\n');
+    history ? `Prior chat (brief):\n${history}\n` : '',
+    promptWithFiles,
+  ].filter(Boolean).join('\n\n').trim();
 
   const sessionId = conv.agentSessions?.[agentType] || undefined;
   const groupFolder = String(conv.projectId || 'general').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
 
   const run = await runPixcodeMultiAgent({
-    prompt: fullPrompt,
+    prompt: fullPrompt || routing.prompt,
     groupFolder,
     sessionId,
     agentType,
@@ -469,4 +487,23 @@ export function chatHelpHints() {
     ],
     agents: MULTI_CLI_AGENTS,
   };
+}
+
+/** Instant local reply for greetings — no CLI spawn, no API keys. */
+function localSmallTalkReply(text, agentType) {
+  const t = String(text || '').trim().toLowerCase();
+  if (/teşekkür|tesekkur|thanks|thank you|sağol|sagol/.test(t)) {
+    return 'Rica ederim! Kod, dosya veya plan için yazman yeterli.';
+  }
+  if (/günaydın|iyi akşamlar|iyi geceler|good morning|good evening|good night/.test(t)) {
+    return 'Sana da! Ne üzerinde çalışalım?';
+  }
+  if (/nasılsın|nasilsin|how are you|ne haber/.test(t)) {
+    return 'İyiyim, hazırım. İstersen bir dosyaya bakayım, bug fix yapayım veya plan çıkarayım — ne diyorsun?';
+  }
+  // Default greeting
+  const agentHint = agentType && agentType !== 'claude-code'
+    ? ` (tercih: ${agentType} — /agent-… ile değiştirebilirsin)`
+    : '';
+  return `Selam! Ben NanoClaw${agentHint}. Kısa sohbet veya doğrudan iş: “@src/app.ts şunu düzelt”, “bunu opencode ile yap”, “her gün 9’da audit” — nasıl istersen.`;
 }

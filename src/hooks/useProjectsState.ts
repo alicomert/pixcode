@@ -175,12 +175,25 @@ export function useProjectsState({
   const loadingProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}) => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    // Windows project scans can hang on bad paths — never leave the UI on
+    // "Pixcode Yükleniyor / Çalışma alanın hazırlanıyor..." forever.
+    const timeoutMs = 20_000;
+    const timer = controller
+      ? window.setTimeout(() => controller.abort(), timeoutMs)
+      : null;
     try {
       if (showLoadingState) {
         setIsLoadingProjects(true);
       }
-      const response = await api.projects();
+      const response = await api.projects(controller ? { signal: controller.signal } : {});
+      if (!response.ok) {
+        throw new Error(`Projects fetch failed: ${response.status}`);
+      }
       const projectData = (await response.json()) as Project[];
+      if (!Array.isArray(projectData)) {
+        throw new Error('Projects response was not an array');
+      }
 
       setProjects((prevProjects) => {
         if (prevProjects.length === 0) {
@@ -193,10 +206,13 @@ export function useProjectsState({
       });
     } catch (error) {
       console.error('Error fetching projects:', error);
+      // Keep whatever we already have; just leave loading state.
     } finally {
-      if (showLoadingState) {
-        setIsLoadingProjects(false);
+      if (timer !== null) {
+        window.clearTimeout(timer);
       }
+      // Always clear loading — even on abort/timeout — so center pane is usable.
+      setIsLoadingProjects(false);
     }
   }, []);
 

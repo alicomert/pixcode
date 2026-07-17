@@ -126,7 +126,10 @@ export async function runPixcodeMultiAgent({
     title: isScheduledTask ? `Schedule: ${cleanPrompt.slice(0, 48)}` : cleanPrompt.slice(0, 64),
     projectPath: cwd,
     projectId: groupFolder || 'general',
-    role: 'fullstack',
+    // Chat turns must NOT inject "[Task role: fullstack] …" — Grok/CLI parsers
+    // treat "role:" as a flag and blow up with "unexpected argument 'role:'".
+    role: isScheduledTask ? 'fullstack' : undefined,
+    chatMode: !isScheduledTask,
     permissionMode: 'acceptEdits',
     continueSession: Boolean(sessionId),
     sessionId: sessionId || undefined,

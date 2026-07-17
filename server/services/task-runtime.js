@@ -137,6 +137,8 @@ export async function resolveTaskModel(task) {
 
 function buildTaskPrompt(task) {
   const base = String(task.prompt || '').trim();
+  // Chat / NanoClaw conversational turns: raw user prompt only.
+  if (task?.chatMode) return base;
   const role = task.role && task.role !== 'custom' ? String(task.role) : '';
   if (!role) return base;
   const roleHints = {
@@ -147,7 +149,8 @@ function buildTaskPrompt(task) {
     tester: 'Run checks, reproduce failures, and repair tests with evidence.',
   };
   const hint = roleHints[role] || `Work in the "${role}" specialty.`;
-  return `[Task role: ${role}] ${hint}\n\n${base}`;
+  // Avoid the substring "role:" alone on a line — some CLIs (Grok) argv-parse it.
+  return `[Task specialty=${role}] ${hint}\n\n${base}`;
 }
 
 export async function executeTaskWithProvider(task, callbacks = {}) {
@@ -201,7 +204,25 @@ export async function executeTaskWithProvider(task, callbacks = {}) {
   }
 
   try {
-    await runner(prompt, options, writer);
+    try {
+      await runner(prompt, options, writer);
+    } catch (firstError) {
+      // OpenCode often 404s on a stale/invalid free-catalog model — retry bare CLI default.
+      const msg = firstError instanceof Error ? firstError.message : String(firstError);
+      if (
+        task.agentType === 'opencode'
+        && resolvedModel
+        && /404|not found|model/i.test(msg)
+      ) {
+        callbacks.onLog?.('warn', `OpenCode failed with model=${resolvedModel} (${msg}). Retrying without --model…`);
+        writer.state.errors = [];
+        writer.state.output = [];
+        const retryOptions = { ...options, model: undefined };
+        await runner(prompt, retryOptions, writer);
+      } else {
+        throw firstError;
+      }
+    }
     if (writer.state.errors.length > 0) {
       throw new Error(writer.state.errors[writer.state.errors.length - 1]);
     }

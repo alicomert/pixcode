@@ -3,10 +3,15 @@
  * Docs: https://github.com/xai-org/grok-build  ·  https://docs.x.ai/build/overview
  * Install: curl -fsSL https://x.ai/cli/install.sh | bash
  * Binary: `grok` (or `xai-grok-pager`)
+ *
+ * Headless chat uses `grok -p <prompt>` (single-turn stdout). Long prompts go
+ * through a temp file (`--prompt-file`) so Windows shell does not argv-split
+ * multi-line text into fake flags like `role:`.
  */
 import { spawn } from 'child_process';
-import path from 'path';
+import fs from 'fs';
 import os from 'os';
+import path from 'path';
 
 import crossSpawn from 'cross-spawn';
 
@@ -22,23 +27,39 @@ function resolveGrokBinary() {
 }
 
 /**
- * Headless / non-interactive prompt to Grok Build when possible.
- * Falls back to a clear install message if binary missing.
+ * Headless / non-interactive prompt to Grok Build.
  */
 export async function spawnGrok(command, options = {}, writer) {
   const workingDir = (options.cwd || options.projectPath || process.cwd())
     .replace(/[^\x20-\x7E]/g, '')
     .trim() || process.cwd();
   const bin = resolveGrokBinary();
-  // Prefer headless/print style flags used by agent CLIs; grok may use different flags.
-  // Documented headless: see docs.x.ai/build — try common patterns.
+  const prompt = String(command || '').trim();
+
   const args = [];
-  if (command?.trim()) {
-    // Many xAI CLI builds accept a prompt as args or via stdin
-    if (process.env.PIXCODE_GROK_ARGS) {
-      args.push(...String(process.env.PIXCODE_GROK_ARGS).split(/\s+/).filter(Boolean));
+  if (process.env.PIXCODE_GROK_ARGS) {
+    args.push(...String(process.env.PIXCODE_GROK_ARGS).split(/\s+/).filter(Boolean));
+  }
+
+  // Headless single-turn. Prefer -p; for long multi-line prompts use a file so
+  // Windows cmd/powershell never re-parses "role:" / newlines as CLI flags.
+  let promptFile = null;
+  if (prompt) {
+    const useFile = prompt.length > 180 || /[\r\n]/.test(prompt) || /\brole\s*:/i.test(prompt);
+    if (useFile) {
+      promptFile = path.join(
+        os.tmpdir(),
+        `pixcode-grok-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`,
+      );
+      fs.writeFileSync(promptFile, prompt, 'utf8');
+      args.push('--prompt-file', promptFile);
+    } else {
+      args.push('-p', prompt);
     }
-    args.push(command.trim());
+  }
+
+  if (options.cwd || options.projectPath) {
+    args.push('--cwd', workingDir);
   }
 
   const sessionKey = options.sessionId || `grok-${Date.now()}`;
@@ -53,16 +74,24 @@ export async function spawnGrok(command, options = {}, writer) {
       cwd: workingDir,
       env: {
         ...process.env,
-        // Avoid nested TUI if launched from another agent
         CI: process.env.CI || '1',
         NO_COLOR: process.env.NO_COLOR || '1',
       },
-      shell: process.platform === 'win32',
+      // Do NOT use shell:true — it re-tokenizes prompts on Windows.
+      shell: false,
+      windowsHide: true,
     });
 
     active.set(sessionKey, child);
     let stdout = '';
     let stderr = '';
+
+    const cleanup = () => {
+      if (promptFile) {
+        try { fs.unlinkSync(promptFile); } catch { /* ignore */ }
+        promptFile = null;
+      }
+    };
 
     child.stdout?.on('data', (chunk) => {
       const text = chunk.toString();
@@ -77,6 +106,7 @@ export async function spawnGrok(command, options = {}, writer) {
       if (settled) return;
       settled = true;
       active.delete(sessionKey);
+      cleanup();
       const msg = error.code === 'ENOENT'
         ? 'Grok Build CLI not found. Install: https://x.ai/cli  (curl -fsSL https://x.ai/cli/install.sh | bash) — docs: https://docs.x.ai/build/overview'
         : (error.message || String(error));
@@ -88,6 +118,7 @@ export async function spawnGrok(command, options = {}, writer) {
       if (settled) return;
       settled = true;
       active.delete(sessionKey);
+      cleanup();
       if (code === 0) {
         writer?.send?.(createNormalizedMessage({
           kind: 'status',

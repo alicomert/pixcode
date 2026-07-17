@@ -69,7 +69,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(payload),
     }),
-  projects: () => authenticatedFetch('/api/projects'),
+  projects: (options = {}) => authenticatedFetch('/api/projects', options),
   sessions: (projectName, limit = 5, offset = 0) =>
     authenticatedFetch(`/api/projects/${projectName}/sessions?limit=${limit}&offset=${offset}`),
   // Unified endpoint — all providers through one URL
