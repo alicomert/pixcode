@@ -20,6 +20,12 @@ import { usePixBot } from '../../hooks/useTasks';
 import { cn } from '../../lib/utils';
 import { api, authenticatedFetch } from '../../utils/api';
 
+import {
+  AgentSlashBadge,
+  composeAgentMessage,
+  splitLeadingAgentToken,
+  type AgentSlashMeta,
+} from './agentSlash';
 import { useNanoClawComposerAutocomplete } from './hooks/useNanoClawComposerAutocomplete';
 import { PixbotProviderModal } from './PixbotProviderModal';
 import type { BotMessage, WorkspaceOption } from './types';
@@ -67,12 +73,24 @@ function MessageBubble({ message }: { message: BotMessage }) {
     ? String((meta as { providerName?: string; provider?: string }).providerName
       || (meta as { provider?: string }).provider || '')
     : '';
-  const agentLabel = message.agentType && message.agentType !== 'pixbot'
-    ? String(message.agentType)
-    : '';
-  const routeLabel = [agentLabel || providerName, model, mode === 'cli' ? 'CLI' : null]
-    .filter(Boolean)
-    .join(' · ');
+
+  const userSplit = isUser ? splitLeadingAgentToken(message.content) : null;
+  const userAgent = userSplit?.meta || null;
+  const userBody = userSplit?.rest ?? message.content;
+
+  // Assistant CLI badge from agentType (claude-code → /claude)
+  const assistantBadge = !isUser && message.agentType && message.agentType !== 'pixbot'
+    ? splitLeadingAgentToken(
+      `/${String(message.agentType).replace(/^claude-code$/i, 'claude').replace(/^grok-build$/i, 'grok')} `,
+    ).meta
+    : null;
+
+  const routeLabel = [
+    !assistantBadge && message.agentType && message.agentType !== 'pixbot' ? String(message.agentType) : null,
+    !assistantBadge ? providerName : null,
+    model && !String(model).includes('::') ? model : (model?.includes('::') ? model.split('::').pop() : null),
+    mode === 'cli' && !assistantBadge ? 'CLI' : null,
+  ].filter(Boolean).join(' · ');
 
   return (
     <div className={cn('flex w-full gap-3', isUser ? 'justify-end' : 'justify-start')}>
@@ -89,8 +107,9 @@ function MessageBubble({ message }: { message: BotMessage }) {
             : 'bg-muted/50 text-foreground',
         )}
       >
-        {!isUser && (routeLabel || streaming) ? (
+        {!isUser && (assistantBadge || routeLabel || streaming) ? (
           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
+            {assistantBadge ? <AgentSlashBadge meta={assistantBadge} size="sm" /> : null}
             {routeLabel ? <span>{routeLabel}</span> : null}
             {streaming ? (
               <span className="inline-flex items-center gap-1 text-primary">
@@ -104,7 +123,18 @@ function MessageBubble({ message }: { message: BotMessage }) {
           </div>
         ) : null}
         {isUser ? (
-          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+          <div className="space-y-2">
+            {userAgent ? (
+              <div className={cn(
+                // Badge stays readable on primary bubble
+                '[&_span]:border-white/30 [&_span]:bg-white/15 [&_span]:text-primary-foreground',
+              )}
+              >
+                <AgentSlashBadge meta={userAgent} size="sm" />
+              </div>
+            ) : null}
+            <div className="whitespace-pre-wrap break-words">{userBody}</div>
+          </div>
         ) : (
           <div className={cn(
             'prose prose-sm max-w-none dark:prose-invert',
@@ -191,6 +221,8 @@ export function TasksPage({
   } = usePixBot(projectId);
 
   const [draft, setDraft] = useState('');
+  /** Slash agent chip in the composer (visual badge; wire message still uses /claude …). */
+  const [agentChip, setAgentChip] = useState<AgentSlashMeta | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     try { return localStorage.getItem(MODEL_STORAGE_KEY) || ''; } catch { return ''; }
   });
@@ -206,11 +238,25 @@ export function TasksPage({
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  /** Keep draft free of leading /agent — promote to badge chip. */
+  const setDraftSmart = useCallback((next: string) => {
+    const split = splitLeadingAgentToken(next);
+    if (split.meta) {
+      setAgentChip(split.meta);
+      setDraft(split.rest);
+      return;
+    }
+    setDraft(next);
+  }, []);
+
   const composer = useNanoClawComposerAutocomplete({
     projectId: boundProjectId || projectId,
     value: draft,
-    setValue: setDraft,
+    setValue: setDraftSmart,
     textareaRef,
+    onPickAgentChip: (meta) => {
+      setAgentChip(meta);
+    },
   });
 
   const persistModel = (value: string) => {
@@ -355,17 +401,25 @@ export function TasksPage({
   };
 
   const handleSend = async () => {
-    const text = draft.trim();
-    if (!text || sending) return;
-    if (!llmConfigured) {
+    const wire = composeAgentMessage(agentChip, draft);
+    if (!wire || sending) return;
+    if (!llmConfigured && !agentChip) {
       setProviderModalOpen(true);
       setActionError('Önce bir provider ekle — listeden seç, key gir, modeller gelsin.');
       return;
     }
     setDraft('');
+    setAgentChip(null);
     setActionError(null);
     try {
-      await sendMessage(text, { model: selectedModel || undefined });
+      // CLI agents: don't force HTTP composite model into the CLI runner
+      const httpPicker = selectedModel.includes('::');
+      const useHttpModel = !agentChip && httpPicker;
+      await sendMessage(wire, {
+        model: useHttpModel ? selectedModel || undefined : (agentChip ? undefined : selectedModel || undefined),
+        agentType: agentChip?.agentType,
+        forceCli: Boolean(agentChip),
+      });
     } catch (caughtError) {
       setActionError(caughtError instanceof Error ? caughtError.message : String(caughtError));
     }
@@ -643,26 +697,51 @@ export function TasksPage({
                 </div>
               )}
               <div className="flex items-end gap-2 rounded-2xl border border-border bg-muted/20 p-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/25">
-                <textarea
-                  ref={textareaRef}
-                  value={draft}
-                  onChange={(e) => composer.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
-                  onClick={(e) => composer.onSelect(e.currentTarget.selectionStart ?? 0)}
-                  onKeyUp={(e) => composer.onSelect(e.currentTarget.selectionStart ?? 0)}
-                  onKeyDown={(e) => {
-                    if (composer.onKeyDown(e)) return;
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void handleSend();
+                <div className="flex min-w-0 flex-1 flex-wrap items-end gap-1.5">
+                  {agentChip ? (
+                    <div className="mb-1.5 shrink-0 pl-1">
+                      <AgentSlashBadge
+                        meta={agentChip}
+                        onRemove={() => setAgentChip(null)}
+                      />
+                    </div>
+                  ) : null}
+                  <textarea
+                    ref={textareaRef}
+                    value={draft}
+                    onChange={(e) => composer.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+                    onClick={(e) => composer.onSelect(e.currentTarget.selectionStart ?? 0)}
+                    onKeyUp={(e) => composer.onSelect(e.currentTarget.selectionStart ?? 0)}
+                    onKeyDown={(e) => {
+                      if (composer.onKeyDown(e)) return;
+                      // Empty input + Backspace removes whole agent badge
+                      if (
+                        e.key === 'Backspace'
+                        && agentChip
+                        && !draft
+                        && (e.currentTarget.selectionStart ?? 0) === 0
+                      ) {
+                        e.preventDefault();
+                        setAgentChip(null);
+                        return;
+                      }
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void handleSend();
+                      }
+                    }}
+                    rows={1}
+                    placeholder={
+                      agentChip
+                        ? `${agentChip.title} ile yaz… (@ dosya · Enter)`
+                        : (llmConfigured ? 'Mesajını yaz… (/claude /grok badge · @ dosya · Enter)' : 'Önce API bağla…')
                     }
-                  }}
-                  rows={1}
-                  placeholder={llmConfigured ? 'Mesajını yaz… (@ dosya · Enter gönder)' : 'Önce API bağla…'}
-                  className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] outline-none"
-                />
+                    className="max-h-40 min-h-[44px] min-w-[8rem] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] outline-none"
+                  />
+                </div>
                 <button
                   type="button"
-                  disabled={!draft.trim() || sending}
+                  disabled={(!draft.trim() && !agentChip) || sending}
                   onClick={() => void handleSend()}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-40"
                 >
@@ -670,7 +749,9 @@ export function TasksPage({
                 </button>
               </div>
               <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
-                Model: {selectedModel || '—'} · Proje bağlamı {projectId !== 'general' ? 'açık' : 'kapalı (workspace seç)'}
+                {agentChip
+                  ? `Agent: ${agentChip.title} · CLI`
+                  : `Model: ${selectedModel || '—'} · Proje ${projectId !== 'general' ? 'bağlı' : 'genel'}`}
               </p>
             </div>
           </div>

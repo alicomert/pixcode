@@ -288,7 +288,7 @@ export function usePixBot(projectId?: string) {
     return payload.conversation.id;
   }, [conversationId, loadMessages, projectId]);
 
-  const sendMessage = useCallback(async (message: string, opts?: { agentType?: string; model?: string; autonomyLevel?: string }) => {
+  const sendMessage = useCallback(async (message: string, opts?: { agentType?: string; model?: string; autonomyLevel?: string; forceCli?: boolean }) => {
     if (!projectId) throw new Error('Bind a workspace first.');
     setSending(true);
     setError(null);
@@ -302,34 +302,31 @@ export function usePixBot(projectId?: string) {
       role: 'user',
       content: message,
       createdAt: new Date().toISOString(),
+      agentType: opts?.agentType || undefined,
     } as BotMessage;
     setMessages((current) => [...current, optimisticUser]);
+
+    const payloadBody = {
+      projectId,
+      conversationId,
+      message,
+      agentType: opts?.agentType,
+      model: opts?.model,
+      autonomyLevel: opts?.autonomyLevel,
+      forceCli: Boolean(opts?.forceCli || opts?.agentType),
+    };
 
     try {
       const response = await authenticatedFetch('/api/tasks/bot/chat/stream', {
         method: 'POST',
-        body: JSON.stringify({
-          projectId,
-          conversationId,
-          message,
-          agentType: opts?.agentType,
-          model: opts?.model,
-          autonomyLevel: opts?.autonomyLevel,
-        }),
+        body: JSON.stringify(payloadBody),
       });
 
       if (!response.ok) {
         // Fallback non-stream
         const fallback = await authenticatedFetch('/api/tasks/bot/chat', {
           method: 'POST',
-          body: JSON.stringify({
-            projectId,
-            conversationId,
-            message,
-            agentType: opts?.agentType,
-            model: opts?.model,
-            autonomyLevel: opts?.autonomyLevel,
-          }),
+          body: JSON.stringify(payloadBody),
         });
         const payload = await readResponse<{
           conversation: BotConversation;

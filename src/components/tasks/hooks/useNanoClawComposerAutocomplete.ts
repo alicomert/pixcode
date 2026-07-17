@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react';
 
 import { api } from '../../../utils/api';
+import { findAgentSlashMeta, type AgentSlashMeta } from '../agentSlash';
 import type { AgentType } from '../types';
 
 type FileNode = {
@@ -79,6 +80,8 @@ type Options = {
   setValue: (next: string) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   onPickAgent?: (agent: AgentType) => void;
+  /** When set, agent slash commands become a chip instead of plain text insert. */
+  onPickAgentChip?: (meta: AgentSlashMeta) => void;
 };
 
 /**
@@ -91,6 +94,7 @@ export function useNanoClawComposerAutocomplete({
   setValue,
   textareaRef,
   onPickAgent,
+  onPickAgentChip,
 }: Options) {
   const [fileItems, setFileItems] = useState<ComposerFileItem[]>([]);
   const [cursor, setCursor] = useState(0);
@@ -179,7 +183,30 @@ export function useNanoClawComposerAutocomplete({
     const afterToken = value.slice(tokenStart);
     // Remove current token (until space or end)
     const spaceIdx = afterToken.search(/\s/);
-    const rest = spaceIdx === -1 ? '' : afterToken.slice(spaceIdx);
+    const rest = spaceIdx === -1 ? '' : afterToken.slice(spaceIdx).replace(/^\s+/, ' ');
+
+    // Agent slash → chip (badge in composer), not raw "/claude " text
+    if (item.kind === 'command' && item.agentType && onPickAgentChip) {
+      const meta = findAgentSlashMeta(item.insert.trim()) || findAgentSlashMeta(item.id);
+      if (meta) {
+        const next = `${before}${rest.startsWith(' ') ? rest.slice(1) : rest}`.replace(/^\s+/, '');
+        setValue(next);
+        setMode('idle');
+        setTokenStart(-1);
+        setQuery('');
+        onPickAgentChip(meta);
+        onPickAgent?.(item.agentType);
+        requestAnimationFrame(() => {
+          const el = textareaRef.current;
+          if (!el) return;
+          el.focus();
+          el.setSelectionRange(0, 0);
+          setCursor(0);
+        });
+        return;
+      }
+    }
+
     const insert = item.insert;
     const next = `${before}${insert}${rest.startsWith(' ') ? rest : rest ? ` ${rest.trimStart()}` : ''}`;
     const nextCursor = before.length + insert.length;
@@ -199,7 +226,7 @@ export function useNanoClawComposerAutocomplete({
       el.setSelectionRange(nextCursor, nextCursor);
       setCursor(nextCursor);
     });
-  }, [tokenStart, value, setValue, textareaRef, onPickAgent]);
+  }, [tokenStart, value, setValue, textareaRef, onPickAgent, onPickAgentChip]);
 
   const onChange = useCallback((text: string, selectionStart: number) => {
     setValue(text);
