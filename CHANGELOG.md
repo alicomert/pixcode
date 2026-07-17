@@ -3,6 +3,27 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.61.1](https://github.com/alicomert/pixcode/compare/v1.61.0...v1.61.1) (2026-07-17)
+
+### New Features
+
+* **nanoclaw:** [@file](https://github.com/file) and /command autocomplete above chat input ([c95a126](https://github.com/alicomert/pixcode/commit/c95a12617e6f09eee884a7467c1e6725440f9064))
+
+### Bug Fixes
+
+* **cli:** never use sudo for npm update on Windows ([87c3712](https://github.com/alicomert/pixcode/commit/87c37125191b6aacf3e46f10a85a475d3a6303f8))
+* **nanoclaw:** stop stuck loading; local smalltalk; clean CLI prompts ([1a446cc](https://github.com/alicomert/pixcode/commit/1a446ccfb1843d42c068e384c776d1d43e5ce503))
+* **projects:** decode Windows Claude project paths for Files panel ([e342935](https://github.com/alicomert/pixcode/commit/e342935e18aa21c24bbbc793c6964c3f840ae45a))
+* **update:** stabilize runtime delta updates against CDN 404s ([3943844](https://github.com/alicomert/pixcode/commit/39438449b0f6065b1cdeafb1f1468a866a550d69))
+
+### Refactoring
+
+* **nanoclaw:** replace /agent-opencode with short /opencode and chips ([5b1f538](https://github.com/alicomert/pixcode/commit/5b1f53878e6a6013c0ee96e918b1dc26308f4cee))
+
+### Maintenance
+
+* **desktop:** pin wrapper to 1.61.0 product runtime ([6a12c04](https://github.com/alicomert/pixcode/commit/6a12c0484d0db65bbc2a3d1aac9b7475c8e0d5e1))
+
 ## [1.61.0](https://github.com/alicomert/pixcode/compare/v1.60.1...v1.61.0) (2026-07-17)
 
 ### New Features
