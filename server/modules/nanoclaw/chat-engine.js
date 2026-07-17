@@ -26,6 +26,7 @@ import {
   buildProjectScanContext,
   getPixbotCredentials,
   pixbotChatCompletion,
+  streamPixbotChatCompletion,
 } from './pixbot-llm.js';
 
 const HOME = process.env.PIXCODE_HOME || path.join(os.homedir(), '.pixcode');
@@ -331,6 +332,189 @@ function appendMessage(conversationId, partial) {
   }
   persist();
   return row;
+}
+
+/**
+ * Streaming chat turn for PixBot API path.
+ * Emits SSE-shaped events via onEvent({ type, ... }).
+ * Types: user | delta | status | done | error
+ */
+export async function handleChatTurnStream({
+  projectId = 'general',
+  conversationId = null,
+  message,
+  agentType: softAgent = null,
+  model: modelHint = null,
+  projectPath = null,
+  forceCli = false,
+  onEvent,
+}) {
+  const emit = (payload) => {
+    try { onEvent?.(payload); } catch { /* ignore listener errors */ }
+  };
+
+  ensureStore();
+  const raw = String(message || '').trim();
+  if (!raw) {
+    const err = new Error('message is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let conv = conversationId ? store.conversations[conversationId] : null;
+  if (!conv || (projectId && conv.projectId !== projectId && projectId !== 'general')) {
+    conv = store.conversations[createConversation({ projectId, defaultAgent: softAgent }).id];
+  }
+
+  const routing = parseUserRouting(raw, softAgent || conv.defaultAgent);
+  const model = modelHint || routing.model || conv.defaultModel || null;
+  const wantsCli = forceCli || routing.explicitAgent;
+
+  // CLI path uses non-stream handleChatTurn (appends its own user message)
+  if (wantsCli) {
+    emit({ type: 'status', status: 'cli' });
+    const full = await handleChatTurn({
+      projectId,
+      conversationId: conv.id,
+      message: raw,
+      agentType: softAgent,
+      model: modelHint,
+      projectPath,
+      forceCli: true,
+    });
+    const user = (full.messages || []).find((m) => m.role === 'user');
+    if (user) {
+      emit({ type: 'user', conversation: full.conversation, message: user });
+    }
+    emit({ type: 'done', conversation: full.conversation, messages: full.messages, mode: full.mode });
+    return full;
+  }
+
+  const userMsg = appendMessage(conv.id, {
+    role: 'user',
+    content: raw,
+    agentType: 'pixbot',
+  });
+  emit({
+    type: 'user',
+    conversation: publicConversation(store.conversations[conv.id]),
+    message: publicMessage(userMsg),
+  });
+
+  const { text: promptWithFiles, files } = resolveFileMentions(routing.prompt, projectPath);
+  const creds = await getPixbotCredentials().catch(() => null);
+  if (!creds) {
+    const assistantMsg = appendMessage(conv.id, {
+      role: 'assistant',
+      content: 'Provider yok. Provider ekle (API key opsiyonel) — modeller otomatik çekilir.',
+      kind: 'error',
+      agentType: 'pixbot',
+    });
+    const payload = {
+      conversation: publicConversation(store.conversations[conv.id]),
+      messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+      mode: 'error',
+    };
+    emit({ type: 'done', ...payload });
+    return payload;
+  }
+
+  emit({ type: 'status', status: 'thinking', provider: creds.name || creds.source });
+
+  const historyMsgs = (store.messages[conv.id] || [])
+    .filter((m) => m.id !== userMsg.id)
+    .slice(-20)
+    .map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
+      content: String(m.content || '').slice(0, 8000),
+    }))
+    .filter((m) => m.content);
+
+  let scanContext = '';
+  if (projectPath) {
+    try { scanContext = await buildProjectScanContext(projectPath); } catch { /* ignore */ }
+  }
+
+  const llmMessages = [
+    {
+      role: 'system',
+      content: buildPixbotSystemPrompt({
+        projectId: conv.projectId,
+        projectPath,
+        scanContext,
+      }),
+    },
+    ...historyMsgs,
+    { role: 'user', content: promptWithFiles || routing.prompt },
+  ];
+
+  const streamMsgId = `stream-${crypto.randomUUID()}`;
+  emit({
+    type: 'assistant_start',
+    messageId: streamMsgId,
+    conversationId: conv.id,
+  });
+
+  try {
+    const completion = await streamPixbotChatCompletion({
+      messages: llmMessages,
+      model: model || conv.defaultModel || undefined,
+      onDelta: (chunk) => {
+        emit({
+          type: 'delta',
+          messageId: streamMsgId,
+          conversationId: conv.id,
+          delta: chunk,
+        });
+      },
+    });
+
+    if (model) {
+      conv.defaultModel = model;
+      store.conversations[conv.id] = conv;
+      persist();
+    }
+
+    const assistantMsg = appendMessage(conv.id, {
+      role: 'assistant',
+      content: completion.content,
+      kind: 'text',
+      agentType: 'pixbot',
+      meta: {
+        model: completion.model,
+        usage: completion.usage,
+        files: files?.length ? files : undefined,
+        mode: 'api',
+        scanned: Boolean(scanContext),
+        providerId: completion.providerId,
+        providerName: completion.providerName,
+      },
+    });
+
+    const payload = {
+      conversation: publicConversation(store.conversations[conv.id]),
+      messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+      mode: 'api',
+      agentType: 'pixbot',
+      model: completion.model,
+    };
+    emit({ type: 'done', ...payload, messageId: streamMsgId });
+    return payload;
+  } catch (apiError) {
+    const assistantMsg = appendMessage(conv.id, {
+      role: 'assistant',
+      content: `PixBot API hatası: ${apiError instanceof Error ? apiError.message : String(apiError)}`,
+      kind: 'error',
+      agentType: 'pixbot',
+    });
+    const payload = {
+      conversation: publicConversation(store.conversations[conv.id]),
+      messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+      mode: 'error',
+    };
+    emit({ type: 'error', error: apiError instanceof Error ? apiError.message : String(apiError), ...payload });
+    return payload;
+  }
 }
 
 /**

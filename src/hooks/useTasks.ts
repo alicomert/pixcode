@@ -292,8 +292,21 @@ export function usePixBot(projectId?: string) {
     if (!projectId) throw new Error('Bind a workspace first.');
     setSending(true);
     setError(null);
+
+    // Optimistic user bubble — visible immediately (before server finishes)
+    const tempUserId = `tmp-user-${Date.now()}`;
+    const tempAssistantId = `tmp-assistant-${Date.now()}`;
+    const optimisticUser: BotMessage = {
+      id: tempUserId,
+      conversationId: conversationId || 'pending',
+      role: 'user',
+      content: message,
+      createdAt: new Date().toISOString(),
+    } as BotMessage;
+    setMessages((current) => [...current, optimisticUser]);
+
     try {
-      const response = await authenticatedFetch('/api/tasks/bot/chat', {
+      const response = await authenticatedFetch('/api/tasks/bot/chat/stream', {
         method: 'POST',
         body: JSON.stringify({
           projectId,
@@ -304,27 +317,150 @@ export function usePixBot(projectId?: string) {
           autonomyLevel: opts?.autonomyLevel,
         }),
       });
-      const payload = await readResponse<{
-        conversation: BotConversation;
-        messages: BotMessage[];
-        proposals?: BotProposal[];
-      }>(response);
-      setConversationId(payload.conversation.id);
-      setConversations((current) => {
-        const rest = current.filter((entry) => entry.id !== payload.conversation.id);
-        return [payload.conversation, ...rest];
-      });
-      setMessages((current) => {
-        const ids = new Set(current.map((entry) => entry.id));
-        const merged = [...current];
-        for (const entry of payload.messages || []) {
-          if (!ids.has(entry.id)) merged.push(entry);
+
+      if (!response.ok) {
+        // Fallback non-stream
+        const fallback = await authenticatedFetch('/api/tasks/bot/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            projectId,
+            conversationId,
+            message,
+            agentType: opts?.agentType,
+            model: opts?.model,
+            autonomyLevel: opts?.autonomyLevel,
+          }),
+        });
+        const payload = await readResponse<{
+          conversation: BotConversation;
+          messages: BotMessage[];
+        }>(fallback);
+        setConversationId(payload.conversation.id);
+        setConversations((current) => {
+          const rest = current.filter((entry) => entry.id !== payload.conversation.id);
+          return [payload.conversation, ...rest];
+        });
+        setMessages((current) => {
+          const withoutTmp = current.filter((e) => e.id !== tempUserId && e.id !== tempAssistantId);
+          const ids = new Set(withoutTmp.map((entry) => entry.id));
+          const merged = [...withoutTmp];
+          for (const entry of payload.messages || []) {
+            if (!ids.has(entry.id)) merged.push(entry);
+          }
+          return merged;
+        });
+        await refreshSide();
+        return payload;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No stream body');
+
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let streamAssistantStarted = false;
+      let lastPayload: {
+        conversation?: BotConversation;
+        messages?: BotMessage[];
+      } = {};
+
+      const ensureStreamingAssistant = () => {
+        if (streamAssistantStarted) return;
+        streamAssistantStarted = true;
+        setMessages((current) => [
+          ...current,
+          {
+            id: tempAssistantId,
+            conversationId: conversationId || 'pending',
+            role: 'assistant',
+            content: '',
+            createdAt: new Date().toISOString(),
+            meta: { streaming: true },
+          } as BotMessage,
+        ]);
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split('\n');
+        buffer = chunks.pop() || '';
+        for (const line of chunks) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data:')) continue;
+          const data = trimmed.slice(5).trim();
+          if (!data || data === '[DONE]') continue;
+          let event: any;
+          try { event = JSON.parse(data); } catch { continue; }
+
+          if (event.type === 'user' && event.message) {
+            setMessages((current) => {
+              const without = current.filter((e) => e.id !== tempUserId);
+              if (without.some((e) => e.id === event.message.id)) return without;
+              return [...without, event.message as BotMessage];
+            });
+            if (event.conversation) {
+              setConversationId(event.conversation.id);
+              setConversations((current) => {
+                const rest = current.filter((entry) => entry.id !== event.conversation.id);
+                return [event.conversation as BotConversation, ...rest];
+              });
+            }
+          }
+
+          if (event.type === 'status') {
+            ensureStreamingAssistant();
+            setMessages((current) => current.map((m) => (
+              m.id === tempAssistantId
+                ? { ...m, meta: { ...(m.meta as object || {}), status: event.status, streaming: true } }
+                : m
+            )));
+          }
+
+          if (event.type === 'assistant_start') {
+            ensureStreamingAssistant();
+          }
+
+          if (event.type === 'delta' && typeof event.delta === 'string') {
+            ensureStreamingAssistant();
+            setMessages((current) => current.map((m) => (
+              m.id === tempAssistantId
+                ? { ...m, content: `${m.content || ''}${event.delta}`, meta: { ...(m.meta as object || {}), streaming: true } }
+                : m
+            )));
+          }
+
+          if (event.type === 'done' || event.type === 'error') {
+            lastPayload = event;
+            if (event.conversation) {
+              setConversationId(event.conversation.id);
+              setConversations((current) => {
+                const rest = current.filter((entry) => entry.id !== event.conversation.id);
+                return [event.conversation as BotConversation, ...rest];
+              });
+            }
+            setMessages((current) => {
+              const withoutTmp = current.filter((e) => e.id !== tempUserId && e.id !== tempAssistantId);
+              const ids = new Set(withoutTmp.map((entry) => entry.id));
+              const merged = [...withoutTmp];
+              for (const entry of event.messages || []) {
+                if (!ids.has(entry.id)) merged.push(entry as BotMessage);
+              }
+              return merged;
+            });
+            if (event.type === 'error' && event.error) {
+              setError(String(event.error));
+            }
+          }
         }
-        return merged;
-      });
+      }
+
       await refreshSide();
-      return payload;
+      return lastPayload;
     } catch (caughtError) {
+      // Drop optimistic assistant; keep user message if server never confirmed
+      setMessages((current) => current.filter((e) => e.id !== tempAssistantId));
       const messageText = caughtError instanceof Error ? caughtError.message : String(caughtError);
       setError(messageText);
       throw caughtError;

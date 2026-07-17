@@ -15,11 +15,13 @@ import {
   X,
 } from '@/lib/icons';
 
+import { Markdown } from '../chat/view/subcomponents/Markdown';
 import { usePixBot } from '../../hooks/useTasks';
 import { cn } from '../../lib/utils';
 import { api, authenticatedFetch } from '../../utils/api';
 
 import { useNanoClawComposerAutocomplete } from './hooks/useNanoClawComposerAutocomplete';
+import { PixbotProviderModal } from './PixbotProviderModal';
 import type { BotMessage, WorkspaceOption } from './types';
 
 const MODEL_STORAGE_KEY = 'pixbot.selectedModel';
@@ -39,17 +41,10 @@ type PixbotProvider = {
   hasApiKey?: boolean;
   catalogId?: string | null;
   enabled?: boolean;
-};
-
-type CatalogEntry = {
-  id: string;
-  name: string;
-  api: string | null;
-  env?: string | null;
-  modelCount?: number;
-  requiresKey?: boolean;
-  featured?: boolean;
-  doc?: string | null;
+  system?: boolean;
+  modelCount?: number | null;
+  lastError?: string | null;
+  healthy?: boolean | null;
 };
 
 function modelValue(m: LlmModel) {
@@ -63,9 +58,12 @@ function formatDate(value?: string | null) {
 
 function MessageBubble({ message }: { message: BotMessage }) {
   const isUser = message.role === 'user';
-  const model = message.meta && typeof message.meta === 'object' && 'model' in message.meta
-    ? String(message.meta.model || '')
-    : '';
+  const meta = message.meta && typeof message.meta === 'object' ? message.meta : null;
+  const model = meta && 'model' in meta ? String(meta.model || '') : '';
+  const streaming = Boolean(meta && 'streaming' in meta && meta.streaming);
+  const status = meta && 'status' in meta ? String(meta.status || '') : '';
+  const providerName = meta && 'providerName' in meta ? String(meta.providerName || '') : '';
+
   return (
     <div className={cn('flex w-full gap-3', isUser ? 'justify-end' : 'justify-start')}>
       {!isUser && (
@@ -81,10 +79,36 @@ function MessageBubble({ message }: { message: BotMessage }) {
             : 'bg-muted/50 text-foreground',
         )}
       >
-        {!isUser && model ? (
-          <div className="mb-1 text-[11px] font-medium text-muted-foreground">{model}</div>
+        {!isUser && (model || providerName || streaming) ? (
+          <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
+            {providerName || model ? <span>{[providerName, model].filter(Boolean).join(' · ')}</span> : null}
+            {streaming ? (
+              <span className="inline-flex items-center gap-1 text-primary">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {status === 'thinking' ? 'düşünüyor…' : status === 'cli' ? 'CLI…' : 'yazıyor…'}
+              </span>
+            ) : null}
+          </div>
         ) : null}
-        <div className="whitespace-pre-wrap break-words">{message.content}</div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+        ) : (
+          <div className={cn(
+            'prose prose-sm max-w-none dark:prose-invert',
+            'prose-p:my-2 prose-pre:my-2 prose-headings:mb-2 prose-headings:mt-3',
+            'prose-code:before:content-none prose-code:after:content-none',
+          )}
+          >
+            {message.content ? (
+              <Markdown>{message.content}</Markdown>
+            ) : streaming ? (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" />
+                yanıt geliyor…
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -160,18 +184,9 @@ export function TasksPage({
   const [models, setModels] = useState<LlmModel[]>([]);
   const [providers, setProviders] = useState<PixbotProvider[]>([]);
   const [llmConfigured, setLlmConfigured] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(true);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
-  const [showLlmSetup, setShowLlmSetup] = useState(false);
-  const [addMode, setAddMode] = useState<'catalog' | 'custom'>('catalog');
-  const [catalogQ, setCatalogQ] = useState('');
-  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [setupName, setSetupName] = useState('');
-  const [setupKey, setSetupKey] = useState('');
-  const [setupBase, setSetupBase] = useState('http://127.0.0.1:11434/v1');
-  const [pendingCatalogId, setPendingCatalogId] = useState<string | null>(null);
-  const [setupBusy, setSetupBusy] = useState(false);
-  const [setupError, setSetupError] = useState<string | null>(null);
+  const [providerModalOpen, setProviderModalOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
@@ -190,79 +205,128 @@ export function TasksPage({
     try { localStorage.setItem(MODEL_STORAGE_KEY, value); } catch { /* ignore */ }
   };
 
-  const refreshLlm = useCallback(async () => {
+  const applyModelsList = useCallback((list: LlmModel[], defaultModel?: string | null) => {
+    setModels(list);
+    setSelectedModel((current) => {
+      if (current && list.some((m) => modelValue(m) === current || m.id === current)) {
+        const hit = list.find((m) => modelValue(m) === current || m.id === current);
+        return hit ? modelValue(hit) : current;
+      }
+      const byDefault = defaultModel
+        ? list.find((m) => m.id === defaultModel || modelValue(m) === defaultModel)
+        : null;
+      const next = byDefault ? modelValue(byDefault) : (list[0] ? modelValue(list[0]) : '');
+      try { if (next) localStorage.setItem(MODEL_STORAGE_KEY, next); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  /** Full open: sync system providers + pull models (auto-select healthy). */
+  const bootstrapLlm = useCallback(async () => {
+    setModelsLoading(true);
     try {
-      const statusRes = await authenticatedFetch('/api/tasks/bot/llm', { cache: 'no-store' });
-      if (!statusRes.ok) {
-        setLlmConfigured(false);
-        setProviders([]);
+      const res = await authenticatedFetch('/api/tasks/bot/bootstrap', {
+        method: 'POST',
+        body: JSON.stringify({ refresh: true }),
+      });
+      if (!res.ok) {
+        // Fallback to lightweight config
+        const statusRes = await authenticatedFetch('/api/tasks/bot/llm', { cache: 'no-store' });
+        if (!statusRes.ok) {
+          setLlmConfigured(false);
+          setProviders([]);
+          setModels([]);
+          setProviderModalOpen(true);
+          return;
+        }
+        const status = await statusRes.json() as {
+          configured?: boolean;
+          providers?: PixbotProvider[];
+          activeProviderId?: string | null;
+          defaultModel?: string | null;
+        };
+        setLlmConfigured(Boolean(status.configured));
+        setProviders(status.providers || []);
+        setActiveProviderId(status.activeProviderId || null);
+        if (!status.configured) {
+          setModels([]);
+          setProviderModalOpen(true);
+          return;
+        }
+        const modelsRes = await authenticatedFetch('/api/tasks/bot/models?refresh=1', { cache: 'no-store' });
+        if (modelsRes.ok) {
+          const payload = await modelsRes.json() as { models?: LlmModel[]; defaultModel?: string | null };
+          applyModelsList(payload.models || [], payload.defaultModel || status.defaultModel);
+        }
         return;
       }
-      const status = await statusRes.json() as {
+      const payload = await res.json() as {
         configured?: boolean;
-        defaultModel?: string | null;
         providers?: PixbotProvider[];
         activeProviderId?: string | null;
+        defaultModel?: string | null;
+        models?: LlmModel[];
       };
-      setLlmConfigured(Boolean(status.configured));
-      setProviders(status.providers || []);
-      setActiveProviderId(status.activeProviderId || null);
-      if (!status.configured) {
-        setModels([]);
-        setShowLlmSetup(true);
-        return;
-      }
-      const modelsRes = await authenticatedFetch('/api/tasks/bot/models', { cache: 'no-store' });
-      if (!modelsRes.ok) {
-        setModels([]);
-        return;
-      }
-      const payload = await modelsRes.json() as { models?: LlmModel[] };
-      const list = payload.models || [];
-      setModels(list);
-      setSelectedModel((current) => {
-        if (current && list.some((m) => modelValue(m) === current || m.id === current)) {
-          const hit = list.find((m) => modelValue(m) === current || m.id === current);
-          return hit ? modelValue(hit) : current;
-        }
-        const byDefault = status.defaultModel
-          ? list.find((m) => m.id === status.defaultModel || modelValue(m) === status.defaultModel)
-          : null;
-        const next = byDefault ? modelValue(byDefault) : (list[0] ? modelValue(list[0]) : '');
-        try { if (next) localStorage.setItem(MODEL_STORAGE_KEY, next); } catch { /* ignore */ }
-        return next;
-      });
+      setLlmConfigured(Boolean(payload.configured));
+      setProviders(payload.providers || []);
+      setActiveProviderId(payload.activeProviderId || null);
+      applyModelsList(payload.models || [], payload.defaultModel);
+      if (!payload.configured) setProviderModalOpen(true);
     } catch {
       setModels([]);
-    }
-  }, []);
-
-  const loadCatalog = useCallback(async (q = '') => {
-    setCatalogLoading(true);
-    try {
-      const qs = new URLSearchParams();
-      if (q.trim()) qs.set('q', q.trim());
-      qs.set('limit', '60');
-      const res = await authenticatedFetch(`/api/tasks/bot/catalog?${qs}`, { cache: 'no-store' });
-      if (!res.ok) return;
-      const payload = await res.json() as { providers?: CatalogEntry[] };
-      setCatalog(payload.providers || []);
-    } catch {
-      setCatalog([]);
     } finally {
-      setCatalogLoading(false);
+      setModelsLoading(false);
     }
-  }, []);
+  }, [applyModelsList]);
 
-  useEffect(() => {
-    void refreshLlm();
-  }, [refreshLlm]);
+  /** Quiet background re-pull (keeps selection if still valid). */
+  const refreshModelsQuiet = useCallback(async () => {
+    try {
+      const res = await authenticatedFetch('/api/tasks/bot/models/refresh', { method: 'POST' });
+      if (!res.ok) return;
+      const payload = await res.json() as {
+        models?: LlmModel[];
+        defaultModel?: string | null;
+        activeProviderId?: string | null;
+      };
+      if (payload.activeProviderId) setActiveProviderId(payload.activeProviderId);
+      applyModelsList(payload.models || [], payload.defaultModel);
+      // Also refresh provider health counts
+      const statusRes = await authenticatedFetch('/api/tasks/bot/llm', { cache: 'no-store' });
+      if (statusRes.ok) {
+        const status = await statusRes.json() as {
+          configured?: boolean;
+          providers?: PixbotProvider[];
+          activeProviderId?: string | null;
+        };
+        setLlmConfigured(Boolean(status.configured));
+        setProviders(status.providers || []);
+        if (status.activeProviderId) setActiveProviderId(status.activeProviderId);
+      }
+    } catch {
+      /* quiet */
+    }
+  }, [applyModelsList]);
 
+  const refreshLlm = useCallback(async () => {
+    await bootstrapLlm();
+  }, [bootstrapLlm]);
+
+  // On open: bootstrap once
   useEffect(() => {
-    if (!showLlmSetup || addMode !== 'catalog') return;
-    const t = window.setTimeout(() => { void loadCatalog(catalogQ); }, 250);
-    return () => window.clearTimeout(t);
-  }, [showLlmSetup, addMode, catalogQ, loadCatalog]);
+    void bootstrapLlm();
+  }, [bootstrapLlm]);
+
+  // Background model refresh every 2 minutes + on window focus
+  useEffect(() => {
+    const interval = window.setInterval(() => { void refreshModelsQuiet(); }, 120_000);
+    const onFocus = () => { void refreshModelsQuiet(); };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [refreshModelsQuiet]);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -277,93 +341,12 @@ export function TasksPage({
     onBindProject?.(project);
   };
 
-  const addProvider = async (body: Record<string, unknown>) => {
-    setSetupBusy(true);
-    setSetupError(null);
-    try {
-      const res = await authenticatedFetch('/api/tasks/bot/providers', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try {
-          const j = await res.json() as { error?: string };
-          if (j.error) msg = j.error;
-        } catch {
-          msg = (await res.text().catch(() => msg)) || msg;
-        }
-        throw new Error(msg);
-      }
-      setSetupKey('');
-      setPendingCatalogId(null);
-      setSetupName('');
-      await refreshLlm();
-    } catch (error) {
-      setSetupError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSetupBusy(false);
-    }
-  };
-
-  const addCustomProvider = async () => {
-    if (!setupBase.trim()) {
-      setSetupError('Base URL yaz (API key zorunlu değil).');
-      return;
-    }
-    await addProvider({
-      name: setupName.trim() || undefined,
-      baseUrl: setupBase.trim(),
-      apiKey: setupKey.trim() || undefined,
-    });
-  };
-
-  const addCatalogProvider = async (entry: CatalogEntry) => {
-    if (!entry.api) {
-      setSetupError('Bu catalog kaydında API base URL yok — Custom ile ekle.');
-      return;
-    }
-    setPendingCatalogId(entry.id);
-    await addProvider({
-      name: entry.name,
-      baseUrl: entry.api,
-      catalogId: entry.id,
-      // Never forced — local / open proxies work without a key
-      apiKey: setupKey.trim() || undefined,
-    });
-  };
-
-  const removeProvider = async (id: string) => {
-    setSetupBusy(true);
-    setSetupError(null);
-    try {
-      await authenticatedFetch(`/api/tasks/bot/providers/${encodeURIComponent(id)}`, { method: 'DELETE' });
-      await refreshLlm();
-    } catch (error) {
-      setSetupError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSetupBusy(false);
-    }
-  };
-
-  const activateProvider = async (id: string) => {
-    setSetupBusy(true);
-    try {
-      await authenticatedFetch(`/api/tasks/bot/providers/${encodeURIComponent(id)}/activate`, { method: 'POST' });
-      await refreshLlm();
-    } catch (error) {
-      setSetupError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSetupBusy(false);
-    }
-  };
-
   const handleSend = async () => {
     const text = draft.trim();
     if (!text || sending) return;
     if (!llmConfigured) {
-      setShowLlmSetup(true);
-      setActionError('Önce bir provider ekle (catalog veya Custom). API key yerel için zorunlu değil.');
+      setProviderModalOpen(true);
+      setActionError('Önce bir provider ekle — listeden seç, key gir, modeller gelsin.');
       return;
     }
     setDraft('');
@@ -401,11 +384,15 @@ export function TasksPage({
               <select
                 value={selectedModel}
                 onChange={(e) => persistModel(e.target.value)}
-                disabled={!models.length}
+                disabled={!models.length || modelsLoading}
                 className="h-8 max-w-[min(100vw-10rem,18rem)] appearance-none rounded-lg border border-border bg-muted/40 py-1 pl-2.5 pr-7 text-xs font-medium outline-none hover:bg-muted focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
               >
-                {!models.length ? (
-                  <option value="">Model yok — provider ekle</option>
+                {modelsLoading && !models.length ? (
+                  <option value="">Modeller yükleniyor…</option>
+                ) : !models.length ? (
+                  <option value="">
+                    {providers.length ? 'Model gelmedi — provider kontrol' : 'Provider ekle'}
+                  </option>
                 ) : (
                   models.map((m) => (
                     <option key={modelValue(m)} value={modelValue(m)}>{m.label || m.id}</option>
@@ -414,22 +401,27 @@ export function TasksPage({
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
+            {modelsLoading && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setShowLlmSetup((v) => !v)}
+            onClick={() => setProviderModalOpen(true)}
             className={cn(
               'inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-medium',
-              llmConfigured
+              llmConfigured && models.length
                 ? 'border-border text-muted-foreground hover:bg-muted'
                 : 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200',
             )}
           >
             <KeyRound className="h-3.5 w-3.5" />
             {llmConfigured
-              ? (activeProvider ? activeProvider.name : `Providers · ${providers.length}`)
+              ? (activeProvider
+                ? `${activeProvider.name}${typeof activeProvider.modelCount === 'number' ? ` · ${activeProvider.modelCount}` : ''}`
+                : `Providers · ${providers.length}`)
               : 'Provider ekle'}
           </button>
           <button
@@ -444,9 +436,9 @@ export function TasksPage({
             type="button"
             onClick={() => { void refreshBot(); void refreshLlm(); }}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
-            title="Refresh"
+            title="Yenile (modeller + sohbet)"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5', botLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-3.5 w-3.5', (botLoading || modelsLoading) && 'animate-spin')} />
           </button>
           <button
             type="button"
@@ -472,182 +464,13 @@ export function TasksPage({
         </div>
       )}
 
-      {showLlmSetup && (
-        <div className="border-b border-border bg-muted/20 px-3 py-3 sm:px-4">
-          <div className="mx-auto max-w-2xl space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-semibold">Providers</h3>
-                <p className="mt-0.5 text-[12px] text-muted-foreground">
-                  Catalog (models.dev) veya kendi OpenAI-uyumlu sunucun. Birden fazla bağla; API key opsiyonel (Ollama vb.).
-                </p>
-              </div>
-              <button type="button" onClick={() => setShowLlmSetup(false)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Connected list */}
-            {providers.length > 0 && (
-              <ul className="space-y-1.5">
-                {providers.map((p) => {
-                  const active = p.id === activeProviderId;
-                  return (
-                    <li
-                      key={p.id}
-                      className={cn(
-                        'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm',
-                        active ? 'border-primary/40 bg-primary/5' : 'border-border bg-background',
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => void activateProvider(p.id)}
-                        disabled={setupBusy}
-                      >
-                        <div className="truncate font-medium">{p.name}{active ? ' · aktif' : ''}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">
-                          {p.baseUrl}
-                          {p.hasApiKey ? ' · key' : ' · key yok'}
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        className="shrink-0 rounded-lg px-2 py-1 text-[11px] text-destructive hover:bg-destructive/10"
-                        onClick={() => void removeProvider(p.id)}
-                        disabled={setupBusy}
-                      >
-                        Sil
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-
-            {/* Add mode tabs */}
-            <div className="flex gap-1 rounded-xl border border-border bg-background p-1">
-              <button
-                type="button"
-                onClick={() => setAddMode('catalog')}
-                className={cn(
-                  'flex-1 rounded-lg py-1.5 text-xs font-medium',
-                  addMode === 'catalog' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
-                )}
-              >
-                Catalog
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAddMode('custom'); setPendingCatalogId(null); }}
-                className={cn(
-                  'flex-1 rounded-lg py-1.5 text-xs font-medium',
-                  addMode === 'custom' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted',
-                )}
-              >
-                Custom
-              </button>
-            </div>
-
-            {addMode === 'catalog' ? (
-              <div className="space-y-2">
-                <input
-                  value={catalogQ}
-                  onChange={(e) => setCatalogQ(e.target.value)}
-                  className="h-9 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                  placeholder="Ara: openrouter, groq, deepseek, ollama…"
-                />
-                <input
-                  type="password"
-                  value={setupKey}
-                  onChange={(e) => setSetupKey(e.target.value)}
-                  className="h-9 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                  placeholder="API key (opsiyonel — tıklayınca listedekine eklenir)"
-                  autoComplete="off"
-                />
-                <div className="max-h-48 overflow-y-auto rounded-xl border border-border bg-background">
-                  {catalogLoading && (
-                    <div className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> models.dev yükleniyor…
-                    </div>
-                  )}
-                  {!catalogLoading && !catalog.length && (
-                    <div className="px-3 py-4 text-xs text-muted-foreground">Sonuç yok — Custom ile base URL ekle.</div>
-                  )}
-                  {catalog.map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      disabled={setupBusy}
-                      onClick={() => void addCatalogProvider(entry)}
-                      className="flex w-full items-center justify-between gap-2 border-b border-border/60 px-3 py-2 text-left last:border-0 hover:bg-muted/60 disabled:opacity-50"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">
-                          {entry.name}
-                          {entry.featured ? <span className="ml-1 text-[10px] text-primary">★</span> : null}
-                        </div>
-                        <div className="truncate text-[11px] text-muted-foreground">
-                          {entry.api || '—'}
-                          {typeof entry.modelCount === 'number' ? ` · ${entry.modelCount} model` : ''}
-                          {entry.requiresKey ? ' · key önerilir' : ' · key opsiyonel'}
-                        </div>
-                      </div>
-                      <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="text-[11px] text-muted-foreground">
-                    İsim
-                    <input
-                      value={setupName}
-                      onChange={(e) => setSetupName(e.target.value)}
-                      className="mt-1 h-9 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                      placeholder="Ollama / LiteLLM / …"
-                    />
-                  </label>
-                  <label className="text-[11px] text-muted-foreground">
-                    API Key <span className="font-normal opacity-70">(opsiyonel)</span>
-                    <input
-                      type="password"
-                      value={setupKey}
-                      onChange={(e) => setSetupKey(e.target.value)}
-                      className="mt-1 h-9 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                      placeholder="boş bırakılabilir"
-                      autoComplete="off"
-                    />
-                  </label>
-                </div>
-                <label className="block text-[11px] text-muted-foreground">
-                  Base URL
-                  <input
-                    value={setupBase}
-                    onChange={(e) => setSetupBase(e.target.value)}
-                    className="mt-1 h-9 w-full rounded-xl border border-border bg-background px-3 text-sm"
-                    placeholder="http://127.0.0.1:11434/v1"
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={setupBusy || !setupBase.trim()}
-                  onClick={() => void addCustomProvider()}
-                  className="inline-flex h-9 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                >
-                  {setupBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
-                  Custom ekle
-                </button>
-              </div>
-            )}
-
-            {setupError && <p className="text-xs text-destructive">{setupError}</p>}
-          </div>
-        </div>
-      )}
+      <PixbotProviderModal
+        open={providerModalOpen}
+        onOpenChange={setProviderModalOpen}
+        providers={providers}
+        activeProviderId={activeProviderId}
+        onChanged={async () => { await refreshLlm(); }}
+      />
 
       {showWorkspaces && (
         <div className="border-b border-border bg-muted/15 px-4 py-3">
@@ -755,10 +578,10 @@ export function TasksPage({
                   {!llmConfigured && (
                     <button
                       type="button"
-                      onClick={() => setShowLlmSetup(true)}
+                      onClick={() => setProviderModalOpen(true)}
                       className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
                     >
-                      API bağla
+                      Provider ekle
                     </button>
                   )}
                 </div>

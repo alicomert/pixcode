@@ -482,10 +482,26 @@ export function nanoclawRouter() {
   });
 
   // PixBot LLM — multi custom providers + models.dev catalog
-  router.get('/bot/llm', async (_req, res) => {
+  router.get('/bot/llm', async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
+      const bootstrap = String(req.query.bootstrap || '') === '1';
+      if (bootstrap) {
+        res.json({ ok: true, brand: 'PixBot', ...(await llm.bootstrapPixbot({ refresh: true })) });
+        return;
+      }
       res.json({ ok: true, brand: 'PixBot', ...(await llm.getPixbotConfig()) });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /** Open PixBot: sync system providers + pull models (also used as background refresh). */
+  router.post('/bot/bootstrap', async (req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const refresh = req.body?.refresh !== false;
+      res.json({ ok: true, brand: 'PixBot', ...(await llm.bootstrapPixbot({ refresh })) });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -544,6 +560,9 @@ export function nanoclawRouter() {
         baseUrl: req.body?.baseUrl,
         apiKey: req.body?.apiKey,
         enabled: req.body?.enabled,
+        enabledModels: Object.prototype.hasOwnProperty.call(req.body || {}, 'enabledModels')
+          ? req.body.enabledModels
+          : undefined,
       });
       res.json({ ok: true, brand: 'PixBot', provider });
     } catch (error) {
@@ -591,7 +610,8 @@ export function nanoclawRouter() {
     try {
       const llm = await import('./pixbot-llm.js');
       const providerId = typeof req.query.providerId === 'string' ? req.query.providerId : undefined;
-      const payload = await llm.fetchPixbotModels({ providerId });
+      const refresh = String(req.query.refresh || '') === '1';
+      const payload = await llm.fetchPixbotModels({ providerId, refresh });
       res.json({ ok: true, brand: 'PixBot', ...payload });
     } catch (error) {
       const status = error?.statusCode || 500;
@@ -599,6 +619,16 @@ export function nanoclawRouter() {
         error: error instanceof Error ? error.message : String(error),
         code: error?.code,
       });
+    }
+  });
+
+  router.post('/bot/models/refresh', async (_req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const payload = await llm.refreshAllPixbotModels({ force: true });
+      res.json({ ok: true, brand: 'PixBot', ...payload });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -645,6 +675,68 @@ export function nanoclawRouter() {
     } catch (error) {
       const status = error?.statusCode || 500;
       res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /** Streaming chat — SSE events: user, status, assistant_start, delta, done, error */
+  router.post('/bot/chat/stream', async (req, res) => {
+    try {
+      if (!started) {
+        await startNanoclawBridge();
+      }
+      const chat = await import('./chat-engine.js');
+      const projectId = req.body?.projectId || req.body?.project_id || 'general';
+      let projectPath = req.body?.projectPath || req.body?.cwd || null;
+
+      if (projectId && projectId !== 'general') {
+        await ensureProjectGroup({
+          name: projectId,
+          displayName: projectId,
+          path: projectPath,
+          fullPath: projectPath,
+        });
+        if (!projectPath) {
+          try {
+            const { extractProjectDirectory } = await import('../../projects.js');
+            projectPath = await extractProjectDirectory(projectId).catch(() => null);
+          } catch { /* ignore */ }
+        }
+      }
+
+      res.status(200);
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+      const writeEvent = (payload) => {
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+        if (typeof res.flush === 'function') res.flush();
+      };
+
+      await chat.handleChatTurnStream({
+        projectId,
+        conversationId: req.body?.conversationId || null,
+        message: req.body?.message || req.body?.prompt || '',
+        agentType: req.body?.agentType || req.body?.agent || null,
+        model: req.body?.model || null,
+        projectPath,
+        forceCli: Boolean(req.body?.forceCli),
+        onEvent: writeEvent,
+      });
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } catch (error) {
+      if (!res.headersSent) {
+        const status = error?.statusCode || 500;
+        res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
+        return;
+      }
+      try {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: error instanceof Error ? error.message : String(error) })}\n\n`);
+      } catch { /* ignore */ }
+      res.end();
     }
   });
 
