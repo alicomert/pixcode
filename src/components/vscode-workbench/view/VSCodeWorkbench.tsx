@@ -28,7 +28,7 @@ import type { WorkspaceType } from '../../project-creation-wizard/types';
 import { DarkModeToggle } from '../../../shared/view/ui';
 import { cn } from '../../../lib/utils';
 import { authenticatedFetch } from '../../../utils/api';
-import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck } from '../../../hooks/useVersionCheck';
+import { PIXCODE_UPDATE_AVAILABLE_EVENT, compareVersions, useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useAgentAutoDiff } from '../../../hooks/useAgentAutoDiff';
 import { useFilesystemDiffAutoOpener } from '../../../hooks/useFilesystemDiffAutoOpener';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
@@ -748,10 +748,20 @@ function VSCodeWorkbench({
       try {
         const response = await authenticatedFetch('/api/system/update-state', { cache: 'no-store' });
         if (!response.ok) return;
-        const payload = await response.json();
-        if (!cancelled) {
-          setHasPendingRestartUpdate(Boolean(payload?.state?.pendingRestart));
-        }
+        const payload = await response.json() as {
+          state?: { pendingRestart?: { toVersion?: string } | null };
+          currentVersion?: string;
+        };
+        if (cancelled) return;
+        const pending = payload?.state?.pendingRestart;
+        const running = payload?.currentVersion || versionCheck.currentVersion;
+        // Only badge when pending target is actually newer than what's running.
+        const actionable = Boolean(
+          pending?.toVersion
+          && running
+          && compareVersions(pending.toVersion, running) > 0,
+        );
+        setHasPendingRestartUpdate(actionable);
       } catch {
         // Update activity indicator is best-effort.
       }
@@ -764,7 +774,7 @@ function VSCodeWorkbench({
       window.removeEventListener('focus', refreshUpdateState);
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [versionCheck.currentVersion]);
 
   const openUpdateModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent(PIXCODE_UPDATE_AVAILABLE_EVENT, {

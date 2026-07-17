@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
-import { PIXCODE_UPDATE_AVAILABLE_EVENT, useVersionCheck, type VersionCheckResult } from '../../../hooks/useVersionCheck';
+import {
+  PIXCODE_UPDATE_AVAILABLE_EVENT,
+  compareVersions,
+  useVersionCheck,
+  type VersionCheckResult,
+} from '../../../hooks/useVersionCheck';
 import { useUiPreferences, type HistoryViewMode } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
 import { authenticatedFetch } from '../../../utils/api';
@@ -159,10 +164,20 @@ function Sidebar({
       try {
         const response = await authenticatedFetch('/api/system/update-state', { cache: 'no-store' });
         if (!response.ok) return;
-        const payload = await response.json();
+        const payload = await response.json() as {
+          state?: { pendingRestart?: { jobId?: string; toVersion?: string } | null };
+          currentVersion?: string;
+        };
         const pending = payload?.state?.pendingRestart;
         const promptKey = pending?.jobId || pending?.toVersion;
         if (!pending || !promptKey || cancelled) return;
+
+        // Already on/ past the pending target → do not auto-open the stuck modal.
+        const runningVersion = payload.currentVersion || currentVersion;
+        if (pending.toVersion && runningVersion && compareVersions(runningVersion, pending.toVersion) >= 0) {
+          window.localStorage.setItem(UPDATE_RESTART_PROMPT_SEEN_KEY, promptKey);
+          return;
+        }
 
         const seenPrompt = window.localStorage.getItem(UPDATE_RESTART_PROMPT_SEEN_KEY);
         if (seenPrompt === promptKey) return;
@@ -181,7 +196,7 @@ function Sidebar({
       cancelled = true;
       window.removeEventListener('focus', checkPendingRestart);
     };
-  }, [setShowVersionModal]);
+  }, [currentVersion, setShowVersionModal]);
 
   useEffect(() => {
     if (!latestVersion || !releaseInfo) return;

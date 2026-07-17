@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { authenticatedFetch } from "../../../utils/api";
 import { ReleaseInfo } from "../../../types/sharedTypes";
 import { copyTextToClipboard } from "../../../utils/clipboard";
-import type { InstallMode } from "../../../hooks/useVersionCheck";
+import { compareVersions, type InstallMode } from "../../../hooks/useVersionCheck";
 import { IS_PLATFORM } from "../../../constants/config";
 import { useGsapEntrance } from "../../../lib/animations";
 import { stripIssueProgressBlock } from "../utils/releaseIssueProgress";
@@ -126,7 +126,22 @@ export function VersionUpgradeModal({
     const modalRef = useRef<HTMLDivElement>(null);
     const pollingJobIdRef = useRef<string | null>(null);
     useGsapEntrance(modalRef, 'modal');
-    const showUpdateActions = Boolean(isUpdateAvailable && latestVersion);
+    // True only when a pending restart target is strictly newer than what is running.
+    const actionablePendingRestart = Boolean(
+        pendingRestartVersion
+        && currentVersion
+        && compareVersions(pendingRestartVersion, currentVersion) > 0
+        && restartPhase === 'ready',
+    );
+    // Real update path OR actionable pending restart — not stale "1.58.2 ready" on 1.58.4.
+    const showUpdateActions = Boolean(
+        (isUpdateAvailable && latestVersion && compareVersions(latestVersion, currentVersion) > 0)
+        || actionablePendingRestart,
+    );
+    const displayLatestVersion = (() => {
+        const candidates = [latestVersion, pendingRestartVersion, currentVersion].filter(Boolean) as string[];
+        return candidates.reduce((best, next) => (compareVersions(next, best) > 0 ? next : best), currentVersion || '0.0.0');
+    })();
     const nodeVersionOk = isNodeVersionSupported(nodeVersion);
     const nodeVersionWarning = !nodeVersionOk && nodeVersion
         ? `Node.js ${nodeVersion} detected. Pixcode requires Node.js ${MIN_NODE_MAJOR}+. Update may fail.`
@@ -412,9 +427,14 @@ export function VersionUpgradeModal({
                         setRestartPhase('idle');
                         setUpdateOutput(
                             cmp > 0
-                                ? `Pending update to ${pending.toVersion} was superseded — you are already on ${currentVersion}.\n`
+                                ? `You are already on ${currentVersion} (pending ${pending.toVersion} is outdated). Nothing to restart.\n`
                                 : `Update to ${pending.toVersion} is already running. Nothing to apply.\n`,
                         );
+                        // Mark seen so Sidebar does not re-open this modal on focus.
+                        try {
+                            const key = pending.jobId || pending.toVersion;
+                            if (key) window.localStorage.setItem('pixcode.update.pendingRestart.seenJob', key);
+                        } catch { /* ignore */ }
                         return;
                     }
                     setPendingRestartVersion(pending.toVersion);
@@ -556,7 +576,7 @@ export function VersionUpgradeModal({
                                 ? t('versionUpdate.latestVersion')
                                 : t('versionUpdate.latestRelease', { defaultValue: 'Latest Release' })}
                         </span>
-                        <span className="font-mono text-sm text-blue-900 dark:text-blue-100">{latestVersion || currentVersion}</span>
+                        <span className="font-mono text-sm text-blue-900 dark:text-blue-100">{displayLatestVersion}</span>
                     </div>
                     {nodeVersion && (
                         <div className={`flex items-center justify-between rounded-lg p-3 ${
@@ -635,7 +655,7 @@ export function VersionUpgradeModal({
                                 Waiting for server to come back online... this can take up to a minute.
                             </div>
                         )}
-                        {restartPhase === 'ready' && (
+                        {actionablePendingRestart && (
                             <div className={`rounded-md border px-3 py-2 text-xs ${
                                 restartRequiresConfirmation
                                     ? 'border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-900/40 dark:bg-yellow-900/20 dark:text-yellow-200'
@@ -644,6 +664,11 @@ export function VersionUpgradeModal({
                                 {restartRequiresConfirmation
                                     ? `Restart will interrupt ${formatActiveWorkSummary(activeRestartWork) || 'active terminal or agent sessions'}.`
                                     : `Update is ready. Keep working, or restart now to apply ${pendingRestartVersion || latestVersion || 'the new version'}.`}
+                            </div>
+                        )}
+                        {restartPhase === 'ready' && !actionablePendingRestart && (
+                            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                                You are on {currentVersion}. No restart needed — Close this dialog.
                             </div>
                         )}
                         {restartPhase === 'timeout' && (
@@ -700,7 +725,7 @@ export function VersionUpgradeModal({
                             Refresh page
                         </button>
                     )}
-                    {restartPhase === 'ready' && (
+                    {actionablePendingRestart && (
                         <button
                             onClick={triggerRestart}
                             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors ${
@@ -712,7 +737,7 @@ export function VersionUpgradeModal({
                             {restartRequiresConfirmation ? 'Restart anyway' : 'Restart now'}
                         </button>
                     )}
-                    {showUpdateActions && (!updateOutput || updateError) && restartPhase !== 'ready' && (
+                    {showUpdateActions && (!updateOutput || updateError) && !actionablePendingRestart && (
                         <>
                             <button
                                 onClick={() => copyTextToClipboard(upgradeCommand)}
