@@ -10,6 +10,7 @@ import {
   RefreshCw,
   SendHorizonalIcon,
   Sparkles,
+  Terminal,
   X,
 } from '@/lib/icons';
 
@@ -17,6 +18,7 @@ import { usePixBot, useTaskMeta } from '../../hooks/useTasks';
 import { cn } from '../../lib/utils';
 import { api } from '../../utils/api';
 
+import { useNanoClawComposerAutocomplete } from './hooks/useNanoClawComposerAutocomplete';
 import type { AgentType, BotMessage, WorkspaceOption } from './types';
 
 function formatDate(value?: string | null) {
@@ -142,6 +144,15 @@ export function TasksPage({
   const [actionError, setActionError] = useState<string | null>(null);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const composer = useNanoClawComposerAutocomplete({
+    projectId: boundProjectId || projectId,
+    value: draft,
+    setValue: setDraft,
+    textareaRef,
+    onPickAgent: (agent) => setAgentType(agent),
+  });
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -349,21 +360,87 @@ export function TasksPage({
                 ))}
               </select>
               <span className="text-[10px] text-muted-foreground">
-                or /agent-opencode · [agent:grok] · @file
+                yazarken <kbd className="rounded border border-border px-1">/</kbd> komut ·{' '}
+                <kbd className="rounded border border-border px-1">@</kbd> dosya
+                {composer.fileCount > 0 ? ` · ${composer.fileCount} dosya indeksi` : ''}
               </span>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="relative flex items-end gap-2">
+              {/* Dropdown above the input */}
+              {composer.open && (
+                <div
+                  className="absolute bottom-full left-0 right-12 z-30 mb-2 max-h-64 overflow-y-auto rounded-xl border border-border bg-popover shadow-xl"
+                  role="listbox"
+                  aria-label={composer.mode === 'at' ? 'File mentions' : 'Slash commands'}
+                >
+                  <div className="sticky top-0 flex items-center gap-1.5 border-b border-border bg-muted/40 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {composer.mode === 'at' ? (
+                      <>
+                        <FolderOpen className="h-3 w-3" />
+                        Dosyalar
+                      </>
+                    ) : (
+                      <>
+                        <Terminal className="h-3 w-3" />
+                        Komutlar
+                      </>
+                    )}
+                  </div>
+                  <ul className="p-1">
+                    {composer.items.map((item, index) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={index === composer.activeIndex}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition',
+                            index === composer.activeIndex
+                              ? 'bg-primary/15 text-foreground'
+                              : 'text-foreground/90 hover:bg-muted',
+                          )}
+                          onMouseEnter={() => composer.setActiveIndex(index)}
+                          onMouseDown={(event) => {
+                            // prevent textarea blur before click applies
+                            event.preventDefault();
+                            composer.applyItem(item);
+                          }}
+                        >
+                          <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
+                            {item.label}
+                          </span>
+                          {item.detail ? (
+                            <span className="shrink-0 truncate text-[11px] text-muted-foreground">
+                              {item.detail}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <textarea
+                ref={textareaRef}
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+                onChange={(event) => {
+                  composer.onChange(event.target.value, event.target.selectionStart ?? event.target.value.length);
+                }}
+                onClick={(event) => {
+                  composer.onSelect(event.currentTarget.selectionStart ?? 0);
+                }}
+                onKeyUp={(event) => {
+                  composer.onSelect(event.currentTarget.selectionStart ?? 0);
+                }}
                 onKeyDown={(event) => {
+                  if (composer.onKeyDown(event)) return;
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault();
                     void handleSend();
                   }
                 }}
                 rows={2}
-                placeholder="Message NanoClaw… (@file · /agent-opencode · any language)"
+                placeholder="Message NanoClaw…  /agent-opencode  ·  @src/app.ts"
                 className="min-h-[2.75rem] flex-1 resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none ring-primary/30 focus:ring-2"
               />
               <button
