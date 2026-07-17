@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.0](https://github.com/alicomert/pixcode/compare/v1.62.0...v1.63.0) (2026-07-17)
+
+### New Features
+
+* **pixbot:** stream chat, provider modal, and markdown replies ([f06d7c5](https://github.com/alicomert/pixcode/commit/f06d7c565ee92601c8da3d6e39375e744a105c15))
+
+### Maintenance
+
+* **desktop:** bump version label to 1.62.0 (no installer rebuild) ([93e90eb](https://github.com/alicomert/pixcode/commit/93e90eb1e5b5af22b1fb23128dc3a3e2f5f2b136))
+
 ## [1.62.0](https://github.com/alicomert/pixcode/compare/v1.61.1...v1.62.0) (2026-07-17)
 
 ### New Features
