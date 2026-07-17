@@ -51,7 +51,18 @@ export const PROVIDER_ENV_VARS = Object.freeze({
     // the same key into OPENAI_API_KEY when the user picks an OpenAI-flavour
     // model — handled at spawn time in opencode-cli.js, not here.
     opencode: { apiKeyEnv: 'ANTHROPIC_API_KEY', baseUrlEnv: 'ANTHROPIC_BASE_URL' },
+    // OpenAI-compatible "Custom" provider — used by PixBot chat and any
+    // BYOK gateway (OpenRouter, Together, LiteLLM, self-hosted, …).
+    // Dedicated env names so we don't clobber Codex/Qwen OPENAI_* keys.
+    custom: {
+        apiKeyEnv: 'PIXCODE_CUSTOM_API_KEY',
+        baseUrlEnv: 'PIXCODE_CUSTOM_BASE_URL',
+        extraBaseUrlEnv: ['CUSTOM_API_BASE_URL'],
+    },
 });
+
+/** Credential-store keys that accept API key + optional base URL (not all are CLI agents). */
+export const CREDENTIAL_PROVIDER_IDS = Object.freeze(Object.keys(PROVIDER_ENV_VARS));
 
 async function readStore() {
     try {

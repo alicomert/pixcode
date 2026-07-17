@@ -498,7 +498,7 @@ export async function handleChatTurn({
         }
         const assistantMsg = appendMessage(conv.id, {
           role: 'assistant',
-          content: `PixBot API hatası: ${apiError instanceof Error ? apiError.message : String(apiError)}\n\nSettings → PixBot LLM (API key + base URL) kontrol et. Model listesi /v1/models üzerinden gelir.`,
+          content: `PixBot API hatası: ${apiError instanceof Error ? apiError.message : String(apiError)}\n\nProvider (Custom / catalog) ve model seçimini kontrol et. API key yerel sunucularda zorunlu değil.`,
           kind: 'error',
           agentType: 'pixbot',
         });

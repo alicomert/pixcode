@@ -23,3 +23,8 @@ tasks/
 
 .npmrc
 
+# Local runtime / secrets (never publish)
+server/database/auth.json
+.env
+.env.local
+

@@ -10,6 +10,7 @@ import {
   listProviderCredentialSummaries,
   setProviderCredentials,
   PROVIDER_ENV_VARS,
+  CREDENTIAL_PROVIDER_IDS,
 } from '@/services/provider-credentials.js';
  
 // @ts-ignore — plain-JS service
@@ -280,6 +281,18 @@ const parseProvider = (value: unknown): LLMProvider => {
   });
 };
 
+/** Credential-store providers (includes `custom` for PixBot / OpenAI-compatible gateways). */
+const parseCredentialProvider = (value: unknown): string => {
+  const normalized = normalizeProviderParam(value);
+  if (CREDENTIAL_PROVIDER_IDS.includes(normalized) || normalized in PROVIDER_ENV_VARS) {
+    return normalized;
+  }
+  throw new AppError(`Provider "${normalized}" does not accept API-key auth.`, {
+    code: 'PROVIDER_NO_API_KEY',
+    statusCode: 400,
+  });
+};
+
 router.get(
   '/:provider/auth/status',
   asyncHandler(async (req: Request, res: Response) => {
@@ -364,13 +377,8 @@ router.post(
   '/:provider/auth/api-key',
   requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
-    const provider = parseProvider(req.params.provider);
-    if (!(provider in PROVIDER_ENV_VARS)) {
-      throw new AppError(`Provider "${provider}" does not accept API-key auth.`, {
-        code: 'PROVIDER_NO_API_KEY',
-        statusCode: 400,
-      });
-    }
+    // Accept CLI providers + credential-only `custom` (PixBot OpenAI-compatible).
+    const provider = parseCredentialProvider(req.params.provider);
     const body = (req.body ?? {}) as Record<string, unknown>;
     const apiKey = typeof body.apiKey === 'string' ? body.apiKey : '';
     const baseUrl = typeof body.baseUrl === 'string' ? body.baseUrl : '';

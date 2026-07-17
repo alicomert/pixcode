@@ -481,7 +481,7 @@ export function nanoclawRouter() {
       .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
   });
 
-  // PixBot LLM (OpenAI-compatible) config + models
+  // PixBot LLM — multi custom providers + models.dev catalog
   router.get('/bot/llm', async (_req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
@@ -498,17 +498,100 @@ export function nanoclawRouter() {
         apiKey: req.body?.apiKey,
         baseUrl: req.body?.baseUrl,
         model: req.body?.model,
+        name: req.body?.name,
       });
       res.json({ ok: true, brand: 'PixBot', ...config });
+    } catch (error) {
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.get('/bot/providers', async (_req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      res.json({ ok: true, brand: 'PixBot', ...(await llm.listPixbotProviders()) });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
-  router.get('/bot/models', async (_req, res) => {
+  router.post('/bot/providers', async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
-      const payload = await llm.fetchPixbotModels();
+      const result = await llm.addPixbotProvider({
+        name: req.body?.name,
+        baseUrl: req.body?.baseUrl,
+        apiKey: req.body?.apiKey,
+        catalogId: req.body?.catalogId,
+        id: req.body?.id,
+      });
+      if (req.body?.activate !== false && result.provider?.id) {
+        await llm.setActivePixbotProvider(result.provider.id).catch(() => {});
+      }
+      res.json({ ok: true, brand: 'PixBot', ...result, ...(await llm.getPixbotConfig()) });
+    } catch (error) {
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.patch('/bot/providers/:id', async (req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const provider = await llm.updatePixbotProvider(req.params.id, {
+        name: req.body?.name,
+        baseUrl: req.body?.baseUrl,
+        apiKey: req.body?.apiKey,
+        enabled: req.body?.enabled,
+      });
+      res.json({ ok: true, brand: 'PixBot', provider });
+    } catch (error) {
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.delete('/bot/providers/:id', async (req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const result = await llm.removePixbotProvider(req.params.id);
+      res.json({ ok: true, brand: 'PixBot', ...result });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.post('/bot/providers/:id/activate', async (req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const provider = await llm.setActivePixbotProvider(req.params.id);
+      res.json({ ok: true, brand: 'PixBot', provider, ...(await llm.getPixbotConfig()) });
+    } catch (error) {
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.get('/bot/catalog', async (req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const payload = await llm.listCatalogProviders({
+        q: typeof req.query.q === 'string' ? req.query.q : '',
+        limit: Number(req.query.limit) || 80,
+        force: String(req.query.refresh || '') === '1',
+      });
+      res.json({ ok: true, brand: 'PixBot', ...payload });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.get('/bot/models', async (req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const providerId = typeof req.query.providerId === 'string' ? req.query.providerId : undefined;
+      const payload = await llm.fetchPixbotModels({ providerId });
       res.json({ ok: true, brand: 'PixBot', ...payload });
     } catch (error) {
       const status = error?.statusCode || 500;

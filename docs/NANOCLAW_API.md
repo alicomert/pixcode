@@ -77,6 +77,53 @@ curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/bot/conversatio
 curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/bot/help"
 ```
 
+## PixBot LLM (multi Custom providers)
+
+Chat defaults to **PixBot** — OpenAI-compatible HTTP (not CLI spawn). You can attach **many** endpoints:
+
+- **Catalog** from [models.dev](https://models.dev/api.json) (OpenRouter, Groq, DeepSeek, LM Studio, …)
+- **Custom** base URL (Ollama, LiteLLM, private gateway)
+- **API key is optional** (local Ollama / open proxies work without one)
+
+Store: `~/.pixcode/pixbot-providers.json`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/nanoclaw/bot/llm` | Config summary (providers, active) |
+| `PUT` | `/api/nanoclaw/bot/llm` | Legacy single save → upserts one Custom |
+| `GET` | `/api/nanoclaw/bot/providers` | List connected providers |
+| `POST` | `/api/nanoclaw/bot/providers` | Add provider `{ name?, baseUrl, apiKey?, catalogId? }` |
+| `PATCH` | `/api/nanoclaw/bot/providers/:id` | Update name / baseUrl / apiKey / enabled |
+| `DELETE` | `/api/nanoclaw/bot/providers/:id` | Remove |
+| `POST` | `/api/nanoclaw/bot/providers/:id/activate` | Set active |
+| `GET` | `/api/nanoclaw/bot/catalog?q=` | models.dev OpenAI-compatible catalog |
+| `GET` | `/api/nanoclaw/bot/models` | Live `/v1/models` from all enabled providers |
+| `POST` | `/api/nanoclaw/bot/chat` | Chat (`model` may be `providerId::modelId`) |
+
+```bash
+# Catalog (search)
+curl -H "X-API-Key: $PIXCODE_API_KEY" \
+  "$PIXCODE_URL/api/nanoclaw/bot/catalog?q=openrouter"
+
+# Add OpenRouter (key optional for local-only endpoints)
+curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" \
+  -d '{"catalogId":"openrouter","baseUrl":"https://openrouter.ai/api/v1","apiKey":"sk-or-…"}' \
+  "$PIXCODE_URL/api/nanoclaw/bot/providers"
+
+# Add local Ollama (no key)
+curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" \
+  -d '{"name":"Ollama","baseUrl":"http://127.0.0.1:11434/v1"}' \
+  "$PIXCODE_URL/api/nanoclaw/bot/providers"
+
+# Models + chat
+curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/bot/models"
+curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" \
+  -d '{"message":"selam","projectId":"general","model":"provider-id::llama3.2"}' \
+  "$PIXCODE_URL/api/nanoclaw/bot/chat"
+```
+
+UI alias: same paths under `/api/tasks/bot/*`.
+
 ## Run an agent now (one-shot, no chat history)
 
 ```bash
@@ -217,7 +264,7 @@ curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/public/openapi"
 - Schedules are stored in NanoClaw’s SQLite under `~/.pixcode/nanoclaw` (not the Pixcode auth DB).
 - Desktop / remote: same HTTP API; point `PIXCODE_URL` at the host running the daemon (`HOST=0.0.0.0`).
 
-## Deprecated names
+## Branding
 
-Older docs referred to **PixBot** as a separate chat engine. That path was removed.  
-Use **NanoClaw** (`/api/nanoclaw`) or the UI Tasks tab (still backed by NanoClaw).
+**PixBot** is the ChatGPT-style chat surface (multi Custom / catalog providers + optional CLI via `/opencode` etc.).  
+**NanoClaw** is the underlying engine (`/api/nanoclaw` = `/api/tasks`).
