@@ -3,6 +3,12 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.5](https://github.com/alicomert/pixcode/compare/v1.63.4...v1.63.5) (2026-07-17)
+
+### Bug Fixes
+
+* **pixbot:** explicit /grok always wins over HTTP model picker ([28e4615](https://github.com/alicomert/pixcode/commit/28e461519e6d29501ff4998237c9001548161030))
+
 ## [1.63.4](https://github.com/alicomert/pixcode/compare/v1.63.3...v1.63.4) (2026-07-17)
 
 ### Bug Fixes
