@@ -3262,11 +3262,27 @@ app.get('/api/projects/:projectName/files', authenticateToken, requireProjectAcc
             return res.status(404).json({ error: `Project not found: ${req.params.projectName}` });
         }
 
-        // Check if path exists
+        // Check if path exists (also reject known-broken Windows decode products)
+        const looksBrokenWinPath = typeof actualPath === 'string' && (
+            /^[A-Za-z]\/\/+/.test(actualPath)
+            || /^[A-Za-z]:\/\/+/.test(actualPath)
+            || actualPath.includes('//Users/')
+            || actualPath.includes('//users/')
+        );
+        if (looksBrokenWinPath) {
+            clearProjectDirectoryCache();
+            try {
+                actualPath = await extractProjectDirectory(req.params.projectName);
+            } catch { /* keep previous */ }
+        }
         try {
             await fsPromises.access(actualPath);
         } catch (e) {
-            return res.status(404).json({ error: `Project path not found: ${actualPath}` });
+            return res.status(404).json({
+                error: `Project path not found: ${actualPath}`,
+                projectName: req.params.projectName,
+                hint: 'Re-add the project from the UI or open it once so originalPath is saved.',
+            });
         }
 
         const scan = await getFileTreeWithMeta(actualPath, FILE_TREE_MAX_DEPTH_DEFAULT, 0, true);

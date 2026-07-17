@@ -197,6 +197,136 @@ function clearProjectDirectoryCache() {
   projectDirectoryCache.clear();
 }
 
+/**
+ * Decode Claude's ~/.claude/projects/<folder> naming back to a filesystem path.
+ *
+ * Claude encodes paths by replacing path separators (and Windows `:` after the
+ * drive letter) with `-`. Examples:
+ *   POSIX:  /Users/me/app     →  -Users-me-app
+ *   Windows: C:\Users\me\app  →  C--Users-me-app
+ *
+ * The old fallback `projectName.replace(/-/g, '/')` turns Windows names into
+ * garbage like `C//Users/me/app`, which makes Files forever fail with
+ * "Files could not be loaded" / empty "Dosyalar hazırlanıyor".
+ */
+function decodeClaudeProjectFolderName(projectName) {
+  const name = String(projectName || '').trim();
+  if (!name) return name;
+
+  // Already a real path
+  if (path.isAbsolute(name) || /^[A-Za-z]:[\\/]/.test(name)) {
+    return path.normalize(name);
+  }
+  // Broken cached form from the old decoder: C//Users/... or c//Users/...
+  if (/^[A-Za-z]:?\/\/+/.test(name) || /^[A-Za-z]\/\/+/.test(name)) {
+    const repaired = name
+      .replace(/^([A-Za-z]):?\/+/, (_, d) => `${d.toUpperCase()}:\\`)
+      .replace(/\//g, '\\');
+    return path.normalize(repaired);
+  }
+
+  // Windows drive form: C--Users-foo-bar  (from C:\Users\foo\bar)
+  const win = name.match(/^([A-Za-z])--([\s\S]*)$/);
+  if (win) {
+    const drive = win[1].toUpperCase();
+    const rest = win[2].replace(/-/g, '\\');
+    return path.normalize(`${drive}:\\${rest}`);
+  }
+
+  // POSIX absolute form: -Users-foo-bar
+  if (name.startsWith('-')) {
+    return name.replace(/-/g, '/');
+  }
+
+  // Relative / unknown — keep previous behaviour for non-Windows hosts
+  if (process.platform === 'win32' && name.includes('-')) {
+    // Last-ditch Windows-ish decode without drive prefix
+    return path.normalize(name.replace(/-/g, '\\'));
+  }
+  return name.replace(/-/g, '/');
+}
+
+function resolveConfigEntry(config, projectName) {
+  if (!config || !projectName) return null;
+  if (config[projectName]) return config[projectName];
+  // Windows folder names differ only by drive-letter case in the key
+  const lower = String(projectName).toLowerCase();
+  for (const [key, value] of Object.entries(config)) {
+    if (String(key).toLowerCase() === lower) return value;
+  }
+  return null;
+}
+
+async function pathExists(candidate) {
+  if (!candidate) return false;
+  try {
+    await fs.access(candidate);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Prefer a real on-disk path among candidates (cwd from sessions, config,
+ * decoded folder name). Never return a known-broken C//Users style path when
+ * a better candidate exists.
+ */
+async function pickExistingProjectPath(candidates) {
+  const seen = new Set();
+  const queue = [];
+
+  const enqueue = (raw) => {
+    if (!raw) return;
+    let candidate = String(raw).trim();
+    if (!candidate) return;
+    // Repair already-broken decode products (C//Users/...)
+    if (/^[A-Za-z]\/\/+/.test(candidate) || /^[A-Za-z]:\/\/+/.test(candidate)) {
+      candidate = decodeClaudeProjectFolderName(candidate);
+    }
+    try {
+      candidate = path.normalize(candidate);
+    } catch {
+      return;
+    }
+    const key = process.platform === 'win32' ? candidate.toLowerCase() : candidate;
+    if (seen.has(key)) return;
+    seen.add(key);
+    queue.push(candidate);
+  };
+
+  for (const raw of candidates) enqueue(raw);
+
+  // Only collapse duplicate trailing segments from lossy dash-encoding
+  // (…\kariyer\kariyer → …\kariyer). Do NOT walk up to PROJELER/Users — that
+  // maps missing projects to the wrong parent and floods Files with noise.
+  for (const candidate of [...queue]) {
+    const parts = candidate.split(/[/\\]/).filter(Boolean);
+    if (parts.length >= 2) {
+      const last = parts[parts.length - 1];
+      const prev = parts[parts.length - 2];
+      if (last && prev && last.toLowerCase() === prev.toLowerCase()) {
+        enqueue(path.dirname(candidate));
+      }
+    }
+  }
+
+  for (const candidate of queue) {
+    if (await pathExists(candidate)) return candidate;
+  }
+
+  // Nothing exists — return the best-decoded absolute-looking candidate anyway
+  // so callers can surface a clear 404 instead of a nonsense path.
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const decoded = decodeClaudeProjectFolderName(raw);
+    if (decoded && (path.isAbsolute(decoded) || /^[A-Za-z]:[\\/]/.test(decoded))) {
+      return path.normalize(decoded);
+    }
+  }
+  return candidates.find(Boolean) || null;
+}
+
 // Load project configuration file
 async function loadProjectConfig() {
   const configPath = path.join(os.homedir(), '.claude', 'project-config.json');
@@ -497,7 +627,7 @@ async function syncAutoDiscoveredProjects(config, codexSessionsIndexRef = null, 
 // Generate better display name from path
 async function generateDisplayName(projectName, actualProjectDir = null) {
   // Use actual project directory if provided, otherwise decode from project name
-  let projectPath = actualProjectDir || projectName.replace(/-/g, '/');
+  let projectPath = actualProjectDir || decodeClaudeProjectFolderName(projectName);
 
   // Try to read package.json from the project path
   try {
@@ -525,40 +655,58 @@ async function generateDisplayName(projectName, actualProjectDir = null) {
 
 // Extract the actual project directory from JSONL sessions (with caching)
 async function extractProjectDirectory(projectName) {
-  // Check cache first
+  // Check cache first — but invalidate broken Windows decode products
   if (projectDirectoryCache.has(projectName)) {
-    return projectDirectoryCache.get(projectName);
+    const cached = projectDirectoryCache.get(projectName);
+    const broken = typeof cached === 'string' && (
+      /^[A-Za-z]\/\/+/.test(cached)
+      || /^[A-Za-z]:\/\/+/.test(cached)
+      || cached.includes('//Users/')
+      || cached.includes('//users/')
+    );
+    if (!broken && await pathExists(cached)) {
+      return cached;
+    }
+    projectDirectoryCache.delete(projectName);
   }
 
-  // Check project config for originalPath (manually added projects via UI or platform)
-  // This handles projects with dashes in their directory names correctly
+  // Check project config for originalPath (manually added / auto-discovered).
+  // Case-insensitive key match: Claude uses C--Users-… and c--users-… interchangeably.
   const config = await loadProjectConfig();
-  if (config[projectName]?.originalPath) {
-    const originalPath = config[projectName].originalPath;
-    projectDirectoryCache.set(projectName, originalPath);
-    return originalPath;
-  }
+  const configEntry = resolveConfigEntry(config, projectName);
+  const configPath = configEntry?.originalPath || configEntry?.path || null;
 
   const projectDir = path.join(os.homedir(), '.claude', 'projects', projectName);
+  // Also try case-insensitive folder match on Windows
+  let resolvedProjectDir = projectDir;
+  try {
+    await fs.access(projectDir);
+  } catch {
+    if (process.platform === 'win32') {
+      try {
+        const parent = path.join(os.homedir(), '.claude', 'projects');
+        const entries = await fs.readdir(parent);
+        const hit = entries.find((e) => e.toLowerCase() === String(projectName).toLowerCase());
+        if (hit) resolvedProjectDir = path.join(parent, hit);
+      } catch { /* ignore */ }
+    }
+  }
+
   const cwdCounts = new Map();
   let latestTimestamp = 0;
   let latestCwd = null;
-  let extractedPath;
+  const decodedName = decodeClaudeProjectFolderName(projectName);
+  let sessionPath = null;
 
   try {
-    // Check if the project directory exists
-    await fs.access(projectDir);
+    await fs.access(resolvedProjectDir);
 
-    const files = await fs.readdir(projectDir);
+    const files = await fs.readdir(resolvedProjectDir);
     const jsonlFiles = files.filter(file => file.endsWith('.jsonl'));
 
-    if (jsonlFiles.length === 0) {
-      // Fall back to decoded project name if no sessions
-      extractedPath = projectName.replace(/-/g, '/');
-    } else {
-      // Process all JSONL files to collect cwd values
+    if (jsonlFiles.length > 0) {
       for (const file of jsonlFiles) {
-        const jsonlFile = path.join(projectDir, file);
+        const jsonlFile = path.join(resolvedProjectDir, file);
         const fileStream = fsSync.createReadStream(jsonlFile);
         const rl = readline.createInterface({
           input: fileStream,
@@ -571,75 +719,54 @@ async function extractProjectDirectory(projectName) {
               const entry = JSON.parse(line);
 
               if (entry.cwd) {
-                // Count occurrences of each cwd
                 cwdCounts.set(entry.cwd, (cwdCounts.get(entry.cwd) || 0) + 1);
-
-                // Track the most recent cwd
                 const timestamp = new Date(entry.timestamp || 0).getTime();
                 if (timestamp > latestTimestamp) {
                   latestTimestamp = timestamp;
                   latestCwd = entry.cwd;
                 }
               }
-            } catch (parseError) {
+            } catch {
               // Skip malformed lines
             }
           }
         }
       }
 
-      // Determine the best cwd to use
-      if (cwdCounts.size === 0) {
-        // No cwd found, fall back to decoded project name
-        extractedPath = projectName.replace(/-/g, '/');
-      } else if (cwdCounts.size === 1) {
-        // Only one cwd, use it
-        extractedPath = Array.from(cwdCounts.keys())[0];
-      } else {
-        // Multiple cwd values - prefer the most recent one if it has reasonable usage
+      if (cwdCounts.size === 1) {
+        sessionPath = Array.from(cwdCounts.keys())[0];
+      } else if (cwdCounts.size > 1) {
         const mostRecentCount = cwdCounts.get(latestCwd) || 0;
         const maxCount = Math.max(...cwdCounts.values());
-
-        // Use most recent if it has at least 25% of the max count
         if (mostRecentCount >= maxCount * 0.25) {
-          extractedPath = latestCwd;
+          sessionPath = latestCwd;
         } else {
-          // Otherwise use the most frequently used cwd
           for (const [cwd, count] of cwdCounts.entries()) {
             if (count === maxCount) {
-              extractedPath = cwd;
+              sessionPath = cwd;
               break;
             }
           }
         }
-
-        // Fallback (shouldn't reach here)
-        if (!extractedPath) {
-          extractedPath = latestCwd || projectName.replace(/-/g, '/');
-        }
+        if (!sessionPath) sessionPath = latestCwd;
       }
     }
-
-    // Cache the result
-    projectDirectoryCache.set(projectName, extractedPath);
-
-    return extractedPath;
-
   } catch (error) {
-    // If the directory doesn't exist, just use the decoded project name
-    if (error.code === 'ENOENT') {
-      extractedPath = projectName.replace(/-/g, '/');
-    } else {
+    if (error.code !== 'ENOENT') {
       console.error(`Error extracting project directory for ${projectName}:`, error);
-      // Fall back to decoded project name for other errors
-      extractedPath = projectName.replace(/-/g, '/');
     }
-
-    // Cache the fallback result too
-    projectDirectoryCache.set(projectName, extractedPath);
-
-    return extractedPath;
   }
+
+  const extractedPath = await pickExistingProjectPath([
+    configPath,
+    sessionPath,
+    decodedName,
+    // If config/session pointed at a non-existing path, still prefer decoded Windows form
+    decodeClaudeProjectFolderName(projectName),
+  ]);
+
+  projectDirectoryCache.set(projectName, extractedPath);
+  return extractedPath;
 }
 
 async function getProjects(progressCallback = null) {
@@ -696,7 +823,7 @@ async function getProjects(progressCallback = null) {
     }
 
     const actualProjectDir = await extractProjectDirectory(entry.name);
-    const projectConfig = config[entry.name] || {};
+    const projectConfig = resolveConfigEntry(config, entry.name) || {};
     const isManuallyAdded = Boolean(projectConfig.manuallyAdded);
     const isAutoDiscovered = Boolean(projectConfig.autoDiscovered) && !isManuallyAdded;
     const customName = projectConfig.displayName;
@@ -812,13 +939,13 @@ async function getProjects(progressCallback = null) {
         });
       }
 
-      let actualProjectDir = projectConfig.originalPath;
+      let actualProjectDir = projectConfig.originalPath || projectConfig.path;
       if (!actualProjectDir) {
         try {
           actualProjectDir = await extractProjectDirectory(projectName);
         } catch (error) {
-          // Fall back to decoded project name
-          actualProjectDir = projectName.replace(/-/g, '/');
+          // Fall back to Windows-aware decode (never C//Users/...)
+          actualProjectDir = decodeClaudeProjectFolderName(projectName);
         }
       }
 
@@ -2346,12 +2473,12 @@ async function searchConversations(query, limit = 50, onProjectResult = null, si
 
     const projectName = projectTarget.projectName;
     const projectConfig = projectTarget.projectConfig || {};
-    let actualProjectDir = projectConfig.originalPath;
+    let actualProjectDir = projectConfig.originalPath || projectConfig.path;
     if (!actualProjectDir) {
       try {
         actualProjectDir = await extractProjectDirectory(projectName);
       } catch {
-        actualProjectDir = projectName.replace(/-/g, '/');
+        actualProjectDir = decodeClaudeProjectFolderName(projectName);
       }
     }
 
