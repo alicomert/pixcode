@@ -3,6 +3,19 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.61.0](https://github.com/alicomert/pixcode/compare/v1.60.1...v1.61.0) (2026-07-17)
+
+### New Features
+
+* **api:** NanoClaw HTTP surface + fix incomplete Files/Editor loads ([45ee9d8](https://github.com/alicomert/pixcode/commit/45ee9d888b66ceb5bbf773869e483c2e818cf7cc))
+* **cli:** add Grok Build as first-class shell CLI provider ([67a6656](https://github.com/alicomert/pixcode/commit/67a6656c3486ed9a61f45540fe3e576d9eb8a71f))
+* **nanoclaw:** chat-first engine — real conversation, not job tickets ([f4765a3](https://github.com/alicomert/pixcode/commit/f4765a3eecfc7ea6f345ef8b523e8108dbcc19d2))
+
+### Bug Fixes
+
+* **desktop:** pin installer to 1.60.1 and skip electron native rebuild ([3a7647c](https://github.com/alicomert/pixcode/commit/3a7647cbb5d1b44f0882714bb8b4abc0820c8a7e))
+* **ui:** drop NC/Both/IDE switcher — always open hybrid ([5029747](https://github.com/alicomert/pixcode/commit/50297471a6b9a584df07cd92a7fe9b8c0508567a))
+
 ## [1.58.0](https://github.com/alicomert/pixcode/compare/v1.57.3...v1.58.0) (2026-07-16)
 
 ### New Features
