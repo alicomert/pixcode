@@ -35,6 +35,12 @@ files:
 # slower installer extract (still <30s on consumer hardware).
 asar: false
 
+# Skip @electron/rebuild for native deps (node-pty, better-sqlite3).
+# The server process loads N-API / prebuilt win32-x64 binaries from npm
+# install — not Electron ABI rebuilds. Rebuilding requires Visual Studio
+# C++ tools on Windows and is unnecessary for this fork() architecture.
+npmRebuild: false
+
 # ---------------------------------------------------------------------------
 # Windows — NSIS installer, per-user so no UAC prompt.
 # ---------------------------------------------------------------------------

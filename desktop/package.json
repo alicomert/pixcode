@@ -24,7 +24,7 @@
     "dist:linux": "electron-builder --linux"
   },
   "dependencies": {
-    "@pixelbyte-software/pixcode": "1.60.0",
+    "@pixelbyte-software/pixcode": "1.60.1",
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
