@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.1](https://github.com/alicomert/pixcode/compare/v1.63.0...v1.63.1) (2026-07-17)
+
+### Bug Fixes
+
+* **pixbot:** honest version check and real schedule/opencode routing ([2f529e8](https://github.com/alicomert/pixcode/commit/2f529e88e13ed392040bb9ad5921817aca1be2f0))
+
+### Maintenance
+
+* **desktop:** bump version label to 1.63.0 (no installer rebuild) ([47cdeaf](https://github.com/alicomert/pixcode/commit/47cdeaf00927dec5af91b90b426892fc23aa9570))
+
 ## [1.63.0](https://github.com/alicomert/pixcode/compare/v1.62.0...v1.63.0) (2026-07-17)
 
 ### New Features
