@@ -30,17 +30,25 @@ export type ComposerCommandItem = {
 
 export type ComposerSuggestItem = ComposerFileItem | ComposerCommandItem;
 
-const AGENT_COMMANDS: ComposerCommandItem[] = [
-  { kind: 'command', id: 'agent-claude', label: '/agent-claude', insert: '/agent-claude ', detail: 'Claude Code', agentType: 'claude-code' },
-  { kind: 'command', id: 'agent-opencode', label: '/agent-opencode', insert: '/agent-opencode ', detail: 'OpenCode', agentType: 'opencode' },
-  { kind: 'command', id: 'agent-codex', label: '/agent-codex', insert: '/agent-codex ', detail: 'OpenAI Codex', agentType: 'codex' },
-  { kind: 'command', id: 'agent-gemini', label: '/agent-gemini', insert: '/agent-gemini ', detail: 'Gemini CLI', agentType: 'gemini' },
-  { kind: 'command', id: 'agent-cursor', label: '/agent-cursor', insert: '/agent-cursor ', detail: 'Cursor CLI', agentType: 'cursor' },
-  { kind: 'command', id: 'agent-qwen', label: '/agent-qwen', insert: '/agent-qwen ', detail: 'Qwen Code', agentType: 'qwen' },
-  { kind: 'command', id: 'agent-grok', label: '/agent-grok', insert: '/agent-grok ', detail: 'Grok Build (xAI)', agentType: 'grok' },
-  { kind: 'command', id: 'schedule', label: '/schedule', insert: 'her gün saat 9 ', detail: 'Örnek: günlük schedule cümlesi' },
-  { kind: 'command', id: 'help', label: '/help', insert: 'hangi komutlar var? @ dosya, /agent-… ve schedule nasıl kullanılır kısaca anlat', detail: 'Yardım iste' },
+/**
+ * Slash menu: short names only (not /agent-opencode).
+ * Insert is a lightweight directive the backend already understands:
+ *   /opencode  /claude  /codex  /gemini  /cursor  /qwen  /grok
+ */
+export const AGENT_SLASH_COMMANDS: ComposerCommandItem[] = [
+  { kind: 'command', id: 'claude', label: 'Claude', insert: '/claude ', detail: 'Claude Code', agentType: 'claude-code' },
+  { kind: 'command', id: 'opencode', label: 'OpenCode', insert: '/opencode ', detail: 'ücretsiz / multi-model', agentType: 'opencode' },
+  { kind: 'command', id: 'codex', label: 'Codex', insert: '/codex ', detail: 'OpenAI Codex', agentType: 'codex' },
+  { kind: 'command', id: 'gemini', label: 'Gemini', insert: '/gemini ', detail: 'Google Gemini', agentType: 'gemini' },
+  { kind: 'command', id: 'cursor', label: 'Cursor', insert: '/cursor ', detail: 'Cursor CLI', agentType: 'cursor' },
+  { kind: 'command', id: 'qwen', label: 'Qwen', insert: '/qwen ', detail: 'Qwen Code', agentType: 'qwen' },
+  { kind: 'command', id: 'grok', label: 'Grok', insert: '/grok ', detail: 'Grok Build · xAI', agentType: 'grok' },
+  { kind: 'command', id: 'schedule', label: 'Schedule', insert: 'her gün saat 9 ', detail: 'zamanlanmış iş cümlesi' },
+  { kind: 'command', id: 'help', label: 'Help', insert: 'nasıl kullanılır? @ dosya ve /claude /opencode /grok kısaca anlat', detail: 'yardım' },
 ];
+
+/** @deprecated use AGENT_SLASH_COMMANDS */
+const AGENT_COMMANDS = AGENT_SLASH_COMMANDS;
 
 function flattenFiles(nodes: FileNode[], base = ''): ComposerFileItem[] {
   let out: ComposerFileItem[] = [];

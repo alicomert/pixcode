@@ -568,7 +568,7 @@ export function nanoclawRouter() {
           label: a.label,
           provider: a.value === 'claude-code' ? 'claude' : a.value,
         })),
-        directive: '/agent-opencode …  ·  [agent:grok] …  ·  “bunu codex ile yap”  ·  @path/to/file',
+        directive: '/opencode  /claude  /grok  ·  “bunu codex ile yap”  ·  @path/to/file',
         tips: chat.chatHelpHints().tips,
       });
     } catch {

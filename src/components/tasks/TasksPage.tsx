@@ -14,7 +14,7 @@ import {
   X,
 } from '@/lib/icons';
 
-import { usePixBot, useTaskMeta } from '../../hooks/useTasks';
+import { usePixBot } from '../../hooks/useTasks';
 import { cn } from '../../lib/utils';
 import { api } from '../../utils/api';
 
@@ -63,11 +63,11 @@ function EmptyState() {
       </div>
       <h2 className="text-lg font-semibold">NanoClaw chat</h2>
       <p className="max-w-lg text-sm text-muted-foreground">
-        Write like you talk to NanoClaw — any language. Coding agent answers here.
-        Switch agent with <code className="rounded bg-muted px-1">/agent-opencode</code>,{' '}
-        <code className="rounded bg-muted px-1">[agent:grok]</code>, or “bunu codex ile yap”.
-        Attach files with <code className="rounded bg-muted px-1">@path/to/file</code>.
-        Schedules only when you ask (e.g. “her gün saat 9…”).
+        NanoClaw’a normal yaz. Agent için alttaki chip’ler veya kısa slash:{' '}
+        <code className="rounded bg-muted px-1">/opencode</code>{' '}
+        <code className="rounded bg-muted px-1">/claude</code>{' '}
+        <code className="rounded bg-muted px-1">/grok</code>.
+        Dosya: <code className="rounded bg-muted px-1">@src/app.ts</code>.
       </p>
     </div>
   );
@@ -136,8 +136,6 @@ export function TasksPage({
     startNewChat,
     refresh: refreshBot,
   } = usePixBot(projectId);
-  const { agents } = useTaskMeta();
-
   const [draft, setDraft] = useState('');
   // Prefer a healthy local-friendly default; user can still switch.
   const [agentType, setAgentType] = useState<AgentType>('opencode');
@@ -338,31 +336,37 @@ export function TasksPage({
           </div>
 
           <div className="shrink-0 border-t border-border bg-card/40 p-3 sm:p-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Preferred agent
-              </label>
-              <select
-                value={agentType}
-                onChange={(event) => setAgentType(event.target.value as AgentType)}
-                className="h-8 rounded-lg border border-border bg-background px-2 text-xs"
-              >
-                {(agents.length ? agents : [
-                  { value: 'claude-code', label: 'Claude Code' },
-                  { value: 'codex', label: 'Codex' },
-                  { value: 'gemini', label: 'Gemini' },
-                  { value: 'cursor', label: 'Cursor' },
-                  { value: 'qwen', label: 'Qwen' },
-                  { value: 'opencode', label: 'OpenCode' },
-                  { value: 'grok', label: 'Grok Build (xAI)' },
-                ] as const).map((agent) => (
-                  <option key={agent.value} value={agent.value}>{agent.label}</option>
+            <div className="mb-2 flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {([
+                  { value: 'opencode' as AgentType, label: 'OpenCode' },
+                  { value: 'claude-code' as AgentType, label: 'Claude' },
+                  { value: 'codex' as AgentType, label: 'Codex' },
+                  { value: 'gemini' as AgentType, label: 'Gemini' },
+                  { value: 'cursor' as AgentType, label: 'Cursor' },
+                  { value: 'qwen' as AgentType, label: 'Qwen' },
+                  { value: 'grok' as AgentType, label: 'Grok' },
+                ]).map((agent) => (
+                  <button
+                    key={agent.value}
+                    type="button"
+                    onClick={() => setAgentType(agent.value)}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-[11px] font-medium transition',
+                      agentType === agent.value
+                        ? 'border-primary bg-primary/15 text-foreground'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                    title={`${agent.label} ile çalış`}
+                  >
+                    {agent.label}
+                  </button>
                 ))}
-              </select>
+              </div>
               <span className="text-[10px] text-muted-foreground">
-                yazarken <kbd className="rounded border border-border px-1">/</kbd> komut ·{' '}
+                chip ile seç · veya <kbd className="rounded border border-border px-1">/</kbd> menü ·{' '}
                 <kbd className="rounded border border-border px-1">@</kbd> dosya
-                {composer.fileCount > 0 ? ` · ${composer.fileCount} dosya indeksi` : ''}
+                {composer.fileCount > 0 ? ` · ${composer.fileCount} dosya` : ''}
               </span>
             </div>
             <div className="relative flex items-end gap-2">
@@ -406,12 +410,14 @@ export function TasksPage({
                             composer.applyItem(item);
                           }}
                         >
-                          <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">
                             {item.label}
                           </span>
                           {item.detail ? (
-                            <span className="shrink-0 truncate text-[11px] text-muted-foreground">
-                              {item.detail}
+                            <span className="shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+                              {item.kind === 'command' && item.insert.startsWith('/')
+                                ? item.insert.trim()
+                                : item.detail}
                             </span>
                           ) : null}
                         </button>
@@ -440,7 +446,7 @@ export function TasksPage({
                   }
                 }}
                 rows={2}
-                placeholder="Message NanoClaw…  /agent-opencode  ·  @src/app.ts"
+                placeholder="Mesaj…  /opencode  /claude  /grok  ·  @dosya"
                 className="min-h-[2.75rem] flex-1 resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none ring-primary/30 focus:ring-2"
               />
               <button

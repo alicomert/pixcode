@@ -36,8 +36,9 @@ export function normalizeAgentType(raw) {
  * Parse optional provider directive from prompt:
  *   [agent:codex] do the thing
  *   [provider:gemini model:xxx] ...
- *   /agent-opencode do the thing
- *   /opencode do the thing
+ *   /opencode do the thing   (preferred short form)
+ *   /claude  /codex  /grok
+ *   /agent-opencode …        (legacy)
  */
 export function parseAgentDirective(prompt) {
   let text = String(prompt || '');

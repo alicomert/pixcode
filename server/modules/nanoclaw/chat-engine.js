@@ -71,7 +71,8 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
   let agentType = null;
   let model = null;
 
-  // Slash: /agent-opencode  /agent:codex  /agent opencode  /opencode  /grok
+  // Slash (preferred short forms): /opencode  /claude  /grok
+  // Legacy still accepted: /agent-opencode  /agent:codex  /agent opencode
   const slash = text.match(
     /^\s*\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b\s*/i,
   );
@@ -230,7 +231,7 @@ function buildSystemPreamble({ projectId, projectPath, agentType, isSmallTalk })
       ? 'This message is casual/small-talk. Reply briefly and warmly. No tools, no file edits, no schedules.'
       : 'Help with coding, planning, and Pixcode (projects, CLI agents, files, git, shell). Be concrete.',
     `Active multi-CLI agents: ${agents}.`,
-    'User may switch agents with /agent-opencode, [agent:grok], or natural phrases like "bunu opencode ile yap".',
+    'User may switch agents with /opencode, /claude, /grok, or natural phrases like "bunu opencode ile yap".',
     'File mentions use @path (already resolved into <attached_files> when present).',
     projectId ? `Workspace projectId: ${projectId}` : 'Workspace: general (no coding project bound).',
     projectPath ? `Project path: ${projectPath}` : '',
@@ -480,7 +481,7 @@ export function chatHelpHints() {
   return {
     tips: [
       'Normal chat — write anything; reply is conversational (any language).',
-      'Agent switch: /agent-opencode …  or  [agent:grok] …  or  “bunu codex ile yap”',
+      'Agent switch: /opencode  /claude  /grok  — or “bunu codex ile yap”',
       'Files: @src/app.ts  (contents attached when under project root)',
       'Schedule only when you ask: “her gün saat 9 bağımlılık kontrolü”',
       'Sessions stay warm per conversation+agent (no re-bootstrap each message).',
@@ -503,7 +504,7 @@ function localSmallTalkReply(text, agentType) {
   }
   // Default greeting
   const agentHint = agentType && agentType !== 'claude-code'
-    ? ` (tercih: ${agentType} — /agent-… ile değiştirebilirsin)`
+    ? ` (tercih: ${agentType} — /opencode /claude /grok ile değiştirebilirsin)`
     : '';
-  return `Selam! Ben NanoClaw${agentHint}. Kısa sohbet veya doğrudan iş: “@src/app.ts şunu düzelt”, “bunu opencode ile yap”, “her gün 9’da audit” — nasıl istersen.`;
+  return `Selam! Ben NanoClaw${agentHint}. Kısa sohbet veya doğrudan iş: “@src/app.ts şunu düzelt”, “/opencode test yaz”, “her gün 9’da audit” — nasıl istersen.`;
 }

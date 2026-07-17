@@ -64,7 +64,7 @@ Routing helpers (optional):
 
 | Form | Example |
 |------|---------|
-| Slash | `/agent-opencode fix tests` |
+| Slash (kısa) | `/opencode fix tests` · `/claude …` · `/grok …` |
 | Tag | `[agent:grok] design release checklist` |
 | Natural | `bunu codex ile yap` / `use gemini to explain` |
 | Files | `@src/auth.ts review this` |
