@@ -253,10 +253,30 @@ function filterProjectSessionsForUser(project, user) {
     };
 }
 
+function compareSemverLoose(left, right) {
+    const a = String(left || '0.0.0').replace(/^v/i, '').split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0);
+    const b = String(right || '0.0.0').replace(/^v/i, '').split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0);
+    for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+        const av = a[i] || 0;
+        const bv = b[i] || 0;
+        if (av !== bv) return av - bv;
+    }
+    return 0;
+}
+
+/**
+ * Drop stale pendingRestart when the running process is already on that version
+ * or newer (e.g. CLI/npm update applied 1.58.4 while pending still said 1.58.2).
+ */
 function reconcileAppliedUpdateStateOnBoot() {
     const state = readSystemUpdateState();
     const pending = state.pendingRestart;
-    if (!pending?.toVersion || pending.toVersion !== SERVER_VERSION) {
+    if (!pending?.toVersion) {
+        return;
+    }
+
+    // Exact match OR already past the pending target → clear the banner.
+    if (compareSemverLoose(SERVER_VERSION, pending.toVersion) < 0) {
         return;
     }
 
@@ -266,8 +286,17 @@ function reconcileAppliedUpdateStateOnBoot() {
             ...pending,
             appliedAt: new Date().toISOString(),
             currentVersion: SERVER_VERSION,
+            clearedBecause: compareSemverLoose(SERVER_VERSION, pending.toVersion) === 0
+                ? 'applied'
+                : 'superseded',
         },
     });
+}
+
+/** Re-run reconcile on every read so long-lived daemons drop stale pending without restart. */
+function getSystemUpdateState() {
+    reconcileAppliedUpdateStateOnBoot();
+    return readSystemUpdateState();
 }
 
 function appendUpdateJobLog(job, stream, chunk) {
@@ -1880,7 +1909,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Public health check endpoint (no authentication required)
 app.get('/health', (req, res) => {
-    const updateState = readSystemUpdateState();
+    const updateState = getSystemUpdateState();
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -2312,9 +2341,10 @@ app.use(express.static(path.join(APP_ROOT, 'public'), {
 // Frontend now uses window.location for WebSocket URLs
 
 app.get('/api/system/update-state', authenticateToken, (req, res) => {
+    // getSystemUpdateState() drops stale pendingRestart (current >= pending).
     res.json({
         success: true,
-        state: readSystemUpdateState(),
+        state: getSystemUpdateState(),
         activeJob: snapshotUpdateJob(getActiveUpdateJob()),
         activeWork: getActiveWorkSummary(),
         currentVersion: SERVER_VERSION,

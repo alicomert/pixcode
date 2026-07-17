@@ -398,6 +398,25 @@ export function VersionUpgradeModal({
 
                 const pending = payload.state?.pendingRestart;
                 if (pending?.toVersion) {
+                    // Stale banner: already on/ past that version (CLI/npm update applied it).
+                    const pendingParts = String(pending.toVersion).replace(/^v/, '').split('.').map(Number);
+                    const currentParts = String(currentVersion || '0').replace(/^v/, '').split('.').map(Number);
+                    let cmp = 0;
+                    for (let i = 0; i < Math.max(pendingParts.length, currentParts.length); i += 1) {
+                        const a = currentParts[i] || 0;
+                        const b = pendingParts[i] || 0;
+                        if (a !== b) { cmp = a - b; break; }
+                    }
+                    if (cmp >= 0) {
+                        setPendingRestartVersion(null);
+                        setRestartPhase('idle');
+                        setUpdateOutput(
+                            cmp > 0
+                                ? `Pending update to ${pending.toVersion} was superseded — you are already on ${currentVersion}.\n`
+                                : `Update to ${pending.toVersion} is already running. Nothing to apply.\n`,
+                        );
+                        return;
+                    }
                     setPendingRestartVersion(pending.toVersion);
                     setActiveRestartWork(payload.activeWork ?? null);
                     setRestartRequiresConfirmation(false);

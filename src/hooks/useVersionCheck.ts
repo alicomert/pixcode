@@ -121,6 +121,20 @@ function fetchLatestRelease(owner: string, repo: string): Promise<LatestReleaseR
   return request;
 }
 
+/** npm dist-tag latest — source of truth for npm global installs. */
+async function fetchNpmLatestVersion(): Promise<string | null> {
+  try {
+    const response = await fetch('https://registry.npmjs.org/@pixelbyte-software/pixcode/latest', {
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { version?: string };
+    return typeof data.version === 'string' ? data.version.replace(/^v/, '') : null;
+  } catch {
+    return null;
+  }
+}
+
 export const useVersionCheck = (owner: string, repo: string) => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
@@ -288,11 +302,19 @@ export const useVersionCheck = (owner: string, repo: string) => {
         }
 
         if (data.tag_name) {
-          const latest = data.tag_name.replace(/^v/, '');
+          const githubLatest = data.tag_name.replace(/^v/, '');
+          // npm installs often publish before a matching GitHub Release is created.
+          // Prefer the higher of GitHub release tag and npm dist-tag for "latest".
+          const npmLatest = installMode === 'npm' ? await fetchNpmLatestVersion() : null;
+          const latest = npmLatest && compareVersions(npmLatest, githubLatest) > 0
+            ? npmLatest
+            : githubLatest;
           const isUpdateAvailable = compareVersions(latest, currentVersion) > 0;
           const nextReleaseInfo = {
-            title: data.name || data.tag_name,
-            body: data.body || '',
+            title: data.name || data.tag_name || `v${latest}`,
+            body: data.body || (npmLatest && npmLatest !== githubLatest
+              ? `npm latest is ${npmLatest} (GitHub release notes may lag).`
+              : ''),
             htmlUrl: data.html_url || `https://github.com/${owner}/${repo}/releases/latest`,
             publishedAt: data.published_at || '',
           };
@@ -303,8 +325,8 @@ export const useVersionCheck = (owner: string, repo: string) => {
           });
           setLatestVersion(latest);
           // Only flag an update when the published release is strictly
-          // newer than what's running. An older latest (e.g. local 1.30.2
-          // vs. npm 1.30.1) must NOT surface as an available update.
+          // newer than what's running. An older latest (e.g. local 1.58.4
+          // vs. GitHub release 1.58.2) must NOT surface as an available update.
           setUpdateAvailable(isUpdateAvailable);
           if (isUpdateAvailable) {
             void notifyOnce({
