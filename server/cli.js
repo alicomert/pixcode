@@ -336,20 +336,49 @@ async function updatePackage(options = {}) {
         }
 
         console.log(`${c.info('[INFO]')} Updating from ${currentVersion} to ${latestVersion}...`);
-        // Global npm install requires root on system-wide installs
-        const npmCmd = process.getuid && process.getuid() === 0
-            ? 'npm update -g @pixelbyte-software/pixcode'
-            : 'sudo npm update -g @pixelbyte-software/pixcode';
-        execSync(npmCmd, { stdio: 'inherit' });
+        // Global npm install: never use sudo on Windows (sudo is unavailable / "disabled").
+        // On Unix, sudo only when not already root. Prefer install@latest over update so
+        // we always land on the registry latest (and rebuild native modules).
+        const npmCmd = buildGlobalNpmUpdateCommand(latestVersion);
+        console.log(`${c.dim('[CMD]')} ${npmCmd}`);
+        execSync(npmCmd, {
+            stdio: 'inherit',
+            shell: true,
+            env: process.env,
+            windowsHide: true,
+        });
         console.log(`${c.ok('[OK]')} Update complete!`);
         await maybeRestartDaemonAfterUpdate(options);
     } catch (e) {
         console.error(`${c.error('[ERROR]')} Update failed: ${e.message}`);
         const fallbackCommand = installMode === 'git'
             ? 'pixcode update --restart-daemon'
-            : 'sudo npm update -g @pixelbyte-software/pixcode';
-        console.log(`${c.tip('[TIP]')} Try running manually: ${fallbackCommand}`);
+            : buildGlobalNpmUpdateCommand(null, { forceNoSudo: true });
+        console.log(`${c.tip('[TIP]')} Try running manually (PowerShell / terminal as Administrator if needed):`);
+        console.log(`         ${fallbackCommand}`);
+        if (process.platform === 'win32') {
+            console.log(`${c.tip('[TIP]')} Windows does not use sudo. If you see EACCES, open an elevated terminal and re-run.`);
+        }
     }
+}
+
+/**
+ * Cross-platform global package upgrade command.
+ * @param {string|null} version - pin to this version, or null for @latest
+ * @param {{ forceNoSudo?: boolean }} [opts]
+ */
+function buildGlobalNpmUpdateCommand(version = null, opts = {}) {
+    const target = version && /^\d+\.\d+\.\d+/.test(String(version))
+        ? `@pixelbyte-software/pixcode@${version}`
+        : '@pixelbyte-software/pixcode@latest';
+    // allow-scripts: better-sqlite3 / node-pty need rebuild after global upgrade
+    const base = `npm install -g --allow-scripts=@pixelbyte-software/pixcode,better-sqlite3,node-pty ${target}`;
+    if (opts.forceNoSudo || process.platform === 'win32') {
+        return base;
+    }
+    // Unix: only elevate when not already root
+    const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+    return isRoot ? base : `sudo ${base}`;
 }
 
 // ── Sandbox command ─────────────────────────────────────────

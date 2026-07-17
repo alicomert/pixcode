@@ -582,6 +582,7 @@ async function runCommandUpdateJob(job, updateCommand, updateCwd) {
         // On Linux/macOS, retry with sudo if the initial attempt failed with EACCES.
         // npm install -g needs write access to /usr/local/lib/node_modules/,
         // which the running user may not have.
+        // Unix only: retry with sudo. Windows never has working sudo for this path.
         if (process.platform !== 'win32' && (err.stderr?.includes('EACCES') || err.stderr?.includes('permission denied'))) {
             const sudoCmd = `sudo -n ${updateCommand}`;
             appendUpdateJobLog(job, 'meta', `Permission denied. Retrying with sudo...\n`);
@@ -593,6 +594,14 @@ async function runCommandUpdateJob(job, updateCommand, updateCwd) {
                 appendUpdateJobLog(job, 'meta', 'Tip: Run the update manually with: sudo npm install -g @pixelbyte-software/pixcode@latest\n');
                 throw new Error(`Update command exited with code ${err.code}`);
             }
+        }
+        if (process.platform === 'win32') {
+            appendUpdateJobLog(
+                job,
+                'meta',
+                'Tip (Windows): run in an elevated PowerShell: npm install -g @pixelbyte-software/pixcode@latest\n'
+                + 'Do not use sudo on Windows.\n',
+            );
         }
         throw new Error(`Update command exited with code ${err.code}`);
     }
@@ -2744,6 +2753,14 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
                 send('log', { stream: 'stderr', chunk: `Sudo update failed: ${sudoErr.message}\n` });
                 send('log', { stream: 'meta', chunk: 'Tip: Run the update manually with: sudo npm install -g @pixelbyte-software/pixcode@latest\n' });
             }
+        }
+
+        if (process.platform === 'win32') {
+            send('log', {
+                stream: 'meta',
+                chunk: 'Tip (Windows): npm install -g @pixelbyte-software/pixcode@latest\n'
+                    + 'Do not use sudo. Use an elevated PowerShell if you get EACCES.\n',
+            });
         }
 
         send('done', {
@@ -5222,9 +5239,10 @@ app.get(/.*/, (req, res) => {
             + '</head><body><div id="waiting"><h2>Pixcode is finishing an update…</h2><p>This page will reload automatically.</p><div class="s"></div></div>'
             + '<div id="stuck" class="hidden"><h2>Web UI assets are missing</h2>'
             + '<p>The server is running, but <code>dist/index.html</code> was not found under the install directory. This usually means the installed package is incomplete or a mid-update restore failed.</p>'
-            + '<p>On Linux, reinstall the latest package and restart:</p>'
-            + '<p><code>sudo npm install -g @pixelbyte-software/pixcode@latest</code></p>'
-            + '<p>Then: <code>pixcode daemon restart</code> (or restart your systemd service).</p>'
+            + '<p>Reinstall the latest package and restart:</p>'
+            + '<p><strong>Windows:</strong> <code>npm install -g @pixelbyte-software/pixcode@latest</code> (no sudo)</p>'
+            + '<p><strong>Linux/macOS:</strong> <code>sudo npm install -g @pixelbyte-software/pixcode@latest</code></p>'
+            + '<p>Then: <code>pixcode daemon restart</code> (or restart the service / desktop app).</p>'
             + '<p>Source installs: run <code>npm run build</code> in the repo root, then restart.</p></div>'
             + '<script>(function(){try{var k="pixcode-ui-missing-retries",n=Number(sessionStorage.getItem(k)||0)+1;sessionStorage.setItem(k,String(n));if(n<=12){setTimeout(function(){location.reload()},2000);}else{document.getElementById("waiting").classList.add("hidden");document.getElementById("stuck").classList.remove("hidden");}}catch(e){setTimeout(function(){location.reload()},2000);}})();</script>'
             + '</body></html>'
