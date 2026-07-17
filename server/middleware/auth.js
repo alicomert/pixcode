@@ -14,6 +14,16 @@ const PLATFORM_AUTH_BYPASS_ENABLED = IS_PLATFORM && process.env.PIXCODE_ALLOW_PL
 
 // Optional API key middleware
 const validateApiKey = (req, res, next) => {
+  // First-run auth endpoints must never require a machine API_KEY — registration
+  // and status checks happen before any user/token exists.
+  const path = req.path || '';
+  const isPublicAuth = path.startsWith('/auth/')
+    || path === '/auth'
+    || path.startsWith('/user/onboarding-status');
+  if (isPublicAuth) {
+    return next();
+  }
+
   // Skip API key validation if not configured
   if (!process.env.API_KEY) {
     return next();

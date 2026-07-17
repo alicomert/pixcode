@@ -77,6 +77,9 @@ const defaultSettings = () => ({
   startAtLogin: true,
   minimizeToTray: true,
   notificationsEnabled: true,
+  // On boot, try npm install @pixelbyte-software/pixcode@latest into the
+  // writable runtime so old EXEs are not stuck on bundled 1.53/1.54.
+  autoPullRuntime: true,
 });
 
 function settingsPath() {
@@ -246,6 +249,102 @@ function ensureBundledNodeModulesReachable(runtimeDir, bundledRoot) {
   copyRecursive(bundledNodeModules, runtimeNodeModules);
 }
 
+function seedRuntimeFromSource(runtimeDir, sourceRoot, reason) {
+  console.log(`[bootstrap] ${reason}`);
+  fs.mkdirSync(runtimeDir, { recursive: true });
+  for (const entry of fs.readdirSync(sourceRoot)) {
+    if (entry.startsWith('.')) continue;
+    // `node_modules` is handled separately — link/copy the FULL dependency tree.
+    if (entry === 'node_modules') continue;
+    const src = path.join(sourceRoot, entry);
+    const dst = path.join(runtimeDir, entry);
+    if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
+    copyRecursive(src, dst);
+  }
+}
+
+/**
+ * Pull @pixelbyte-software/pixcode@latest into the writable runtime without
+ * waiting for a full Electron EXE rebuild. Uses system `npm` when available.
+ * Returns the new version string, or null if pull was skipped/failed.
+ */
+function tryPullLatestRuntimeFromNpm(runtimeDir) {
+  if (settings?.autoPullRuntime === false) return null;
+  if (process.env.PIXCODE_DESKTOP_SKIP_NPM_PULL === '1') return null;
+
+  const { spawnSync } = require('node:child_process');
+  const pullRoot = path.join(app.getPath('userData'), 'pixcode-npm-pull');
+  try {
+    fs.rmSync(pullRoot, { recursive: true, force: true });
+    fs.mkdirSync(pullRoot, { recursive: true });
+  } catch (err) {
+    console.warn('[bootstrap] npm pull staging failed:', err?.message || err);
+    return null;
+  }
+
+  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  console.log(`[bootstrap] Checking npm for ${PIXCODE_PKG}@latest…`);
+  const install = spawnSync(
+    npmCmd,
+    ['install', `${PIXCODE_PKG}@latest`, '--prefix', pullRoot, '--no-fund', '--no-audit', '--no-fund'],
+    {
+      encoding: 'utf8',
+      timeout: 180_000,
+      windowsHide: true,
+      env: { ...process.env, npm_config_fund: 'false' },
+    },
+  );
+  if (install.status !== 0) {
+    console.warn(
+      '[bootstrap] npm pull skipped/failed:',
+      (install.stderr || install.stdout || install.error?.message || `exit ${install.status}`).slice(0, 500),
+    );
+    return null;
+  }
+
+  const pulledPkg = path.join(pullRoot, 'node_modules', '@pixelbyte-software', 'pixcode');
+  if (!fs.existsSync(path.join(pulledPkg, 'package.json'))) {
+    console.warn('[bootstrap] npm pull did not produce package tree');
+    return null;
+  }
+
+  const pulledVersion = readVersion(pulledPkg);
+  const runtimeVersion = readVersion(runtimeDir);
+  if (!pulledVersion) return null;
+  if (runtimeVersion && !semverGt(pulledVersion, runtimeVersion) && pulledVersion === runtimeVersion) {
+    console.log(`[bootstrap] Runtime already on ${runtimeVersion}`);
+    return runtimeVersion;
+  }
+  if (runtimeVersion && !semverGt(pulledVersion, runtimeVersion)) {
+    return runtimeVersion;
+  }
+
+  seedRuntimeFromSource(
+    runtimeDir,
+    pulledPkg,
+    `npm@latest ${pulledVersion} > runtime ${runtimeVersion || 'none'}; re-seeding`,
+  );
+
+  // Prefer pulled package's own node_modules if present; else keep bundled link.
+  const pulledNm = path.join(pullRoot, 'node_modules');
+  const runtimeNm = path.join(runtimeDir, 'node_modules');
+  try {
+    if (fs.existsSync(path.join(pulledNm, 'ws', 'package.json'))) {
+      try { fs.rmSync(runtimeNm, { recursive: true, force: true }); } catch (_) { /* ignore */ }
+      try {
+        const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+        fs.symlinkSync(pulledNm, runtimeNm, linkType);
+      } catch (_) {
+        copyRecursive(pulledNm, runtimeNm);
+      }
+    }
+  } catch (err) {
+    console.warn('[bootstrap] node_modules refresh after npm pull:', err?.message || err);
+  }
+
+  return pulledVersion;
+}
+
 function ensureRuntimeDir() {
   const runtimeDir = path.join(app.getPath('userData'), 'pixcode-runtime');
   const bundledRoot = resolveBundledPixcodeRoot();
@@ -258,24 +357,20 @@ function ensureRuntimeDir() {
   const bundledIsNewer = !runtimeMissing && semverGt(bundledVersion, runtimeVersion);
 
   if (runtimeMissing || bundledIsNewer) {
-    console.log(
+    seedRuntimeFromSource(
+      runtimeDir,
+      bundledRoot,
       runtimeMissing
-        ? `[bootstrap] Seeding runtime dir with bundled ${bundledVersion}`
-        : `[bootstrap] Bundled ${bundledVersion} > runtime ${runtimeVersion}; re-seeding`,
+        ? `Seeding runtime dir with bundled ${bundledVersion}`
+        : `Bundled ${bundledVersion} > runtime ${runtimeVersion}; re-seeding`,
     );
-    fs.mkdirSync(runtimeDir, { recursive: true });
-    for (const entry of fs.readdirSync(bundledRoot)) {
-      if (entry.startsWith('.')) continue;
-      // `node_modules` is handled separately below — we link / copy the
-      // FULL bundled node_modules (including hoisted deps), not the
-      // pixcode package's nested one (which is mostly empty after npm
-      // deduped everything to the top level).
-      if (entry === 'node_modules') continue;
-      const src = path.join(bundledRoot, entry);
-      const dst = path.join(runtimeDir, entry);
-      if (fs.existsSync(dst)) fs.rmSync(dst, { recursive: true, force: true });
-      copyRecursive(src, dst);
-    }
+  }
+
+  // Prefer registry latest over a stale ASAR (old EXE can still get 1.60.x runtime).
+  try {
+    tryPullLatestRuntimeFromNpm(runtimeDir);
+  } catch (err) {
+    console.warn('[bootstrap] npm runtime pull error:', err?.message || err);
   }
 
   // Always re-assert the node_modules link: the runtime version gate above
@@ -783,6 +878,37 @@ function rebuildTrayMenu() {
     {
       label: 'Restart server',
       click: () => { retryBoot(); },
+    },
+    {
+      label: 'Update product runtime (npm latest)',
+      click: () => {
+        try {
+          const runtimeDir = path.join(app.getPath('userData'), 'pixcode-runtime');
+          const prev = settings.autoPullRuntime;
+          settings.autoPullRuntime = true;
+          const ver = tryPullLatestRuntimeFromNpm(runtimeDir);
+          settings.autoPullRuntime = prev;
+          maybeNotify({
+            title: 'Pixcode runtime',
+            body: ver
+              ? `Runtime is now ${ver}. Restarting server…`
+              : 'Could not pull latest (check npm / network). Restarting with current runtime.',
+          });
+          retryBoot();
+        } catch (err) {
+          dialog.showErrorBox('Runtime update failed', err?.message || String(err));
+        }
+      },
+    },
+    {
+      label: 'Auto-pull runtime on launch',
+      type: 'checkbox',
+      checked: settings.autoPullRuntime !== false,
+      click: (item) => {
+        settings.autoPullRuntime = item.checked;
+        saveSettings(settings);
+        rebuildTrayMenu();
+      },
     },
     { type: 'separator' },
     { label: `Pixcode ${currentRuntimeVersion()}`, enabled: false },
