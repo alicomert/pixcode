@@ -132,7 +132,10 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
         /\b(?:use|via|with)\s+(opencode|codex|claude|gemini|cursor|qwen|grok)\b/i,
       );
     if (nl) {
-      agentType = normalizeAgentType(String(nl[1]).replace(/\s*code/i, ''));
+      // Never use /\s*code/ on the whole token — it turns "codex"→"x" and "opencode"→"open".
+      const rawAgent = String(nl[1]).trim();
+      const normalizedNl = /^claude(?:\s+code)?$/i.test(rawAgent) ? 'claude-code' : rawAgent;
+      agentType = normalizeAgentType(normalizedNl);
       nlAgent = true;
     }
   }

@@ -638,8 +638,10 @@ export function nanoclawRouter() {
         await startNanoclawBridge();
       }
       const chat = await import('./chat-engine.js');
+      const { resolveNanoclawProjectPath } = await import('./project-path.js');
       const projectId = req.body?.projectId || req.body?.project_id || 'general';
       let projectPath = req.body?.projectPath || req.body?.cwd || null;
+      projectPath = await resolveNanoclawProjectPath({ projectId, projectPath });
 
       if (projectId && projectId !== 'general') {
         await ensureProjectGroup({
@@ -648,13 +650,6 @@ export function nanoclawRouter() {
           path: projectPath,
           fullPath: projectPath,
         });
-        // Best-effort resolve path from Pixcode projects registry
-        if (!projectPath) {
-          try {
-            const { extractProjectDirectory } = await import('../../projects.js');
-            projectPath = await extractProjectDirectory(projectId).catch(() => null);
-          } catch { /* ignore */ }
-        }
       }
 
       const tools = await loadMcp();
@@ -685,8 +680,10 @@ export function nanoclawRouter() {
         await startNanoclawBridge();
       }
       const chat = await import('./chat-engine.js');
+      const { resolveNanoclawProjectPath } = await import('./project-path.js');
       const projectId = req.body?.projectId || req.body?.project_id || 'general';
       let projectPath = req.body?.projectPath || req.body?.cwd || null;
+      projectPath = await resolveNanoclawProjectPath({ projectId, projectPath });
 
       if (projectId && projectId !== 'general') {
         await ensureProjectGroup({
@@ -695,12 +692,6 @@ export function nanoclawRouter() {
           path: projectPath,
           fullPath: projectPath,
         });
-        if (!projectPath) {
-          try {
-            const { extractProjectDirectory } = await import('../../projects.js');
-            projectPath = await extractProjectDirectory(projectId).catch(() => null);
-          } catch { /* ignore */ }
-        }
       }
 
       res.status(200);
