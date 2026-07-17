@@ -3,6 +3,12 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.4](https://github.com/alicomert/pixcode/compare/v1.63.3...v1.63.4) (2026-07-17)
+
+### Bug Fixes
+
+* **pixbot:** never send HTTP picker models to CLI runners ([67ad398](https://github.com/alicomert/pixcode/commit/67ad398c87ded022ea3cf87f625b9b4d2a544bc7))
+
 ## [1.63.3](https://github.com/alicomert/pixcode/compare/v1.63.2...v1.63.3) (2026-07-17)
 
 ### Bug Fixes
