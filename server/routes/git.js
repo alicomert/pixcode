@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'child_process';
 import path from 'path';
 import { promises as fs } from 'fs';
@@ -8,8 +9,10 @@ import { extractProjectDirectory } from '../projects.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
 import { userHasProjectAccess } from '../services/platformization.js';
+import { buildGitSpawnEnv } from '../utils/gitConfig.js';
 
 const router = express.Router();
+const gitRequestContext = new AsyncLocalStorage();
 const COMMIT_DIFF_CHARACTER_LIMIT = 500_000;
 const FILESYSTEM_SCAN_MAX_FILES = 5_000;
 const FILESYSTEM_SCAN_MAX_DEPTH = 10;
@@ -41,18 +44,21 @@ const FILESYSTEM_SCAN_EXCLUDED_DIRS = new Set([
   'venv',
 ]);
 
+// Attach git identity + active GitHub PAT to every git spawn for this request.
 router.use((req, res, next) => {
-  const project = req.query.project || req.body?.project;
-  if (!project) {
-    return next();
-  }
+  gitRequestContext.run({ userId: req.user?.id ?? null }, () => {
+    const project = req.query.project || req.body?.project;
+    if (!project) {
+      return next();
+    }
 
-  const capability = req.method === 'GET' ? 'viewFiles' : 'editFiles';
-  if (!userHasProjectAccess(req.user, { name: String(project), projectName: String(project) }, capability)) {
-    return res.status(403).json({ error: 'Project access denied.' });
-  }
+    const capability = req.method === 'GET' ? 'viewFiles' : 'editFiles';
+    if (!userHasProjectAccess(req.user, { name: String(project), projectName: String(project) }, capability)) {
+      return res.status(403).json({ error: 'Project access denied.' });
+    }
 
-  next();
+    next();
+  });
 });
 
 function isNotGitRepositoryMessage(message = '') {
@@ -223,8 +229,17 @@ async function readFilesystemFileWithDiff(projectPath, filePath) {
 
 function spawnAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
+    const ctx = gitRequestContext.getStore() || {};
+    const env = command === 'git'
+      ? buildGitSpawnEnv({
+        userId: options.userId ?? ctx.userId,
+        baseEnv: options.env || process.env,
+      })
+      : (options.env || process.env);
+
     const child = spawn(command, args, {
       ...options,
+      env,
       shell: false,
     });
 

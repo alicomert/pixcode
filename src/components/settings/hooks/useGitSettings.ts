@@ -5,6 +5,7 @@ import { authenticatedFetch } from '../../../utils/api';
 type GitConfigResponse = {
   gitName?: string;
   gitEmail?: string;
+  hasGithubToken?: boolean;
   error?: string;
 };
 
@@ -13,6 +14,8 @@ type SaveStatus = 'success' | 'error' | null;
 export function useGitSettings() {
   const [gitName, setGitName] = useState('');
   const [gitEmail, setGitEmail] = useState('');
+  const [githubToken, setGithubToken] = useState('');
+  const [hasGithubToken, setHasGithubToken] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
@@ -37,6 +40,7 @@ export function useGitSettings() {
       const data = await response.json() as GitConfigResponse;
       setGitName(data.gitName || '');
       setGitEmail(data.gitEmail || '');
+      setHasGithubToken(Boolean(data.hasGithubToken));
     } catch (error) {
       console.error('Error loading git config:', error);
     } finally {
@@ -47,13 +51,22 @@ export function useGitSettings() {
   const saveGitConfig = useCallback(async () => {
     try {
       setIsSaving(true);
+      const body: Record<string, string> = { gitName, gitEmail };
+      if (githubToken.trim()) {
+        body.githubToken = githubToken.trim();
+        body.githubTokenName = 'GitHub (settings)';
+      }
+
       const response = await authenticatedFetch('/api/user/git-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gitName, gitEmail }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
+        const data = await response.json() as GitConfigResponse;
+        setHasGithubToken(Boolean(data.hasGithubToken));
+        setGithubToken('');
         setSaveStatus('success');
         clearStatusTimerRef.current = window.setTimeout(() => {
           setSaveStatus(null);
@@ -71,7 +84,7 @@ export function useGitSettings() {
     } finally {
       setIsSaving(false);
     }
-  }, [gitEmail, gitName]);
+  }, [gitEmail, gitName, githubToken]);
 
   useEffect(() => {
     void loadGitConfig();
@@ -88,6 +101,9 @@ export function useGitSettings() {
     setGitName,
     gitEmail,
     setGitEmail,
+    githubToken,
+    setGithubToken,
+    hasGithubToken,
     isLoading,
     isSaving,
     saveStatus,

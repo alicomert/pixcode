@@ -7,12 +7,24 @@ import express from 'express';
 
 import { addProjectManually, extractProjectDirectory } from '../projects.js';
 import { requireAdmin } from '../middleware/auth.js';
+import {
+  buildGitSpawnEnv,
+  getActiveGithubToken,
+  withGithubToken,
+} from '../utils/gitConfig.js';
 
 const router = express.Router();
 
 function sanitizeGitError(message, token) {
   if (!message || !token) return message;
   return message.replace(new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '***');
+}
+
+function resolveCloneToken(userId, { githubTokenId, newGithubToken } = {}) {
+  if (newGithubToken) return String(newGithubToken);
+  // Explicit token id is handled by callers via getGithubTokenById
+  if (githubTokenId) return null;
+  return getActiveGithubToken(userId);
 }
 
 // Configure allowed workspace root (defaults to user's home directory)
@@ -602,18 +614,18 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
       if (githubUrl) {
         let githubToken = null;
 
-        // Get GitHub token if needed
+        // Prefer explicit token, else active GitHub credential from Settings/onboarding
         if (githubTokenId) {
-          // Fetch token from database
           const token = await getGithubTokenById(githubTokenId, req.user.id);
           if (!token) {
-            // Clean up created directory
             await fs.rm(absolutePath, { recursive: true, force: true });
             return res.status(404).json({ error: 'GitHub token not found' });
           }
           githubToken = token.github_token;
         } else if (newGithubToken) {
           githubToken = newGithubToken;
+        } else {
+          githubToken = resolveCloneToken(req.user.id, {});
         }
 
         // Extract repo name from URL for the clone destination
@@ -734,7 +746,7 @@ router.get('/clone-progress', async (req, res) => {
 
     let githubToken = null;
     if (githubTokenId) {
-      const token = await getGithubTokenById(parseInt(githubTokenId), req.user.id);
+      const token = await getGithubTokenById(parseInt(githubTokenId, 10), req.user.id);
       if (!token) {
         await fs.rm(absolutePath, { recursive: true, force: true });
         sendEvent('error', { message: 'GitHub token not found' });
@@ -744,6 +756,8 @@ router.get('/clone-progress', async (req, res) => {
       githubToken = token.github_token;
     } else if (newGithubToken) {
       githubToken = newGithubToken;
+    } else {
+      githubToken = resolveCloneToken(req.user.id, {});
     }
 
     const normalizedUrl = githubUrl.replace(/\/+$/, '').replace(/\.git$/, '');
@@ -760,26 +774,16 @@ router.get('/clone-progress', async (req, res) => {
       // Directory doesn't exist, which is what we want
     }
 
-    let cloneUrl = githubUrl;
-    if (githubToken) {
-      try {
-        const url = new URL(githubUrl);
-        url.username = githubToken;
-        url.password = '';
-        cloneUrl = url.toString();
-      } catch (error) {
-        // SSH URL or invalid - use as-is
-      }
+    const cloneUrl = withGithubToken(githubUrl, githubToken) || githubUrl;
+    if (!githubToken && /github\.com/i.test(githubUrl)) {
+      sendEvent('progress', { message: 'No GitHub token configured — public repos only. Add a PAT in Settings → Git / API keys for private repos.' });
     }
 
     sendEvent('progress', { message: `Cloning into '${repoName}'...` });
 
     const gitProcess = spawn('git', ['clone', '--progress', cloneUrl, clonePath], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0'
-      }
+      env: buildGitSpawnEnv({ userId: req.user.id, githubToken }),
     });
 
     let lastError = '';
@@ -853,25 +857,11 @@ router.get('/clone-progress', async (req, res) => {
  */
 function cloneGitHubRepository(githubUrl, destinationPath, githubToken = null) {
   return new Promise((resolve, reject) => {
-    let cloneUrl = githubUrl;
-
-    if (githubToken) {
-      try {
-        const url = new URL(githubUrl);
-        url.username = githubToken;
-        url.password = '';
-        cloneUrl = url.toString();
-      } catch (error) {
-        // SSH URL - use as-is
-      }
-    }
+    const cloneUrl = withGithubToken(githubUrl, githubToken) || githubUrl;
 
     const gitProcess = spawn('git', ['clone', '--progress', cloneUrl, destinationPath], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: '0'
-      }
+      env: buildGitSpawnEnv({ githubToken }),
     });
 
     let stdout = '';

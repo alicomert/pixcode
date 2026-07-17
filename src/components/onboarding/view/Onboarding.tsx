@@ -23,6 +23,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [gitName, setGitName] = useState('');
   const [gitEmail, setGitEmail] = useState('');
+  const [githubToken, setGithubToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeLoginProvider, setActiveLoginProvider] = useState<LLMProvider | null>(null);
@@ -105,7 +106,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
       const response = await authenticatedFetch('/api/user/git-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gitName, gitEmail }),
+        body: JSON.stringify({
+          gitName,
+          gitEmail,
+          ...(githubToken.trim() ? { githubToken: githubToken.trim(), githubTokenName: 'GitHub (onboarding)' } : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -160,9 +165,11 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               <GitConfigurationStep
                 gitName={gitName}
                 gitEmail={gitEmail}
+                githubToken={githubToken}
                 isSubmitting={isSubmitting}
                 onGitNameChange={setGitName}
                 onGitEmailChange={setGitEmail}
+                onGithubTokenChange={setGithubToken}
               />
             ) : currentStep === 1 ? (
               <AgentConnectionsStep

@@ -1,53 +1,35 @@
-import { spawn } from 'child_process';
-
 import express from 'express';
 
-import { userDb } from '../database/db.js';
+import { userDb, githubTokensDb, credentialsDb } from '../database/db.js';
 import { authenticateToken, optionalAuthenticateToken } from '../middleware/auth.js';
-import { getSystemGitConfig } from '../utils/gitConfig.js';
+import {
+  applyPixcodeGitIdentity,
+  getSystemGitConfig,
+  userHasGithubToken,
+} from '../utils/gitConfig.js';
 
 const router = express.Router();
-
-function spawnAsync(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { ...options, shell: false });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (data) => { stdout += data.toString(); });
-    child.stderr.on('data', (data) => { stderr += data.toString(); });
-    child.on('error', (error) => { reject(error); });
-    child.on('close', (code) => {
-      if (code === 0) { resolve({ stdout, stderr }); return; }
-      const error = new Error(`Command failed: ${command} ${args.join(' ')}`);
-      error.code = code;
-      error.stdout = stdout;
-      error.stderr = stderr;
-      reject(error);
-    });
-  });
-}
 
 router.get('/git-config', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     let gitConfig = userDb.getGitConfig(userId);
 
-    // If database is empty, try to get from system git config
+    // If database is empty, try Pixcode/system git config once
     if (!gitConfig || (!gitConfig.git_name && !gitConfig.git_email)) {
       const systemConfig = await getSystemGitConfig();
-
-      // If system has values, save them to database for this user
       if (systemConfig.git_name || systemConfig.git_email) {
         userDb.updateGitConfig(userId, systemConfig.git_name, systemConfig.git_email);
         gitConfig = systemConfig;
-        console.log(`Auto-populated git config from system for user ${userId}: ${systemConfig.git_name} <${systemConfig.git_email}>`);
       }
     }
 
     res.json({
       success: true,
       gitName: gitConfig?.git_name || null,
-      gitEmail: gitConfig?.git_email || null
+      gitEmail: gitConfig?.git_email || null,
+      hasGithubToken: userHasGithubToken(userId),
+      storage: 'pixcode', // identity lives in DB + ~/.pixcode/gitconfig (not system --global)
     });
   } catch (error) {
     console.error('Error getting git config:', error);
@@ -55,17 +37,19 @@ router.get('/git-config', authenticateToken, async (req, res) => {
   }
 });
 
-// Apply git config globally via git config --global
+/**
+ * Save git identity + optional GitHub PAT for private repos.
+ * Never touches `git config --global` (fails under many server/daemon setups).
+ */
 router.post('/git-config', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { gitName, gitEmail } = req.body;
+    const { gitName, gitEmail, githubToken, githubTokenName } = req.body;
 
     if (!gitName || !gitEmail) {
       return res.status(400).json({ error: 'Git name and email are required' });
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(gitEmail)) {
       return res.status(400).json({ error: 'Invalid email format' });
@@ -73,18 +57,51 @@ router.post('/git-config', authenticateToken, async (req, res) => {
 
     userDb.updateGitConfig(userId, gitName, gitEmail);
 
+    let identityFile = null;
     try {
-      await spawnAsync('git', ['config', '--global', 'user.name', gitName]);
-      await spawnAsync('git', ['config', '--global', 'user.email', gitEmail]);
-      console.log(`Applied git config globally: ${gitName} <${gitEmail}>`);
+      identityFile = await applyPixcodeGitIdentity(gitName, gitEmail);
     } catch (gitError) {
-      console.error('Error applying git config:', gitError);
+      // Non-fatal: DB still holds identity; commits use env vars as fallback.
+      console.warn(
+        '[git-config] Could not write Pixcode gitconfig (commits still use DB identity):',
+        gitError?.message || gitError,
+      );
+    }
+
+    let githubSaved = false;
+    const rawToken = typeof githubToken === 'string' ? githubToken.trim() : '';
+    if (rawToken) {
+      const name = (typeof githubTokenName === 'string' && githubTokenName.trim())
+        ? githubTokenName.trim()
+        : 'GitHub (onboarding)';
+      // Deactivate previous active tokens so the new one is authoritative
+      try {
+        const existing = githubTokensDb.getGithubTokens(userId) || [];
+        for (const entry of existing) {
+          if (entry.is_active === true || entry.is_active === 1) {
+            credentialsDb.toggleCredential(userId, entry.id, false);
+          }
+        }
+      } catch {
+        // ignore
+      }
+      credentialsDb.createCredential(
+        userId,
+        name,
+        'github_token',
+        rawToken,
+        'Saved from Git settings / onboarding for private repo access',
+      );
+      githubSaved = true;
     }
 
     res.json({
       success: true,
       gitName,
-      gitEmail
+      gitEmail,
+      hasGithubToken: userHasGithubToken(userId) || githubSaved,
+      identityFile,
+      storage: 'pixcode',
     });
   } catch (error) {
     console.error('Error updating git config:', error);
@@ -99,7 +116,7 @@ router.post('/complete-onboarding', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Onboarding completed successfully'
+      message: 'Onboarding completed successfully',
     });
   } catch (error) {
     console.error('Error completing onboarding:', error);
@@ -107,10 +124,6 @@ router.post('/complete-onboarding', authenticateToken, async (req, res) => {
   }
 });
 
-// Onboarding status is public — it is needed during initial setup
-// BEFORE any users exist or any token is issued. optionalAuthenticateToken
-// never 401s for a missing token (that was the first-run "Access denied.
-// No token provided." bug when this route was mounted behind auth).
 router.get('/onboarding-status', optionalAuthenticateToken, async (req, res) => {
   try {
     const hasUsers = userDb.hasUsers();
@@ -118,8 +131,6 @@ router.get('/onboarding-status', optionalAuthenticateToken, async (req, res) => 
       return res.json({ success: true, needsSetup: true, hasCompletedOnboarding: false });
     }
 
-    // Anonymous: users already exist → send them to login, not setup.
-    // Authenticated: return that user's real onboarding progress.
     if (!req.user) {
       return res.json({ success: true, needsSetup: false, hasCompletedOnboarding: true });
     }
