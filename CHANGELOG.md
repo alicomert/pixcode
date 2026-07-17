@@ -3,6 +3,12 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.6](https://github.com/alicomert/pixcode/compare/v1.63.5...v1.63.6) (2026-07-17)
+
+### New Features
+
+* **pixbot:** agent slash badges in composer and chat bubbles ([183237e](https://github.com/alicomert/pixcode/commit/183237efbd4e1432efc4161244630d76af9631c6))
+
 ## [1.63.5](https://github.com/alicomert/pixcode/compare/v1.63.4...v1.63.5) (2026-07-17)
 
 ### Bug Fixes
