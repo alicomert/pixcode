@@ -17,7 +17,8 @@ type UseFileTreeDataResult = {
 // after server start), which used to leave the tree silently empty until the
 // user pressed the manual refresh button.
 const FETCH_RETRY_DELAY_MS = 1500;
-const FETCH_MAX_ATTEMPTS = 2;
+const FETCH_MAX_ATTEMPTS = 3;
+const TRUNCATED_RETRY_DELAY_MS = 800;
 
 // Coalesce structure-changing watcher events into a single full tree scan.
 // Content-only edits (`change`) never need a full HTTP re-fetch — the node
@@ -109,7 +110,12 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
       };
 
       try {
-        const response = await api.getFiles(projectName, { signal: abortControllerRef.current!.signal });
+        // Fresh AbortController per attempt so a retry is not dead after abort of attempt 1.
+        if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+          abortControllerRef.current = new AbortController();
+        }
+
+        const response = await api.getFiles(projectName, { signal: abortControllerRef.current.signal });
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -118,9 +124,30 @@ export function useFileTreeData(selectedProject: Project | null): UseFileTreeDat
           return;
         }
 
-        const data = (await response.json()) as FileTreeNode[];
+        const data = (await response.json()) as unknown;
+        if (!Array.isArray(data)) {
+          console.error('File fetch returned non-array payload:', data);
+          scheduleRetryOrFail('Failed to load files (invalid response)');
+          return;
+        }
+
+        const truncated = response.headers.get('X-Pixcode-File-Tree-Truncated') === '1';
+        // Empty root on first attempt is almost always a race — retry.
+        const emptyRoot = data.length === 0;
+        if (isActive && (truncated || emptyRoot) && attempt < FETCH_MAX_ATTEMPTS) {
+          // Show whatever we have so the panel is not blank during retry.
+          if (data.length > 0) {
+            setFiles(data as FileTreeNode[]);
+            setError(null);
+          }
+          retryTimer = window.setTimeout(() => {
+            void fetchFiles(attempt + 1);
+          }, truncated ? TRUNCATED_RETRY_DELAY_MS : FETCH_RETRY_DELAY_MS);
+          return;
+        }
+
         if (isActive) {
-          setFiles(data);
+          setFiles(data as FileTreeNode[]);
           setError(null);
           setLoading(false);
         }

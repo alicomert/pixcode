@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '../../../utils/api';
 import type { CodeEditorFile } from '../types/types';
@@ -29,22 +29,33 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
   const fileName = file.name;
   const fileDiffNewString = file.diffInfo?.new_string;
   const fileDiffOldString = file.diffInfo?.old_string;
+  const loadGenerationRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const generation = ++loadGenerationRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     const loadFileContent = async () => {
       try {
         setLoading(true);
         setIsBinary(false);
+        setSaveError(null);
 
         // Check if file is binary by extension
-        if (isBinaryFile(file.name)) {
+        if (isBinaryFile(fileName)) {
+          if (generation !== loadGenerationRef.current) return;
           setIsBinary(true);
+          setContent('');
           setLoading(false);
           return;
         }
 
         // Diff payload may already include full old/new snapshots, so avoid disk read.
         if (file.diffInfo && fileDiffNewString !== undefined && fileDiffOldString !== undefined) {
+          if (generation !== loadGenerationRef.current) return;
           setContent(fileDiffNewString);
           setLoading(false);
           return;
@@ -54,24 +65,39 @@ export const useCodeEditorDocument = ({ file, projectPath }: UseCodeEditorDocume
           throw new Error('Missing project identifier');
         }
 
-        const response = await api.readFile(fileProjectName, filePath);
+        const response = await api.readFile(fileProjectName, filePath, { signal: controller.signal });
+        if (generation !== loadGenerationRef.current) return;
+
         if (!response.ok) {
           throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);
         }
 
-        const data = await response.json();
-        setContent(data.content);
+        const data = (await response.json()) as { content?: string };
+        if (generation !== loadGenerationRef.current) return;
+
+        setContent(typeof data.content === 'string' ? data.content : '');
       } catch (error) {
+        if ((error as { name?: string }).name === 'AbortError') {
+          return;
+        }
+        if (generation !== loadGenerationRef.current) return;
+
         const message = getErrorMessage(error);
         console.error('Error loading file:', error);
         setContent(`// Error loading file: ${message}\n// File: ${fileName}\n// Path: ${filePath}`);
       } finally {
-        setLoading(false);
+        if (generation === loadGenerationRef.current) {
+          setLoading(false);
+        }
       }
     };
 
-    loadFileContent();
-  }, [file.diffInfo, file.name, fileDiffNewString, fileDiffOldString, fileName, filePath, fileProjectName]);
+    void loadFileContent();
+
+    return () => {
+      controller.abort();
+    };
+  }, [file.diffInfo, fileDiffNewString, fileDiffOldString, fileName, filePath, fileProjectName]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);

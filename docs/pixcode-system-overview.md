@@ -1,67 +1,149 @@
 # Pixcode System Overview
 
-Bu dokuman Pixcode 1.34.x cizgisindeki ana sistemi ve dagitim demirbaslarini ozetler.
+Bu dokuman Pixcode **1.60.x** ana mimarisini, NanoClaw motorunu, public HTTP API’yi ve desktop dagitimini ozetler.
 
 ## Ana Mimari
 
 Pixcode tek uygulama icinde web UI, backend API, CLI runtime yonetimi ve desktop paketleme katmanlarini tasir.
 
-- Frontend: `src/` altinda React, Vite ve Tailwind tabanli arayuz.
-- Backend: `server/` altinda Express, WebSocket, CLI adapterleri, auth, proje/session ve orchestration API'leri.
-- Shared contracts: `shared/` ve `server/shared/` uzerinden frontend/backend arasinda tip ve yardimci sozlesmeler.
-- Runtime build: `npm run build` sonrasi frontend `dist/`, backend `dist-server/` altina uretilir.
-- CLI entrypoint: npm paketi `pixcode` komutunu `dist-server/server/cli.js` uzerinden yayinlar.
+| Katman | Konum | Not |
+|--------|--------|-----|
+| Frontend | `src/` | React 18 + Vite 7 + Tailwind; entry `src/main.jsx` → `App.tsx` |
+| Backend | `server/` | Express + `ws`; routes `/api/*` |
+| NanoClaw | `server/vendor/nanoclaw-lite` + `server/modules/nanoclaw/` | Agent / schedule / Telegram-WhatsApp motoru |
+| Shared | `shared/`, `server/shared/` | Tip ve sozlesmeler |
+| Desktop | `desktop/` | Electron NSIS/DMG/AppImage wrapper |
+| Build | `dist/`, `dist-server/` | `npm run build` ciktisi |
+| CLI | `pixcode` | `dist-server/server/cli.js` |
 
-## Calisma Modlari
+## Shell modlari (UI)
 
-- `npm run client`: yalnizca Vite frontend.
-- `npm run build:server`: backend TypeScript/JS build.
-- `npm run server`: build edilmis backend'i baslatir.
-- `npm run dev`: daemon/system mode akisini kullanir; foreground dev server degildir.
-- `node server/cli.js start`: kaynak uzerinden dogrudan calistirma icin kullanilir.
+Kullanici tercihleri (`useUiPreferences`):
 
-## API ve Auth
+| Mode | Anlam |
+|------|--------|
+| `nanoclaw` | Gorev/agent odakli; NanoClaw merkeze yakin |
+| `hybrid` | NanoClaw + klasik VS Code chrome (files, editor, shell, git) |
+| `pixcode` | Klasik workbench; **mesajlasma yine NanoClaw** |
 
-- Ana API yuzeyi `/api/*` altindadir.
-- A2A ve orchestration yuzeyi `/a2a/*` ve `/api/orchestration/*` altindadir.
-- API key tabanli otomasyon desteklenir.
-- Localhost guvenli akislar icin ayricalikli olabilir; remote erisimde bearer auth beklenir.
+Optional **general** workspace: coding project secmeden de NanoClaw gorevleri calisir.
 
-## Desktop ve Installer Demirbaslari
+## Calisma modlari
 
-Desktop wrapper `desktop/` altinda izole bir Electron alt paketidir. Root `npm install`, Electron bagimliliklarini yuklemez; installer derleme CI workflow uzerinden yapilir.
+- `npm run client` — yalnizca Vite frontend (5173).
+- `npm run build:server` — backend build → `dist-server/`.
+- `npm run server` — **build edilmis** backend.
+- `npm run server:dev` / daemon — `server/cli.js` uzerinden system mode (Linux’ta systemd).
+- `node server/cli.js start --no-daemon` — foreground.
+- `npm run dev` — daemon install/start; plain foreground degildir (`PIXCODE_NO_DAEMON=1` ile foreground).
 
-Uretilen native ciktilar:
+## HTTP API ve Auth
 
-- Windows: `Pixcode-Setup-X.Y.Z.exe`
-- macOS: `Pixcode-X.Y.Z-arm64.dmg` ve `Pixcode-X.Y.Z-x64.dmg`
-- Linux: `Pixcode-X.Y.Z-x64.AppImage` ve `Pixcode-X.Y.Z-x64.deb`
+- Ana yuzey: `/api/*` (`validateApiKey` + cogu rota `authenticateToken`).
+- Auth public: `/api/auth/*` (register/login/onboarding) API key zorunlulugundan muaf.
+- API key: Settings → API keys, prefix `px_`. Header: `X-API-Key` veya `Authorization: Bearer`.
+- Public katalog:
+  - `GET /api/public/manifest`
+  - `GET /api/public/cookbook` — hazir curl ornekleri
+  - `GET /api/public/openapi`
+  - `GET /api/public/sdk/typescript`
 
-1.34.0 icin root paket ve desktop wrapper surumu ayni hizada tutulmalidir:
+### NanoClaw API (uzaktan agent / schedule)
 
-- `package.json` version: `1.34.0`
-- `desktop/package.json` version: `1.34.0`
-- `desktop/package.json` icindeki `@pixelbyte-software/pixcode`: `1.34.0`
+Detay: **[docs/NANOCLAW_API.md](./NANOCLAW_API.md)**
 
-Tag/release akisi:
+```bash
+export PIXCODE_URL=http://127.0.0.1:3001
+export PIXCODE_API_KEY=px_your_key
 
-- `vX.Y.Z` tag'i GitHub'a push edilir.
-- `.github/workflows/desktop.yml` installer matrix build'lerini calistirir.
-- Uygun release asset'leri GitHub Releases altina eklenir.
-- npm tarball ve desktop installer ayni version sayfasinda olmalidir.
+curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/help"
+curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/status"
 
-## Dogrulama Beklentisi
+# Aninda multi-CLI calistir
+curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" \
+  -d '{"prompt":"summarize git status","agentType":"claude-code","projectId":"my-app"}' \
+  "$PIXCODE_URL/api/nanoclaw/run"
 
-Bu repoda unit test suite yoktur. Temel kabul kontrolleri:
+# Cron schedule
+curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" \
+  -d '{"prompt":"daily audit","schedule_type":"cron","schedule_value":"0 9 * * *","projectId":"my-app"}' \
+  "$PIXCODE_URL/api/nanoclaw/tasks"
+```
+
+`/api/tasks/*` ayni router’in UI uyumluluk alias’idir (eski “PixBot” degil — arka planda NanoClaw).
+
+### Diger sik kullanilan rotalar
+
+| Alan | Ornek |
+|------|--------|
+| Projects | `GET /api/projects` |
+| Files | `GET /api/projects/:name/files`, `GET …/file?filePath=` |
+| Git | `/api/git/*` |
+| Providers | `/api/providers` |
+| Shell | `/api/shell/sessions/*` |
+| Orchestration / A2A | `/api/orchestration/*`, `/a2a/*` |
+| Remote / control room | `/api/remote/*` |
+| Webhooks | `/api/webhooks` |
+| Telegram (Pixcode control) | `/api/telegram/*` |
+
+## Multi-CLI agentler
+
+NanoClaw multi-runner (`server/modules/nanoclaw/multi-runner.js`) su provider’lara route eder:
+
+- Claude Code (`claude-code`)
+- OpenAI Codex
+- Gemini CLI
+- Cursor CLI
+- Qwen Code
+- OpenCode
+- Grok Build / xAI (`grok`) — bkz. [GROK_BUILD.md](./GROK_BUILD.md)
+
+Prompt directive: `[agent:codex] …` veya `[agent:grok model:…] …`
+
+## Messaging
+
+- **Telegram / WhatsApp:** NanoClaw channel katmani (token Pixcode Settings’ten enjekte edilir).
+- Shell mode ne olursa olsun messaging NanoClaw uzerinden kalir.
+
+## Desktop ve installer
+
+- Wrapper: `desktop/` (Electron + `electron-builder`).
+- Bundled product: `@pixelbyte-software/pixcode` (desktop `package.json` pin’i root surumle hizali tutulmali).
+- Windows build native rebuild gerektirmez (`npmRebuild: false`); N-API prebuild’ler kullanilir.
+- Boot: runtime `userData/pixcode-runtime` seed + opsiyonel `npm` latest pull (eski EXE’lerin self-heal’i).
+- Artifact ornekleri:
+  - Windows: `Pixcode-Setup-X.Y.Z.exe`
+  - macOS: `Pixcode-X.Y.Z-arm64.dmg` / `x64.dmg`
+  - Linux: `AppImage` + `.deb`
+- Release: GitHub `vX.Y.Z` + npm `@pixelbyte-software/pixcode@X.Y.Z`.
+
+## Files / Editor notlari
+
+- File tree tarama butceli; **truncated agaclar cache’lenmez** (eksik liste kalici olmaz).
+- Truncation header: `X-Pixcode-File-Tree-Truncated: 1`.
+- Env ile sinirlar: `PIXCODE_FILE_TREE_MAX_ITEMS`, `PIXCODE_FILE_TREE_SCAN_MAX_MS`, vb.
+- Windows path karsilastirmasi case-insensitive (editor 403 / stuck load onleme).
+
+## Dogrulama
+
+Unit test suite yok. Kabul:
 
 - `npm run lint`
 - `npm run typecheck`
 - `npm run build`
-- Canli servis icin `/health`
-- Orchestration icin `/api/orchestration/workflows/context`
+- Canli: `/health`, `GET /api/nanoclaw/status`, `GET /api/public/cookbook`
 
-## Operasyon Notlari
+## Operasyon
 
-- `npm run server` her zaman build edilmis `dist-server` ciktisini kullanir.
-- Source degisikligi sonrasi sadece servis restart etmek yeterli degildir; once `npm run build:server` gerekir.
-- Desktop installer yeni urunu paketleyecekse `desktop/package.json` surumu root paketle ayni tutulmalidir.
+- `npm run server` her zaman `dist-server` kullanir — source degisikligi sonrasi `npm run build:server`.
+- Auth DB: `~/.pixcode/auth.db` (`DATABASE_PATH` ile override).
+- NanoClaw data: `~/.pixcode/nanoclaw`.
+- Port: `SERVER_PORT` (backend), `VITE_PORT` (frontend). `HOST=0.0.0.0` remote bind.
+
+## Eski isimler (kaldirildi / yeniden adlandi)
+
+| Eski | Simdi |
+|------|--------|
+| PixBot chat heuristics | NanoClaw-lite + multi-runner |
+| Full-screen chrome-kill Tasks | VS Code workbench icinde Tasks tab |
+| Desktop pin `1.53.x` | `desktop/package.json` = current product version + auto-pull |

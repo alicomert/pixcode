@@ -133,33 +133,38 @@ export async function getChannelCapabilities() {
     },
     agents: {
       claude: {
-        engine: 'nanoclaw-lite Claude Agent SDK (in-process)',
+        engine: 'NanoClaw-lite Claude Agent SDK + Pixcode multi-runner',
         managed: true,
       },
       codex: {
-        engine: 'Pixcode task-runtime / CLI (not NanoClaw SDK path yet)',
-        managed: 'partial',
+        engine: 'Pixcode multi-runner → task-runtime / Codex CLI',
+        managed: true,
       },
       gemini: {
-        engine: 'Pixcode task-runtime / CLI (not NanoClaw SDK path yet)',
-        managed: 'partial',
+        engine: 'Pixcode multi-runner → Gemini CLI',
+        managed: true,
       },
       cursor: {
-        engine: 'Pixcode task-runtime / CLI',
-        managed: 'partial',
+        engine: 'Pixcode multi-runner → Cursor CLI',
+        managed: true,
       },
       opencode: {
-        engine: 'Pixcode task-runtime / CLI',
-        managed: 'partial',
+        engine: 'Pixcode multi-runner → OpenCode CLI',
+        managed: true,
       },
       qwen: {
-        engine: 'Pixcode task-runtime / CLI',
-        managed: 'partial',
+        engine: 'Pixcode multi-runner → Qwen Code CLI',
+        managed: true,
+      },
+      grok: {
+        engine: 'Pixcode multi-runner → Grok Build (xAI)',
+        managed: true,
       },
     },
     summary: {
       messaging: 'Telegram ready when token set; WhatsApp optional via Baileys env.',
-      agents: 'NanoClaw agent-runner = Claude SDK today. Multi-CLI (Codex/Gemini/…) still via Pixcode CLI adapters — full multi-provider agent-runner is the next wire-up.',
+      agents: 'POST /api/nanoclaw/run and scheduled tasks route via multi-runner (Claude/Codex/Gemini/Cursor/Qwen/OpenCode/Grok). Prefix [agent:codex] in prompts or pass agentType.',
+      api: 'GET /api/nanoclaw/help for curl cookbook; also /api/tasks alias for UI.',
     },
   };
 }
@@ -208,10 +213,15 @@ function toolContext(req, body = {}) {
 }
 
 /**
- * Express router mounted at /api/nanoclaw and also mirrored under /api/tasks for PixBot UI.
+ * Express router mounted at /api/nanoclaw and also under /api/tasks (UI compatibility).
+ * Public remote clients should prefer /api/nanoclaw/* with X-API-Key or Bearer token.
  */
 export function nanoclawRouter() {
   const router = express.Router();
+
+  router.get('/help', (_req, res) => {
+    res.json(buildNanoclawApiHelp());
+  });
 
   router.get('/status', async (_req, res) => {
     try {
@@ -221,10 +231,23 @@ export function nanoclawRouter() {
         ok: true,
         started,
         engine: 'nanoclaw-lite',
-        brand: 'PixBot',
+        brand: 'NanoClaw',
         state: nc?.getNanoclawRuntimeState?.() || null,
         channels,
+        api: {
+          help: '/api/nanoclaw/help',
+          docs: '/api/public/cookbook',
+        },
       });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.post('/start', async (_req, res) => {
+    try {
+      const result = await startNanoclawBridge();
+      res.json(result);
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -233,6 +256,57 @@ export function nanoclawRouter() {
   router.get('/channels', async (_req, res) => {
     try {
       res.json({ ok: true, channels: await getChannelCapabilities() });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  /** Immediate multi-CLI run (does not require a schedule). */
+  router.post('/run', async (req, res) => {
+    try {
+      if (!started) {
+        await startNanoclawBridge();
+      }
+      const prompt = String(req.body?.prompt || req.body?.message || '').trim();
+      if (!prompt) {
+        return res.status(400).json({ error: 'prompt is required' });
+      }
+
+      const projectId = req.body?.projectId || req.body?.project_id || 'general';
+      const projectPath = req.body?.projectPath || req.body?.cwd || null;
+      if (projectId && projectId !== 'general') {
+        await ensureProjectGroup({
+          name: projectId,
+          displayName: projectId,
+          path: projectPath,
+          fullPath: projectPath,
+        });
+      }
+
+      const { runPixcodeMultiAgent, normalizeAgentType } = await import('./multi-runner.js');
+      const agentType = normalizeAgentType(req.body?.agentType || req.body?.agent || req.body?.provider);
+      const logs = [];
+      const result = await runPixcodeMultiAgent({
+        prompt,
+        groupFolder: String(projectId).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80),
+        sessionId: req.body?.sessionId || undefined,
+        agentType,
+        model: req.body?.model || undefined,
+        projectPath,
+        isScheduledTask: false,
+        onLog: (level, message) => {
+          logs.push({ level, message, at: new Date().toISOString() });
+        },
+      });
+
+      const statusCode = result.status === 'success' ? 200 : 502;
+      res.status(statusCode).json({
+        ok: result.status === 'success',
+        ...result,
+        agentType,
+        projectId,
+        logs: logs.slice(-100),
+      });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -449,23 +523,47 @@ export function nanoclawRouter() {
   router.get('/bot/conversations', (_req, res) => res.json({ conversations: [] }));
   router.get('/bot/proposals', (_req, res) => res.json({ proposals: [] }));
   router.get('/bot/plans', (_req, res) => res.json({ plans: [] }));
-  router.get('/meta/agents', (_req, res) => res.json({
-    agents: [
-      { value: 'claude-code', label: 'Claude Code', provider: 'claude' },
-      { value: 'codex', label: 'OpenAI Codex', provider: 'codex' },
-      { value: 'gemini', label: 'Gemini CLI', provider: 'gemini' },
-      { value: 'cursor', label: 'Cursor CLI', provider: 'cursor' },
-      { value: 'qwen', label: 'Qwen Code', provider: 'qwen' },
-      { value: 'opencode', label: 'OpenCode', provider: 'opencode' },
-      { value: 'grok', label: 'Grok Build (xAI)', provider: 'grok' },
-    ],
-  }));
+  router.get('/meta/agents', async (_req, res) => {
+    try {
+      const { MULTI_CLI_AGENTS } = await import('./multi-runner.js');
+      res.json({
+        agents: MULTI_CLI_AGENTS.map((a) => ({
+          value: a.value,
+          label: a.label,
+          provider: a.value === 'claude-code' ? 'claude' : a.value,
+        })),
+        directive: 'Prefix prompts with [agent:codex] or [agent:grok model:…]',
+      });
+    } catch {
+      res.json({
+        agents: [
+          { value: 'claude-code', label: 'Claude Code', provider: 'claude' },
+          { value: 'codex', label: 'OpenAI Codex', provider: 'codex' },
+          { value: 'gemini', label: 'Gemini CLI', provider: 'gemini' },
+          { value: 'cursor', label: 'Cursor CLI', provider: 'cursor' },
+          { value: 'qwen', label: 'Qwen Code', provider: 'qwen' },
+          { value: 'opencode', label: 'OpenCode', provider: 'opencode' },
+          { value: 'grok', label: 'Grok Build (xAI)', provider: 'grok' },
+        ],
+      });
+    }
+  });
+  router.get('/agents', (req, res) => {
+    req.url = '/meta/agents';
+    return router.handle(req, res, () => {});
+  });
   router.get('/meta/roles', (_req, res) => res.json({ roles: [] }));
   router.get('/events', (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
-    res.write(`data: ${JSON.stringify({ type: 'connected', engine: 'nanoclaw-lite' })}\n\n`);
-    req.on('close', () => {});
+    res.setHeader('Connection', 'keep-alive');
+    res.write(`data: ${JSON.stringify({ type: 'connected', engine: 'nanoclaw-lite', started })}\n\n`);
+    const timer = setInterval(() => {
+      res.write(`data: ${JSON.stringify({ type: 'heartbeat', at: new Date().toISOString() })}\n\n`);
+    }, 25000);
+    req.on('close', () => {
+      clearInterval(timer);
+    });
   });
   router.get('/', async (req, res) => {
     try {
@@ -517,6 +615,44 @@ function publicScheduledTask(row) {
     contextMode: row.context_mode,
     createdAt: row.created_at,
     agentType: 'claude-code',
+  };
+}
+
+function buildNanoclawApiHelp() {
+  const base = '/api/nanoclaw';
+  return {
+    name: 'Pixcode NanoClaw API',
+    engine: 'nanoclaw-lite',
+    auth: {
+      headers: ['X-API-Key: px_…', 'Authorization: Bearer <jwt|px_…>'],
+      note: 'Create keys in Settings → API keys (scopes tasks:read / tasks:write).',
+    },
+    endpoints: [
+      { method: 'GET', path: `${base}/help`, description: 'This document' },
+      { method: 'GET', path: `${base}/status`, description: 'Engine + channel status' },
+      { method: 'POST', path: `${base}/start`, description: 'Ensure embedded NanoClaw is running' },
+      { method: 'GET', path: `${base}/channels`, description: 'Telegram / WhatsApp capabilities' },
+      { method: 'GET', path: `${base}/agents`, description: 'Multi-CLI agents (Claude, Codex, Grok, …)' },
+      { method: 'GET', path: `${base}/tasks`, description: 'List scheduled tasks (?projectId=)' },
+      { method: 'GET', path: `${base}/tasks/:id`, description: 'Get one task' },
+      { method: 'POST', path: `${base}/tasks`, description: 'Schedule task (once|interval|cron)' },
+      { method: 'PATCH', path: `${base}/tasks/:id`, description: 'Update task prompt/schedule' },
+      { method: 'POST', path: `${base}/tasks/:id/pause`, description: 'Pause task' },
+      { method: 'POST', path: `${base}/tasks/:id/resume`, description: 'Resume task' },
+      { method: 'POST', path: `${base}/tasks/:id/cancel`, description: 'Cancel task' },
+      { method: 'DELETE', path: `${base}/tasks/:id`, description: 'Delete task' },
+      { method: 'POST', path: `${base}/run`, description: 'Run agent immediately (multi-CLI)' },
+      { method: 'POST', path: `${base}/bot/chat`, description: 'UI helper: chat → once schedule' },
+      { method: 'GET', path: `${base}/events`, description: 'SSE heartbeat stream' },
+      { method: 'GET', path: '/api/tasks', description: 'Alias of NanoClaw router (UI)' },
+    ],
+    examples: {
+      status: `curl -H "X-API-Key: $PIXCODE_API_KEY" http://127.0.0.1:3001${base}/status`,
+      listTasks: `curl -H "X-API-Key: $PIXCODE_API_KEY" "http://127.0.0.1:3001${base}/tasks"`,
+      scheduleOnce: `curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" -d '{"prompt":"[agent:codex] write a README","schedule_type":"once","projectId":"my-app"}' http://127.0.0.1:3001${base}/tasks`,
+      scheduleCron: `curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" -d '{"prompt":"daily dependency audit","schedule_type":"cron","schedule_value":"0 9 * * *","projectId":"my-app"}' http://127.0.0.1:3001${base}/tasks`,
+      runNow: `curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY" -d '{"prompt":"summarize git status","agentType":"claude-code","projectId":"my-app"}' http://127.0.0.1:3001${base}/run`,
+    },
   };
 }
 

@@ -138,10 +138,16 @@ export const api = {
       method: 'POST',
       body: '{}',
     }),
-  readFile: (projectName, filePath) =>
-    authenticatedFetch(`/api/projects/${projectName}/file?filePath=${encodeURIComponent(filePath)}`),
-  readFileBlob: (projectName, filePath) =>
-    authenticatedFetch(`/api/projects/${projectName}/files/content?path=${encodeURIComponent(filePath)}`),
+  readFile: (projectName, filePath, options = {}) =>
+    authenticatedFetch(
+      `/api/projects/${projectName}/file?filePath=${encodeURIComponent(filePath)}`,
+      options,
+    ),
+  readFileBlob: (projectName, filePath, options = {}) =>
+    authenticatedFetch(
+      `/api/projects/${projectName}/files/content?path=${encodeURIComponent(filePath)}`,
+      options,
+    ),
   saveFile: (projectName, filePath, content) =>
     authenticatedFetch(`/api/projects/${projectName}/file`, {
       method: 'PUT',

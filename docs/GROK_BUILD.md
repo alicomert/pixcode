@@ -1,6 +1,6 @@
 # Grok Build (xAI) in Pixcode
 
-Pixcode treats **Grok Build** as a multi-CLI agent provider for NanoClaw / PixBot schedules.
+Pixcode treats **Grok Build** as a multi-CLI agent provider for **NanoClaw** schedules and immediate runs.
 
 ## Docs
 
@@ -21,9 +21,19 @@ grok --version
 ## Pixcode usage
 
 1. Install the `grok` binary on the host (same machine as the Pixcode daemon).  
-2. In PixBot, pick **Grok Build (xAI)** as Default CLI, or prefix a message:  
+2. In the **Tasks / NanoClaw** UI, pick **Grok Build (xAI)** as the agent, **or** prefix a prompt:  
    `[agent:grok] summarize open issues`  
-3. Schedules/MCP `schedule_task` prompts can use the same `[agent:grok]` directive.
+3. Remote / curl (see [NANOCLAW_API.md](./NANOCLAW_API.md)):
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $PIXCODE_API_KEY" \
+  -d '{"prompt":"design a release checklist","agentType":"grok","projectId":"my-app"}' \
+  "$PIXCODE_URL/api/nanoclaw/run"
+```
+
+Schedules (`POST /api/nanoclaw/tasks`) accept the same `[agent:grok]` directive in `prompt`.
 
 Optional env:
 

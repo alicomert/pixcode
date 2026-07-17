@@ -1204,6 +1204,16 @@ async function subscribeToWorkspace(ws, projectName) {
             entry.debounceTimer = null;
             const pending = entry.pendingEvent || {};
             entry.pendingEvent = null;
+            const changeType = pending.eventType || 'change';
+            // Structure changes must not serve a stale (possibly truncated) tree.
+            if (
+                changeType === 'add'
+                || changeType === 'unlink'
+                || changeType === 'addDir'
+                || changeType === 'unlinkDir'
+            ) {
+                invalidateFileTreeCacheForRoot(rootPath);
+            }
             const hasSnapshotDiff = (
                 typeof pending.oldContent === 'string'
                 && typeof pending.currentContent === 'string'
@@ -1212,7 +1222,7 @@ async function subscribeToWorkspace(ws, projectName) {
             const message = JSON.stringify({
                 type: 'project_files_updated',
                 projectName,
-                changeType: pending.eventType || 'change',
+                changeType,
                 changedFile: pending.changedFile ?? (pending.filePath ? path.relative(rootPath, pending.filePath) : null),
                 ...(hasSnapshotDiff
                     ? {
@@ -1295,12 +1305,15 @@ const PTY_SESSION_BUFFER_MAX_BYTES = Number.parseInt(process.env.PIXCODE_PTY_BUF
 const SHELL_INPUT_CHUNK_CHARS = 16384;
 const SHELL_PENDING_INPUT_MAX_BYTES = Number.parseInt(process.env.PIXCODE_SHELL_PENDING_INPUT_MAX_BYTES || '', 10) || (256 * 1024 * 1024);
 const SHELL_CLI_PROVIDERS = new Set(['claude', 'codex', 'cursor', 'gemini', 'qwen', 'opencode']);
-const FILE_TREE_MAX_ITEMS = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ITEMS || '', 10) || 5000;
-const FILE_TREE_MAX_DIRECTORIES = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_DIRECTORIES || '', 10) || 1200;
-const FILE_TREE_SCAN_MAX_MS = Number.parseInt(process.env.PIXCODE_FILE_TREE_SCAN_MAX_MS || '', 10) || 4000;
-const FILE_TREE_MAX_ENTRIES_PER_DIRECTORY = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ENTRIES_PER_DIRECTORY || '', 10) || 1500;
-const FILE_TREE_MAX_DEPTH_DEFAULT = 5; // was 10, reduced to avoid deep traversal on huge projects
-const FILE_TREE_CACHE_TTL_MS = 3000; // short-lived cache for rapid successive requests
+// Higher defaults: truncated scans used to be cached and left the Files panel
+// missing folders until a manual refresh after TTL. Truncated results are no
+// longer cached (see writeFileTreeCache / getFileTree).
+const FILE_TREE_MAX_ITEMS = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ITEMS || '', 10) || 12000;
+const FILE_TREE_MAX_DIRECTORIES = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_DIRECTORIES || '', 10) || 2500;
+const FILE_TREE_SCAN_MAX_MS = Number.parseInt(process.env.PIXCODE_FILE_TREE_SCAN_MAX_MS || '', 10) || 12000;
+const FILE_TREE_MAX_ENTRIES_PER_DIRECTORY = Number.parseInt(process.env.PIXCODE_FILE_TREE_MAX_ENTRIES_PER_DIRECTORY || '', 10) || 3000;
+const FILE_TREE_MAX_DEPTH_DEFAULT = 6;
+const FILE_TREE_CACHE_TTL_MS = 2500; // short-lived cache for rapid successive requests
 const FILE_TREE_CACHE_MAX_ENTRIES = 50;
 const fileTreeCache = new Map();
 const FILE_TREE_EXCLUDED_ENTRY_NAMES = new Set([
@@ -3056,12 +3069,11 @@ app.get('/api/projects/:projectName/file', authenticateToken, requireProjectAcce
             return res.status(404).json({ error: 'Project not found' });
         }
 
-        // Handle both absolute and relative paths
+        // Handle both absolute and relative paths (Windows: case-insensitive roots)
         const resolved = path.isAbsolute(filePath)
             ? path.resolve(filePath)
             : path.resolve(projectRoot, filePath);
-        const normalizedRoot = path.resolve(projectRoot) + path.sep;
-        if (!resolved.startsWith(normalizedRoot)) {
+        if (!isPathInsideProjectRoot(projectRoot, resolved)) {
             return res.status(403).json({ error: 'Path must be under project root' });
         }
         if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolved, 'viewFiles')) {
@@ -3104,8 +3116,7 @@ app.get('/api/projects/:projectName/files/content', authenticateToken, requirePr
         const resolved = path.isAbsolute(filePath)
             ? path.resolve(filePath)
             : path.resolve(projectRoot, filePath);
-        const normalizedRoot = path.resolve(projectRoot) + path.sep;
-        if (!resolved.startsWith(normalizedRoot)) {
+        if (!isPathInsideProjectRoot(projectRoot, resolved)) {
             return res.status(403).json({ error: 'Path must be under project root' });
         }
         if (!userHasProjectPathAccess(req.user, { name: projectName, projectName, fullPath: projectRoot, path: projectRoot }, resolved, 'viewFiles')) {
@@ -3221,8 +3232,15 @@ app.get('/api/projects/:projectName/files', authenticateToken, requireProjectAcc
             return res.status(404).json({ error: `Project path not found: ${actualPath}` });
         }
 
-        const files = await getFileTree(actualPath, FILE_TREE_MAX_DEPTH_DEFAULT, 0, true);
-        res.json(filterFileTreeForUser(files, req.user, {
+        const scan = await getFileTreeWithMeta(actualPath, FILE_TREE_MAX_DEPTH_DEFAULT, 0, true);
+        if (scan.truncated) {
+            res.setHeader('X-Pixcode-File-Tree-Truncated', '1');
+            res.setHeader(
+                'X-Pixcode-File-Tree-Stats',
+                `items=${scan.itemCount};dirs=${scan.directoryCount};ms=${scan.elapsedMs}`,
+            );
+        }
+        res.json(filterFileTreeForUser(scan.tree, req.user, {
             name: req.params.projectName,
             projectName: req.params.projectName,
             fullPath: actualPath,
@@ -3239,6 +3257,21 @@ app.get('/api/projects/:projectName/files', authenticateToken, requireProjectAcc
 // ============================================================================
 
 /**
+ * True when candidate is the project root or a path under it.
+ * Uses path.relative so Windows drive-letter casing and separators do not
+ * 403 the Editor (stuck "Loading…" when absolute paths differ only by case).
+ */
+function isPathInsideProjectRoot(projectRoot, candidatePath) {
+    const root = path.resolve(projectRoot);
+    const candidate = path.resolve(candidatePath);
+    const rel = path.relative(root, candidate);
+    if (rel === '') return true;
+    // Outside root, or different Windows drive → absolute relative / ..
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return false;
+    return true;
+}
+
+/**
  * Validate that a path is within the project root
  * @param {string} projectRoot - The project root path
  * @param {string} targetPath - The path to validate
@@ -3248,8 +3281,7 @@ function validatePathInProject(projectRoot, targetPath) {
     const resolved = path.isAbsolute(targetPath)
         ? path.resolve(targetPath)
         : path.resolve(projectRoot, targetPath);
-    const normalizedRoot = path.resolve(projectRoot) + path.sep;
-    if (!resolved.startsWith(normalizedRoot)) {
+    if (!isPathInsideProjectRoot(projectRoot, resolved)) {
         return { valid: false, error: 'Path must be under project root' };
     }
     return { valid: true, resolved };
@@ -5207,10 +5239,12 @@ function permToRwx(perm) {
     return r + w + x;
 }
 
-// File tree result cache (keyed by path:depth:showHidden, TTL 3s)
+// File tree result cache (keyed by path:depth:showHidden).
+// Only complete (non-truncated) scans are cached — truncated trees used to
+// stick for the full TTL and made the Files panel look randomly incomplete.
 function readFileTreeCache(cacheKey) {
     const entry = fileTreeCache.get(cacheKey);
-    if (!entry || entry.expiresAt <= Date.now()) {
+    if (!entry || entry.expiresAt <= Date.now() || entry.truncated) {
         if (entry) fileTreeCache.delete(cacheKey);
         // Prune stale entries
         if (fileTreeCache.size > FILE_TREE_CACHE_MAX_ENTRIES) {
@@ -5224,8 +5258,26 @@ function readFileTreeCache(cacheKey) {
     return entry.tree;
 }
 
-function writeFileTreeCache(cacheKey, tree) {
-    fileTreeCache.set(cacheKey, { tree, expiresAt: Date.now() + FILE_TREE_CACHE_TTL_MS });
+function writeFileTreeCache(cacheKey, tree, { truncated = false } = {}) {
+    if (truncated) {
+        // Never pin incomplete trees — next request re-scans.
+        return;
+    }
+    fileTreeCache.set(cacheKey, {
+        tree,
+        truncated: false,
+        expiresAt: Date.now() + FILE_TREE_CACHE_TTL_MS,
+    });
+}
+
+function invalidateFileTreeCacheForRoot(rootPath) {
+    if (!rootPath) return;
+    const resolved = path.resolve(rootPath);
+    for (const key of [...fileTreeCache.keys()]) {
+        if (key === resolved || key.startsWith(`${resolved}:`) || key.startsWith(`${resolved}${path.sep}`)) {
+            fileTreeCache.delete(key);
+        }
+    }
 }
 
 function createFileTreeScanContext() {
@@ -5291,14 +5343,65 @@ async function readDirectoryEntriesBounded(dirPath, context) {
     return entries;
 }
 
-async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true, scanContext = null) {
+/**
+ * @returns {Promise<{ tree: any[], truncated: boolean, itemCount: number, directoryCount: number, elapsedMs: number }>}
+ */
+async function getFileTreeWithMeta(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true, scanContext = null) {
+    const cacheKey = `${path.resolve(dirPath)}:${maxDepth}:${showHidden}`;
     // Check cache on top-level call
     if (currentDepth === 0 && !scanContext) {
+        const cached = readFileTreeCache(cacheKey);
+        if (cached) {
+            return {
+                tree: cached,
+                truncated: false,
+                itemCount: 0,
+                directoryCount: 0,
+                elapsedMs: 0,
+                fromCache: true,
+            };
+        }
+    }
+    const context = scanContext || createFileTreeScanContext();
+    const tree = await getFileTree(dirPath, maxDepth, currentDepth, showHidden, context);
+
+    if (currentDepth === 0 && !scanContext) {
+        writeFileTreeCache(cacheKey, tree, { truncated: Boolean(context.limitReached) });
+        if (context.limitReached) {
+            console.warn(
+                `[file-tree] Truncated scan for ${dirPath} (items=${context.itemCount}, dirs=${context.directoryCount}, ${Date.now() - context.startedAt}ms) — not cached`,
+            );
+        }
+        return {
+            tree,
+            truncated: Boolean(context.limitReached),
+            itemCount: context.itemCount,
+            directoryCount: context.directoryCount,
+            elapsedMs: Date.now() - context.startedAt,
+            fromCache: false,
+        };
+    }
+
+    return {
+        tree,
+        truncated: Boolean(context.limitReached),
+        itemCount: context.itemCount,
+        directoryCount: context.directoryCount,
+        elapsedMs: Date.now() - context.startedAt,
+        fromCache: false,
+    };
+}
+
+async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true, scanContext = null) {
+    // Legacy callers still get an array. Top-level cache is owned by getFileTreeWithMeta.
+    const context = scanContext || createFileTreeScanContext();
+    const isTopLevelOwner = !scanContext && currentDepth === 0;
+    if (isTopLevelOwner) {
         const cacheKey = `${path.resolve(dirPath)}:${maxDepth}:${showHidden}`;
         const cached = readFileTreeCache(cacheKey);
         if (cached) return cached;
     }
-    const context = scanContext || createFileTreeScanContext();
+
     const items = [];
 
     if (!hasFileTreeBudget(context)) {
@@ -5309,8 +5412,19 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
     const entries = await readDirectoryEntriesBounded(dirPath, context);
 
     for (const entry of entries) {
-        if (!hasFileTreeBudget(context) || shouldSkipFileTreeEntry(entry.name, showHidden)) {
+        // Always include remaining entries already read at this directory level
+        // when budget trips mid-loop for children, but stop adding new nodes
+        // once the global item budget is gone.
+        if (shouldSkipFileTreeEntry(entry.name, showHidden)) {
             continue;
+        }
+        if (!hasFileTreeBudget(context) && currentDepth > 0) {
+            context.limitReached = true;
+            break;
+        }
+        if (context.itemCount >= FILE_TREE_MAX_ITEMS) {
+            context.limitReached = true;
+            break;
         }
 
         const itemPath = path.join(dirPath, entry.name);
@@ -5328,9 +5442,8 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
             const mode = stats.mode;
             const ownerPerm = (mode >> 6) & 7;
             const groupPerm = (mode >> 3) & 7;
-            const otherPerm = mode & 7;
             item.permissions = ((mode >> 6) & 7).toString() + ((mode >> 3) & 7).toString() + (mode & 7).toString();
-            item.permissionsRwx = permToRwx(ownerPerm) + permToRwx(groupPerm) + permToRwx(otherPerm);
+            item.permissionsRwx = permToRwx(ownerPerm) + permToRwx(groupPerm) + permToRwx(mode & 7);
         } catch {
             item.size = 0;
             item.modified = null;
@@ -5347,6 +5460,12 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
             } catch {
                 item.children = [];
             }
+        } else if (entry.isDirectory() && currentDepth < maxDepth) {
+            // Budget exhausted before recurse — still surface the folder so
+            // the tree is not "missing" whole directories.
+            item.children = [];
+            item.truncated = true;
+            context.limitReached = true;
         }
 
         items.push(item);
@@ -5359,10 +5478,9 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
         return a.name.localeCompare(b.name);
     });
 
-    // Store in cache on top-level call
-    if (currentDepth === 0 && !scanContext) {
+    if (isTopLevelOwner) {
         const cacheKey = `${path.resolve(dirPath)}:${maxDepth}:${showHidden}`;
-        writeFileTreeCache(cacheKey, sorted);
+        writeFileTreeCache(cacheKey, sorted, { truncated: Boolean(context.limitReached) });
     }
 
     return sorted;

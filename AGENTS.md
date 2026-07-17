@@ -89,6 +89,15 @@ Config: `eslint.config.js` (flat config, two blocks).
 - Prefer bottom sheets, active-section switchers, icon buttons with tooltips, and full-width form controls over long horizontal pill bars or fixed edge handles.
 - Terminal/CLI work must preserve real xterm behavior and session continuity on mobile.
 
+## NanoClaw + Public HTTP API
+
+- Embedded engine: `server/vendor/nanoclaw-lite` bridged by `server/modules/nanoclaw/bridge.js`.
+- Multi-CLI runner: `server/modules/nanoclaw/multi-runner.js` (Claude/Codex/Gemini/Cursor/Qwen/OpenCode/Grok).
+- HTTP surface: `/api/nanoclaw/*` (alias `/api/tasks/*` for UI). Live help: `GET /api/nanoclaw/help`.
+- Docs: `docs/NANOCLAW_API.md`, overview `docs/pixcode-system-overview.md`, Grok `docs/GROK_BUILD.md`.
+- Catalog: `GET /api/public/manifest`, `/cookbook`, `/openapi` (see `server/services/public-api-manifest.js`).
+- Auth for remote curl: Settings → API keys (`px_…`) via `X-API-Key` or `Authorization: Bearer`.
+
 ## Other instruction files
 
 - No repo-local `CLAUDE.md`, Cursor rules, Copilot instructions, or `opencode.json` are present in this checkout.
