@@ -3,6 +3,16 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.2](https://github.com/alicomert/pixcode/compare/v1.63.1...v1.63.2) (2026-07-17)
+
+### Bug Fixes
+
+* **pixbot:** force /grok CLI path and auto-attach project files ([0bb523b](https://github.com/alicomert/pixcode/commit/0bb523b391c889f7555fc34857292255a97ce17d))
+
+### Maintenance
+
+* **desktop:** bump version label to 1.63.1 (no installer rebuild) ([44c29fb](https://github.com/alicomert/pixcode/commit/44c29fb119a0cb776ca4cec8af6e04be5a326679))
+
 ## [1.63.1](https://github.com/alicomert/pixcode/compare/v1.63.0...v1.63.1) (2026-07-17)
 
 ### Bug Fixes
