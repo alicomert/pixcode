@@ -447,24 +447,54 @@ async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl
     appendUpdateJobLog(job, 'meta', `Update mode: runtime-dir (delta-first)\nRuntime: ${runtimeDir}\n`);
     appendUpdateJobLog(job, 'meta', `Target: ${latestVersion}\n`);
 
-    const result = await applyRuntimeDeltaUpdate({
-        runtimeDir,
-        targetVersion: latestVersion,
-        tarballUrl,
-        tarballIntegrity,
-        appendLog: (stream, message) => appendUpdateJobLog(job, stream, message),
-        verifyTarballIntegrity,
-        fetchTarballFallback: async ({ runtimeDir: dir, tarballUrl: url, tarballIntegrity: integrity, appendLog }) => {
-            await extractFullTarballToRuntime({
-                runtimeDir: dir,
-                tarballUrl: url,
-                tarballIntegrity: integrity,
-                appendLog,
-                verifyTarballIntegrity,
-            });
-            ensureFrontendDistAssets(dir, path.join(dir, '.previous'), (line) => appendLog('meta', line));
-        },
-    });
+    const resolvedTarball = tarballUrl || buildPixcodeTarballUrl(latestVersion);
+    const fetchTarballFallback = async ({ runtimeDir: dir, tarballUrl: url, tarballIntegrity: integrity, appendLog }) => {
+        const finalUrl = url || resolvedTarball || buildPixcodeTarballUrl(latestVersion);
+        if (!finalUrl) {
+            throw new Error('No tarball URL available for full-package fallback');
+        }
+        await extractFullTarballToRuntime({
+            runtimeDir: dir,
+            tarballUrl: finalUrl,
+            tarballIntegrity: integrity || tarballIntegrity,
+            appendLog,
+            verifyTarballIntegrity,
+        });
+        ensureFrontendDistAssets(dir, path.join(dir, '.previous'), (line) => appendLog('meta', line));
+    };
+
+    let result;
+    try {
+        result = await applyRuntimeDeltaUpdate({
+            runtimeDir,
+            targetVersion: latestVersion,
+            tarballUrl: resolvedTarball,
+            tarballIntegrity,
+            appendLog: (stream, message) => appendUpdateJobLog(job, stream, message),
+            verifyTarballIntegrity,
+            fetchTarballFallback,
+        });
+    } catch (deltaError) {
+        // Last-resort safety net: any unexpected throw still becomes a full install.
+        appendUpdateJobLog(
+            job,
+            'stderr',
+            `Delta path threw (${deltaError instanceof Error ? deltaError.message : String(deltaError)}) — full tarball fallback.\n`,
+        );
+        await fetchTarballFallback({
+            runtimeDir,
+            tarballUrl: resolvedTarball,
+            tarballIntegrity,
+            appendLog: (stream, message) => appendUpdateJobLog(job, stream, message),
+        });
+        result = {
+            mode: 'full',
+            version: latestVersion,
+            downloaded: -1,
+            unchanged: 0,
+            deleted: 0,
+        };
+    }
 
     ensureFrontendDistAssets(runtimeDir, path.join(runtimeDir, '.previous'), (line) => {
         appendUpdateJobLog(job, 'meta', line);
@@ -474,7 +504,9 @@ async function runRuntimeDirUpdateJob(job, runtimeDir, latestVersion, tarballUrl
         job,
         'meta',
         result.mode === 'delta'
-            ? `Delta apply finished (${result.downloaded} files).\n`
+            ? `Delta apply finished (${result.downloaded} files`
+              + (result.skipped ? `, ${result.skipped} non-critical skipped` : '')
+              + ').\n'
             : 'Full package apply finished.\n',
     );
     return latestVersion;

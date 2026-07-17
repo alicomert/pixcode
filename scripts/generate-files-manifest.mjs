@@ -3,6 +3,10 @@
  * Build a content-addressed file manifest for delta updates.
  * Desktop / runtime-dir installs compare local hashes against this
  * list and download only changed paths instead of the full tarball.
+ *
+ * Only list files that npm + public CDNs (jsDelivr / unpkg) actually serve.
+ * Dotfiles (e.g. server/database/.npmignore) often 404 on CDNs and must
+ * never appear here — they previously aborted entire desktop updates.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -28,15 +32,36 @@ const SKIP_DIR_NAMES = new Set([
   '.previous',
   '.staging',
   'authdb',
+  'tests',
+  '__tests__',
+  '__mocks__',
 ]);
 
 const SKIP_FILE_NAMES = new Set([
   'auth.json',
   '.DS_Store',
+  '.npmignore',
+  '.gitignore',
+  '.gitattributes',
+  '.editorconfig',
+  '.eslintrc',
+  '.eslintrc.js',
+  '.eslintrc.cjs',
+  '.prettierrc',
+  'Thumbs.db',
 ]);
 
 function shouldSkipDir(name) {
   return SKIP_DIR_NAMES.has(name) || name.startsWith('.');
+}
+
+/** Files public npm CDNs often cannot serve (dotfiles / pack-time only). */
+function shouldSkipFile(name) {
+  if (SKIP_FILE_NAMES.has(name)) return true;
+  if (name.startsWith('.')) return true;
+  if (name.endsWith('.map')) return true;
+  if (name.endsWith('.npmignore')) return true;
+  return false;
 }
 
 function walkFiles(absDir, relBase, out) {
@@ -54,9 +79,7 @@ function walkFiles(absDir, relBase, out) {
       continue;
     }
     if (!entry.isFile()) continue;
-    if (SKIP_FILE_NAMES.has(entry.name)) continue;
-    // Keep source maps out of the hot delta path — they are optional and large.
-    if (entry.name.endsWith('.map')) continue;
+    if (shouldSkipFile(entry.name)) continue;
 
     const rel = path.posix.join(relBase, entry.name);
     const abs = path.join(absDir, entry.name);
@@ -80,6 +103,7 @@ for (const dir of ROOT_DIRS) {
 for (const file of ROOT_FILES) {
   const abs = path.join(root, file);
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) continue;
+  if (shouldSkipFile(file)) continue;
   const buf = fs.readFileSync(abs);
   files[file] = {
     sha256: crypto.createHash('sha256').update(buf).digest('hex'),
