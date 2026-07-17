@@ -7,7 +7,8 @@
 
 // slack
 
-// telegram
+// telegram (full support — token via TELEGRAM_BOT_TOKEN or Pixcode Settings)
 import './telegram.js';
 
-// whatsapp
+// whatsapp (optional Baileys — WHATSAPP_ENABLED=1)
+import './whatsapp.js';

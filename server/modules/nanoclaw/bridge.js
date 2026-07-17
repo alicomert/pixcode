@@ -84,17 +84,101 @@ export async function ensureProjectGroup(project) {
   return { jid, group };
 }
 
+/**
+ * Feed Pixcode-stored Telegram bot token into NanoClaw channel factory.
+ * NanoClaw reads TELEGRAM_BOT_TOKEN from process.env / .env.
+ */
+async function injectMessagingCredentialsFromPixcode() {
+  try {
+    const { telegramConfigDb } = await import('../../database/db.js');
+    const config = telegramConfigDb.get?.();
+    if (config?.bot_token && !process.env.TELEGRAM_BOT_TOKEN) {
+      process.env.TELEGRAM_BOT_TOKEN = config.bot_token;
+      console.log('[nanoclaw] Using Telegram bot token from Pixcode Settings');
+    }
+  } catch (error) {
+    console.warn('[nanoclaw] Could not read Pixcode telegram config:', error?.message || error);
+  }
+
+  // Optional WhatsApp (Baileys) — enable when session dir is configured
+  if (!process.env.WHATSAPP_AUTH_DIR) {
+    process.env.WHATSAPP_AUTH_DIR = process.env.PIXCODE_WHATSAPP_AUTH_DIR || '';
+  }
+}
+
+export async function getChannelCapabilities() {
+  const telegramToken = Boolean(process.env.TELEGRAM_BOT_TOKEN);
+  let pixcodeTelegram = false;
+  try {
+    const { telegramConfigDb } = await import('../../database/db.js');
+    pixcodeTelegram = Boolean(telegramConfigDb.get?.()?.bot_token);
+  } catch { /* ignore */ }
+
+  return {
+    telegram: {
+      id: 'telegram',
+      label: 'Telegram',
+      available: true,
+      connected: telegramToken || pixcodeTelegram,
+      howTo: 'Settings → Telegram (Pixcode) or set TELEGRAM_BOT_TOKEN. Then restart daemon.',
+      note: 'NanoClaw channel + Pixcode control bot can share the same token (restart after save).',
+    },
+    whatsapp: {
+      id: 'whatsapp',
+      label: 'WhatsApp',
+      available: true,
+      connected: Boolean(process.env.WHATSAPP_AUTH_DIR && process.env.WHATSAPP_ENABLED === '1'),
+      howTo: 'Set WHATSAPP_ENABLED=1 and WHATSAPP_AUTH_DIR=~/.pixcode/nanoclaw/whatsapp-auth then scan QR on first start (Baileys).',
+      note: 'Upstream nanoclaw-lite ships Telegram fully; WhatsApp is Pixcode Baileys adapter.',
+    },
+    agents: {
+      claude: {
+        engine: 'nanoclaw-lite Claude Agent SDK (in-process)',
+        managed: true,
+      },
+      codex: {
+        engine: 'Pixcode task-runtime / CLI (not NanoClaw SDK path yet)',
+        managed: 'partial',
+      },
+      gemini: {
+        engine: 'Pixcode task-runtime / CLI (not NanoClaw SDK path yet)',
+        managed: 'partial',
+      },
+      cursor: {
+        engine: 'Pixcode task-runtime / CLI',
+        managed: 'partial',
+      },
+      opencode: {
+        engine: 'Pixcode task-runtime / CLI',
+        managed: 'partial',
+      },
+      qwen: {
+        engine: 'Pixcode task-runtime / CLI',
+        managed: 'partial',
+      },
+    },
+    summary: {
+      messaging: 'Telegram ready when token set; WhatsApp optional via Baileys env.',
+      agents: 'NanoClaw agent-runner = Claude SDK today. Multi-CLI (Codex/Gemini/…) still via Pixcode CLI adapters — full multi-provider agent-runner is the next wire-up.',
+    },
+  };
+}
+
 export async function startNanoclawBridge() {
   if (started) return { ok: true, already: true };
   process.env.NANOCLAW_STANDALONE = '0';
   process.env.NANOCLAW_NO_PRETTY = process.env.NANOCLAW_NO_PRETTY || '1';
+  await injectMessagingCredentialsFromPixcode();
   const nc = await loadNanoclaw();
   const database = await loadDb();
   database.initDatabase();
   await nc.startEmbeddedNanoclaw();
   started = true;
+  const caps = await getChannelCapabilities();
   console.log('[nanoclaw] Embedded NanoClaw-lite started (Pixcode bridge)');
-  return { ok: true, state: nc.getNanoclawRuntimeState?.() };
+  console.log('[nanoclaw] Telegram:', caps.telegram.connected ? 'configured' : 'not configured');
+  console.log('[nanoclaw] WhatsApp:', caps.whatsapp.connected ? 'configured' : 'not configured');
+  return { ok: true, state: nc.getNanoclawRuntimeState?.(), channels: caps };
 }
 
 export async function stopNanoclawBridge() {
@@ -131,14 +215,24 @@ export function nanoclawRouter() {
 
   router.get('/status', async (_req, res) => {
     try {
-      const nc = await loadNanoclaw();
+      const nc = started ? await loadNanoclaw() : null;
+      const channels = await getChannelCapabilities();
       res.json({
         ok: true,
         started,
         engine: 'nanoclaw-lite',
         brand: 'PixBot',
-        state: nc.getNanoclawRuntimeState?.() || null,
+        state: nc?.getNanoclawRuntimeState?.() || null,
+        channels,
       });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.get('/channels', async (_req, res) => {
+    try {
+      res.json({ ok: true, channels: await getChannelCapabilities() });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }

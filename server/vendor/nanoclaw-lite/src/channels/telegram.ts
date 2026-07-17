@@ -282,12 +282,20 @@ export class TelegramChannel implements Channel {
 }
 
 registerChannel('telegram', (opts: ChannelOpts) => {
-  const envVars = readEnvFile(['TELEGRAM_BOT_TOKEN']);
+  const envVars = readEnvFile(['TELEGRAM_BOT_TOKEN', 'TELEGRAM_TOKEN']);
+  // Pixcode bridge may inject TELEGRAM_BOT_TOKEN from Settings → Telegram
   const token =
-    process.env.TELEGRAM_BOT_TOKEN || envVars.TELEGRAM_BOT_TOKEN || '';
+    process.env.TELEGRAM_BOT_TOKEN
+    || process.env.TELEGRAM_TOKEN
+    || envVars.TELEGRAM_BOT_TOKEN
+    || envVars.TELEGRAM_TOKEN
+    || '';
   if (!token) {
-    logger.warn('Telegram: TELEGRAM_BOT_TOKEN not set');
+    logger.warn(
+      'Telegram: no token. Set TELEGRAM_BOT_TOKEN or save a bot token in Pixcode Settings → Telegram, then restart.',
+    );
     return null;
   }
+  logger.info('Telegram channel enabled (token present)');
   return new TelegramChannel(token, opts);
 });

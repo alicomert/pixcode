@@ -415,7 +415,7 @@ export function TasksPage({
             <p className="truncate text-xs text-muted-foreground">
               {t('taskSystem.workspaceSubtitle', {
                 project: projectLabel || projectId,
-                defaultValue: 'Pixcode × NanoClaw-lite · schedules & agents for {{project}}',
+                defaultValue: 'NanoClaw engine · Telegram/WhatsApp channels · schedules for {{project}}',
               })}
             </p>
           </div>
