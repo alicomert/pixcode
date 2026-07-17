@@ -4,6 +4,7 @@ import { queryCodex, abortCodexSession } from '../openai-codex.js';
 import { spawnGemini, abortGeminiSession } from '../gemini-cli.js';
 import { spawnQwen, abortQwenSession } from '../qwen-code-cli.js';
 import { spawnOpencode, abortOpencodeSession } from '../opencode-cli.js';
+import { spawnGrok, abortGrokSession } from '../grok-build-cli.js';
 
 const activeRuns = new Map();
 
@@ -14,6 +15,7 @@ const RUNNERS = {
   gemini: spawnGemini,
   qwen: spawnQwen,
   opencode: spawnOpencode,
+  grok: spawnGrok,
 };
 
 const ABORTERS = {
@@ -23,6 +25,7 @@ const ABORTERS = {
   gemini: abortGeminiSession,
   qwen: abortQwenSession,
   opencode: abortOpencodeSession,
+  grok: abortGrokSession,
 };
 
 const PROVIDER_IDS = {
@@ -32,6 +35,7 @@ const PROVIDER_IDS = {
   gemini: 'gemini',
   qwen: 'qwen',
   opencode: 'opencode',
+  grok: 'grok',
 };
 
 function messageText(message) {

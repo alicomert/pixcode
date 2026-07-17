@@ -9,6 +9,7 @@ import CodeEditor from '../../code-editor/view/CodeEditor';
 import type { CodeEditorDiffInfo, CodeEditorFile } from '../../code-editor/types/types';
 import ControlRoomPage from '../../control-room/ControlRoomPage';
 import { TasksPage } from '../../tasks/TasksPage';
+import ShellModeSwitcher from '../../shell-mode/ShellModeSwitcher';
 import FileTree from '../../file-tree/view/FileTree';
 import GitPanel from '../../git-panel/view/GitPanel';
 import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
@@ -69,6 +70,9 @@ import {
 } from '@/lib/icons';
 
 type VSCodeWorkbenchProps = MainContentProps & {
+  /** When true, hide the PixBot activity button (pixcode-only shell). NanoClaw still runs in backend. */
+  hidePixBot?: boolean;
+  showShellModeSwitcher?: boolean;
   sidebarProps: SidebarProps;
 };
 
@@ -413,6 +417,8 @@ function VSCodeWorkbench({
   isLoading,
   onShowSettings,
   onQuickStartSession,
+  hidePixBot = false,
+  showShellModeSwitcher = false,
 }: VSCodeWorkbenchProps) {
   const { t } = useTranslation('common');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1281,6 +1287,11 @@ function VSCodeWorkbench({
         onShowSettings={onShowSettings}
         onQuickStartSession={onQuickStartSession}
       />
+      {showShellModeSwitcher && (
+        <div className="absolute right-16 top-1.5 z-[55]">
+          <ShellModeSwitcher compact />
+        </div>
+      )}
       <WorkbenchWorkspaceTabs
         tabs={workspaceTabs}
         projects={sidebarProps.projects}
@@ -1323,13 +1334,15 @@ function VSCodeWorkbench({
                 onClick={() => selectActivityPanel(item.id, item.tab)}
               />
             ))}
-            <ActivityButton
-              label={t('tabs.tasks') || 'PixBot'}
-              icon={TasksIcon}
-              active={activeTab === 'tasks'}
-              badge={false}
-              onClick={() => openSystemTab('tasks')}
-            />
+            {!hidePixBot && (
+              <ActivityButton
+                label={t('tabs.tasks') || 'PixBot'}
+                icon={TasksIcon}
+                active={activeTab === 'tasks'}
+                badge={false}
+                onClick={() => openSystemTab('tasks')}
+              />
+            )}
             <ActivityButton
               label={hasPendingRestartUpdate
                 ? t('vscodeWorkbench.activity.updateReady', { defaultValue: 'Update ready' })

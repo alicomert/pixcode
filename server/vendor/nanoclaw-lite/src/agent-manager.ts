@@ -81,7 +81,46 @@ export async function runAgentForGroup(
   const logsDir = path.join(groupDir, 'logs');
 
   try {
-    // Run the agent directly in the main process
+    // Pixcode embedding: multi-CLI path (Claude / Codex / Gemini / Cursor / OpenCode / Grok Build)
+    // Prefer when PIXCODE_NANOCLAW_MULTI is not explicitly "0".
+    const multiEnabled = process.env.PIXCODE_NANOCLAW_MULTI !== '0';
+    if (multiEnabled) {
+      try {
+        // dist-server/server/vendor/nanoclaw-lite/src → ../../../modules/nanoclaw
+        const multi = await import('../../../modules/nanoclaw/multi-runner.js');
+        const projectPath =
+          (group as { projectPath?: string }).projectPath
+          || process.env.PIXCODE_DEFAULT_WORKSPACE
+          || undefined;
+        const multiResult = await multi.runPixcodeMultiAgent({
+          prompt: input.prompt,
+          groupFolder: input.groupFolder,
+          sessionId: input.sessionId,
+          agentType: undefined,
+          model: undefined,
+          projectPath,
+          isScheduledTask: input.isScheduledTask,
+          onLog: (level: string, message: string) => {
+            logger.info({ group: group.name, level, message }, 'multi-cli');
+          },
+        });
+        const mapped: AgentRunOutput = {
+          status: multiResult.status === 'success' ? 'success' : 'error',
+          result: multiResult.result,
+          newSessionId: multiResult.newSessionId,
+          error: multiResult.error,
+        };
+        if (onOutput) await onOutput(mapped);
+        return mapped;
+      } catch (multiErr) {
+        logger.warn(
+          { err: multiErr, group: group.name },
+          'Pixcode multi-CLI runner failed; falling back to Claude Agent SDK',
+        );
+      }
+    }
+
+    // Default NanoClaw path: Claude Agent SDK in-process
     const wrappedOnOutput = async (output: AgentOutput) => {
       if (onOutput) {
         await onOutput(output);

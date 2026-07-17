@@ -451,8 +451,13 @@ export function nanoclawRouter() {
   router.get('/bot/plans', (_req, res) => res.json({ plans: [] }));
   router.get('/meta/agents', (_req, res) => res.json({
     agents: [
-      { value: 'claude-code', label: 'Claude Code (NanoClaw SDK)', provider: 'claude' },
+      { value: 'claude-code', label: 'Claude Code', provider: 'claude' },
+      { value: 'codex', label: 'OpenAI Codex', provider: 'codex' },
+      { value: 'gemini', label: 'Gemini CLI', provider: 'gemini' },
+      { value: 'cursor', label: 'Cursor CLI', provider: 'cursor' },
+      { value: 'qwen', label: 'Qwen Code', provider: 'qwen' },
       { value: 'opencode', label: 'OpenCode', provider: 'opencode' },
+      { value: 'grok', label: 'Grok Build (xAI)', provider: 'grok' },
     ],
   }));
   router.get('/meta/roles', (_req, res) => res.json({ roles: [] }));

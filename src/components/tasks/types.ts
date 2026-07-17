@@ -1,5 +1,5 @@
 export type TaskStatus = 'PENDING' | 'QUEUED' | 'RUNNING' | 'AWAITING_INPUT' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-export type AgentType = 'claude-code' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode';
+export type AgentType = 'claude-code' | 'cursor' | 'codex' | 'gemini' | 'qwen' | 'opencode' | 'grok';
 export type TaskRole = 'backend' | 'frontend' | 'fullstack' | 'reviewer' | 'tester' | 'custom';
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type TaskRecurrence = 'none' | 'hourly' | 'daily' | 'weekly';

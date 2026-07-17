@@ -5,6 +5,7 @@ import { useTheme } from '../../../../contexts/ThemeContext';
 import { THEME_ACCENT_OPTIONS, type ThemeAccentId } from '../../../../theme/appTheme';
 import type { CodeEditorSettingsState, ProjectSortOrder } from '../../types/types';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
+import ShellModeSwitcher from '../../../shell-mode/ShellModeSwitcher';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
@@ -49,6 +50,17 @@ export default function AppearanceSettingsTab({
   };
   return (
     <div className="space-y-8">
+      <SettingsSection
+        title={t('appearanceSettings.shellMode.title', { defaultValue: 'Workspace mode' })}
+        description={t('appearanceSettings.shellMode.description', {
+          defaultValue: 'Choose NanoClaw-only, Hybrid (IDE + PixBot), or classic Pixcode IDE. Telegram/WhatsApp always run through NanoClaw.',
+        })}
+      >
+        <SettingsCard className="p-4">
+          <ShellModeSwitcher />
+        </SettingsCard>
+      </SettingsSection>
+
       <SettingsSection title={t('appearanceSettings.darkMode.label')}>
         <SettingsCard>
           <SettingsRow

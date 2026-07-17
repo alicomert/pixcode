@@ -2,6 +2,8 @@ import { useEffect, useReducer, useRef } from 'react';
 
 export type HistoryViewMode = 'flat' | 'grouped';
 export type AutoShowAgentDiffMode = 'always' | 'openOnly' | 'off';
+/** Shell layout: NanoClaw-only | NanoClaw+VS Code | classic Pixcode (messaging still NanoClaw). */
+export type ShellMode = 'nanoclaw' | 'hybrid' | 'pixcode';
 
 type UiPreferences = {
   autoExpandTools: boolean;
@@ -13,6 +15,7 @@ type UiPreferences = {
   sidebarVisible: boolean;
   historyView: HistoryViewMode;
   autoShowAgentDiff: AutoShowAgentDiffMode;
+  shellMode: ShellMode;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
@@ -48,6 +51,7 @@ const DEFAULTS: UiPreferences = {
   sidebarVisible: true,
   historyView: 'flat',
   autoShowAgentDiff: 'always',
+  shellMode: 'hybrid',
 };
 
 const HISTORY_VIEW_VALUES: HistoryViewMode[] = ['flat', 'grouped'];
@@ -57,6 +61,10 @@ const isHistoryViewMode = (value: unknown): value is HistoryViewMode =>
 const AUTO_SHOW_AGENT_DIFF_VALUES: AutoShowAgentDiffMode[] = ['always', 'openOnly', 'off'];
 const isAutoShowAgentDiffMode = (value: unknown): value is AutoShowAgentDiffMode =>
   typeof value === 'string' && (AUTO_SHOW_AGENT_DIFF_VALUES as string[]).includes(value);
+
+const SHELL_MODE_VALUES: ShellMode[] = ['nanoclaw', 'hybrid', 'pixcode'];
+const isShellMode = (value: unknown): value is ShellMode =>
+  typeof value === 'string' && (SHELL_MODE_VALUES as string[]).includes(value);
 
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
 const VALID_KEYS = new Set<UiPreferenceKey>(PREFERENCE_KEYS); // prevents unknown keys from being written
@@ -92,6 +100,9 @@ const coercePreferenceValue = <K extends UiPreferenceKey>(
   }
   if (key === 'autoShowAgentDiff') {
     return (isAutoShowAgentDiffMode(rawValue) ? rawValue : fallback) as UiPreferences[K];
+  }
+  if (key === 'shellMode') {
+    return (isShellMode(rawValue) ? rawValue : fallback) as UiPreferences[K];
   }
   // All other preferences are booleans.
   return parseBoolean(rawValue, fallback as boolean) as UiPreferences[K];

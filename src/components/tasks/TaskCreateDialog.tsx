@@ -37,6 +37,7 @@ const AGENT_PROVIDER: Record<AgentType, LLMProvider> = {
   gemini: 'gemini',
   qwen: 'qwen',
   opencode: 'opencode',
+  grok: 'claude', // map for auth UI; Grok uses its own CLI install
 };
 
 const FALLBACK_AGENTS: AgentInfo[] = [

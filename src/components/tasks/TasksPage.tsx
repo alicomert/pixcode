@@ -222,8 +222,9 @@ export function TasksPage({
     setBoundLabel(initialProjectLabel);
   }, [initialProjectId, initialProjectLabel]);
 
-  const projectId = boundProjectId;
-  const projectLabel = boundLabel;
+  // Optional project — NanoClaw "general" workspace for non-coding use.
+  const projectId = boundProjectId || 'general';
+  const projectLabel = boundLabel || (boundProjectId ? boundProjectId : 'General (no coding project)');
 
   const [workspaceList, setWorkspaceList] = useState<WorkspaceOption[]>(projects);
 
@@ -325,10 +326,14 @@ export function TasksPage({
 
   const handleSend = async () => {
     const text = draft.trim();
-    if (!text || !projectId || sending) return;
+    if (!text || sending) return;
     setDraft('');
     try {
-      await sendMessage(text, { agentType });
+      // Prefix agent directive for multi-CLI NanoClaw runner: [agent:codex] ...
+      const withAgent = agentType && agentType !== 'claude-code'
+        ? `[agent:${agentType}] ${text}`
+        : text;
+      await sendMessage(withAgent, { agentType });
       await refreshTasks();
     } catch (caughtError) {
       setActionError(caughtError instanceof Error ? caughtError.message : String(caughtError));
@@ -338,70 +343,6 @@ export function TasksPage({
   const shellClass = fullScreen
     ? 'fixed inset-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-background text-foreground'
     : 'flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground';
-
-  // ── Project bind gate ──────────────────────────────────────────────
-  if (!projectId) {
-    return (
-      <div className={shellClass}>
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-gradient-to-r from-primary/15 via-background to-violet-500/10 px-4 py-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
-              <Bot className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-semibold tracking-tight">PixBot</h1>
-              <p className="text-xs text-muted-foreground">Full-screen autonomous planner · bind a workspace to start</p>
-            </div>
-          </div>
-          {onExit && (
-            <button
-              type="button"
-              onClick={onExit}
-              className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-              Exit
-            </button>
-          )}
-        </header>
-        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 py-10 sm:px-6">
-          <div className="rounded-3xl border border-border bg-card/50 p-6 shadow-sm sm:p-8">
-            <div className="flex items-center gap-3">
-              <FolderOpen className="h-6 w-6 text-primary" />
-              <div>
-                <h2 className="text-base font-semibold">Bind a workspace</h2>
-                <p className="text-sm text-muted-foreground">
-                  PixBot runs CLIs only inside a project. Pick one, then chat to build multi-step plans and schedules.
-                </p>
-              </div>
-            </div>
-            <div className="mt-6 max-h-[50vh] space-y-2 overflow-y-auto">
-              {workspaceList.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-                  No projects found. Open a project in Pixcode first, then return to PixBot.
-                </p>
-              ) : workspaceList.map((project) => (
-                <button
-                  key={project.id || project.name}
-                  type="button"
-                  onClick={() => bindProject(project)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
-                >
-                  <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{project.label || project.name}</div>
-                    {project.path && (
-                      <div className="truncate text-[11px] text-muted-foreground">{project.path}</div>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className={shellClass}>
@@ -562,12 +503,13 @@ export function TasksPage({
                 className="h-8 rounded-lg border border-border bg-background px-2 text-xs"
               >
                 {(agents.length ? agents : [
-                  { value: 'opencode', label: 'OpenCode' },
                   { value: 'claude-code', label: 'Claude Code' },
                   { value: 'codex', label: 'Codex' },
-                  { value: 'cursor', label: 'Cursor' },
                   { value: 'gemini', label: 'Gemini' },
+                  { value: 'cursor', label: 'Cursor' },
                   { value: 'qwen', label: 'Qwen' },
+                  { value: 'opencode', label: 'OpenCode' },
+                  { value: 'grok', label: 'Grok Build (xAI)' },
                 ] as const).map((agent) => (
                   <option key={agent.value} value={agent.value}>{agent.label}</option>
                 ))}
