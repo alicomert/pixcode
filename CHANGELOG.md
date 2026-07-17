@@ -3,6 +3,18 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.62.0](https://github.com/alicomert/pixcode/compare/v1.61.1...v1.62.0) (2026-07-17)
+
+### New Features
+
+* **pixbot:** ChatGPT-style UI with model picker and project scan ([4d520e1](https://github.com/alicomert/pixcode/commit/4d520e180c85c213de554cab2867d12a13b810ad))
+* **pixbot:** multi custom providers via models.dev catalog ([83931b2](https://github.com/alicomert/pixcode/commit/83931b2b9b09cdf74f962a97ec80d78ed4015060))
+* **pixbot:** OpenAI-compatible API chat with /v1/models picker ([ba99eac](https://github.com/alicomert/pixcode/commit/ba99eacec57263a1f05fa7ba0a4c9340c41632ea))
+
+### Maintenance
+
+* **desktop:** bump version label to 1.61.1 (no installer rebuild) ([7343142](https://github.com/alicomert/pixcode/commit/7343142bb593962533b280d9eb61c9c85827bbc8))
+
 ## [1.61.1](https://github.com/alicomert/pixcode/compare/v1.61.0...v1.61.1) (2026-07-17)
 
 ### New Features
