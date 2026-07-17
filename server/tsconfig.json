@@ -32,5 +32,11 @@
     "types": ["node"]
   },
   "include": ["./**/*.js", "./**/*.ts", "../shared/**/*.js", "../shared/**/*.ts"],
-  "exclude": ["../dist", "../dist-server", "../node_modules", "../src"]
+  "exclude": [
+    "../dist",
+    "../dist-server",
+    "../node_modules",
+    "../src",
+    "./vendor/nanoclaw-lite/**/*.test.ts"
+  ]
 }

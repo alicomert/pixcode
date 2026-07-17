@@ -1058,6 +1058,28 @@ function VSCodeWorkbench({
       return <ControlRoomPage selectedProject={selectedProject} />;
     }
 
+    if (activeTab === 'tasks') {
+      const workspaceOptions = (sidebarProps.projects || []).map((project) => ({
+        id: project.name,
+        name: project.name,
+        label: project.displayName || project.name,
+        path: project.fullPath || project.path || undefined,
+      }));
+      return (
+        <TasksPage
+          projectId={selectedProject?.name}
+          projectLabel={selectedProject?.displayName || selectedProject?.name}
+          projects={workspaceOptions}
+          onBindProject={(project) => {
+            const match = (sidebarProps.projects || []).find((entry) => entry.name === project.id || entry.name === project.name);
+            if (match) {
+              handleWorkbenchProjectSelect(match);
+            }
+          }}
+        />
+      );
+    }
+
     if (activeTab.startsWith('plugin:')) {
       return (
         <PluginTabContent
@@ -1247,35 +1269,6 @@ function VSCodeWorkbench({
     );
   };
 
-  // PixBot owns the entire workbench viewport (no files / CLI / terminal chrome).
-  if (activeTab === 'tasks') {
-    const workspaceOptions = (sidebarProps.projects || []).map((project) => ({
-      id: project.name,
-      name: project.name,
-      label: project.displayName || project.name,
-      path: project.fullPath || project.path || undefined,
-    }));
-
-    return (
-      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
-        <Sidebar {...sidebarProps} isMobile={false} modalsOnly />
-        <TasksPage
-          fullScreen
-          projectId={selectedProject?.name}
-          projectLabel={selectedProject?.displayName || selectedProject?.name}
-          projects={workspaceOptions}
-          onBindProject={(project) => {
-            const match = (sidebarProps.projects || []).find((entry) => entry.name === project.id || entry.name === project.name);
-            if (match) {
-              handleWorkbenchProjectSelect(match);
-            }
-          }}
-          onExit={() => setActiveTab(selectedProject ? 'chat' : 'files')}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground">
       <Sidebar {...sidebarProps} isMobile={false} modalsOnly />
@@ -1331,9 +1324,9 @@ function VSCodeWorkbench({
               />
             ))}
             <ActivityButton
-              label={t('tabs.tasks') || 'Tasks'}
+              label={t('tabs.tasks') || 'PixBot'}
               icon={TasksIcon}
-              active={false}
+              active={activeTab === 'tasks'}
               badge={false}
               onClick={() => openSystemTab('tasks')}
             />

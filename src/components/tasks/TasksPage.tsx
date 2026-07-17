@@ -415,7 +415,7 @@ export function TasksPage({
             <p className="truncate text-xs text-muted-foreground">
               {t('taskSystem.workspaceSubtitle', {
                 project: projectLabel || projectId,
-                defaultValue: 'Auto-plan · approve · CLI graph · schedules for {{project}}',
+                defaultValue: 'Pixcode × NanoClaw-lite · schedules & agents for {{project}}',
               })}
             </p>
           </div>

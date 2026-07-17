@@ -149,6 +149,7 @@ import liveViewRoutes, { createLiveViewPublicRouter } from './routes/live-view.j
 import providerRoutes from './modules/providers/provider.routes.js';
 import { evaluatePermissionRequest } from './modules/security/permission-policy.js';
 import { taskRouter, taskScheduler } from './modules/tasks/index.js';
+import { nanoclawRouter } from './modules/nanoclaw/bridge.js';
 import networkRoutes from './routes/network.js';
 import telegramRoutes from './routes/telegram.js';
 import { restoreRequestedTunnel } from './services/external-access.js';
@@ -2288,7 +2289,9 @@ app.use('/api/providers', authenticateToken, providerRoutes);
 
 // Task system routes
 app.use('/api/tasks', authenticateToken, taskRouter());
-// Start the task scheduler
+// NanoClaw-lite engine (same router also serves /api/tasks via bridge)
+app.use('/api/nanoclaw', authenticateToken, nanoclawRouter());
+// Start embedded NanoClaw-lite (scheduler + optional Telegram channel)
 taskScheduler.start();
 app.use('/live', createLiveViewPublicRouter());
 

@@ -528,21 +528,7 @@ function MainContent({
     return <MainContentStateView mode="loading" isMobile={isMobile} onMenuClick={onMenuClick} />;
   }
 
-  if (activeTab === 'tasks') {
-    return (
-      <div className="flex h-full flex-col">
-        <TasksPage
-          fullScreen
-          projectId={selectedProject?.name}
-          projectLabel={selectedProject?.displayName || selectedProject?.name}
-          projects={[]}
-          onExit={() => setActiveTab(selectedProject ? 'chat' : 'files')}
-        />
-      </div>
-    );
-  }
-
-  if (!selectedProject && activeTab === 'controlRoom') {
+  if (!selectedProject && (activeTab === 'controlRoom' || activeTab === 'tasks')) {
     return (
       <div className="flex h-full flex-col">
         <MainContentHeader
@@ -556,10 +542,9 @@ function MainContent({
           isMobile={isMobile}
           onMenuClick={onMenuClick}
         />
-
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <ControlRoomPage selectedProject={null} />
+            {activeTab === 'tasks' ? <TasksPage /> : <ControlRoomPage selectedProject={null} />}
           </div>
         </div>
       </div>
@@ -716,6 +701,14 @@ function MainContent({
             <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
               <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
                 <ControlRoomPage selectedProject={selectedProject} />
+              </div>
+            </div>
+          )}
+
+          {!activeSidePanelTab && activeTab === 'tasks' && (
+            <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <TasksPage projectId={selectedProject.name} projectLabel={selectedProject.displayName || selectedProject.name} />
               </div>
             </div>
           )}
