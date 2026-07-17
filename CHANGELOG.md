@@ -3,6 +3,12 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.8](https://github.com/alicomert/pixcode/compare/v1.63.7...v1.63.8) (2026-07-17)
+
+### Bug Fixes
+
+* **pixbot:** schedule results, task panel, sticky CLI, and chat scroll ([8a2764f](https://github.com/alicomert/pixcode/commit/8a2764fc37a7e6cd3a0b99866aa34ca22f2877e1))
+
 ## [1.63.7](https://github.com/alicomert/pixcode/compare/v1.63.6...v1.63.7) (2026-07-17)
 
 ### Bug Fixes
