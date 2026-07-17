@@ -3,6 +3,39 @@ export type AgentType = 'claude-code' | 'cursor' | 'codex' | 'gemini' | 'qwen' |
 export type TaskRole = 'backend' | 'frontend' | 'fullstack' | 'reviewer' | 'tester' | 'custom';
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type TaskRecurrence = 'none' | 'hourly' | 'daily' | 'weekly';
+export type AutonomyLevel = 'supervised' | 'auto';
+export type PlanStatus = 'approved' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
+export interface PlanStep {
+  id: string;
+  title: string;
+  description?: string;
+  assignedProvider?: AgentType;
+  agentType?: AgentType;
+  model?: string;
+  role?: TaskRole;
+  dependsOn?: string[];
+  status?: PlanStepStatus;
+  taskId?: string | null;
+  adaptive?: boolean;
+}
+
+export interface BotPlan {
+  id: string;
+  conversationId?: string;
+  projectId: string;
+  title: string;
+  prompt: string;
+  status: PlanStatus;
+  autonomyLevel?: AutonomyLevel;
+  steps: PlanStep[];
+  parentPlanId?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  reportSent?: boolean;
+}
 
 export interface Task {
   id: string;
@@ -16,10 +49,13 @@ export interface Task {
   role: TaskRole;
   priority: TaskPriority;
   predecessorTaskId?: string;
+  dependsOnTaskIds?: string[];
   continueSession?: boolean;
   sessionId?: string;
   conversationId?: string;
   proposalId?: string;
+  planId?: string;
+  planStepId?: string;
   cronId?: string;
   trigger?: string;
   maxBudgetUsd?: number;
@@ -73,7 +109,7 @@ export interface AgentInfo {
   authenticated?: boolean;
 }
 
-export type ProposalKind = 'task' | 'cron';
+export type ProposalKind = 'task' | 'cron' | 'plan';
 export type ProposalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface BotProposal {
@@ -89,9 +125,14 @@ export interface BotProposal {
   role?: TaskRole;
   priority?: TaskPriority;
   permissionMode?: string;
-  recurrence?: TaskRecurrence;
+  recurrence?: TaskRecurrence | string;
+  cronExpression?: string;
+  autonomyLevel?: AutonomyLevel;
+  planSteps?: PlanStep[];
+  planId?: string;
   taskId?: string;
   cronId?: string;
+  adaptiveForPlanId?: string;
   createdAt: string;
   resolvedAt?: string;
 }
@@ -105,11 +146,15 @@ export interface BotCron {
   agentType: AgentType;
   model?: string;
   role?: TaskRole;
-  recurrence: TaskRecurrence;
+  recurrence?: TaskRecurrence | string;
+  cronExpression?: string;
+  autonomyLevel?: AutonomyLevel;
   enabled: boolean;
   nextRunAt?: string | null;
   lastRunAt?: string | null;
   lastTaskId?: string | null;
+  lastPlanId?: string | null;
+  lastRunStatus?: string | null;
   lastError?: string;
   createdAt: string;
   updatedAt?: string;
@@ -133,7 +178,15 @@ export interface BotMessage {
   kind?: string;
   proposalIds?: string[];
   taskId?: string;
+  planId?: string;
   cronId?: string;
   interactionId?: string;
   taskStatus?: string;
+}
+
+export interface WorkspaceOption {
+  id: string;
+  name: string;
+  label: string;
+  path?: string;
 }

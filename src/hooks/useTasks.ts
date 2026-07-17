@@ -5,6 +5,7 @@ import type {
   BotConversation,
   BotCron,
   BotMessage,
+  BotPlan,
   BotProposal,
   RoleInfo,
   Task,
@@ -36,6 +37,7 @@ export type CreateTaskInput = {
   role?: TaskRole;
   priority?: TaskPriority;
   predecessorTaskId?: string;
+  dependsOnTaskIds?: string[];
   continueSession?: boolean;
   maxBudgetUsd?: number;
   thinkingEnabled?: boolean;
@@ -46,6 +48,7 @@ export type CreateTaskInput = {
 
 export function useTasks(projectId?: string) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [plans, setPlans] = useState<BotPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -57,8 +60,9 @@ export function useTasks(projectId?: string) {
         ? `/api/tasks?projectId=${encodeURIComponent(projectId)}`
         : '/api/tasks?limit=100';
       const response = await authenticatedFetch(url, { cache: 'no-store' });
-      const payload = await readResponse<{ tasks?: Task[] }>(response);
+      const payload = await readResponse<{ tasks?: Task[]; plans?: BotPlan[] }>(response);
       setTasks(payload.tasks || []);
+      setPlans(payload.plans || []);
       setError(null);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
@@ -147,6 +151,7 @@ export function useTasks(projectId?: string) {
 
   return {
     tasks,
+    plans,
     loading,
     error,
     createTask,
@@ -166,6 +171,7 @@ export function usePixBot(projectId?: string) {
   const [messages, setMessages] = useState<BotMessage[]>([]);
   const [proposals, setProposals] = useState<BotProposal[]>([]);
   const [crons, setCrons] = useState<BotCron[]>([]);
+  const [plans, setPlans] = useState<BotPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -175,16 +181,20 @@ export function usePixBot(projectId?: string) {
     if (!projectId) {
       setProposals([]);
       setCrons([]);
+      setPlans([]);
       return;
     }
-    const [proposalRes, cronRes] = await Promise.all([
+    const [proposalRes, cronRes, planRes] = await Promise.all([
       authenticatedFetch(`/api/tasks/bot/proposals?status=pending&projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' }),
       authenticatedFetch(`/api/tasks/bot/crons?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' }),
+      authenticatedFetch(`/api/tasks/bot/plans?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' }),
     ]);
     const proposalPayload = await readResponse<{ proposals?: BotProposal[] }>(proposalRes);
     const cronPayload = await readResponse<{ crons?: BotCron[] }>(cronRes);
+    const planPayload = await readResponse<{ plans?: BotPlan[] }>(planRes);
     setProposals(proposalPayload.proposals || []);
     setCrons(cronPayload.crons || []);
+    setPlans(planPayload.plans || []);
   }, [projectId]);
 
   const loadMessages = useCallback(async (id: string) => {
@@ -265,7 +275,7 @@ export function usePixBot(projectId?: string) {
   }, [conversationId, refreshSide]);
 
   const ensureConversation = useCallback(async () => {
-    if (!projectId) throw new Error('Select a workspace first.');
+    if (!projectId) throw new Error('Bind a workspace first.');
     if (conversationId) return conversationId;
     const response = await authenticatedFetch('/api/tasks/bot/conversations', {
       method: 'POST',
@@ -278,8 +288,8 @@ export function usePixBot(projectId?: string) {
     return payload.conversation.id;
   }, [conversationId, loadMessages, projectId]);
 
-  const sendMessage = useCallback(async (message: string, opts?: { agentType?: string; model?: string }) => {
-    if (!projectId) throw new Error('Select a workspace first.');
+  const sendMessage = useCallback(async (message: string, opts?: { agentType?: string; model?: string; autonomyLevel?: string }) => {
+    if (!projectId) throw new Error('Bind a workspace first.');
     setSending(true);
     setError(null);
     try {
@@ -291,6 +301,7 @@ export function usePixBot(projectId?: string) {
           message,
           agentType: opts?.agentType,
           model: opts?.model,
+          autonomyLevel: opts?.autonomyLevel,
         }),
       });
       const payload = await readResponse<{
@@ -348,6 +359,16 @@ export function usePixBot(projectId?: string) {
     await refreshSide();
   }, [refreshSide]);
 
+  const runCronNow = useCallback(async (cronId: string) => {
+    const response = await authenticatedFetch(`/api/tasks/bot/crons/${cronId}/run-now`, {
+      method: 'POST',
+      body: '{}',
+    });
+    await readResponse(response);
+    await refreshSide();
+    if (conversationId) await loadMessages(conversationId);
+  }, [conversationId, loadMessages, refreshSide]);
+
   const deleteCron = useCallback(async (cronId: string) => {
     const response = await authenticatedFetch(`/api/tasks/bot/crons/${cronId}`, { method: 'DELETE' });
     if (!response.ok) await readResponse(response);
@@ -355,7 +376,7 @@ export function usePixBot(projectId?: string) {
   }, [refreshSide]);
 
   const startNewChat = useCallback(async () => {
-    if (!projectId) throw new Error('Select a workspace first.');
+    if (!projectId) throw new Error('Bind a workspace first.');
     const response = await authenticatedFetch('/api/tasks/bot/conversations', {
       method: 'POST',
       body: JSON.stringify({ projectId }),
@@ -376,6 +397,7 @@ export function usePixBot(projectId?: string) {
     messages,
     proposals,
     crons,
+    plans,
     loading,
     sending,
     error,
@@ -384,6 +406,7 @@ export function usePixBot(projectId?: string) {
     approveProposal,
     rejectProposal,
     toggleCron,
+    runCronNow,
     deleteCron,
     startNewChat,
     refresh: () => refreshConversations(conversationId),
