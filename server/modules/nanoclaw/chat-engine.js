@@ -101,22 +101,28 @@ export function isPixbotHttpModel(model) {
 }
 
 export function parseUserRouting(rawText, softDefaultAgent = null) {
-  let text = String(rawText || '').trim();
+  // Strip wrapping quotes users often type: "/grok …" or '/grok …'
+  let text = String(rawText || '').trim().replace(/^["'`«]+|["'`»]+$/g, '').trim();
   let agentType = null;
   let model = null;
   let nlAgent = false;
   let slashAgent = false;
 
-  // Slash agents anywhere in the message (start OR trailing "… /grok")
+  // Slash agents anywhere: start, mid, after quotes — "/grok", … /grok, sen degil /grok …
   // Preferred: /opencode  /claude  /grok
   // Legacy: /agent-opencode  /agent:codex
-  const slashRe = /(?:^|\s)\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b/i;
+  const slashRe = /(?:^|[\s"'`«»([{])\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b/i;
   const slash = text.match(slashRe);
   if (slash) {
     agentType = normalizeAgentType(slash[1]);
     slashAgent = true;
-    // Strip the slash token (keep surrounding text)
-    text = text.replace(slashRe, ' ').replace(/\s+/g, ' ').trim();
+    // Strip only the /agent token, keep surrounding words ("ile çalış …")
+    text = text
+      .replace(/(?:^|[\s"'`«»([{])\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^["'`«]+|["'`»]+$/g, '')
+      .trim();
   }
 
   // Leading-only strip leftovers if still present
@@ -544,24 +550,25 @@ export async function handleChatTurnStream({
       : (softAgent && isCliAgentType(softAgent) ? softAgent : 'opencode');
     streamAgent = normalizeAgentType(fallback);
   }
-  // HTTP picker model wins over stale conversation CLI default
-  const wantsCli = !httpModel && (
-    forceCli
-    || routing.explicitAgent
-    || actionDoIt
-    || (Boolean(routing.softUsed) && isCliAgentType(streamAgent) && !smallTalk && String(routing.prompt || '').length > 6)
-  );
+  // Explicit /grok etc ALWAYS beats the HTTP model dropdown.
+  // HTTP model only blocks soft-default CLI follow-ups (no slash in message).
+  const explicitCli = forceCli || routing.explicitAgent || actionDoIt;
+  const wantsCli = explicitCli
+    || (!httpModel && Boolean(routing.softUsed) && isCliAgentType(streamAgent) && !smallTalk && String(routing.prompt || '').length > 6);
 
   // CLI or real schedule → full non-stream turn (creates NanoClaw job / spawns CLI)
   if (wantsCli || schedule) {
-    emit({ type: 'status', status: wantsCli ? `cli:${streamAgent}` : 'schedule' });
+    const cliAgent = isCliAgentType(streamAgent)
+      ? streamAgent
+      : (isCliAgentType(routing.agentType) ? routing.agentType : 'grok');
+    emit({ type: 'status', status: wantsCli ? `cli:${cliAgent}` : 'schedule' });
     const full = await handleChatTurn({
       projectId,
       conversationId: conv.id,
       message: raw,
-      agentType: isCliAgentType(streamAgent) ? streamAgent : softAgent,
+      agentType: wantsCli ? cliAgent : softAgent,
       // Never feed provider::model composite ids into CLI spawns
-      model: wantsCli && isPixbotHttpModel(model) ? null : (model || modelHint),
+      model: wantsCli ? (isPixbotHttpModel(model) ? null : (model || modelHint)) : (model || modelHint),
       projectPath,
       forceCli: wantsCli,
       scheduleTools,
@@ -738,26 +745,23 @@ export async function handleChatTurn({
   const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
-  // Dropdown models like `cerebras-xxx::zai-glm-4.7` are HTTP only — never CLI argv.
+  // Dropdown models like `cerebras-xxx::zai-glm-4.7` are HTTP picker ids.
+  // They must NOT block an explicit /grok request — only soft follow-ups.
   const httpModel = isPixbotHttpModel(model) || isPixbotHttpModel(modelHint);
   // "sen yap / otomatik yap / dosyayı oluştur" → must run a real agent, not paste instructions
   const actionDoIt = /\b(sen\s+yap|otomatik(?:\s+yap)?|kendin\s+yap|dosyay[ıi]\s+oluştur|dosyayi\s+olustur|uygula|implement|just\s+do\s+it|do\s+it\s+yourself|apply\s+(?:it|this)|write\s+the\s+file)\b/i.test(raw)
     || /kanka\s+bunu\s+sen|bunu\s+sen\s+yap/i.test(raw);
-  if (actionDoIt && !httpModel && (!agentType || agentType === 'pixbot' || agentType === 'local')) {
+  const explicitCli = forceCli || routing.explicitAgent || actionDoIt;
+  if (actionDoIt && (!agentType || agentType === 'pixbot' || agentType === 'local')) {
     // Only fall back to a real CLI agent name — never "pixbot"
     const fallback = conv.defaultAgent && isCliAgentType(conv.defaultAgent)
       ? conv.defaultAgent
       : (softAgent && isCliAgentType(softAgent) ? softAgent : 'opencode');
     agentType = normalizeAgentType(fallback);
   }
-  // CLI only when explicitly asked (/grok, "grok ile", sen yap) — NOT because
-  // a previous turn left defaultAgent=grok while the UI model picker is HTTP.
-  const wantsCli = !httpModel && (
-    forceCli
-    || routing.explicitAgent
-    || actionDoIt
-    || (Boolean(routing.softUsed) && isCliAgentType(agentType) && !smallTalk && String(routing.prompt || '').length > 6)
-  );
+  // Explicit /grok ALWAYS CLI. HTTP model only blocks soft-default CLI reuse.
+  const wantsCli = explicitCli
+    || (!httpModel && Boolean(routing.softUsed) && isCliAgentType(agentType) && !smallTalk && String(routing.prompt || '').length > 6);
 
   // Remember last explicit CLI agent for follow-ups ("sistemi yap")
   if (routing.explicitAgent && agentType && agentType !== 'pixbot' && isCliAgentType(agentType)) {
@@ -767,7 +771,7 @@ export async function handleChatTurn({
     store.conversations[conv.id] = conv;
     persist();
   }
-  // Persist HTTP model selection for next API turns
+  // Persist HTTP model selection for next API turns (when not doing CLI this turn)
   if (!wantsCli && httpModel && model) {
     conv.defaultModel = model;
     conv.defaultAgent = 'pixbot';

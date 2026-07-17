@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Pure routing unit checks without loading CLI SDKs.
- * Mirrors chat-engine parseUserRouting / detectScheduleIntent / CLI set rules.
+ * Mirrors chat-engine parseUserRouting / CLI vs HTTP rules.
  */
 const CLI = new Set(['claude-code', 'codex', 'gemini', 'cursor', 'qwen', 'opencode', 'grok']);
 
@@ -10,7 +10,7 @@ function normalizeAgentType(raw) {
   if (value === 'pixbot' || value === 'local') return 'claude-code';
   if (value === 'claude') return 'claude-code';
   if (value === 'grok-build' || value === 'xai-grok' || value === 'spacexai') return 'grok';
-  if (CLI.has(value) || value === 'claude') return value === 'claude' ? 'claude-code' : value;
+  if (CLI.has(value)) return value;
   return 'claude-code';
 }
 
@@ -18,24 +18,24 @@ function isPixbotHttpModel(model) {
   return String(model || '').includes('::');
 }
 
-function wantsCliFor(r, model) {
-  if (isPixbotHttpModel(model)) return false;
-  return r.explicitAgent || (CLI.has(r.agentType) && r.agentType !== 'pixbot' && r.explicitAgent);
-}
-
-function parseUserRouting(rawText) {
-  let text = String(rawText || '').trim();
+function parseUserRouting(rawText, softDefaultAgent = null) {
+  let text = String(rawText || '').trim().replace(/^["'`«]+|["'`»]+$/g, '').trim();
   let agentType = null;
   let model = null;
   let nlAgent = false;
   let slashAgent = false;
 
-  const slashRe = /(?:^|\s)\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b/i;
+  const slashRe = /(?:^|[\s"'`«»([{])\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b/i;
   const slash = text.match(slashRe);
   if (slash) {
     agentType = normalizeAgentType(slash[1]);
     slashAgent = true;
-    text = text.replace(slashRe, ' ').replace(/\s+/g, ' ').trim();
+    text = text
+      .replace(/(?:^|[\s"'`«»([{])\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^["'`«]+|["'`»]+$/g, '')
+      .trim();
   }
 
   if (!agentType) {
@@ -59,10 +59,23 @@ function parseUserRouting(rawText) {
     if (modelHit) model = modelHit[1].replace(/\s+/g, '-').replace(/-+/g, '-').toLowerCase();
   }
 
+  let softUsed = false;
+  if (!agentType && softDefaultAgent && softDefaultAgent !== 'pixbot' && softDefaultAgent !== 'local') {
+    agentType = normalizeAgentType(softDefaultAgent);
+    softUsed = true;
+  }
+
   const agent = agentType || 'pixbot';
   const explicitAgent = Boolean(slashAgent || nlAgent);
-  const wantsCli = explicitAgent || (CLI.has(agent) && agent !== 'pixbot');
-  return { agentType: agent, model, explicitAgent, wantsCli, prompt: text };
+  return { agentType: agent, model, explicitAgent, softUsed, prompt: text };
+}
+
+/** Production rule: explicit CLI always wins over HTTP picker model. */
+function wantsCli(r, httpModel, { forceCli = false, actionDoIt = false } = {}) {
+  const explicitCli = forceCli || r.explicitAgent || actionDoIt;
+  if (explicitCli) return true;
+  if (httpModel) return false;
+  return Boolean(r.softUsed && CLI.has(r.agentType) && r.agentType !== 'pixbot');
 }
 
 function detectScheduleIntent(text) {
@@ -82,6 +95,8 @@ function detectScheduleIntent(text) {
 const cases = [
   { m: '/grok analyze project', want: { agent: 'grok', wantsCli: true } },
   { m: 'urgent review /grok', want: { agent: 'grok', wantsCli: true } },
+  { m: '"/grok ile çalış proje amacını sor', want: { agent: 'grok', wantsCli: true } },
+  { m: 'sen degil /grok analiz edecek', want: { agent: 'grok', wantsCli: true } },
   { m: 'use grok to review', want: { agent: 'grok', wantsCli: true } },
   { m: 'grok ile projeyi analiz et', want: { agent: 'grok', wantsCli: true } },
   { m: '/opencode fix tests', want: { agent: 'opencode', wantsCli: true } },
@@ -89,33 +104,36 @@ const cases = [
   { m: 'bunu codex ile yap', want: { agent: 'codex', wantsCli: true } },
   { m: 'hello what is this', want: { agent: 'pixbot', wantsCli: false } },
   { m: 'selam', want: { agent: 'pixbot', wantsCli: false } },
+  // HTTP model + plain chat after soft grok → stay HTTP
+  {
+    m: 'yardimci olur musun',
+    softDefault: 'grok',
+    httpModel: 'cerebras-a7b52dc1::zai-glm-4.7',
+    want: { wantsCli: false },
+  },
+  // HTTP model + explicit /grok → still CLI
+  {
+    m: '/grok analyze the purpose of this project',
+    httpModel: 'cerebras-a7b52dc1::zai-glm-4.7',
+    want: { agent: 'grok', wantsCli: true },
+  },
 ];
 
 let failed = 0;
 for (const c of cases) {
-  const r = parseUserRouting(c.m);
-  const okAgent = r.agentType === c.want.agent;
-  const okCli = r.wantsCli === c.want.wantsCli;
+  const r = parseUserRouting(c.m, c.softDefault || null);
+  const http = isPixbotHttpModel(c.httpModel);
+  const wc = wantsCli(r, http);
+  const okAgent = c.want.agent ? r.agentType === c.want.agent : true;
+  const okCli = wc === c.want.wantsCli;
   const okModel = !c.want.model || Boolean(r.model);
   const pass = okAgent && okCli && okModel;
   if (!pass) failed += 1;
   console.log(pass ? 'PASS' : 'FAIL', JSON.stringify({
     m: c.m,
-    got: { agent: r.agentType, wantsCli: r.wantsCli, model: r.model, explicit: r.explicitAgent },
+    got: { agent: r.agentType, wantsCli: wc, model: r.model, explicit: r.explicitAgent },
     want: c.want,
   }));
-}
-
-// HTTP composite model + soft-default CLI agent → still HTTP (not Claude with bad model id)
-{
-  const r = parseUserRouting('yardimci olur musun', 'grok');
-  const httpModel = 'cerebras-a7b52dc1::zai-glm-4.7';
-  const wantsCli = isPixbotHttpModel(httpModel)
-    ? false
-    : wantsCliFor(r, httpModel, { softUsed: r.softUsed });
-  const pass = wantsCli === false && isPixbotHttpModel(httpModel) === true;
-  if (!pass) failed += 1;
-  console.log(pass ? 'PASS' : 'FAIL', 'http-model-blocks-cli', { softUsed: r.softUsed, agent: r.agentType, wantsCli });
 }
 
 const schedCases = [
