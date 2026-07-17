@@ -356,11 +356,52 @@ function getPortFromServiceUnit(servicePath) {
     return null;
 }
 
+function isBenignLogNoise(line) {
+    return (
+        /No \.env file found/i.test(line)
+        || /ENOENT: no such file or directory, open '.*\.env'/i.test(line)
+        || /Web Push notifications configured/i.test(line)
+        || /Task scheduler started/i.test(line)
+        || /Using Claude Agents SDK/i.test(line)
+        || /Pixcode Server - Ready/i.test(line)
+    );
+}
+
 function findLatestErrorLine(logText) {
     if (!logText) return '';
     const lines = logText.split('\n').map(line => line.trim()).filter(Boolean);
-    const errorLine = [...lines].reverse().find(line => /(error|failed|exception|denied|cannot|traceback)/i.test(line));
+    // Prefer real failures; ignore common non-fatal noise (.env missing is not a crash).
+    const errorLine = [...lines].reverse().find((line) => {
+        if (isBenignLogNoise(line)) return false;
+        if (/Current command vanished from the unit file/i.test(line)) return true;
+        return /(error|failed|exception|denied|cannot|traceback|ECONNREFUSED|ENOTFOUND|EADDRINUSE)/i.test(line);
+    });
     return errorLine || '';
+}
+
+function describeHealthFailure(healthError, logText, port) {
+    const lastErrorLine = findLatestErrorLine(logText);
+    const vanished = /Current command vanished from the unit file/i.test(logText || '')
+        || /Current command vanished from the unit file/i.test(lastErrorLine || '');
+    const parts = [
+        `Health check failed for ${DAEMON_SERVICE_NAME}: ${healthError.message}`,
+    ];
+    if (vanished) {
+        parts.push(
+            'Cause: systemd unit is stale after a package update (binary/path changed).',
+            `Fix: reinstall the unit with the current package — ` +
+            `pixcode daemon install --mode system --port ${port} --single-port`,
+        );
+    } else if (lastErrorLine && !isBenignLogNoise(lastErrorLine)) {
+        parts.push(`Likely cause: ${lastErrorLine}`);
+    } else {
+        parts.push(
+            `Nothing answered on port ${port}. ` +
+            `If you previously used another port (e.g. 3002), reinstall with that port, ` +
+            `or check logs: journalctl -u pixcode.service -n 80 --no-pager`,
+        );
+    }
+    return parts.join('\n');
 }
 
 function probeUserBus() {
@@ -475,7 +516,19 @@ async function waitForHealth(port, timeoutMs = DAEMON_HEALTH_TIMEOUT_MS) {
 async function healthCheckOrThrow(mode, serviceName, port, c) {
     const state = getServiceState(mode, serviceName);
     if (state.active !== 'active' && state.active !== 'activating') {
-        throw new Error(`Service ${serviceName} is not active (state: ${state.active})`);
+        const logsResult = readLogs(mode, 50, false, [serviceName]);
+        const logText = (logsResult.stdout || logsResult.stderr || '').trim();
+        if (logText) {
+            console.log(`\n${c.warn('[WARN]')} Last 50 log lines for ${serviceName}:`);
+            console.log(logText);
+        }
+        throw new Error(
+            describeHealthFailure(
+                new Error(`Service ${serviceName} is not active (state: ${state.active})`),
+                logText,
+                port,
+            ),
+        );
     }
 
     try {
@@ -486,17 +539,13 @@ async function healthCheckOrThrow(mode, serviceName, port, c) {
     } catch (healthError) {
         const logsResult = readLogs(mode, 50, false, [serviceName]);
         const logText = (logsResult.stdout || logsResult.stderr || '').trim();
-        const lastErrorLine = findLatestErrorLine(logText);
 
         if (logText) {
             console.log(`\n${c.warn('[WARN]')} Last 50 log lines for ${serviceName}:`);
             console.log(logText);
         }
 
-        if (lastErrorLine) {
-            throw new Error(`Health check failed for ${serviceName}: ${healthError.message}\nLikely cause: ${lastErrorLine}`);
-        }
-        throw new Error(`Health check failed for ${serviceName}: ${healthError.message}`);
+        throw new Error(describeHealthFailure(healthError, logText, port));
     }
 }
 
@@ -599,20 +648,10 @@ export async function handleDaemonCommand(args, context = {}) {
 
     const defaultPort = context.defaultPort || process.env.SERVER_PORT || process.env.PORT || '3001';
     const defaultFrontendPort = context.defaultFrontendPort || process.env.VITE_PORT || String(DEFAULT_FRONTEND_PORT);
-    const configuredPort = parsed.options.serverPort || defaultPort;
     const configuredFrontendPort = parsed.options.frontendPort || defaultFrontendPort;
     const frontendEnabled = parsed.options.noFrontend !== true &&
         (Boolean(parsed.options.frontendPort) || process.env.PIXCODE_SEPARATE_FRONTEND === '1');
     const databasePath = parsed.options.databasePath || process.env.DATABASE_PATH || '';
-
-    const portNum = Number(configuredPort);
-    if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
-        throw new Error(`Invalid port "${configuredPort}". Expected an integer between 1 and 65535.`);
-    }
-    const frontendPortNum = Number(configuredFrontendPort);
-    if (frontendEnabled && (!Number.isInteger(frontendPortNum) || frontendPortNum < 1 || frontendPortNum > 65535)) {
-        throw new Error(`Invalid frontend port "${configuredFrontendPort}". Expected an integer between 1 and 65535.`);
-    }
 
     const userBus = probeUserBus();
     const mode = resolveDaemonMode({
@@ -622,6 +661,22 @@ export async function handleDaemonCommand(args, context = {}) {
     });
     const servicePath = getDaemonServicePath(mode);
     const frontendServicePath = getFrontendServicePath(mode);
+
+    // Preserve the previously installed unit port unless the caller explicitly passed --port.
+    // After npm -g upgrades this avoids flipping 3002 → 3001 and failing health checks.
+    const existingUnitPort = getPortFromServiceUnit(servicePath);
+    const configuredPort = parsed.options.serverPort
+        || (existingUnitPort != null ? String(existingUnitPort) : null)
+        || defaultPort;
+    const portNum = Number(configuredPort);
+    if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+        throw new Error(`Invalid port "${configuredPort}". Expected an integer between 1 and 65535.`);
+    }
+    const frontendPortNum = Number(configuredFrontendPort);
+    if (frontendEnabled && (!Number.isInteger(frontendPortNum) || frontendPortNum < 1 || frontendPortNum > 65535)) {
+        throw new Error(`Invalid frontend port "${configuredFrontendPort}". Expected an integer between 1 and 65535.`);
+    }
+
     const effectivePort = getPortFromServiceUnit(servicePath) || portNum;
     const effectiveFrontendPort = getPortFromServiceUnit(frontendServicePath) || frontendPortNum;
 
@@ -731,6 +786,23 @@ export async function handleDaemonCommand(args, context = {}) {
                 fs.mkdirSync(path.dirname(servicePath), { recursive: true });
                 if (frontendEnabled) {
                     fs.mkdirSync(path.dirname(frontendServicePath), { recursive: true });
+                }
+
+                // Stop first so npm-updated binaries are not "vanished" under a running unit.
+                runSystemctl(mode, ['stop', DAEMON_SERVICE_NAME], { allowFailure: true });
+                runSystemctl(mode, ['stop', FRONTEND_DAEMON_SERVICE_NAME], { allowFailure: true });
+                runSystemctl(mode, ['reset-failed', DAEMON_SERVICE_NAME], { allowFailure: true });
+                runSystemctl(mode, ['reset-failed', FRONTEND_DAEMON_SERVICE_NAME], { allowFailure: true });
+
+                if (existingUnitPort != null && !parsed.options.serverPort && existingUnitPort !== portNum) {
+                    console.log(
+                        `${c.info('[INFO]')} Keeping existing unit port ${c.bright(String(existingUnitPort))} ` +
+                        `(pass --port to override).`,
+                    );
+                } else if (existingUnitPort != null && parsed.options.serverPort && existingUnitPort !== portNum) {
+                    console.log(
+                        `${c.info('[INFO]')} Changing daemon port ${c.bright(String(existingUnitPort))} → ${c.bright(String(portNum))}.`,
+                    );
                 }
 
                 const backendUnitContent = buildDaemonServiceUnit({

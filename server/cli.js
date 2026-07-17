@@ -846,6 +846,26 @@ function buildAutoInstallArgs(mode, options) {
     return args;
 }
 
+function resolveExistingDaemonPortHint(fallback = 3001) {
+    const candidates = [
+        '/etc/systemd/system/pixcode.service',
+        path.join(os.homedir(), '.config', 'systemd', 'user', 'pixcode.service'),
+    ];
+    for (const unitPath of candidates) {
+        try {
+            if (!fs.existsSync(unitPath)) continue;
+            const content = fs.readFileSync(unitPath, 'utf8');
+            const quoted = content.match(/"--port"\s+"(\d+)"/);
+            if (quoted) return Number(quoted[1]);
+            const plain = content.match(/--port(?:\s+|=)(\d+)/);
+            if (plain) return Number(plain[1]);
+        } catch {
+            // ignore
+        }
+    }
+    return Number(fallback) || 3001;
+}
+
 async function maybeAutoDaemonStart(options = {}) {
     if (process.platform !== 'linux') return false;
     if (process.env.PIXCODE_DAEMON_MANAGED === '1') return false;
@@ -854,15 +874,24 @@ async function maybeAutoDaemonStart(options = {}) {
     if (options.noDaemon) return false;
 
     process.env.PIXCODE_DAEMON_ATTEMPTED = '1';
-    const daemonPort = Number(options.serverPort || process.env.SERVER_PORT || process.env.PORT || '3001');
-    const systemArgs = buildAutoInstallArgs('system', options);
-    const userArgs = buildAutoInstallArgs('user', options);
+    // Prefer explicit CLI/env port, then whatever the installed unit already uses (e.g. 3002).
+    const daemonPort = Number(
+        options.serverPort
+        || process.env.SERVER_PORT
+        || process.env.PORT
+        || resolveExistingDaemonPortHint(3001),
+    );
+    const systemArgs = buildAutoInstallArgs('system', { ...options, serverPort: daemonPort });
+    const userArgs = buildAutoInstallArgs('user', { ...options, serverPort: daemonPort });
 
     try {
         console.log(`${c.info('[INFO]')} Linux detected. Enforcing system daemon mode for Pixcode...`);
+        if (daemonPort !== 3001) {
+            console.log(`${c.info('[INFO]')} Using existing/configured daemon port ${daemonPort}.`);
+        }
         await handleDaemonCommand(systemArgs, {
             appRoot: APP_ROOT,
-            defaultPort: process.env.SERVER_PORT || process.env.PORT || '3001',
+            defaultPort: String(daemonPort),
             color: c,
         });
         return true;
@@ -872,6 +901,14 @@ async function maybeAutoDaemonStart(options = {}) {
             console.log(`${c.warn('[WARN]')} System daemon health check was delayed, but port ${daemonPort} is now reachable.`);
             printSystemDaemonActiveNotice(daemonPort);
             return true;
+        }
+        // Last resort: previous installs sometimes left the process on another common port.
+        for (const altPort of [3002, 3001, 5173].filter((port) => port !== daemonPort)) {
+            if (await waitForPortOpen(altPort, 800)) {
+                console.log(`${c.warn('[WARN]')} Port ${daemonPort} was down, but Pixcode answered on ${altPort}.`);
+                printSystemDaemonActiveNotice(altPort);
+                return true;
+            }
         }
 
         if (!isSystemPermissionError(systemError)) {
