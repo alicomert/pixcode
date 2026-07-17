@@ -3,6 +3,12 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [1.63.7](https://github.com/alicomert/pixcode/compare/v1.63.6...v1.63.7) (2026-07-17)
+
+### Bug Fixes
+
+* **pixbot:** badge/forceCli always spawns CLI, never HTTP recovery ([7833076](https://github.com/alicomert/pixcode/commit/7833076b28bd94092a25d5425c146fd03851afd6))
+
 ## [1.63.6](https://github.com/alicomert/pixcode/compare/v1.63.5...v1.63.6) (2026-07-17)
 
 ### New Features
