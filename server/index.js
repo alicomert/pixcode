@@ -708,11 +708,13 @@ function createSystemUpdateJob(actorUser, options = {}) {
             const resolvedTarballUrl = latest.tarballUrl || buildPixcodeTarballUrl(resolvedVersion);
             job.toVersion = resolvedVersion;
 
-            if (!IS_PLATFORM && installMode === 'npm' && latest.latestVersion && latest.latestVersion === SERVER_VERSION) {
+            // npm registry is source of truth for "latest" even on git checkouts /
+            // desktop runtimes — avoids reporting "updated to X" when Y is already out.
+            if (!IS_PLATFORM && latest.latestVersion && latest.latestVersion === SERVER_VERSION) {
                 job.status = 'completed';
                 job.alreadyLatest = true;
                 job.completedAt = new Date().toISOString();
-                appendUpdateJobLog(job, 'meta', `Already on ${SERVER_VERSION}.\n`);
+                appendUpdateJobLog(job, 'meta', `Already on ${SERVER_VERSION} (npm latest).\n`);
                 return;
             }
 

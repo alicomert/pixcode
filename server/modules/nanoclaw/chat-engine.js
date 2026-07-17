@@ -77,6 +77,7 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
   let text = String(rawText || '').trim();
   let agentType = null;
   let model = null;
+  let nlAgent = false;
 
   // Slash (preferred short forms): /opencode  /claude  /grok
   // Legacy still accepted: /agent-opencode  /agent:codex  /agent opencode
@@ -97,20 +98,37 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
   }
 
   // Natural language (TR / EN / mixed) — only if no explicit agent yet
+  // Covers: "opencode ile", "opencode un deepseek…", "bunu codex ile yap"
   if (!agentType) {
     const nl = text.match(
-      /(?:\b(?:use|with|via|run\s+on|let)\s+)?(opencode|codex|claude(?:\s*code)?|gemini|cursor|qwen|grok(?:\s*build)?)\s*(?:ile|ile\s+yap|yapsın|yapsin|yap|ki\s+yapsın|should\s+(?:do|handle)|to\s+(?:do|handle))\b/i,
+      /(?:\b(?:use|with|via|run\s+on|let)\s+)?(opencode|codex|claude(?:\s*code)?|gemini|cursor|qwen|grok(?:\s*build)?)\s*(?:un|nun|'s)?\s*(?:ile|ile\s+yap|yapsın|yapsin|yap|ki\s+yapsın|should\s+(?:do|handle)|to\s+(?:do|handle)|ile\s+analiz|analiz\s+ettir)\b/i,
     )
       || text.match(
-        /^(?:bunu|şunu|sunu|this|that)?\s*(opencode|codex|claude|gemini|cursor|qwen|grok)\s*(?:ile|yapsın|yapsin)/i,
+        /^(?:bunu|şunu|sunu|this|that)?\s*(opencode|codex|claude|gemini|cursor|qwen|grok)\s*(?:un|nun|'s|ile|yapsın|yapsin)/i,
+      )
+      || text.match(
+        /\b(opencode|codex|claude|gemini|cursor|qwen|grok)\s+(?:un|nun|'s)\s+/i,
       );
     if (nl) {
-      agentType = normalizeAgentType(nl[1].replace(/\s*code/i, ''));
+      agentType = normalizeAgentType(String(nl[1]).replace(/\s*code/i, ''));
+      nlAgent = true;
     }
   }
 
+  // Model hint from free text (opencode zen free models, etc.)
+  if (!model) {
+    const modelHit = text.match(
+      /\b(deepseek[\w./\-\s]{0,48}?(?:flash|chat|coder)[\w./\-\s]{0,24}?free|deepseek[-\s]?v?\d[\w./\-]{0,40}|opencode\/[\w./\-]+|google\/[\w./\-]+|anthropic\/[\w./\-]+)\b/i,
+    );
+    if (modelHit) {
+      model = modelHit[1].replace(/\s+/g, '-').replace(/-+/g, '-').toLowerCase();
+    }
+  }
+
+  let softUsed = false;
   if (!agentType && softDefaultAgent && softDefaultAgent !== 'pixbot' && softDefaultAgent !== 'local') {
     agentType = normalizeAgentType(softDefaultAgent);
+    softUsed = true;
   }
 
   return {
@@ -118,8 +136,57 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
     agentType: agentType || 'pixbot',
     model,
     prompt: text || String(rawText || '').trim(),
-    explicitAgent: Boolean(slash || bracket.agentType),
+    // Natural-language "opencode ile" MUST count as explicit so we don't answer via Cerebras API.
+    explicitAgent: Boolean(slash || bracket.agentType || nlAgent),
+    softUsed,
   };
+}
+
+/**
+ * Wall-clock once schedule: next occurrence of HH:MM in server local time
+ * (or Europe/Istanbul if message mentions Türkiye/Istanbul).
+ */
+export function nextOnceScheduleValue(hour, minute, { turkey = false } = {}) {
+  const h = Math.max(0, Math.min(23, Number(hour) || 0));
+  const m = Math.max(0, Math.min(59, Number(minute) || 0));
+
+  if (turkey) {
+    // Build next Europe/Istanbul wall time as a local ISO-like string.
+    // NanoClaw "once" expects YYYY-MM-DDTHH:mm:ss without TZ.
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+    const get = (type) => parts.find((p) => p.type === type)?.value;
+    const y = Number(get('year'));
+    const mo = Number(get('month'));
+    const d = Number(get('day'));
+    const curH = Number(get('hour'));
+    const curM = Number(get('minute'));
+    let dayOffset = 0;
+    if (curH > h || (curH === h && curM >= m)) dayOffset = 1;
+    // Noon UTC anchor avoids DST edge when stepping days
+    const anchor = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0));
+    anchor.setUTCDate(anchor.getUTCDate() + dayOffset);
+    const y2 = anchor.getUTCFullYear();
+    const mo2 = String(anchor.getUTCMonth() + 1).padStart(2, '0');
+    const d2 = String(anchor.getUTCDate()).padStart(2, '0');
+    return `${y2}-${mo2}-${d2}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+  }
+
+  const target = new Date();
+  target.setSeconds(0, 0);
+  target.setHours(h, m, 0, 0);
+  if (target.getTime() <= Date.now()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return new Date(target.getTime() - target.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
 }
 
 /**
@@ -129,16 +196,31 @@ export function detectScheduleIntent(text) {
   const t = String(text || '');
   if (!t.trim()) return null;
 
+  const turkey = /t[uü]rkiye|istanbul|europe\/istanbul|trt\b/i.test(t);
+  const oneShot = /tek\s*sefer(?:lik)?|one[\s-]?time|bir\s*kez(?:lik)?|sadece\s*bir\s*(?:kez|defa)/i.test(t);
+  // "saat 15.56", "15:56'da", "15.56 da çalışacak"
+  const timeAt = t.match(/(?:saat\s*)?(\d{1,2})[:.,](\d{2})(?:\s*(?:'?da|'?de|da|de))?/i);
+
+  // One-shot at HH:MM (highest priority for "tek seferlik … 15.56")
+  if (timeAt && (oneShot || /(?:çalış|calis|schedule|zamanla|planla|hatırlat|kontrol)/i.test(t))) {
+    return {
+      schedule_type: 'once',
+      schedule_value: nextOnceScheduleValue(timeAt[1], timeAt[2], { turkey }),
+      prompt: t,
+      oneShot: true,
+    };
+  }
+
   // Cron-ish natural language (TR + EN)
   const daily = t.match(
-    /(?:her\s+g[uü]n|every\s+day|daily|g[uü]nl[uü]k)\s*(?:saat\s*)?(\d{1,2})(?::(\d{2}))?/i,
+    /(?:her\s+g[uü]n|every\s+day|daily|g[uü]nl[uü]k)\s*(?:saat\s*)?(\d{1,2})(?::(\d{2})|[,.](\d{2}))?/i,
   );
   if (daily) {
-    const h = String(Number(daily[1])).padStart(2, '0');
-    const m = String(Number(daily[2] || 0)).padStart(2, '0');
+    const h = Number(daily[1]);
+    const m = Number(daily[2] || daily[3] || 0);
     return {
       schedule_type: 'cron',
-      schedule_value: `${Number(m)} ${Number(h)} * * *`,
+      schedule_value: `${m} ${h} * * *`,
       prompt: t,
     };
   }
@@ -156,7 +238,14 @@ export function detectScheduleIntent(text) {
     return { schedule_type: 'interval', schedule_value: String(ms), prompt: t };
   }
 
-  if (/\b(schedule|zamanla|planla|cron)\b/i.test(t) && /\b(\d{1,2}:\d{2}|yarın|tomorrow|hafta|week)\b/i.test(t)) {
+  if (/\b(schedule|zamanla|planla|cron)\b/i.test(t) && /\b(\d{1,2}[:.,]\d{2}|yarın|tomorrow|hafta|week)\b/i.test(t)) {
+    if (timeAt) {
+      return {
+        schedule_type: 'once',
+        schedule_value: nextOnceScheduleValue(timeAt[1], timeAt[2], { turkey }),
+        prompt: t,
+      };
+    }
     return { schedule_type: 'once', schedule_value: '', prompt: t };
   }
 
@@ -347,6 +436,7 @@ export async function handleChatTurnStream({
   model: modelHint = null,
   projectPath = null,
   forceCli = false,
+  scheduleTools = null,
   onEvent,
 }) {
   const emit = (payload) => {
@@ -368,23 +458,34 @@ export async function handleChatTurnStream({
 
   const routing = parseUserRouting(raw, softAgent || conv.defaultAgent);
   const model = modelHint || routing.model || conv.defaultModel || null;
-  const wantsCli = forceCli || routing.explicitAgent;
+  const schedule = detectScheduleIntent(routing.prompt);
+  const smallTalk = looksLikeSmallTalk(routing.prompt);
+  const wantsCli = forceCli
+    || routing.explicitAgent
+    || (Boolean(routing.softUsed) && routing.agentType !== 'pixbot' && !smallTalk && String(routing.prompt || '').length > 6);
 
-  // CLI path uses non-stream handleChatTurn (appends its own user message)
-  if (wantsCli) {
-    emit({ type: 'status', status: 'cli' });
+  // CLI or real schedule → full non-stream turn (creates NanoClaw job / spawns CLI)
+  if (wantsCli || schedule) {
+    emit({ type: 'status', status: wantsCli ? 'cli' : 'schedule' });
     const full = await handleChatTurn({
       projectId,
       conversationId: conv.id,
       message: raw,
       agentType: softAgent,
-      model: modelHint,
+      model: model || modelHint,
       projectPath,
-      forceCli: true,
+      forceCli: wantsCli,
+      scheduleTools,
     });
     const user = (full.messages || []).find((m) => m.role === 'user');
     if (user) {
       emit({ type: 'user', conversation: full.conversation, message: user });
+    }
+    // Stream any assistant text as one delta so UI still shows progress
+    const assistant = (full.messages || []).find((m) => m.role === 'assistant');
+    if (assistant?.content) {
+      emit({ type: 'assistant_start', messageId: assistant.id, conversationId: conv.id });
+      emit({ type: 'delta', messageId: assistant.id, conversationId: conv.id, delta: assistant.content });
     }
     emit({ type: 'done', conversation: full.conversation, messages: full.messages, mode: full.mode });
     return full;
@@ -548,8 +649,18 @@ export async function handleChatTurn({
   const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
-  // Explicit CLI force: /opencode … still routes multi-CLI when user asks
-  const wantsCli = forceCli || routing.explicitAgent;
+  // Explicit CLI: slash / "opencode ile" / follow-up after prior CLI agent ("sistemi yap")
+  const wantsCli = forceCli
+    || routing.explicitAgent
+    || (Boolean(routing.softUsed) && agentType !== 'pixbot' && !smallTalk && String(routing.prompt || '').length > 6);
+
+  // Remember last explicit CLI agent for follow-ups ("sistemi yap")
+  if (routing.explicitAgent && agentType && agentType !== 'pixbot') {
+    conv.defaultAgent = agentType;
+    if (model) conv.defaultModel = model;
+    store.conversations[conv.id] = conv;
+    persist();
+  }
 
   const userMsg = appendMessage(conv.id, {
     role: 'user',
@@ -557,31 +668,48 @@ export async function handleChatTurn({
     agentType: wantsCli ? agentType : 'pixbot',
   });
 
-  // Explicit schedule intent → nanoclaw scheduler only (still a chat reply)
+  // Explicit schedule intent → real NanoClaw schedule (not a fake chat reply)
   if (schedule && scheduleTools?.toolScheduleTask && !smallTalk) {
     let schedule_value = schedule.schedule_value;
     if (schedule.schedule_type === 'once' && !schedule_value) {
       const d = new Date(Date.now() + 60_000);
       schedule_value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
     }
+    // Embed agent+model so when the job fires, multi-runner uses the right CLI
+    const agentForJob = wantsCli || (agentType && agentType !== 'pixbot')
+      ? agentType
+      : null;
+    const schedulePrompt = agentForJob
+      ? `[agent:${agentForJob}${model ? ` model:${model}` : ''}] ${routing.prompt}`
+      : routing.prompt;
+
     const result = await scheduleTools.toolScheduleTask(
       {
-        prompt: routing.prompt,
+        prompt: schedulePrompt,
         schedule_type: schedule.schedule_type,
         schedule_value,
         context_mode: 'isolated',
       },
       scheduleTools.toolContext,
     );
-    const text = result?.isError
-      ? (result.content?.[0]?.text || 'Could not create schedule.')
-      : (result.content?.[0]?.text || `OK — scheduled (${schedule.schedule_type}).`);
+    const ok = !result?.isError;
+    const detail = result?.content?.[0]?.text || '';
+    const text = ok
+      ? [
+          `✅ **Zamanlandı** (${schedule.schedule_type})`,
+          schedule_value ? `- **Ne zaman:** \`${schedule_value}\`` : null,
+          agentForJob ? `- **Agent:** \`${agentForJob}\`${model ? ` · model \`${model}\`` : ''}` : null,
+          detail ? `\n${detail}` : null,
+          '',
+          '_Görev NanoClaw schedule olarak kaydedildi. Sadece sohbet cevabı değil._',
+        ].filter(Boolean).join('\n')
+      : (detail || 'Schedule oluşturulamadı.');
     const assistantMsg = appendMessage(conv.id, {
       role: 'assistant',
       content: text,
-      kind: result?.isError ? 'error' : 'system',
-      agentType: 'pixbot',
-      meta: { scheduled: !result?.isError, schedule },
+      kind: ok ? 'system' : 'error',
+      agentType: agentForJob || 'pixbot',
+      meta: { scheduled: ok, schedule: { ...schedule, schedule_value, agent: agentForJob, model } },
     });
     return {
       conversation: publicConversation(store.conversations[conv.id]),

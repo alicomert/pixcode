@@ -273,6 +273,24 @@ export const useVersionCheck = (owner: string, repo: string) => {
       }
 
       if (!force && cached?.fetchedAt && intervalMs !== null && now - cached.fetchedAt < intervalMs) {
+        // Cache is fresh for GitHub, but npm may have moved first — quick revalidate.
+        const npmPeek = await fetchNpmLatestVersion();
+        if (npmPeek && compareVersions(npmPeek, cached.latestVersion || '0') > 0) {
+          const info = {
+            title: `v${npmPeek}`,
+            body: cached.releaseInfo?.body
+              || `npm latest is ${npmPeek} (ahead of cached GitHub release ${cached.latestVersion || '—'}).`,
+            htmlUrl: `https://www.npmjs.com/package/@pixelbyte-software/pixcode/v/${npmPeek}`,
+            publishedAt: cached.releaseInfo?.publishedAt || '',
+          };
+          writeReleaseCache(owner, repo, {
+            fetchedAt: now,
+            latestVersion: npmPeek,
+            releaseInfo: info,
+          });
+          setCheckStatus('success');
+          return applyReleaseSnapshot(npmPeek, info, now, 'success');
+        }
         setCheckStatus('success');
         return applyReleaseSnapshot(cached.latestVersion, cached.releaseInfo, cached.fetchedAt, 'success');
       }
@@ -289,6 +307,27 @@ export const useVersionCheck = (owner: string, repo: string) => {
         const data = response.data;
 
         if (!response.ok) {
+          // GitHub failed (rate limit / network) — still try npm so updates aren't stuck.
+          const npmOnly = await fetchNpmLatestVersion();
+          if (npmOnly) {
+            const info = {
+              title: `v${npmOnly}`,
+              body: 'Latest version from npm registry (GitHub releases temporarily unavailable).',
+              htmlUrl: `https://www.npmjs.com/package/@pixelbyte-software/pixcode/v/${npmOnly}`,
+              publishedAt: '',
+            };
+            writeReleaseCache(owner, repo, {
+              fetchedAt: now,
+              latestVersion: npmOnly,
+              releaseInfo: info,
+              rateLimitedUntil: response.status === 403
+                ? now + Math.max(intervalMs ?? 0, RATE_LIMIT_COOLDOWN_MS)
+                : undefined,
+            });
+            setCheckStatus('success');
+            return applyReleaseSnapshot(npmOnly, info, now, 'success');
+          }
+
           if (response.status === 403) {
             writeReleaseCache(owner, repo, {
               fetchedAt: cached?.fetchedAt ?? null,
@@ -302,60 +341,71 @@ export const useVersionCheck = (owner: string, repo: string) => {
           return applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null, 'error');
         }
 
-        if (data.tag_name) {
-          const githubLatest = data.tag_name.replace(/^v/, '');
-          // npm installs often publish before a matching GitHub Release is created.
-          // Prefer the higher of GitHub release tag and npm dist-tag for "latest".
-          const npmLatest = installMode === 'npm' ? await fetchNpmLatestVersion() : null;
-          const latest = npmLatest && compareVersions(npmLatest, githubLatest) > 0
-            ? npmLatest
-            : githubLatest;
-          const isUpdateAvailable = compareVersions(latest, currentVersion) > 0;
-          const nextReleaseInfo = {
-            title: data.name || data.tag_name || `v${latest}`,
-            body: data.body || (npmLatest && npmLatest !== githubLatest
-              ? `npm latest is ${npmLatest} (GitHub release notes may lag).`
-              : ''),
-            htmlUrl: data.html_url || `https://github.com/${owner}/${repo}/releases/latest`,
-            publishedAt: data.published_at || '',
-          };
-          writeReleaseCache(owner, repo, {
-            fetchedAt: now,
-            latestVersion: latest,
-            releaseInfo: nextReleaseInfo,
-          });
-          setLatestVersion(latest);
-          // Only flag an update when the published release is strictly
-          // newer than what's running. An older latest (e.g. local 1.58.4
-          // vs. GitHub release 1.58.2) must NOT surface as an available update.
-          setUpdateAvailable(isUpdateAvailable);
-          if (isUpdateAvailable) {
-            void notifyOnce({
-              key: `app-update:${latest}`,
-              title: 'Pixcode update available',
-              body: `Pixcode ${currentVersion} can update to ${latest}.`,
-              tag: 'pixcode-app-update',
-              data: {
-                type: 'app-update',
-                latestVersion: latest,
-                installMode,
-              },
-            });
-          }
+        // Always consult npm registry — source of truth for published package version.
+        // GitHub Releases can lag (source-only npm publishes with --no-github) or
+        // be rate-limited; taking max(github, npm) keeps the UI honest for both
+        // git checkouts and global npm installs.
+        const npmLatest = await fetchNpmLatestVersion();
+        const githubLatest = data.tag_name ? data.tag_name.replace(/^v/, '') : null;
 
-          setReleaseInfo(nextReleaseInfo);
-          setCheckStatus('success');
-          setLastCheckedAt(now);
-          const result = createResult(latest, nextReleaseInfo, now, 'success');
-          emitUpdateAvailable(result);
-          return result;
-        } else {
+        if (!githubLatest && !npmLatest) {
           setUpdateAvailable(false);
           setLatestVersion(null);
           setReleaseInfo(null);
           setCheckStatus('error');
           return createResult(null, null, null, 'error');
         }
+
+        let latest = githubLatest || npmLatest || null;
+        if (githubLatest && npmLatest) {
+          latest = compareVersions(npmLatest, githubLatest) > 0 ? npmLatest : githubLatest;
+        }
+
+        if (!latest) {
+          setCheckStatus('error');
+          return applyReleaseSnapshot(cached?.latestVersion ?? null, cached?.releaseInfo ?? null, cached?.fetchedAt ?? null, 'error');
+        }
+
+        const isUpdateAvailable = compareVersions(latest, currentVersion) > 0;
+        const notesLag = Boolean(npmLatest && githubLatest && npmLatest !== githubLatest);
+        const nextReleaseInfo = {
+          title: data.name || (data.tag_name ? data.tag_name : `v${latest}`),
+          body: data.body || (notesLag
+            ? `npm latest is ${npmLatest}; GitHub release notes may lag (currently ${githubLatest}).`
+            : (npmLatest && !githubLatest ? `Published on npm as ${npmLatest}.` : '')),
+          htmlUrl: data.html_url || `https://github.com/${owner}/${repo}/releases/tag/v${latest}`,
+          publishedAt: data.published_at || '',
+        };
+        writeReleaseCache(owner, repo, {
+          fetchedAt: now,
+          latestVersion: latest,
+          releaseInfo: nextReleaseInfo,
+        });
+        setLatestVersion(latest);
+        // Only flag an update when the published release is strictly
+        // newer than what's running. An older latest (e.g. local 1.58.4
+        // vs. GitHub release 1.58.2) must NOT surface as an available update.
+        setUpdateAvailable(isUpdateAvailable);
+        if (isUpdateAvailable) {
+          void notifyOnce({
+            key: `app-update:${latest}`,
+            title: 'Pixcode update available',
+            body: `Pixcode ${currentVersion} can update to ${latest}.`,
+            tag: 'pixcode-app-update',
+            data: {
+              type: 'app-update',
+              latestVersion: latest,
+              installMode,
+            },
+          });
+        }
+
+        setReleaseInfo(nextReleaseInfo);
+        setCheckStatus('success');
+        setLastCheckedAt(now);
+        const result = createResult(latest, nextReleaseInfo, now, 'success');
+        emitUpdateAvailable(result);
+        return result;
       } catch (error) {
         console.error('Version check failed:', error);
         setCheckStatus('error');

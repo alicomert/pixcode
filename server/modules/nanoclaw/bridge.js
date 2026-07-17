@@ -715,6 +715,7 @@ export function nanoclawRouter() {
         if (typeof res.flush === 'function') res.flush();
       };
 
+      const tools = await loadMcp();
       await chat.handleChatTurnStream({
         projectId,
         conversationId: req.body?.conversationId || null,
@@ -723,6 +724,10 @@ export function nanoclawRouter() {
         model: req.body?.model || null,
         projectPath,
         forceCli: Boolean(req.body?.forceCli),
+        scheduleTools: {
+          toolScheduleTask: tools.toolScheduleTask,
+          toolContext: toolContext(req, req.body),
+        },
         onEvent: writeEvent,
       });
       res.write('data: [DONE]\n\n');
