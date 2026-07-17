@@ -1,5 +1,7 @@
 import { CronExpressionParser } from 'cron-parser';
 import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 import { ASSISTANT_NAME, SCHEDULER_POLL_INTERVAL, TIMEZONE } from './config.js';
 import {
@@ -8,6 +10,7 @@ import {
   writeTasksSnapshot,
 } from './agent-manager.js';
 import {
+  deleteTask,
   getAllTasks,
   getDueTasks,
   getTaskById,
@@ -19,6 +22,40 @@ import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup, ScheduledTask } from './types.js';
+
+/** Archive completed once-tasks under ~/.pixcode/nanoclaw/archives (then delete live row). */
+function archiveAndDeleteOnceTask(
+  task: ScheduledTask,
+  lastResult: string,
+  status: 'success' | 'error',
+): void {
+  if (task.schedule_type !== 'once') return;
+  try {
+    const home = process.env.PIXCODE_HOME || path.join(os.homedir(), '.pixcode');
+    const day = new Date().toISOString().slice(0, 10);
+    const dir = path.join(home, 'nanoclaw', 'archives', day);
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${task.id}.json`);
+    fs.writeFileSync(
+      file,
+      JSON.stringify(
+        {
+          ...task,
+          archivedAt: new Date().toISOString(),
+          runStatus: status,
+          last_result: lastResult,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    deleteTask(task.id);
+    logger.info({ taskId: task.id, file }, 'Once-task archived and removed from active schedule');
+  } catch (err) {
+    logger.warn({ taskId: task.id, err }, 'Failed to archive once-task (left as completed)');
+  }
+}
 
 // Test helper to reset scheduler state
 let currentSchedulerTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -218,11 +255,12 @@ async function runTask(
 
     // Update the task for the next run
     const nextRun = computeNextRun(task);
-    updateTaskAfterRun(
-      task.id,
-      nextRun,
-      error || (result !== null ? JSON.stringify({ result }) : '{}'),
-    );
+    const stored = error || (result !== null ? JSON.stringify({ result }) : '{}');
+    updateTaskAfterRun(task.id, nextRun, stored);
+    // One-shot jobs: archive under ~/.pixcode/nanoclaw/archives then remove live row
+    if (!nextRun && task.schedule_type === 'once') {
+      archiveAndDeleteOnceTask(task, stored, error ? 'error' : 'success');
+    }
   } catch (err) {
     const duration = Date.now() - startTime;
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -239,11 +277,11 @@ async function runTask(
 
     // Update the task even on error so it doesn't get stuck
     const nextRun = computeNextRun(task);
-    updateTaskAfterRun(
-      task.id,
-      nextRun,
-      JSON.stringify({ error: errorMessage }),
-    );
+    const stored = JSON.stringify({ error: errorMessage });
+    updateTaskAfterRun(task.id, nextRun, stored);
+    if (!nextRun && task.schedule_type === 'once') {
+      archiveAndDeleteOnceTask(task, stored, 'error');
+    }
   }
 }
 

@@ -28,6 +28,7 @@ import {
 } from './agentSlash';
 import { useNanoClawComposerAutocomplete } from './hooks/useNanoClawComposerAutocomplete';
 import { PixbotProviderModal } from './PixbotProviderModal';
+import { ScheduledTasksPanel, ScheduledTasksTrigger } from './ScheduledTasksPanel';
 import type { BotMessage, WorkspaceOption } from './types';
 
 const MODEL_STORAGE_KEY = 'pixbot.selectedModel';
@@ -93,15 +94,15 @@ function MessageBubble({ message }: { message: BotMessage }) {
   ].filter(Boolean).join(' · ');
 
   return (
-    <div className={cn('flex w-full gap-3', isUser ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex w-full gap-3 select-text', isUser ? 'justify-end' : 'justify-start')}>
       {!isUser && (
-        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+        <div className="mt-1 flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-primary/15 text-primary">
           <Bot className="h-4 w-4" />
         </div>
       )}
       <div
         className={cn(
-          'max-w-[min(100%,42rem)] rounded-2xl px-4 py-3 text-[15px] leading-7',
+          'max-w-[min(100%,42rem)] rounded-2xl px-4 py-3 text-[15px] leading-7 select-text',
           isUser
             ? 'bg-primary text-primary-foreground'
             : 'bg-muted/50 text-foreground',
@@ -216,15 +217,22 @@ export function TasksPage({
     conversationId,
     setConversationId,
     messages,
+    scheduledTasks,
     loading: botLoading,
     sending,
     error: botError,
     sendMessage,
     startNewChat,
     refresh: refreshBot,
+    refreshSide,
+    pauseScheduledTask,
+    resumeScheduledTask,
+    cancelScheduledTask,
+    deleteScheduledTask,
   } = usePixBot(projectId, projectPath);
 
   const [draft, setDraft] = useState('');
+  const [showTasksPanel, setShowTasksPanel] = useState(false);
   /** Slash agent chip in the composer (visual badge; wire message still uses /claude …). */
   const [agentChip, setAgentChip] = useState<AgentSlashMeta | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>(() => {
@@ -391,10 +399,14 @@ export function TasksPage({
     };
   }, [refreshModelsQuiet]);
 
+  // Stick to bottom only when user is already near the end (don't fight manual scroll-up)
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distanceFromBottom < 140) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages, sending]);
 
   const bindProject = (project: WorkspaceOption) => {
@@ -419,24 +431,42 @@ export function TasksPage({
       // CLI agents: don't force HTTP composite model into the CLI runner
       const httpPicker = selectedModel.includes('::');
       const useHttpModel = !agentChip && httpPicker;
-      await sendMessage(wire, {
+      const result = await sendMessage(wire, {
         model: useHttpModel ? selectedModel || undefined : (agentChip ? undefined : selectedModel || undefined),
         agentType: agentChip?.agentType,
         forceCli: Boolean(agentChip),
-      });
+      }) as { mode?: string } | undefined;
+      // After a successful schedule, open the task list so the user sees it immediately
+      if (result?.mode === 'schedule') {
+        setShowTasksPanel(true);
+        void refreshSide();
+      }
     } catch (caughtError) {
       setActionError(caughtError instanceof Error ? caughtError.message : String(caughtError));
     }
   };
 
   const activeProvider = providers.find((p) => p.id === activeProviderId) || providers[0] || null;
+  const activeTaskCount = scheduledTasks.filter((t) => t.status === 'active').length;
 
   const shellClass = fullScreen
-    ? 'fixed inset-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-background text-foreground'
-    : 'flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground';
+    ? 'fixed inset-0 z-[80] flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground'
+    : 'flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground';
+
+  const tasksPanelProps = {
+    tasks: scheduledTasks,
+    loading: botLoading,
+    error: null as string | null,
+    onClose: () => setShowTasksPanel(false),
+    onPause: pauseScheduledTask,
+    onResume: resumeScheduledTask,
+    onCancel: cancelScheduledTask,
+    onDelete: deleteScheduledTask,
+    onRefresh: () => { void refreshSide(); },
+  };
 
   return (
-    <div className={shellClass}>
+    <div className={shellClass} data-pixbot-shell>
       {/* Top bar — ChatGPT-like */}
       <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
@@ -478,6 +508,11 @@ export function TasksPage({
           </div>
         </div>
         <div className="flex items-center gap-1.5">
+          <ScheduledTasksTrigger
+            activeCount={activeTaskCount}
+            totalCount={scheduledTasks.length}
+            onClick={() => setShowTasksPanel((v) => !v)}
+          />
           <button
             type="button"
             onClick={() => setProviderModalOpen(true)}
@@ -505,9 +540,9 @@ export function TasksPage({
           </button>
           <button
             type="button"
-            onClick={() => { void refreshBot(); void refreshLlm(); }}
+            onClick={() => { void refreshBot(); void refreshLlm(); void refreshSide(); }}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
-            title="Yenile (modeller + sohbet)"
+            title="Yenile (modeller + sohbet + görevler)"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', (botLoading || modelsLoading) && 'animate-spin')} />
           </button>
@@ -571,10 +606,11 @@ export function TasksPage({
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
+      {/* min-h-0 + overflow-hidden is required so the chat column can scroll inside workbench flex parents */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Conversation sidebar */}
         <aside className={cn(
-          'w-56 shrink-0 flex-col border-r border-border bg-muted/10',
+          'h-full w-56 shrink-0 flex-col overflow-hidden border-r border-border bg-muted/10',
           showSidebar ? 'flex' : 'hidden',
           'lg:flex',
         )}
@@ -582,12 +618,28 @@ export function TasksPage({
           <button
             type="button"
             onClick={() => void startNewChat()}
-            className="m-2 flex items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted"
+            className="m-2 flex shrink-0 items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted"
           >
             <Plus className="h-4 w-4" />
             Yeni sohbet
           </button>
-          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
+          {/* Quick tasks entry in sidebar */}
+          <button
+            type="button"
+            onClick={() => setShowTasksPanel(true)}
+            className={cn(
+              'mx-2 mb-2 flex shrink-0 items-center justify-between rounded-xl border px-3 py-2 text-left text-[12px] transition',
+              showTasksPanel || activeTaskCount > 0
+                ? 'border-primary/30 bg-primary/5 text-foreground'
+                : 'border-border text-muted-foreground hover:bg-muted',
+            )}
+          >
+            <span className="font-medium">Görevler</span>
+            <span className="tabular-nums text-[11px] opacity-80">
+              {activeTaskCount > 0 ? `${activeTaskCount} aktif` : (scheduledTasks.length || '—')}
+            </span>
+          </button>
+          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-2 pb-3" data-scroll-container>
             {conversations.map((c) => (
               <button
                 key={c.id}
@@ -605,10 +657,15 @@ export function TasksPage({
           </div>
         </aside>
 
-        {/* Main chat column */}
-        <section className="flex min-w-0 flex-1 flex-col">
-          <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
+        {/* Main chat column — min-h-0 lets overflow-y-auto actually scroll */}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div
+            ref={scrollerRef}
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+            data-scroll-container
+            data-pixbot-messages
+          >
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
               {botLoading && messages.length === 0 ? (
                 <div className="flex flex-1 items-center justify-center text-muted-foreground">
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -657,7 +714,9 @@ export function TasksPage({
                   )}
                 </div>
               ) : (
-                messages.map((message) => <MessageBubble key={message.id} message={message} />)
+                <div className="flex flex-col gap-5 select-text">
+                  {messages.map((message) => <MessageBubble key={message.id} message={message} />)}
+                </div>
               )}
               {sending && (
                 <div className="flex items-center gap-2 pl-11 text-sm text-muted-foreground">
@@ -668,8 +727,8 @@ export function TasksPage({
             </div>
           </div>
 
-          {/* Composer */}
-          <div className="shrink-0 border-t border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-4">
+          {/* Composer — always visible; never covered by scroll region */}
+          <div className="relative z-10 shrink-0 border-t border-border bg-background/95 px-3 py-3 backdrop-blur sm:px-4">
             <div className="relative mx-auto max-w-3xl">
               {composer.open && (
                 <div className="absolute bottom-full left-0 right-0 z-30 mb-2 max-h-56 overflow-y-auto rounded-2xl border border-border bg-popover shadow-xl">
@@ -760,7 +819,32 @@ export function TasksPage({
             </div>
           </div>
         </section>
+
+        {/* Desktop: tasks side panel */}
+        {showTasksPanel ? (
+          <aside className="hidden h-full min-h-0 w-[min(100%,22rem)] shrink-0 overflow-hidden border-l border-border lg:flex">
+            <ScheduledTasksPanel {...tasksPanelProps} className="h-full w-full min-h-0" />
+          </aside>
+        ) : null}
       </div>
+
+      {/* Mobile: bottom sheet for tasks — must not trap desktop chat scroll */}
+      {showTasksPanel ? (
+        <div
+          className="fixed inset-0 z-[85] flex flex-col justify-end bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setShowTasksPanel(false)}
+          role="presentation"
+        >
+          <div
+            className="flex max-h-[88dvh] min-h-0 flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Zamanlanmış görevler"
+          >
+            <ScheduledTasksPanel {...tasksPanelProps} className="min-h-0 max-h-[88dvh]" />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

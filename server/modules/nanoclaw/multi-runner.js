@@ -46,6 +46,7 @@ export function parseAgentDirective(prompt) {
   let text = String(prompt || '');
   let agentType = null;
   let model = null;
+  let conversationId = null;
 
   const slash = text.match(
     /^\s*\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b(?:\s+model[:=](\S+))?\s*/i,
@@ -56,19 +57,36 @@ export function parseAgentDirective(prompt) {
     text = text.slice(slash[0].length);
   }
 
-  const match = text.match(/^\s*\[(?:agent|provider)\s*[:=]\s*([a-z0-9_-]+)(?:\s+model\s*[:=]\s*([^\]]+))?\]\s*/i);
-  if (match) {
-    agentType = normalizeAgentType(match[1]);
-    model = match[2] ? match[2].trim() : model;
-    text = text.slice(match[0].length);
+  // Multiple leading bracket tags: [agent:…] [pixconv:…]
+  for (let i = 0; i < 4; i += 1) {
+    const agentMatch = text.match(/^\s*\[(?:agent|provider)\s*[:=]\s*([a-z0-9_-]+)(?:\s+model\s*[:=]\s*([^\]]+))?\]\s*/i);
+    if (agentMatch) {
+      agentType = normalizeAgentType(agentMatch[1]);
+      model = agentMatch[2] ? agentMatch[2].trim() : model;
+      text = text.slice(agentMatch[0].length);
+      continue;
+    }
+    const convMatch = text.match(/^\s*\[pixconv:([^\]]+)\]\s*/i);
+    if (convMatch) {
+      conversationId = convMatch[1].trim();
+      text = text.slice(convMatch[0].length);
+      continue;
+    }
+    break;
   }
+  // Strip stray pixconv tags mid-prompt
+  text = text.replace(/\[pixconv:[^\]]+\]/gi, ' ').replace(/\s+/g, ' ').trim();
 
-  if (!agentType && !match && !slash) {
-    return { agentType: null, model: null, prompt: text.trim() };
+  // Never pass HTTP composite models into CLI runners
+  if (model && String(model).includes('::')) model = null;
+
+  if (!agentType && !conversationId) {
+    return { agentType: null, model: null, conversationId: null, prompt: text.trim() };
   }
   return {
     agentType,
     model,
+    conversationId,
     prompt: text.trim(),
   };
 }
@@ -121,18 +139,23 @@ export async function runPixcodeMultiAgent({
   const cleanPrompt = parsed.prompt || prompt;
   const cwd = resolveCwd(groupFolder, projectPath);
 
+  // Strip HTTP composite models (provider::model) — they are for PixBot API only,
+  // never for CLI agents. Scheduled jobs often wrongly stored the chat picker model.
+  const cliSafeModel = model && !String(model).includes('::') ? model : undefined;
+
+  // Never inject "[Task specialty=fullstack] Plan and implement…" for NanoClaw.
+  // That prefix made scheduled jobs re-run the raw schedule sentence as a "fullstack"
+  // implement task instead of the user's real instruction (analyze / fix / etc.).
   const task = {
     id: `nc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     agentType,
-    model,
+    model: cliSafeModel,
     prompt: cleanPrompt,
     title: isScheduledTask ? `Schedule: ${cleanPrompt.slice(0, 48)}` : cleanPrompt.slice(0, 64),
     projectPath: cwd,
     projectId: groupFolder || 'general',
-    // Chat turns must NOT inject "[Task role: fullstack] …" — Grok/CLI parsers
-    // treat "role:" as a flag and blow up with "unexpected argument 'role:'".
-    role: isScheduledTask ? 'fullstack' : undefined,
-    chatMode: !isScheduledTask,
+    role: undefined,
+    chatMode: true,
     permissionMode: 'acceptEdits',
     continueSession: Boolean(sessionId),
     sessionId: sessionId || undefined,

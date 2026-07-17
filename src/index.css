@@ -711,6 +711,19 @@
       user-select: text !important;
       -webkit-touch-callout: default !important;
     }
+
+    /* PixBot / NanoClaw chat: allow scroll + select/copy (global button select-none must not win) */
+    [data-pixbot-shell] [data-pixbot-messages],
+    [data-pixbot-shell] [data-pixbot-messages] * {
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      -webkit-touch-callout: default !important;
+    }
+    [data-pixbot-shell] [data-scroll-container] {
+      touch-action: pan-y !important;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
     
     /* Fix mobile scrolling */
     .overflow-y-auto {

@@ -272,21 +272,57 @@ export function nextOnceScheduleValue(hour, minute, { turkey = false } = {}) {
 /**
  * Detect if user wants a deferred/recurring schedule (not a normal chat turn).
  */
+/**
+ * Strip scheduling meta-language so the job prompt is the actual work instruction.
+ * Without this, once-tasks re-ran "saat 17.15 te çalışsın" as the agent task body.
+ */
+export function stripScheduleIntentFromPrompt(text) {
+  let t = String(text || '');
+  // JS \b is ASCII-only — avoid it for Turkish letters (ş, ğ, ı, …)
+  // Filler: "şimdi sistem için şunu diyeceğim/diyecegim"
+  t = t.replace(/(?:^|[\s,;])(?:şimdi|simdi)\s+(?:sistem\s+i[çc]in\s+)?şunu\s+diyece[gğ]im(?=[\s,;.?!]|$)/gi, ' ');
+  t = t.replace(/(?:^|[\s,;])şunu\s+diyece[gğ]im(?=[\s,;.?!]|$)/gi, ' ');
+  // Times + "çalışacak şekilde" / "sadece saat X"
+  t = t.replace(/(?:^|[\s,;])sadece\s+(?:saat\s*)?\d{1,2}[:.,]\d{2}[^\n.]{0,60}/gi, ' ');
+  // Time tokens only — do not eat the "te" in "tek seferlik"
+  t = t.replace(/(?:saat\s*)?\d{1,2}[:.,]\d{2}(?:\s*'?(?:da|de|te|ta)\b)?(?:\s*(?:çalış|calis)[a-zçğıöşü]*)?/gi, ' ');
+  t = t.replace(/(?:çalışacak|calisacak)\s*(?:şekilde|sekilde)?/gi, ' ');
+  t = t.replace(/(?:şekilde|sekilde)\s*[.?!]?/gi, ' ');
+  t = t.replace(/(?:tek\s*sefer(?:lik)?|one[\s-]?time|bir\s*kez(?:lik)?|sadece\s*bir\s*(?:kez|defa))/gi, ' ');
+  t = t.replace(/(?:zamanla(?:r\s*m[ıi]s[ıi]n)?|schedule(?:d)?|planla(?:r\s*m[ıi]s[ıi]n)?|hat[ıi]rlat)/gi, ' ');
+  t = t.replace(/(?:yapar\s*m[ıi]s[ıi]n|yaparmisin|yap\s*m[ıi]s[ıi]n|yapabilir\s*misin)\??/gi, ' ');
+  t = t.replace(/(?:her\s+g[uü]n|every\s+day|daily|g[uü]nl[uü]k|her\s+saat|every\s+hour|hourly)/gi, ' ');
+  t = t.replace(/(?:her|every)\s+\d+\s*(?:dakika|minute|min|saat|hour)/gi, ' ');
+  // Agent names left as "X ile" after routing strip
+  t = t.replace(/(?:grok|opencode|codex|claude|gemini|cursor|qwen)(?:\s*build)?\s+ile/gi, ' ');
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  // Trailing glue / punctuation leftovers
+  t = t.replace(/^(?:ve|and|ile|için|icin|ki|şimdi|simdi)\s+/i, '');
+  t = t.replace(/\s+(?:ve|and|ile|için|icin)\s*[.?!]*$/i, '');
+  t = t.replace(/^[.?!,;:\s]+|[.?!,;:\s]+$/g, '').trim();
+  if (t.length < 10) {
+    return 'Sistemi / projeyi analiz et; nelerin değişmesi gerektiğini maddeler halinde yaz. Dosya isteme.';
+  }
+  return t;
+}
+
 export function detectScheduleIntent(text) {
   const t = String(text || '');
   if (!t.trim()) return null;
 
   const turkey = /t[uü]rkiye|istanbul|europe\/istanbul|trt\b/i.test(t);
-  const oneShot = /tek\s*sefer(?:lik)?|one[\s-]?time|bir\s*kez(?:lik)?|sadece\s*bir\s*(?:kez|defa)/i.test(t);
-  // "saat 15.56", "15:56'da", "15.56 da çalışacak"
-  const timeAt = t.match(/(?:saat\s*)?(\d{1,2})[:.,](\d{2})(?:\s*(?:'?da|'?de|da|de))?/i);
+  const oneShot = /tek\s*sefer(?:lik)?|one[\s-]?time|bir\s*kez(?:lik)?|sadece\s*bir\s*(?:kez|defa)/i.test(t)
+    || /sadece\s+saat\s*\d/i.test(t);
+  // "saat 15.56", "15:56'da", "15.56 da çalışacak" — \b so "te" in "tek" is not eaten
+  const timeAt = t.match(/(?:saat\s*)?(\d{1,2})[:.,](\d{2})(?:\s*'?(?:da|de|te|ta)\b)?/i);
 
   // One-shot at HH:MM (highest priority for "tek seferlik … 15.56")
-  if (timeAt && (oneShot || /(?:çalış|calis|schedule|zamanla|planla|hatırlat|kontrol)/i.test(t))) {
+  if (timeAt && (oneShot || /(?:çalış|calis|schedule|zamanla|planla|hatırlat|kontrol|analiz|yap)/i.test(t))) {
     return {
       schedule_type: 'once',
       schedule_value: nextOnceScheduleValue(timeAt[1], timeAt[2], { turkey }),
-      prompt: t,
+      prompt: stripScheduleIntentFromPrompt(t),
+      rawPrompt: t,
       oneShot: true,
     };
   }
@@ -301,13 +337,19 @@ export function detectScheduleIntent(text) {
     return {
       schedule_type: 'cron',
       schedule_value: `${m} ${h} * * *`,
-      prompt: t,
+      prompt: stripScheduleIntentFromPrompt(t),
+      rawPrompt: t,
     };
   }
 
   const hourly = t.match(/(?:her\s+saat|every\s+hour|hourly)/i);
   if (hourly) {
-    return { schedule_type: 'cron', schedule_value: '0 * * * *', prompt: t };
+    return {
+      schedule_type: 'cron',
+      schedule_value: '0 * * * *',
+      prompt: stripScheduleIntentFromPrompt(t),
+      rawPrompt: t,
+    };
   }
 
   const everyN = t.match(/(?:her|every)\s+(\d+)\s*(dakika|minute|min|saat|hour)/i);
@@ -315,7 +357,12 @@ export function detectScheduleIntent(text) {
     const n = Number(everyN[1]);
     const unit = everyN[2].toLowerCase();
     const ms = /saat|hour/.test(unit) ? n * 3600000 : n * 60000;
-    return { schedule_type: 'interval', schedule_value: String(ms), prompt: t };
+    return {
+      schedule_type: 'interval',
+      schedule_value: String(ms),
+      prompt: stripScheduleIntentFromPrompt(t),
+      rawPrompt: t,
+    };
   }
 
   if (/\b(schedule|zamanla|planla|cron)\b/i.test(t) && /\b(\d{1,2}[:.,]\d{2}|yarın|tomorrow|hafta|week)\b/i.test(t)) {
@@ -323,10 +370,16 @@ export function detectScheduleIntent(text) {
       return {
         schedule_type: 'once',
         schedule_value: nextOnceScheduleValue(timeAt[1], timeAt[2], { turkey }),
-        prompt: t,
+        prompt: stripScheduleIntentFromPrompt(t),
+        rawPrompt: t,
       };
     }
-    return { schedule_type: 'once', schedule_value: '', prompt: t };
+    return {
+      schedule_type: 'once',
+      schedule_value: '',
+      prompt: stripScheduleIntentFromPrompt(t),
+      rawPrompt: t,
+    };
   }
 
   return null;
@@ -554,16 +607,26 @@ export async function handleChatTurnStream({
       || 'opencode';
     streamAgent = normalizeAgentType(fallback);
   }
-  // Explicit /grok / badge ALWAYS CLI — never blocked by HTTP model picker
+  // Explicit /grok / badge / sticky CLI ALWAYS CLI — never blocked by HTTP model picker
+  const stickyCli = Boolean(
+    conv.defaultAgent
+    && isCliAgentType(conv.defaultAgent)
+    && conv.defaultAgent !== 'pixbot'
+    && conv.defaultAgent !== 'local',
+  );
+  if (stickyCli && !isCliAgentType(streamAgent) && !smallTalk) {
+    streamAgent = normalizeAgentType(conv.defaultAgent);
+  }
   const explicitCli = forceCli || routing.explicitAgent || actionDoIt;
   const wantsCli = explicitCli
+    || (stickyCli && !smallTalk && String(routing.prompt || '').length > 2)
     || (!httpModel && Boolean(routing.softUsed) && isCliAgentType(streamAgent) && !smallTalk && String(routing.prompt || '').length > 6);
 
   // CLI or real schedule → full non-stream turn (creates NanoClaw job / spawns CLI)
   if (wantsCli || schedule) {
     const cliAgent = isCliAgentType(streamAgent)
       ? streamAgent
-      : (isCliAgentType(routing.agentType) ? routing.agentType : (isCliAgentType(softAgent) ? softAgent : 'opencode'));
+      : (isCliAgentType(routing.agentType) ? routing.agentType : (isCliAgentType(softAgent) ? softAgent : (stickyCli ? conv.defaultAgent : 'opencode')));
     emit({ type: 'status', status: wantsCli ? `cli:${cliAgent}` : 'schedule' });
     const full = await handleChatTurn({
       projectId,
@@ -766,22 +829,37 @@ export async function handleChatTurn({
       || 'opencode';
     agentType = normalizeAgentType(fallback);
   }
-  // Explicit /grok / badge / forceCli ALWAYS CLI. HTTP model only blocks soft-default.
+  // Sticky CLI: once user used /grok (or any CLI) in this chat, keep that agent
+  // for follow-ups until they explicitly switch agent.
+  const stickyCli = Boolean(
+    conv.defaultAgent
+    && isCliAgentType(conv.defaultAgent)
+    && conv.defaultAgent !== 'pixbot'
+    && conv.defaultAgent !== 'local',
+  );
+  if (stickyCli && (!agentType || agentType === 'pixbot' || agentType === 'local') && !smallTalk) {
+    agentType = normalizeAgentType(conv.defaultAgent);
+  }
+
+  // Explicit / badge / forceCli / sticky CLI ALWAYS CLI.
+  // HTTP picker model must NEVER block an explicit or sticky CLI agent.
   const wantsCli = explicitCli
+    || (stickyCli && !smallTalk && String(routing.prompt || '').length > 2)
     || (!httpModel && Boolean(routing.softUsed) && isCliAgentType(agentType) && !smallTalk && String(routing.prompt || '').length > 6);
 
-  // Remember last explicit CLI agent for follow-ups ("sistemi yap")
-  if (routing.explicitAgent && agentType && agentType !== 'pixbot' && isCliAgentType(agentType)) {
+  // Remember last explicit/sticky CLI agent for follow-ups ("devam et", "şimdi şunu yap")
+  if ((routing.explicitAgent || wantsCli) && agentType && agentType !== 'pixbot' && isCliAgentType(agentType)) {
     conv.defaultAgent = agentType;
-    // Only store CLI-native model ids on the conversation — never provider::model
+    // Only store CLI-native model ids — never provider::model
     if (model && !isPixbotHttpModel(model)) conv.defaultModel = model;
+    else if (isPixbotHttpModel(conv.defaultModel)) conv.defaultModel = null;
     store.conversations[conv.id] = conv;
     persist();
   }
-  // Persist HTTP model selection for next API turns (when not doing CLI this turn)
+  // Persist HTTP model only for pure PixBot API turns (no CLI this turn)
   if (!wantsCli && httpModel && model) {
     conv.defaultModel = model;
-    conv.defaultAgent = 'pixbot';
+    if (!stickyCli) conv.defaultAgent = 'pixbot';
     store.conversations[conv.id] = conv;
     persist();
   }
@@ -799,13 +877,19 @@ export async function handleChatTurn({
       const d = new Date(Date.now() + 60_000);
       schedule_value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
     }
-    // Embed agent+model so when the job fires, multi-runner uses the right CLI
-    const agentForJob = wantsCli || (agentType && agentType !== 'pixbot')
-      ? agentType
-      : null;
-    const schedulePrompt = agentForJob
-      ? `[agent:${agentForJob}${model ? ` model:${model}` : ''}] ${routing.prompt}`
-      : routing.prompt;
+    // Work body: schedule-stripped prompt (never the full "saat 17.15 te çalışsın" sentence)
+    const workBody = stripScheduleIntentFromPrompt(schedule.prompt || routing.prompt || raw);
+    // Embed CLI agent only. NEVER embed HTTP provider::model into the job.
+    const agentForJob = (wantsCli || (agentType && agentType !== 'pixbot' && isCliAgentType(agentType)))
+      ? normalizeAgentType(agentType)
+      : (stickyCli ? normalizeAgentType(conv.defaultAgent) : null);
+    const cliModel = model && !isPixbotHttpModel(model) ? model : null;
+    // Tag originating conversation so result posts back here — not new spam chats
+    const schedulePrompt = [
+      agentForJob ? `[agent:${agentForJob}${cliModel ? ` model:${cliModel}` : ''}]` : null,
+      `[pixconv:${conv.id}]`,
+      workBody,
+    ].filter(Boolean).join(' ');
 
     const result = await scheduleTools.toolScheduleTask(
       {
@@ -818,14 +902,17 @@ export async function handleChatTurn({
     );
     const ok = !result?.isError;
     const detail = result?.content?.[0]?.text || '';
+    const taskIdMatch = String(detail).match(/Task\s+(task-[\w-]+)/i);
+    const scheduledTaskId = taskIdMatch?.[1] || null;
     const text = ok
       ? [
           `✅ **Zamanlandı** (${schedule.schedule_type})`,
           schedule_value ? `- **Ne zaman:** \`${schedule_value}\`` : null,
-          agentForJob ? `- **Agent:** \`${agentForJob}\`${model ? ` · model \`${model}\`` : ''}` : null,
-          detail ? `\n${detail}` : null,
+          agentForJob ? `- **Agent:** \`${agentForJob}\`${cliModel ? ` · model \`${cliModel}\`` : ' · CLI default'}` : null,
+          `- **İş:** ${workBody.slice(0, 160)}${workBody.length > 160 ? '…' : ''}`,
+          scheduledTaskId ? `- **Görev ID:** \`${scheduledTaskId}\`` : null,
           '',
-          '_Görev NanoClaw schedule olarak kaydedildi. Sadece sohbet cevabı değil._',
+          '_Görev kaydedildi. **Görevler** panelinden izle. Tek seferlik bitince arşivlenir; sonuç bu sohbete düşer._',
         ].filter(Boolean).join('\n')
       : (detail || 'Schedule oluşturulamadı.');
     const assistantMsg = appendMessage(conv.id, {
@@ -833,13 +920,24 @@ export async function handleChatTurn({
       content: text,
       kind: ok ? 'system' : 'error',
       agentType: agentForJob || 'pixbot',
-      meta: { scheduled: ok, schedule: { ...schedule, schedule_value, agent: agentForJob, model } },
+      meta: {
+        scheduled: ok,
+        taskId: scheduledTaskId,
+        schedule: {
+          ...schedule,
+          schedule_value,
+          agent: agentForJob,
+          model: cliModel,
+          workPrompt: workBody,
+          conversationId: conv.id,
+        },
+      },
     });
     return {
       conversation: publicConversation(store.conversations[conv.id]),
       messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
       proposals: [],
-      tasks: [],
+      tasks: scheduledTaskId ? [{ id: scheduledTaskId }] : [],
       mode: 'schedule',
     };
   }
@@ -1106,8 +1204,106 @@ export function chatHelpHints() {
       'Files: @src/app.ts  (contents attached when under project root)',
       'Schedule only when you ask: “her gün saat 9 bağımlılık kontrolü”',
       'Sessions stay warm per conversation+agent (no re-bootstrap each message).',
+      'Scheduled task output: Görevler panel → Biten → open task (Sonuç), and also posted into this chat.',
     ],
     agents: MULTI_CLI_AGENTS,
+  };
+}
+
+/**
+ * Deliver a finished scheduled-task result into ONE existing PixBot conversation.
+ * Never spawns extra chats. Prefer [pixconv:id] from the job prompt, else latest for project.
+ */
+export function postScheduledTaskResult({
+  projectId = 'general',
+  jid = null,
+  text = '',
+  taskId = null,
+  agentType = null,
+  conversationId = null,
+  prompt = null,
+} = {}) {
+  ensureStore();
+  let body = String(text || '').trim();
+  if (!body) return null;
+
+  // Ignore echoes of the job prompt / specialty junk (bad historical runs)
+  if (/^\s*\[Task specialty=/i.test(body) || /Plan and implement across the workspace/i.test(body)) {
+    return { conversation: null, message: null, deduped: true, skipped: 'specialty_echo' };
+  }
+
+  // Resolve conversation from tag in job prompt if present
+  let convId = conversationId;
+  if (!convId && prompt) {
+    const m = String(prompt).match(/\[pixconv:([^\]]+)\]/i);
+    if (m) convId = m[1].trim();
+  }
+  // Also allow body to carry the tag (strip it)
+  const bodyConv = body.match(/\[pixconv:([^\]]+)\]/i);
+  if (bodyConv) {
+    if (!convId) convId = bodyConv[1].trim();
+    body = body.replace(/\[pixconv:[^\]]+\]/gi, '').trim();
+  }
+
+  let conv = convId ? store.conversations[convId] : null;
+
+  if (!conv) {
+    let pid = projectId;
+    if ((!pid || pid === 'general') && jid && String(jid).startsWith('pixcode:project:')) {
+      pid = String(jid).slice('pixcode:project:'.length) || 'general';
+    }
+    const folder = String(pid).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+    conv = Object.values(store.conversations)
+      .filter((c) => {
+        const cPid = String(c.projectId || 'general');
+        const cFolder = cPid.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+        return cPid === pid || cFolder === folder || cPid === folder;
+      })
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || null;
+  }
+
+  // CRITICAL: never open a new chat for task results (was creating 3–4 spam threads)
+  if (!conv) {
+    console.warn('[pixbot] task result dropped — no existing conversation for project', projectId || jid);
+    return { conversation: null, message: null, deduped: true, skipped: 'no_conversation' };
+  }
+
+  const header = taskId
+    ? `✅ **Zamanlanmış görev bitti** (\`${taskId}\`)`
+    : '✅ **Zamanlanmış görev bitti**';
+  const content = `${header}\n\n${body}\n\n_Detay: **Görevler** → Biten (tek seferlik arşivlenir)._`;
+
+  // Dedupe by taskId or identical body (scheduler may emit result more than once)
+  const recent = (store.messages[conv.id] || []).slice(-12);
+  const already = recent.some((m) => {
+    if (m.role !== 'assistant' || m.kind !== 'task_result') return false;
+    if (taskId && m.meta?.taskId === taskId) return true;
+    return String(m.content || '').includes(body.slice(0, 80));
+  });
+  if (already) {
+    return {
+      conversation: publicConversation(conv),
+      message: null,
+      deduped: true,
+    };
+  }
+
+  const row = appendMessage(conv.id, {
+    role: 'assistant',
+    content,
+    kind: 'task_result',
+    agentType: agentType || 'pixbot',
+    meta: {
+      scheduledResult: true,
+      taskId: taskId || undefined,
+      jid: jid || undefined,
+    },
+  });
+
+  return {
+    conversation: publicConversation(store.conversations[conv.id]),
+    message: publicMessage(row),
+    deduped: false,
   };
 }
 

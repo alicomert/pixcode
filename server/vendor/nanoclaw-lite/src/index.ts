@@ -58,6 +58,10 @@ let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
 let messageLoopRunning = false;
 
+/** Host (Pixcode) can receive scheduler/agent outbound text when no messaging channel is connected. */
+type OutboundMessageHandler = (jid: string, text: string) => void | Promise<void>;
+let outboundMessageHandler: OutboundMessageHandler | null = null;
+
 const channels: Channel[] = [];
 const queue = new GroupQueue();
 
@@ -518,26 +522,40 @@ async function main(): Promise<void> {
     );
   }
 
+  // Optional host hook (Pixcode embeds NanoClaw and wants task output in PixBot chat)
+  const deliverOutbound = async (jid: string, rawText: string) => {
+    const text = formatOutbound(rawText);
+    if (!text) return;
+    if (typeof outboundMessageHandler === 'function') {
+      try {
+        await outboundMessageHandler(jid, text);
+      } catch (err) {
+        logger.warn({ jid, err }, 'Outbound message handler failed');
+      }
+    }
+    const channel = findChannel(channels, jid);
+    if (!channel) {
+      // Embedded Pixcode mode: jids are often pixcode:project:… with no Telegram/WhatsApp channel.
+      // Host handler already received the text above — only warn for non-pixcode jids.
+      if (!String(jid).startsWith('pixcode:')) {
+        logger.warn({ jid }, 'No channel owns JID, cannot send message');
+      }
+      return;
+    }
+    await channel.sendMessage(jid, text);
+  };
+
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({
     registeredGroups: () => registeredGroups,
     getSessions: () => sessions,
     queue,
-    sendMessage: async (jid, rawText) => {
-      const channel = findChannel(channels, jid);
-      if (!channel) {
-        logger.warn({ jid }, 'No channel owns JID, cannot send message');
-        return;
-      }
-      const text = formatOutbound(rawText);
-      if (text) await channel.sendMessage(jid, text);
-    },
+    sendMessage: deliverOutbound,
   });
   startIpcWatcher({
     sendMessage: (jid, text) => {
-      const channel = findChannel(channels, jid);
-      if (!channel) throw new Error(`No channel for JID: ${jid}`);
-      return channel.sendMessage(jid, text);
+      // Always try host handler first (PixBot), then channel
+      return deliverOutbound(jid, text);
     },
     registeredGroups: () => registeredGroups,
     registerGroup,
@@ -566,6 +584,10 @@ async function main(): Promise<void> {
 export async function startEmbeddedNanoclaw(): Promise<void> {
   process.env.NANOCLAW_STANDALONE = process.env.NANOCLAW_STANDALONE || '0';
   await main();
+}
+
+export function setOutboundMessageHandler(handler: OutboundMessageHandler | null): void {
+  outboundMessageHandler = handler;
 }
 
 export function getNanoclawRuntimeState() {

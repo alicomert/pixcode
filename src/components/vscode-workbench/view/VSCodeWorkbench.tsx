@@ -1072,18 +1072,21 @@ function VSCodeWorkbench({
         label: project.displayName || project.name,
         path: project.fullPath || project.path || undefined,
       }));
+      // Wrapper must be h-full min-h-0 so PixBot message list can scroll inside workbench flex layout
       return (
-        <TasksPage
-          projectId={selectedProject?.name}
-          projectLabel={selectedProject?.displayName || selectedProject?.name}
-          projects={workspaceOptions}
-          onBindProject={(project) => {
-            const match = (sidebarProps.projects || []).find((entry) => entry.name === project.id || entry.name === project.name);
-            if (match) {
-              handleWorkbenchProjectSelect(match);
-            }
-          }}
-        />
+        <div className="h-full min-h-0 w-full overflow-hidden">
+          <TasksPage
+            projectId={selectedProject?.name}
+            projectLabel={selectedProject?.displayName || selectedProject?.name}
+            projects={workspaceOptions}
+            onBindProject={(project) => {
+              const match = (sidebarProps.projects || []).find((entry) => entry.name === project.id || entry.name === project.name);
+              if (match) {
+                handleWorkbenchProjectSelect(match);
+              }
+            }}
+          />
+        </div>
       );
     }
 

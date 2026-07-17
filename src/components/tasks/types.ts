@@ -161,6 +161,34 @@ export interface BotCron {
   deleted?: boolean;
 }
 
+/** NanoClaw scheduled job (once / interval / cron) — source of truth for timed PixBot work. */
+export type ScheduledTaskStatus = 'active' | 'paused' | 'completed' | 'cancelled' | string;
+export type ScheduleType = 'once' | 'interval' | 'cron' | string;
+
+export interface ScheduledTask {
+  id: string;
+  projectId: string;
+  title?: string;
+  prompt: string;
+  scheduleType: ScheduleType;
+  scheduleValue?: string;
+  cronExpression?: string;
+  recurrence?: string;
+  nextRunAt?: string | null;
+  lastRunAt?: string | null;
+  lastResult?: string | null;
+  /** Human-readable unwrap of lastResult (JSON `{ result }` → plain text) */
+  resultText?: string | null;
+  status: ScheduledTaskStatus;
+  enabled?: boolean;
+  contextMode?: string;
+  createdAt: string;
+  agentType?: string;
+  /** Parsed from `[agent:…]` prefix when present */
+  agent?: string | null;
+  model?: string | null;
+}
+
 export interface BotConversation {
   id: string;
   projectId: string;

@@ -177,6 +177,53 @@ export async function startNanoclawBridge() {
   const nc = await loadNanoclaw();
   const database = await loadDb();
   database.initDatabase();
+
+  // Route scheduler/agent outbound text into the originating PixBot conversation (no spam chats)
+  if (typeof nc.setOutboundMessageHandler === 'function') {
+    nc.setOutboundMessageHandler(async (jid, text) => {
+      try {
+        const chat = await import('./chat-engine.js');
+        let taskId = null;
+        let prompt = null;
+        let conversationId = null;
+        let agentType = null;
+        try {
+          const folder = String(jid || '').startsWith('pixcode:project:')
+            ? String(jid).slice('pixcode:project:'.length).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80)
+            : null;
+          const tasks = folder
+            ? database.getTasksForGroup(folder)
+            : database.getAllTasks();
+          const recent = (tasks || [])
+            .filter((t) => t.last_run || t.status === 'active' || t.status === 'completed')
+            .sort((a, b) => String(b.last_run || b.created_at || '').localeCompare(String(a.last_run || a.created_at || '')))[0];
+          taskId = recent?.id || null;
+          prompt = recent?.prompt || null;
+          const convMatch = String(prompt || '').match(/\[pixconv:([^\]]+)\]/i);
+          if (convMatch) conversationId = convMatch[1].trim();
+          const agentMatch = String(prompt || '').match(/\[agent:([^\s\]]+)/i);
+          if (agentMatch) agentType = agentMatch[1];
+        } catch { /* ignore */ }
+
+        const posted = chat.postScheduledTaskResult({
+          jid,
+          text,
+          taskId,
+          prompt,
+          conversationId,
+          agentType,
+        });
+        if (posted?.message) {
+          console.log(`[nanoclaw] Task result → conversation ${posted.conversation?.id || '?'}`);
+        } else if (posted?.skipped) {
+          console.log(`[nanoclaw] Task result skipped: ${posted.skipped}`);
+        }
+      } catch (error) {
+        console.warn('[nanoclaw] Failed to post task result to PixBot:', error?.message || error);
+      }
+    });
+  }
+
   await nc.startEmbeddedNanoclaw();
   started = true;
   const caps = await getChannelCapabilities();
@@ -337,17 +384,26 @@ export function nanoclawRouter() {
       const database = await loadDb();
       const task = database.getTaskById(req.params.taskId);
       if (!task) return res.status(404).json({ error: 'Task not found' });
-      const logs = database.getDb
-        ? null
-        : null;
-      // task_run_logs via raw if exported
       let runLogs = [];
       try {
-        const { default: Database } = await import('better-sqlite3');
-        // use getTaskById only; optional logs via prepare if we re-export
-        runLogs = [];
+        if (typeof database.getTaskRunLogs === 'function') {
+          runLogs = database.getTaskRunLogs(req.params.taskId, 30).map((log) => ({
+            id: log.id,
+            taskId: log.task_id,
+            runAt: log.run_at,
+            durationMs: log.duration_ms,
+            status: log.status,
+            result: log.result,
+            error: log.error,
+          }));
+        }
       } catch { /* ignore */ }
-      res.json({ task: publicScheduledTask(task), logs: runLogs });
+      res.json({
+        task: publicScheduledTask(task),
+        logs: runLogs,
+        /** Human-friendly unwrapped result (last_result is often JSON) */
+        resultText: formatTaskResultText(task.last_result),
+      });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }
@@ -470,8 +526,9 @@ export function nanoclawRouter() {
 
   // ---- NanoClaw conversation surface (chat-first; not a job board) ----
   router.get('/bot/crons', async (req, res) => {
-    // Kept for API compat; UI no longer surfaces this panel.
-    req.url = '/tasks';
+    // Compat alias → real scheduled tasks list (preserve query string e.g. projectId)
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    req.url = `/tasks${qs}`;
     return router.handle(req, res, () => {});
   });
 
@@ -821,18 +878,22 @@ export function nanoclawRouter() {
         : null;
       const tasks = folder ? database.getTasksForGroup(folder) : database.getAllTasks();
       res.json({
-        tasks: tasks.map((t) => ({
-          id: t.id,
-          projectId: folder || t.group_folder,
-          title: t.prompt?.slice(0, 72),
-          prompt: t.prompt,
-          status: t.status === 'active' ? 'QUEUED' : t.status === 'completed' ? 'COMPLETED' : t.status === 'paused' ? 'CANCELLED' : 'PENDING',
-          agentType: 'claude-code',
-          role: 'fullstack',
-          priority: 'normal',
-          createdAt: t.created_at,
-          scheduledAt: t.next_run,
-        })),
+        tasks: tasks.map((t) => {
+          const pub = publicScheduledTask(t);
+          return {
+            id: pub.id,
+            projectId: pub.projectId,
+            title: pub.title,
+            prompt: pub.prompt,
+            status: t.status === 'active' ? 'QUEUED' : t.status === 'completed' ? 'COMPLETED' : t.status === 'paused' ? 'CANCELLED' : 'PENDING',
+            agentType: pub.agent || pub.agentType || 'claude-code',
+            role: 'custom',
+            priority: 'normal',
+            createdAt: pub.createdAt,
+            scheduledAt: pub.nextRunAt,
+            result: pub.resultText || pub.lastResult || undefined,
+          };
+        }),
         pendingApprovals: [],
         plans: [],
       });
@@ -844,11 +905,46 @@ export function nanoclawRouter() {
   return router;
 }
 
+function parseAgentFromPrompt(prompt) {
+  const text = String(prompt || '');
+  const match = text.match(/^\s*\[agent:([^\s\]]+)(?:\s+model:([^\]]+))?\]/i);
+  if (!match) return { agent: null, model: null, body: text };
+  return {
+    agent: match[1] || null,
+    model: match[2]?.trim() || null,
+    body: text.slice(match[0].length).trim(),
+  };
+}
+
+/** Unwrap JSON-ish last_result blobs into readable agent output. */
+function formatTaskResultText(raw) {
+  if (raw == null || raw === '') return null;
+  const text = String(raw);
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object') {
+      if (parsed.error) return `Hata: ${typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error, null, 2)}`;
+      if (parsed.result != null) {
+        return typeof parsed.result === 'string'
+          ? parsed.result
+          : JSON.stringify(parsed.result, null, 2);
+      }
+      return JSON.stringify(parsed, null, 2);
+    }
+  } catch {
+    // plain text
+  }
+  return text;
+}
+
 function publicScheduledTask(row) {
+  const parsed = parseAgentFromPrompt(row.prompt);
+  const body = parsed.body || row.prompt || '';
+  const lastResult = row.last_result;
   return {
     id: row.id,
     projectId: row.group_folder,
-    title: row.prompt?.slice(0, 80),
+    title: body.slice(0, 80) || row.prompt?.slice(0, 80),
     prompt: row.prompt,
     scheduleType: row.schedule_type,
     scheduleValue: row.schedule_value,
@@ -856,12 +952,15 @@ function publicScheduledTask(row) {
     recurrence: row.schedule_type,
     nextRunAt: row.next_run,
     lastRunAt: row.last_run,
-    lastResult: row.last_result,
+    lastResult,
+    resultText: formatTaskResultText(lastResult),
     status: row.status,
     enabled: row.status === 'active',
     contextMode: row.context_mode,
     createdAt: row.created_at,
-    agentType: 'claude-code',
+    agentType: parsed.agent || 'claude-code',
+    agent: parsed.agent,
+    model: parsed.model,
   };
 }
 
