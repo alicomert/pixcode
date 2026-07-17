@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 
 import {
   AlertCircle,
   Bot,
+  ChevronDown,
   FolderOpen,
   KeyRound,
   Loader2,
@@ -20,7 +20,9 @@ import { cn } from '../../lib/utils';
 import { api, authenticatedFetch } from '../../utils/api';
 
 import { useNanoClawComposerAutocomplete } from './hooks/useNanoClawComposerAutocomplete';
-import type { AgentType, BotMessage, WorkspaceOption } from './types';
+import type { BotMessage, WorkspaceOption } from './types';
+
+const MODEL_STORAGE_KEY = 'pixbot.selectedModel';
 
 function formatDate(value?: string | null) {
   if (!value) return '—';
@@ -29,55 +31,29 @@ function formatDate(value?: string | null) {
 
 function MessageBubble({ message }: { message: BotMessage }) {
   const isUser = message.role === 'user';
-  const badge = message.agentType === 'pixbot' || !message.agentType
-    ? 'PixBot'
-    : message.agentType === 'local'
-      ? 'PixBot'
-      : message.agentType;
+  const model = message.meta && typeof message.meta === 'object' && 'model' in message.meta
+    ? String(message.meta.model || '')
+    : '';
   return (
-    <div className={cn('flex w-full', isUser ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex w-full gap-3', isUser ? 'justify-end' : 'justify-start')}>
+      {!isUser && (
+        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <Bot className="h-4 w-4" />
+        </div>
+      )}
       <div
         className={cn(
-          'max-w-[min(100%,48rem)] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm',
+          'max-w-[min(100%,42rem)] rounded-2xl px-4 py-3 text-[15px] leading-7',
           isUser
             ? 'bg-primary text-primary-foreground'
-            : 'border border-border bg-card text-foreground',
+            : 'bg-muted/50 text-foreground',
         )}
       >
-        {!isUser && (
-          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <Bot className="h-3.5 w-3.5 text-primary" />
-            PixBot
-            {badge && badge !== 'PixBot' ? (
-              <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] normal-case tracking-normal text-muted-foreground">
-                {badge}
-              </span>
-            ) : null}
-            {message.meta && typeof message.meta === 'object' && 'model' in message.meta && message.meta.model ? (
-              <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] normal-case tracking-normal text-muted-foreground">
-                {String(message.meta.model)}
-              </span>
-            ) : null}
-          </div>
-        )}
+        {!isUser && model ? (
+          <div className="mb-1 text-[11px] font-medium text-muted-foreground">{model}</div>
+        ) : null}
         <div className="whitespace-pre-wrap break-words">{message.content}</div>
       </div>
-    </div>
-  );
-}
-
-function EmptyState({ llmConfigured }: { llmConfigured: boolean }) {
-  return (
-    <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 px-6 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-        <Sparkles className="h-6 w-6" />
-      </div>
-      <h2 className="text-lg font-semibold">PixBot</h2>
-      <p className="max-w-lg text-sm text-muted-foreground">
-        {llmConfigured
-          ? 'API key bağlı. Model seç, sohbet et. Dosya için @, opsiyonel CLI için /opencode /claude.'
-          : 'Önce API key + base URL bağla (OpenAI-uyumlu). Sistem /v1/models çeker; model seçip chatlersin.'}
-      </p>
     </div>
   );
 }
@@ -99,7 +75,6 @@ export function TasksPage({
   onExit?: () => void;
   fullScreen?: boolean;
 }) {
-  const { t } = useTranslation('common');
   const [boundProjectId, setBoundProjectId] = useState<string | undefined>(initialProjectId);
   const [boundLabel, setBoundLabel] = useState<string | undefined>(initialProjectLabel);
 
@@ -109,7 +84,7 @@ export function TasksPage({
   }, [initialProjectId, initialProjectLabel]);
 
   const projectId = boundProjectId || 'general';
-  const projectLabel = boundLabel || (boundProjectId ? boundProjectId : 'General (no coding project)');
+  const projectLabel = boundLabel || (boundProjectId ? boundProjectId : 'General');
 
   const [workspaceList, setWorkspaceList] = useState<WorkspaceOption[]>(projects);
 
@@ -149,11 +124,11 @@ export function TasksPage({
   } = usePixBot(projectId);
 
   const [draft, setDraft] = useState('');
-  const [agentType, setAgentType] = useState<AgentType | 'pixbot'>('pixbot');
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    try { return localStorage.getItem(MODEL_STORAGE_KEY) || ''; } catch { return ''; }
+  });
   const [models, setModels] = useState<LlmModel[]>([]);
   const [llmConfigured, setLlmConfigured] = useState(false);
-  const [llmBaseUrl, setLlmBaseUrl] = useState('');
   const [showLlmSetup, setShowLlmSetup] = useState(false);
   const [setupKey, setSetupKey] = useState('');
   const [setupBase, setSetupBase] = useState('https://api.openai.com/v1');
@@ -161,6 +136,7 @@ export function TasksPage({
   const [setupError, setSetupError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -169,19 +145,27 @@ export function TasksPage({
     value: draft,
     setValue: setDraft,
     textareaRef,
-    onPickAgent: (agent) => setAgentType(agent),
   });
+
+  const persistModel = (id: string) => {
+    setSelectedModel(id);
+    try { localStorage.setItem(MODEL_STORAGE_KEY, id); } catch { /* ignore */ }
+  };
 
   const refreshLlm = useCallback(async () => {
     try {
       const statusRes = await authenticatedFetch('/api/tasks/bot/llm', { cache: 'no-store' });
-      if (statusRes.ok) {
-        const status = await statusRes.json() as { configured?: boolean; baseUrl?: string | null; defaultModel?: string | null };
-        setLlmConfigured(Boolean(status.configured));
-        if (status.baseUrl) setLlmBaseUrl(status.baseUrl);
-        if (status.defaultModel && !selectedModel) setSelectedModel(status.defaultModel);
+      if (!statusRes.ok) {
+        setLlmConfigured(false);
+        return;
       }
-      if (!statusRes.ok) return;
+      const status = await statusRes.json() as { configured?: boolean; defaultModel?: string | null };
+      setLlmConfigured(Boolean(status.configured));
+      if (!status.configured) {
+        setModels([]);
+        setShowLlmSetup(true);
+        return;
+      }
       const modelsRes = await authenticatedFetch('/api/tasks/bot/models', { cache: 'no-store' });
       if (!modelsRes.ok) {
         setModels([]);
@@ -190,17 +174,22 @@ export function TasksPage({
       const payload = await modelsRes.json() as { models?: LlmModel[] };
       const list = payload.models || [];
       setModels(list);
-      if (list.length && !selectedModel) {
-        setSelectedModel(list[0].id);
-      }
+      setSelectedModel((current) => {
+        if (current && list.some((m) => m.id === current)) return current;
+        const next = status.defaultModel && list.some((m) => m.id === status.defaultModel)
+          ? status.defaultModel
+          : (list[0]?.id || '');
+        try { if (next) localStorage.setItem(MODEL_STORAGE_KEY, next); } catch { /* ignore */ }
+        return next;
+      });
     } catch {
       setModels([]);
     }
-  }, [selectedModel]);
+  }, []);
 
   useEffect(() => {
     void refreshLlm();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshLlm]);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -227,10 +216,7 @@ export function TasksPage({
           model: selectedModel || undefined,
         }),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       setShowLlmSetup(false);
       setSetupKey('');
       await refreshLlm();
@@ -244,13 +230,15 @@ export function TasksPage({
   const handleSend = async () => {
     const text = draft.trim();
     if (!text || sending) return;
+    if (!llmConfigured) {
+      setShowLlmSetup(true);
+      setActionError('Önce API key bağla — ChatGPT gibi model seçip konuşursun.');
+      return;
+    }
     setDraft('');
     setActionError(null);
     try {
-      // Default: PixBot OpenAI-compatible API. CLI only when message has /opencode etc.
-      await sendMessage(text, {
-        model: selectedModel || undefined,
-      });
+      await sendMessage(text, { model: selectedModel || undefined });
     } catch (caughtError) {
       setActionError(caughtError instanceof Error ? caughtError.message : String(caughtError));
     }
@@ -262,34 +250,49 @@ export function TasksPage({
 
   return (
     <div className={shellClass}>
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-gradient-to-r from-primary/10 via-background to-violet-500/10 px-4 py-3 sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
-            <Bot className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold tracking-tight">PixBot</h1>
-            <p className="truncate text-xs text-muted-foreground">
-              {projectLabel}
-              {' · '}
-              {llmConfigured
-                ? (selectedModel || models[0]?.id || 'API')
-                : 'API key gerekli'}
-              {llmBaseUrl ? ` · ${llmBaseUrl.replace(/^https?:\/\//, '')}` : ''}
-            </p>
+      {/* Top bar — ChatGPT-like */}
+      <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border px-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
+            onClick={() => setShowSidebar((v) => !v)}
+            aria-label="Chats"
+          >
+            <Bot className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold tracking-tight">PixBot</span>
+            {/* Model picker — primary control */}
+            <div className="relative">
+              <select
+                value={selectedModel}
+                onChange={(e) => persistModel(e.target.value)}
+                disabled={!models.length}
+                className="h-8 max-w-[min(100vw-10rem,16rem)] appearance-none rounded-lg border border-border bg-muted/40 py-1 pl-2.5 pr-7 text-xs font-medium outline-none hover:bg-muted focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+              >
+                {!models.length ? (
+                  <option value="">Model yok — API bağla</option>
+                ) : (
+                  models.map((m) => (
+                    <option key={m.id} value={m.id}>{m.label || m.id}</option>
+                  ))
+                )}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setShowLlmSetup((v) => !v)}
             className={cn(
-              'inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs',
+              'inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-[11px] font-medium',
               llmConfigured
                 ? 'border-border text-muted-foreground hover:bg-muted'
                 : 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200',
             )}
-            title="PixBot LLM (API key)"
           >
             <KeyRound className="h-3.5 w-3.5" />
             {llmConfigured ? 'API' : 'API bağla'}
@@ -297,35 +300,29 @@ export function TasksPage({
           <button
             type="button"
             onClick={() => setShowWorkspaces((v) => !v)}
-            className="hidden h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-xs text-muted-foreground hover:bg-muted sm:inline-flex"
-            title="Workspace"
+            className="hidden h-8 items-center gap-1 rounded-lg border border-border px-2.5 text-[11px] text-muted-foreground hover:bg-muted sm:inline-flex"
           >
             <FolderOpen className="h-3.5 w-3.5" />
-            Workspace
+            {projectLabel}
           </button>
           <button
             type="button"
             onClick={() => { void refreshBot(); void refreshLlm(); }}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            title={t('buttons.refresh')}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+            title="Refresh"
           >
-            <RefreshCw className={cn('h-4 w-4', botLoading && 'animate-spin')} />
+            <RefreshCw className={cn('h-3.5 w-3.5', botLoading && 'animate-spin')} />
           </button>
           <button
             type="button"
             onClick={() => void startNewChat()}
-            className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-semibold text-primary-foreground"
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-primary px-2.5 text-[11px] font-semibold text-primary-foreground"
           >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New chat</span>
+            <Plus className="h-3.5 w-3.5" />
+            Yeni
           </button>
           {onExit && (
-            <button
-              type="button"
-              onClick={onExit}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted-foreground hover:bg-muted"
-              title="Exit"
-            >
+            <button type="button" onClick={onExit} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
               <X className="h-4 w-4" />
             </button>
           )}
@@ -333,97 +330,80 @@ export function TasksPage({
       </header>
 
       {(botError || actionError) && (
-        <div className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive sm:mx-5">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{actionError || botError}</span>
-          </div>
-          {actionError && (
-            <button type="button" onClick={() => setActionError(null)}>
-              <X className="h-4 w-4" />
-            </button>
-          )}
+        <div className="mx-3 mt-2 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">{actionError || botError}</span>
+          <button type="button" onClick={() => setActionError(null)}><X className="h-4 w-4" /></button>
         </div>
       )}
 
       {showLlmSetup && (
-        <div className="border-b border-border bg-muted/20 px-4 py-3 sm:px-5">
-          <div className="mb-2 text-xs font-semibold text-foreground">PixBot LLM (OpenAI-uyumlu)</div>
-          <p className="mb-3 text-[11px] text-muted-foreground">
-            API key + base URL kaydedilir → <code className="rounded bg-muted px-1">/v1/models</code> çekilir → model seçip chat.
-            Örnek base: <code className="rounded bg-muted px-1">https://api.openai.com/v1</code> veya gateway’in.
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="text-[11px] text-muted-foreground">
-              Base URL
-              <input
-                value={setupBase}
-                onChange={(e) => setSetupBase(e.target.value)}
-                placeholder="https://api.openai.com/v1"
-                className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"
-              />
-            </label>
-            <label className="text-[11px] text-muted-foreground">
-              API Key
-              <input
-                type="password"
-                value={setupKey}
-                onChange={(e) => setSetupKey(e.target.value)}
-                placeholder="sk-… veya gateway key"
-                className="mt-1 h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"
-                autoComplete="off"
-              />
-            </label>
-          </div>
-          {setupError && <p className="mt-2 text-xs text-destructive">{setupError}</p>}
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              disabled={setupBusy || !setupKey.trim()}
-              onClick={() => void saveLlm()}
-              className="inline-flex h-9 items-center rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-            >
-              {setupBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-              Kaydet ve modelleri çek
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowLlmSetup(false)}
-              className="h-9 rounded-xl border border-border px-3 text-xs text-muted-foreground"
-            >
-              Kapat
-            </button>
+        <div className="border-b border-border bg-muted/20 px-4 py-4">
+          <div className="mx-auto max-w-xl">
+            <h3 className="text-sm font-semibold">API bağla (ChatGPT gibi kullan)</h3>
+            <p className="mt-1 text-[12px] text-muted-foreground">
+              OpenAI-uyumlu herhangi bir endpoint. Kaydet → modeller <code className="rounded bg-muted px-1">/v1/models</code> ile gelir → seçip sohbet et.
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <label className="text-[11px] text-muted-foreground">
+                Base URL
+                <input
+                  value={setupBase}
+                  onChange={(e) => setSetupBase(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                  placeholder="https://api.openai.com/v1"
+                />
+              </label>
+              <label className="text-[11px] text-muted-foreground">
+                API Key
+                <input
+                  type="password"
+                  value={setupKey}
+                  onChange={(e) => setSetupKey(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
+                  placeholder="sk-…"
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+            {setupError && <p className="mt-2 text-xs text-destructive">{setupError}</p>}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                disabled={setupBusy || !setupKey.trim()}
+                onClick={() => void saveLlm()}
+                className="inline-flex h-10 items-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {setupBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Kaydet
+              </button>
+              <button type="button" onClick={() => setShowLlmSetup(false)} className="h-10 rounded-xl border border-border px-3 text-sm text-muted-foreground">
+                Kapat
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {showWorkspaces && (
-        <div className="border-b border-border bg-muted/20 px-4 py-3 sm:px-5">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Bind workspace (optional)</span>
-            <button
-              type="button"
-              className="text-xs text-primary"
-              onClick={() => {
-                setBoundProjectId(undefined);
-                setBoundLabel(undefined);
-                setShowWorkspaces(false);
-              }}
-            >
-              Use general
+        <div className="border-b border-border bg-muted/15 px-4 py-3">
+          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Proje (opsiyonel — tarama bağlamı için)</span>
+            <button type="button" className="text-primary" onClick={() => { setBoundProjectId(undefined); setBoundLabel(undefined); setShowWorkspaces(false); }}>
+              General
             </button>
           </div>
-          <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+          <div className="flex max-h-36 flex-wrap gap-2 overflow-y-auto">
             {workspaceList.map((project) => (
               <button
                 key={project.id || project.name}
                 type="button"
                 onClick={() => bindProject(project)}
                 className={cn(
-                  'rounded-xl border px-3 py-1.5 text-xs',
+                  'rounded-full border px-3 py-1 text-xs',
                   (project.id || project.name) === boundProjectId
-                    ? 'border-primary bg-primary/10 text-foreground'
-                    : 'border-border bg-card text-muted-foreground hover:bg-muted',
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border hover:bg-muted',
                 )}
               >
                 {project.label || project.name}
@@ -433,95 +413,113 @@ export function TasksPage({
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="hidden min-h-0 flex-col border-r border-border bg-muted/10 lg:flex">
-          <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Chats
-          </div>
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-            {conversations.length === 0 ? (
-              <p className="px-2 py-6 text-center text-xs text-muted-foreground">No chats yet</p>
-            ) : conversations.map((conversation) => (
+      <div className="flex min-h-0 flex-1">
+        {/* Conversation sidebar */}
+        <aside className={cn(
+          'w-56 shrink-0 flex-col border-r border-border bg-muted/10',
+          showSidebar ? 'flex' : 'hidden',
+          'lg:flex',
+        )}
+        >
+          <button
+            type="button"
+            onClick={() => void startNewChat()}
+            className="m-2 flex items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm font-medium hover:bg-muted"
+          >
+            <Plus className="h-4 w-4" />
+            Yeni sohbet
+          </button>
+          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
+            {conversations.map((c) => (
               <button
-                key={conversation.id}
+                key={c.id}
                 type="button"
-                onClick={() => void setConversationId(conversation.id)}
+                onClick={() => void setConversationId(c.id)}
                 className={cn(
-                  'w-full rounded-xl px-3 py-2.5 text-left text-sm transition',
-                  conversationId === conversation.id
-                    ? 'bg-primary/10 text-foreground ring-1 ring-primary/25'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  'w-full rounded-lg px-2.5 py-2 text-left text-[13px] transition',
+                  conversationId === c.id ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60',
                 )}
               >
-                <div className="line-clamp-2 font-medium leading-5">{conversation.title}</div>
-                <div className="mt-1 text-[10px] text-muted-foreground">{formatDate(conversation.updatedAt || conversation.createdAt)}</div>
+                <div className="line-clamp-2 leading-snug">{c.title}</div>
+                <div className="mt-0.5 text-[10px] opacity-70">{formatDate(c.updatedAt || c.createdAt)}</div>
               </button>
             ))}
           </div>
         </aside>
 
-        <section className="flex min-h-0 min-w-0 flex-col">
-          <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
-            {botLoading && messages.length === 0 ? (
-              <div className="flex h-full min-h-64 items-center justify-center text-muted-foreground">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Loading…
-              </div>
-            ) : messages.length === 0 ? (
-              <EmptyState llmConfigured={llmConfigured} />
-            ) : (
-              messages.map((message) => <MessageBubble key={message.id} message={message} />)
-            )}
-            {sending && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                PixBot düşünüyor…
-              </div>
-            )}
+        {/* Main chat column */}
+        <section className="flex min-w-0 flex-1 flex-col">
+          <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
+              {botLoading && messages.length === 0 ? (
+                <div className="flex flex-1 items-center justify-center text-muted-foreground">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Yükleniyor…
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Sparkles className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold">PixBot</h2>
+                    <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                      {llmConfigured
+                        ? 'Modeli seç, sor — ChatGPT gibi. Proje bağlıysa otomatik tarar; @ ile dosya ekle.'
+                        : 'API key bağla, model seç, sohbet et.'}
+                    </p>
+                  </div>
+                  {llmConfigured && models.length > 0 && (
+                    <div className="flex max-w-lg flex-wrap justify-center gap-2">
+                      {models.slice(0, 8).map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => persistModel(m.id)}
+                          className={cn(
+                            'rounded-full border px-3 py-1.5 text-xs transition',
+                            selectedModel === m.id
+                              ? 'border-primary bg-primary/15 font-medium'
+                              : 'border-border hover:bg-muted',
+                          )}
+                        >
+                          {m.label || m.id}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {!llmConfigured && (
+                    <button
+                      type="button"
+                      onClick={() => setShowLlmSetup(true)}
+                      className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                    >
+                      API bağla
+                    </button>
+                  )}
+                </div>
+              ) : (
+                messages.map((message) => <MessageBubble key={message.id} message={message} />)
+              )}
+              {sending && (
+                <div className="flex items-center gap-2 pl-11 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Yazıyor…
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="shrink-0 border-t border-border bg-card/40 p-3 sm:p-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Model
-              </label>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                disabled={!models.length}
-                className="h-8 min-w-[12rem] max-w-full flex-1 rounded-lg border border-border bg-background px-2 text-xs sm:flex-none"
-              >
-                {!models.length ? (
-                  <option value="">API bağla → modeller yüklensin</option>
-                ) : (
-                  models.map((m) => (
-                    <option key={m.id} value={m.id}>{m.label || m.id}</option>
-                  ))
-                )}
-              </select>
-              <button
-                type="button"
-                onClick={() => void refreshLlm()}
-                className="h-8 rounded-lg border border-border px-2 text-[11px] text-muted-foreground hover:bg-muted"
-              >
-                Yenile
-              </button>
-              <span className="text-[10px] text-muted-foreground">
-                <kbd className="rounded border border-border px-1">/</kbd> CLI ·{' '}
-                <kbd className="rounded border border-border px-1">@</kbd> dosya
-              </span>
-            </div>
-            <div className="relative flex items-end gap-2">
+          {/* Composer */}
+          <div className="shrink-0 border-t border-border bg-background/80 px-3 py-3 backdrop-blur sm:px-4">
+            <div className="relative mx-auto max-w-3xl">
               {composer.open && (
-                <div
-                  className="absolute bottom-full left-0 right-12 z-30 mb-2 max-h-64 overflow-y-auto rounded-xl border border-border bg-popover shadow-xl"
-                  role="listbox"
-                >
-                  <div className="sticky top-0 flex items-center gap-1.5 border-b border-border bg-muted/40 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="absolute bottom-full left-0 right-0 z-30 mb-2 max-h-56 overflow-y-auto rounded-2xl border border-border bg-popover shadow-xl">
+                  <div className="sticky top-0 border-b border-border bg-muted/50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                     {composer.mode === 'at' ? (
-                      <><FolderOpen className="h-3 w-3" /> Dosyalar</>
+                      <span className="inline-flex items-center gap-1"><FolderOpen className="h-3 w-3" /> Dosyalar</span>
                     ) : (
-                      <><Terminal className="h-3 w-3" /> Komutlar</>
+                      <span className="inline-flex items-center gap-1"><Terminal className="h-3 w-3" /> Komutlar</span>
                     )}
                   </div>
                   <ul className="p-1">
@@ -530,56 +528,50 @@ export function TasksPage({
                         <button
                           type="button"
                           className={cn(
-                            'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm',
+                            'flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm',
                             index === composer.activeIndex ? 'bg-primary/15' : 'hover:bg-muted',
                           )}
                           onMouseEnter={() => composer.setActiveIndex(index)}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            composer.applyItem(item);
-                          }}
+                          onMouseDown={(e) => { e.preventDefault(); composer.applyItem(item); }}
                         >
                           <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
-                          {item.detail ? (
-                            <span className="shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-                              {item.kind === 'command' && item.insert.startsWith('/')
-                                ? item.insert.trim()
-                                : item.detail}
-                            </span>
-                          ) : null}
+                          {item.detail ? <span className="text-[11px] text-muted-foreground">{item.detail}</span> : null}
                         </button>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
-              <textarea
-                ref={textareaRef}
-                value={draft}
-                onChange={(event) => {
-                  composer.onChange(event.target.value, event.target.selectionStart ?? event.target.value.length);
-                }}
-                onClick={(event) => composer.onSelect(event.currentTarget.selectionStart ?? 0)}
-                onKeyUp={(event) => composer.onSelect(event.currentTarget.selectionStart ?? 0)}
-                onKeyDown={(event) => {
-                  if (composer.onKeyDown(event)) return;
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    void handleSend();
-                  }
-                }}
-                rows={2}
-                placeholder={llmConfigured ? 'PixBot’a yaz…  @dosya  ·  /opencode (CLI opsiyonel)' : 'Önce API bağla (üstte API bağla)…'}
-                className="min-h-[2.75rem] flex-1 resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none ring-primary/30 focus:ring-2"
-              />
-              <button
-                type="button"
-                disabled={!draft.trim() || sending}
-                onClick={() => void handleSend()}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground disabled:opacity-50"
-              >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonalIcon className="h-4 w-4" />}
-              </button>
+              <div className="flex items-end gap-2 rounded-2xl border border-border bg-muted/20 p-2 shadow-sm focus-within:ring-2 focus-within:ring-primary/25">
+                <textarea
+                  ref={textareaRef}
+                  value={draft}
+                  onChange={(e) => composer.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+                  onClick={(e) => composer.onSelect(e.currentTarget.selectionStart ?? 0)}
+                  onKeyUp={(e) => composer.onSelect(e.currentTarget.selectionStart ?? 0)}
+                  onKeyDown={(e) => {
+                    if (composer.onKeyDown(e)) return;
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleSend();
+                    }
+                  }}
+                  rows={1}
+                  placeholder={llmConfigured ? 'Mesajını yaz… (@ dosya · Enter gönder)' : 'Önce API bağla…'}
+                  className="max-h-40 min-h-[44px] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] outline-none"
+                />
+                <button
+                  type="button"
+                  disabled={!draft.trim() || sending}
+                  onClick={() => void handleSend()}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-40"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizonalIcon className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
+                Model: {selectedModel || '—'} · Proje bağlamı {projectId !== 'general' ? 'açık' : 'kapalı (workspace seç)'}
+              </p>
             </div>
           </div>
         </section>

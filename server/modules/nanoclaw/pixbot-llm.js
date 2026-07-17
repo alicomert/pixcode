@@ -198,13 +198,66 @@ export async function pixbotChatCompletion({
   };
 }
 
-export function buildPixbotSystemPrompt({ projectId, projectPath } = {}) {
+/**
+ * Lightweight project snapshot so PixBot can answer "projeyi tara", "ne var"
+ * without spawning CLIs. Best-effort only.
+ */
+export async function buildProjectScanContext(projectPath) {
+  if (!projectPath) return '';
+  try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const entries = await fs.readdir(projectPath, { withFileTypes: true });
+    const names = entries
+      .filter((e) => !e.name.startsWith('.') && e.name !== 'node_modules' && e.name !== 'dist' && e.name !== 'dist-server')
+      .slice(0, 40)
+      .map((e) => `${e.isDirectory() ? 'dir' : 'file'}: ${e.name}`);
+
+    let pkgHint = '';
+    try {
+      const pkgRaw = await fs.readFile(path.join(projectPath, 'package.json'), 'utf8');
+      const pkg = JSON.parse(pkgRaw);
+      pkgHint = `package.json name=${pkg.name || '?'} scripts=${Object.keys(pkg.scripts || {}).slice(0, 12).join(', ')}`;
+    } catch { /* no package.json */ }
+
+    let readmeHint = '';
+    try {
+      const readme = await fs.readFile(path.join(projectPath, 'README.md'), 'utf8');
+      readmeHint = `README (first 800 chars):\n${readme.slice(0, 800)}`;
+    } catch { /* no readme */ }
+
+    return [
+      '## Project scan (auto)',
+      pkgHint,
+      'Top-level entries:',
+      ...names,
+      readmeHint,
+    ].filter(Boolean).join('\n');
+  } catch {
+    return '';
+  }
+}
+
+export function buildPixbotSystemPrompt({ projectId, projectPath, scanContext } = {}) {
   return [
-    'You are PixBot — the conversational coding assistant inside Pixcode.',
-    'Reply in the same language the user writes.',
-    'You are not a ticket queue. Be direct and helpful.',
-    'You can plan code, explain files, and suggest shell/git steps.',
-    projectId ? `Workspace project: ${projectId}` : 'Workspace: general',
-    projectPath ? `Path: ${projectPath}` : '',
+    'You are PixBot — a ChatGPT-style assistant embedded in Pixcode (self-hosted coding control room).',
+    'Reply in the same language the user writes (Turkish, English, …).',
+    'Be concise, practical, and conversational — like ChatGPT, not a ticket bot.',
+    '',
+    '## What you can help with',
+    '- Explain / design / refactor code; write snippets and steps.',
+    '- Scan and reason about the attached workspace context (see Project scan / @files).',
+    '- Guide Pixcode usage: projects, Files, Shell, Git, providers, updates, desktop runtime.',
+    '- Suggest shell/git commands the user can run in Pixcode Shell or terminal.',
+    '- When the user pastes errors or @files, diagnose and propose fixes.',
+    '',
+    '## Limits (honest)',
+    '- You chat via an OpenAI-compatible HTTP API (no local tool runtime unless files were attached).',
+    '- You cannot silently mutate the machine; give clear commands/steps for the user or Pixcode Shell.',
+    '- For heavy multi-file edits, give a plan + patches; user applies via editor/CLI.',
+    '',
+    projectId ? `Workspace projectId: ${projectId}` : 'Workspace: general (no project bound).',
+    projectPath ? `Workspace path: ${projectPath}` : '',
+    scanContext || '',
   ].filter(Boolean).join('\n');
 }

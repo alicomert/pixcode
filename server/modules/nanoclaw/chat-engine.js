@@ -23,6 +23,7 @@ import {
 } from './multi-runner.js';
 import {
   buildPixbotSystemPrompt,
+  buildProjectScanContext,
   getPixbotCredentials,
   pixbotChatCompletion,
 } from './pixbot-llm.js';
@@ -416,23 +417,35 @@ export async function handleChatTurn({
     if (creds) {
       const historyMsgs = (store.messages[conv.id] || [])
         .filter((m) => m.id !== userMsg.id)
-        .slice(-16)
+        .slice(-20)
         .map((m) => ({
           role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
           content: String(m.content || '').slice(0, 8000),
         }))
         .filter((m) => m.content);
 
-      const llmMessages = [
-        {
-          role: 'system',
-          content: buildPixbotSystemPrompt({ projectId: conv.projectId, projectPath }),
-        },
-        ...historyMsgs,
-        { role: 'user', content: promptWithFiles || routing.prompt },
-      ];
-
       try {
+        // Auto project scan for ChatGPT-like workspace awareness (dirs, package.json, README).
+        let scanContext = '';
+        if (!smallTalk && projectPath) {
+          try {
+            scanContext = await buildProjectScanContext(projectPath);
+          } catch { /* ignore */ }
+        }
+
+        const llmMessages = [
+          {
+            role: 'system',
+            content: buildPixbotSystemPrompt({
+              projectId: conv.projectId,
+              projectPath,
+              scanContext,
+            }),
+          },
+          ...historyMsgs,
+          { role: 'user', content: promptWithFiles || routing.prompt },
+        ];
+
         const completion = await pixbotChatCompletion({
           messages: llmMessages,
           model: model || conv.defaultModel || undefined,
@@ -452,6 +465,7 @@ export async function handleChatTurn({
             usage: completion.usage,
             files: files?.length ? files : undefined,
             mode: 'api',
+            scanned: Boolean(scanContext),
           },
         });
         return {
