@@ -468,71 +468,108 @@ export function nanoclawRouter() {
     }
   });
 
-  // Compatibility aliases for old PixBot hooks
+  // ---- NanoClaw conversation surface (chat-first; not a job board) ----
   router.get('/bot/crons', async (req, res) => {
+    // Kept for API compat; UI no longer surfaces this panel.
     req.url = '/tasks';
     return router.handle(req, res, () => {});
   });
 
+  router.get('/bot/help', (_req, res) => {
+    import('./chat-engine.js')
+      .then((chat) => res.json({ ok: true, ...chat.chatHelpHints() }))
+      .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
+  });
+
   router.post('/bot/chat', async (req, res) => {
-    // Chat message → schedule as once task (nanoclaw schedule_task)
-    req.body = {
-      ...req.body,
-      prompt: req.body?.message || req.body?.prompt,
-      schedule_type: 'once',
-      projectId: req.body?.projectId,
-    };
-    // Reuse POST /tasks logic via internal call
-    const prompt = String(req.body.prompt || '').trim();
-    if (!prompt) return res.status(400).json({ error: 'message is required' });
     try {
-      const tools = await loadMcp();
-      if (req.body.projectId) {
-        await ensureProjectGroup({ name: req.body.projectId, displayName: req.body.projectId });
+      if (!started) {
+        await startNanoclawBridge();
       }
-      const d = new Date(Date.now() + 3000);
-      const schedule_value = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 19);
-      const result = await tools.toolScheduleTask(
-        { prompt, schedule_type: 'once', schedule_value, context_mode: 'isolated' },
-        toolContext(req, req.body),
-      );
-      const database = await loadDb();
-      const tasks = database.getAllTasks();
-      res.json({
-        conversation: { id: crypto.randomUUID(), projectId: req.body.projectId, title: prompt.slice(0, 72) },
-        messages: [
-          { id: crypto.randomUUID(), role: 'user', content: prompt, createdAt: new Date().toISOString() },
-          {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: result.content?.[0]?.text || 'Task scheduled via NanoClaw.',
-            createdAt: new Date().toISOString(),
-            kind: 'system',
-          },
-        ],
-        proposals: [],
-        tasks: tasks.map(publicScheduledTask),
+      const chat = await import('./chat-engine.js');
+      const projectId = req.body?.projectId || req.body?.project_id || 'general';
+      let projectPath = req.body?.projectPath || req.body?.cwd || null;
+
+      if (projectId && projectId !== 'general') {
+        await ensureProjectGroup({
+          name: projectId,
+          displayName: projectId,
+          path: projectPath,
+          fullPath: projectPath,
+        });
+        // Best-effort resolve path from Pixcode projects registry
+        if (!projectPath) {
+          try {
+            const { extractProjectDirectory } = await import('../../projects.js');
+            projectPath = await extractProjectDirectory(projectId).catch(() => null);
+          } catch { /* ignore */ }
+        }
+      }
+
+      const tools = await loadMcp();
+      const payload = await chat.handleChatTurn({
+        projectId,
+        conversationId: req.body?.conversationId || null,
+        message: req.body?.message || req.body?.prompt || '',
+        agentType: req.body?.agentType || req.body?.agent || null,
+        model: req.body?.model || null,
+        projectPath,
+        scheduleTools: {
+          toolScheduleTask: tools.toolScheduleTask,
+          toolContext: toolContext(req, req.body),
+        },
       });
+      res.json(payload);
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
-  router.get('/bot/conversations', (_req, res) => res.json({ conversations: [] }));
+  router.get('/bot/conversations', (req, res) => {
+    import('./chat-engine.js')
+      .then((chat) => {
+        const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : null;
+        res.json({ conversations: chat.listConversations(projectId) });
+      })
+      .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
+  });
+
+  router.post('/bot/conversations', (req, res) => {
+    import('./chat-engine.js')
+      .then((chat) => {
+        const conversation = chat.createConversation({
+          projectId: req.body?.projectId || 'general',
+          title: req.body?.title,
+          defaultAgent: req.body?.agentType || req.body?.defaultAgent,
+        });
+        res.status(201).json({ conversation });
+      })
+      .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
+  });
+
+  router.get('/bot/conversations/:id/messages', (req, res) => {
+    import('./chat-engine.js')
+      .then((chat) => {
+        res.json({ messages: chat.getMessages(req.params.id) });
+      })
+      .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
+  });
+
   router.get('/bot/proposals', (_req, res) => res.json({ proposals: [] }));
   router.get('/bot/plans', (_req, res) => res.json({ plans: [] }));
   router.get('/meta/agents', async (_req, res) => {
     try {
       const { MULTI_CLI_AGENTS } = await import('./multi-runner.js');
+      const chat = await import('./chat-engine.js');
       res.json({
         agents: MULTI_CLI_AGENTS.map((a) => ({
           value: a.value,
           label: a.label,
           provider: a.value === 'claude-code' ? 'claude' : a.value,
         })),
-        directive: 'Prefix prompts with [agent:codex] or [agent:grok model:…]',
+        directive: '/agent-opencode …  ·  [agent:grok] …  ·  “bunu codex ile yap”  ·  @path/to/file',
+        tips: chat.chatHelpHints().tips,
       });
     } catch {
       res.json({

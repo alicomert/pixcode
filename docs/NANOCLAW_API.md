@@ -43,7 +43,41 @@ curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/help"
 | `POST` | `/api/nanoclaw/bot/chat` | UI helper: message → once schedule |
 | `GET` | `/api/nanoclaw/events` | SSE heartbeat stream |
 
-## Run an agent now
+## Chat (preferred — NanoClaw conversation)
+
+**Not a job queue.** Messages go through the chat engine: multi-CLI agent replies in-conversation. Schedules are created only when you clearly ask for deferred/recurring work.
+
+```bash
+# Conversational turn (any language)
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $PIXCODE_API_KEY" \
+  -d '{
+    "message": "selam, projede auth nerde?",
+    "projectId": "my-app",
+    "agentType": "claude-code"
+  }' \
+  "$PIXCODE_URL/api/nanoclaw/bot/chat"
+```
+
+Routing helpers (optional):
+
+| Form | Example |
+|------|---------|
+| Slash | `/agent-opencode fix tests` |
+| Tag | `[agent:grok] design release checklist` |
+| Natural | `bunu codex ile yap` / `use gemini to explain` |
+| Files | `@src/auth.ts review this` |
+| Schedule | `her gün saat 9 bağımlılık kontrolü` |
+
+Sessions stay warm per conversation+agent (`continueSession`) — MCP/tools are not re-bootstrapped every message.
+
+```bash
+curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/bot/conversations?projectId=my-app"
+curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/nanoclaw/bot/help"
+```
+
+## Run an agent now (one-shot, no chat history)
 
 ```bash
 curl -X POST \

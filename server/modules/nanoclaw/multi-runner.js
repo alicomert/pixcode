@@ -36,17 +36,37 @@ export function normalizeAgentType(raw) {
  * Parse optional provider directive from prompt:
  *   [agent:codex] do the thing
  *   [provider:gemini model:xxx] ...
+ *   /agent-opencode do the thing
+ *   /opencode do the thing
  */
 export function parseAgentDirective(prompt) {
-  const text = String(prompt || '');
+  let text = String(prompt || '');
+  let agentType = null;
+  let model = null;
+
+  const slash = text.match(
+    /^\s*\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b(?:\s+model[:=](\S+))?\s*/i,
+  );
+  if (slash) {
+    agentType = normalizeAgentType(slash[1]);
+    model = slash[2] ? slash[2].trim() : null;
+    text = text.slice(slash[0].length);
+  }
+
   const match = text.match(/^\s*\[(?:agent|provider)\s*[:=]\s*([a-z0-9_-]+)(?:\s+model\s*[:=]\s*([^\]]+))?\]\s*/i);
-  if (!match) {
+  if (match) {
+    agentType = normalizeAgentType(match[1]);
+    model = match[2] ? match[2].trim() : model;
+    text = text.slice(match[0].length);
+  }
+
+  if (!agentType && !match && !slash) {
     return { agentType: null, model: null, prompt: text.trim() };
   }
   return {
-    agentType: normalizeAgentType(match[1]),
-    model: match[2] ? match[2].trim() : null,
-    prompt: text.slice(match[0].length).trim(),
+    agentType,
+    model,
+    prompt: text.trim(),
   };
 }
 

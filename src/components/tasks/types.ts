@@ -176,6 +176,8 @@ export interface BotMessage {
   content: string;
   createdAt: string;
   kind?: string;
+  agentType?: AgentType | string | null;
+  meta?: Record<string, unknown>;
   proposalIds?: string[];
   taskId?: string;
   planId?: string;
