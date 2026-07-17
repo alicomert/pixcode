@@ -477,8 +477,46 @@ export function nanoclawRouter() {
 
   router.get('/bot/help', (_req, res) => {
     import('./chat-engine.js')
-      .then((chat) => res.json({ ok: true, ...chat.chatHelpHints() }))
+      .then((chat) => res.json({ ok: true, brand: 'PixBot', ...chat.chatHelpHints() }))
       .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
+  });
+
+  // PixBot LLM (OpenAI-compatible) config + models
+  router.get('/bot/llm', async (_req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      res.json({ ok: true, brand: 'PixBot', ...(await llm.getPixbotConfig()) });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.put('/bot/llm', async (req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const config = await llm.savePixbotConfig({
+        apiKey: req.body?.apiKey,
+        baseUrl: req.body?.baseUrl,
+        model: req.body?.model,
+      });
+      res.json({ ok: true, brand: 'PixBot', ...config });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.get('/bot/models', async (_req, res) => {
+    try {
+      const llm = await import('./pixbot-llm.js');
+      const payload = await llm.fetchPixbotModels();
+      res.json({ ok: true, brand: 'PixBot', ...payload });
+    } catch (error) {
+      const status = error?.statusCode || 500;
+      res.status(status).json({
+        error: error instanceof Error ? error.message : String(error),
+        code: error?.code,
+      });
+    }
   });
 
   router.post('/bot/chat', async (req, res) => {
@@ -514,6 +552,7 @@ export function nanoclawRouter() {
         agentType: req.body?.agentType || req.body?.agent || null,
         model: req.body?.model || null,
         projectPath,
+        forceCli: Boolean(req.body?.forceCli),
         scheduleTools: {
           toolScheduleTask: tools.toolScheduleTask,
           toolContext: toolContext(req, req.body),

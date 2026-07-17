@@ -21,6 +21,11 @@ import {
   parseAgentDirective,
   runPixcodeMultiAgent,
 } from './multi-runner.js';
+import {
+  buildPixbotSystemPrompt,
+  getPixbotCredentials,
+  pixbotChatCompletion,
+} from './pixbot-llm.js';
 
 const HOME = process.env.PIXCODE_HOME || path.join(os.homedir(), '.pixcode');
 const STORE_PATH = path.join(HOME, 'nanoclaw', 'pixcode-conversations.json');
@@ -102,12 +107,13 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
     }
   }
 
-  if (!agentType && softDefaultAgent) {
+  if (!agentType && softDefaultAgent && softDefaultAgent !== 'pixbot' && softDefaultAgent !== 'local') {
     agentType = normalizeAgentType(softDefaultAgent);
   }
 
   return {
-    agentType: agentType || 'claude-code',
+    // No soft CLI default — PixBot API is primary; CLI only when explicitly chosen.
+    agentType: agentType || 'pixbot',
     model,
     prompt: text || String(rawText || '').trim(),
     explicitAgent: Boolean(slash || bracket.agentType),
@@ -245,7 +251,8 @@ function publicConversation(row) {
     id: row.id,
     projectId: row.projectId,
     title: row.title,
-    agentType: row.defaultAgent || 'claude-code',
+    agentType: row.defaultAgent || 'pixbot',
+    defaultModel: row.defaultModel || null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -277,14 +284,18 @@ export function getMessages(conversationId) {
   return (store.messages[conversationId] || []).map(publicMessage);
 }
 
-export function createConversation({ projectId, title, defaultAgent } = {}) {
+export function createConversation({ projectId, title, defaultAgent, defaultModel } = {}) {
   ensureStore();
   const id = uid('conv');
   const row = {
     id,
     projectId: projectId || 'general',
     title: title || 'New chat',
-    defaultAgent: normalizeAgentType(defaultAgent || 'claude-code'),
+    // pixbot = OpenAI-compatible API path (default). CLI agents only when user forces /opencode etc.
+    defaultAgent: defaultAgent === 'pixbot' || !defaultAgent
+      ? 'pixbot'
+      : normalizeAgentType(defaultAgent),
+    defaultModel: defaultModel || null,
     agentSessions: {}, // agentType → sessionId (warm reuse — no MCP re-bootstrap each turn)
     systemSeeded: false,
     createdAt: nowIso(),
@@ -332,6 +343,7 @@ export async function handleChatTurn({
   model: modelHint = null,
   projectPath = null,
   scheduleTools = null, // optional { toolScheduleTask, toolContext }
+  forceCli = false,
 }) {
   ensureStore();
   const raw = String(message || '').trim();
@@ -348,38 +360,20 @@ export async function handleChatTurn({
 
   const routing = parseUserRouting(raw, softAgent || conv.defaultAgent);
   const agentType = routing.agentType;
-  const model = modelHint || routing.model || null;
+  const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
+  // Explicit CLI force: /opencode … still routes multi-CLI when user asks
+  const wantsCli = forceCli || routing.explicitAgent;
 
   const userMsg = appendMessage(conv.id, {
     role: 'user',
     content: raw,
-    agentType,
+    agentType: wantsCli ? agentType : 'pixbot',
   });
 
-  // Casual chat — answer in-process. Never spawn OpenCode/Grok/Claude for "selam".
-  if (smallTalk) {
-    const reply = localSmallTalkReply(routing.prompt, agentType);
-    const assistantMsg = appendMessage(conv.id, {
-      role: 'assistant',
-      content: reply,
-      kind: 'text',
-      agentType: 'local',
-      meta: { mode: 'smalltalk' },
-    });
-    return {
-      conversation: publicConversation(store.conversations[conv.id]),
-      messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
-      proposals: [],
-      tasks: [],
-      mode: 'chat',
-      agentType: 'local',
-    };
-  }
-
   // Explicit schedule intent → nanoclaw scheduler only (still a chat reply)
-  if (schedule && scheduleTools?.toolScheduleTask) {
+  if (schedule && scheduleTools?.toolScheduleTask && !smallTalk) {
     let schedule_value = schedule.schedule_value;
     if (schedule.schedule_type === 'once' && !schedule_value) {
       const d = new Date(Date.now() + 60_000);
@@ -401,7 +395,7 @@ export async function handleChatTurn({
       role: 'assistant',
       content: text,
       kind: result?.isError ? 'error' : 'system',
-      agentType,
+      agentType: 'pixbot',
       meta: { scheduled: !result?.isError, schedule },
     });
     return {
@@ -413,16 +407,126 @@ export async function handleChatTurn({
     };
   }
 
-  // Coding / real work via multi-CLI. Keep the prompt CLEAN:
-  // do not inject multi-line system dumps (breaks Grok argv, confuses OpenCode).
   const { text: promptWithFiles, files } = resolveFileMentions(routing.prompt, projectPath);
+
+  // ── Primary path: OpenAI-compatible API (PixBot) ─────────────────────
+  // Preferred over CLI spawn — user configures key + base URL; models from /v1/models.
+  if (!wantsCli) {
+    const creds = await getPixbotCredentials().catch(() => null);
+    if (creds) {
+      const historyMsgs = (store.messages[conv.id] || [])
+        .filter((m) => m.id !== userMsg.id)
+        .slice(-16)
+        .map((m) => ({
+          role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
+          content: String(m.content || '').slice(0, 8000),
+        }))
+        .filter((m) => m.content);
+
+      const llmMessages = [
+        {
+          role: 'system',
+          content: buildPixbotSystemPrompt({ projectId: conv.projectId, projectPath }),
+        },
+        ...historyMsgs,
+        { role: 'user', content: promptWithFiles || routing.prompt },
+      ];
+
+      try {
+        const completion = await pixbotChatCompletion({
+          messages: llmMessages,
+          model: model || conv.defaultModel || undefined,
+        });
+        if (model) {
+          conv.defaultModel = model;
+          store.conversations[conv.id] = conv;
+          persist();
+        }
+        const assistantMsg = appendMessage(conv.id, {
+          role: 'assistant',
+          content: completion.content,
+          kind: 'text',
+          agentType: 'pixbot',
+          meta: {
+            model: completion.model,
+            usage: completion.usage,
+            files: files?.length ? files : undefined,
+            mode: 'api',
+          },
+        });
+        return {
+          conversation: publicConversation(store.conversations[conv.id]),
+          messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+          proposals: [],
+          tasks: [],
+          mode: 'api',
+          agentType: 'pixbot',
+          model: completion.model,
+        };
+      } catch (apiError) {
+        // Fall through to local smalltalk / CLI only if API hard-fails and no explicit CLI
+        if (smallTalk) {
+          const reply = localSmallTalkReply(routing.prompt, 'pixbot');
+          const assistantMsg = appendMessage(conv.id, {
+            role: 'assistant',
+            content: `${reply}\n\n_(API: ${apiError instanceof Error ? apiError.message : String(apiError)})_`,
+            kind: 'text',
+            agentType: 'pixbot',
+          });
+          return {
+            conversation: publicConversation(store.conversations[conv.id]),
+            messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+            proposals: [],
+            tasks: [],
+            mode: 'chat',
+            agentType: 'pixbot',
+          };
+        }
+        const assistantMsg = appendMessage(conv.id, {
+          role: 'assistant',
+          content: `PixBot API hatası: ${apiError instanceof Error ? apiError.message : String(apiError)}\n\nSettings → PixBot LLM (API key + base URL) kontrol et. Model listesi /v1/models üzerinden gelir.`,
+          kind: 'error',
+          agentType: 'pixbot',
+        });
+        return {
+          conversation: publicConversation(store.conversations[conv.id]),
+          messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+          proposals: [],
+          tasks: [],
+          mode: 'error',
+          agentType: 'pixbot',
+        };
+      }
+    }
+  }
+
+  // Casual chat without API key — local only
+  if (smallTalk && !wantsCli) {
+    const reply = localSmallTalkReply(routing.prompt, agentType);
+    const assistantMsg = appendMessage(conv.id, {
+      role: 'assistant',
+      content: `${reply}\n\n_API key yoksa Settings → PixBot LLM ile OpenAI-uyumlu endpoint bağla (key + base URL). Sonra modeller /v1/models ile gelir._`,
+      kind: 'text',
+      agentType: 'local',
+      meta: { mode: 'smalltalk' },
+    });
+    return {
+      conversation: publicConversation(store.conversations[conv.id]),
+      messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+      proposals: [],
+      tasks: [],
+      mode: 'chat',
+      agentType: 'local',
+    };
+  }
+
+  // Explicit CLI path (/opencode, /claude, …) when user forces it
   const history = (store.messages[conv.id] || [])
     .slice(-8)
     .filter((m) => m.id !== userMsg.id && m.role !== 'system')
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${String(m.content || '').slice(0, 500)}`)
     .join('\n');
 
-  // Short context only — user message last. No "Task role:" / giant preamble.
   const fullPrompt = [
     history ? `Prior chat (brief):\n${history}\n` : '',
     promptWithFiles,
@@ -452,7 +556,7 @@ export async function handleChatTurn({
 
   const replyText = run.status === 'success'
     ? (run.result || '…')
-    : `Üzgünüm, agent hata verdi (${agentType}): ${run.error || 'unknown'}`;
+    : `CLI hata (${agentType}): ${run.error || 'unknown'}\n\nİpucu: PixBot için Settings’te API key bağla; chat API üzerinden gider. CLI sadece /opencode /claude ile zorlanır.`;
 
   const assistantMsg = appendMessage(conv.id, {
     role: 'assistant',
@@ -464,6 +568,7 @@ export async function handleChatTurn({
       cwd: run.cwd,
       files: files?.length ? files : undefined,
       sessionContinued: Boolean(sessionId),
+      mode: 'cli',
     },
   });
 
@@ -472,7 +577,7 @@ export async function handleChatTurn({
     messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
     proposals: [],
     tasks: [],
-    mode: smallTalk ? 'chat' : 'agent',
+    mode: 'cli',
     agentType,
   };
 }
