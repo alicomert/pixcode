@@ -545,6 +545,61 @@ function readCurrentPackageVersion() {
     }
 }
 
+/**
+ * After npm -g upgrades the unit's ExecStart path can "vanish" until systemd
+ * reloads. Schedule a detached recovery that rewrites/restarts the unit once
+ * this process has exited so the UI health poll can succeed.
+ */
+function schedulePostUpdateServiceRecovery({ port } = {}) {
+    if (process.platform !== 'linux') return false;
+    const systemUnit = '/etc/systemd/system/pixcode.service';
+    const userUnit = path.join(os.homedir(), '.config', 'systemd', 'user', 'pixcode.service');
+    const hasSystem = fs.existsSync(systemUnit);
+    const hasUser = fs.existsSync(userUnit);
+    if (!hasSystem && !hasUser && process.env.PIXCODE_DAEMON_MANAGED !== '1') {
+        return false;
+    }
+
+    let unitPort = Number(port) || Number(process.env.SERVER_PORT || process.env.PORT || 3001);
+    try {
+        const unitPath = hasSystem ? systemUnit : userUnit;
+        if (fs.existsSync(unitPath)) {
+            const content = fs.readFileSync(unitPath, 'utf8');
+            const match = content.match(/"--port"\s+"(\d+)"/) || content.match(/--port(?:\s+|=)(\d+)/);
+            if (match) unitPort = Number(match[1]);
+        }
+    } catch {
+        // keep fallback port
+    }
+
+    const mode = hasSystem ? 'system' : 'user';
+    const systemctl = mode === 'user' ? 'systemctl --user' : 'systemctl';
+    const script = [
+        'sleep 2',
+        `${systemctl} daemon-reload || true`,
+        `${systemctl} reset-failed pixcode.service 2>/dev/null || true`,
+        'if command -v pixcode >/dev/null 2>&1; then',
+        `  pixcode daemon install --mode ${mode} --port ${unitPort} --single-port || ${systemctl} restart pixcode.service || true`,
+        'else',
+        `  ${systemctl} restart pixcode.service || true`,
+        'fi',
+    ].join('\n');
+
+    try {
+        const child = spawn('/bin/bash', ['-c', script], {
+            detached: true,
+            stdio: 'ignore',
+            env: process.env,
+        });
+        child.unref();
+        console.log(`[update] Scheduled ${mode} daemon recovery on port ${unitPort} after exit`);
+        return true;
+    } catch (error) {
+        console.warn('[update] Could not schedule daemon recovery:', error?.message || error);
+        return false;
+    }
+}
+
 function createSystemUpdateJob(actorUser, options = {}) {
     const activeJob = getActiveUpdateJob();
     if (activeJob) return activeJob;
@@ -603,11 +658,15 @@ function createSystemUpdateJob(actorUser, options = {}) {
                     ? 'npm run update:platform'
                     : installMode === 'git'
                         ? `${JSON.stringify(process.execPath)} ${JSON.stringify(gitUpdateScript)}`
-                        : 'npm install -g @pixelbyte-software/pixcode@latest';
+                        // allow-scripts: better-sqlite3/node-pty must rebuild after global upgrade
+                        : 'npm install -g --allow-scripts=@pixelbyte-software/pixcode,better-sqlite3,node-pty @pixelbyte-software/pixcode@latest';
                 const updateCwd = IS_PLATFORM || installMode === 'git' ? APP_ROOT : os.homedir();
                 await runCommandUpdateJob(job, updateCommand, updateCwd);
                 if (installMode === 'git') {
                     job.toVersion = readCurrentPackageVersion();
+                } else if (installMode === 'npm') {
+                    // Prefer registry target; fall back to whatever package.json now says on disk
+                    job.toVersion = job.toVersion || readCurrentPackageVersion() || latest.latestVersion;
                 }
             }
 
@@ -629,8 +688,9 @@ function createSystemUpdateJob(actorUser, options = {}) {
 
             // Desktop wrapper (PIXCODE_RUNTIME_DIR): files are already swapped
             // in-place. Exit 42 so Electron respawns against the new runtime
-            // instead of leaving the UI on "update ready" forever. Non-desktop
-            // installs keep the deferred restart UX (active terminals, etc.).
+            // instead of leaving the UI on "update ready" forever.
+            // Linux systemd/npm installs: schedule unit rewrite+restart and
+            // auto-exit so users aren't stuck after "Restarting server…".
             if (runtimeDir) {
                 job.selfRestarting = true;
                 appendUpdateJobLog(job, 'meta', 'Update applied. Restarting desktop runtime automatically…\n');
@@ -638,6 +698,14 @@ function createSystemUpdateJob(actorUser, options = {}) {
                     console.log('[update] Restarting for runtime-dir update (job path)');
                     process.exit(42);
                 }, 800);
+            } else if (process.platform === 'linux' && process.env.PIXCODE_DAEMON_MANAGED === '1') {
+                job.selfRestarting = true;
+                appendUpdateJobLog(job, 'meta', 'Update applied. Scheduling systemd unit reinstall + restart…\n');
+                schedulePostUpdateServiceRecovery();
+                setTimeout(() => {
+                    console.log('[update] Exiting for systemd recovery after npm update');
+                    process.exit(0);
+                }, 900);
             } else {
                 appendUpdateJobLog(job, 'meta', 'Update is ready. Restart when convenient to apply it.\n');
             }
@@ -2308,7 +2376,7 @@ app.post('/api/system/update', authenticateToken, requireAdmin, requireApiScope(
         ? 'npm run update:platform'
         : installMode === 'git'
             ? `${JSON.stringify(process.execPath)} ${JSON.stringify(gitUpdateScript)}`
-            : 'npm install -g @pixelbyte-software/pixcode@latest';
+            : 'npm install -g --allow-scripts=@pixelbyte-software/pixcode,better-sqlite3,node-pty @pixelbyte-software/pixcode@latest';
     const updateCommandLabel = IS_PLATFORM
         ? 'Pixcode platform update'
         : installMode === 'git'
@@ -2622,25 +2690,30 @@ app.post('/api/system/restart', authenticateToken, requireAdmin, requireApiScope
         });
     }
 
+    const runtimeDir = process.env.PIXCODE_RUNTIME_DIR;
+    const pending = readSystemUpdateState()?.pendingRestart;
+    const scheduledRecovery = !runtimeDir && schedulePostUpdateServiceRecovery();
+
     res.json({
         success: true,
         version: SERVER_VERSION,
-        message: 'Server is shutting down for restart. Reconnecting...'
+        message: scheduledRecovery
+            ? 'Server is shutting down; systemd will reinstall/restart the unit with the new package.'
+            : 'Server is shutting down for restart. Reconnecting...',
+        recovery: scheduledRecovery ? 'systemd' : (runtimeDir ? 'desktop' : 'process'),
     });
 
     // Give the response time to flush before we exit.
     // Exit code 42 is the desktop Electron wrapper's "please respawn me"
     // convention (see desktop/electron/main.cjs). Without it, the wrapper
     // treats a normal exit(0) as a crash and leaves the UI stuck on the
-    // update screen after "Restart now". Non-desktop installs (systemd/pm2
-    // /daemon) treat any non-zero/zero exit as a restart signal either way.
+    // update screen after "Restart now". For Linux systemd recovery we exit 0
+    // so Restart=always / our scheduled systemctl restart can cleanly take over.
     setTimeout(() => {
-        const runtimeDir = process.env.PIXCODE_RUNTIME_DIR;
-        const pending = readSystemUpdateState()?.pendingRestart;
-        const exitCode = (runtimeDir || pending?.toVersion) ? 42 : 0;
+        const exitCode = runtimeDir ? 42 : (scheduledRecovery ? 0 : ((pending?.toVersion) ? 42 : 0));
         console.log(`Restart requested via /api/system/restart — exiting process (code ${exitCode}).`);
         process.exit(exitCode);
-    }, 250);
+    }, 400);
 });
 
 app.get('/api/projects', authenticateToken, async (req, res) => {

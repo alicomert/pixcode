@@ -23,7 +23,8 @@ interface VersionUpgradeModalProps {
 }
 
 const RELOAD_COUNTDOWN_START = 30;
-const HEALTH_POLL_TIMEOUT_MS = 60_000;
+// systemd reinstall after npm -g can take >60s on slow VPS (native rebuilds).
+const HEALTH_POLL_TIMEOUT_MS = 120_000;
 const HEALTH_POLL_INTERVAL_MS = 1500;
 const MIN_NODE_MAJOR = 20;
 
@@ -174,20 +175,27 @@ export function VersionUpgradeModal({
 
     const pollHealthUntilReady = useCallback(async (expectedVersion?: string | null): Promise<boolean> => {
         const deadline = Date.now() + HEALTH_POLL_TIMEOUT_MS;
+        let sawDown = false;
         // Give the server a moment to actually exit before we start polling.
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
         while (Date.now() < deadline) {
             try {
                 const response = await fetch('/health', { cache: 'no-store' });
                 if (response.ok) {
-                    // Confirm we can parse the payload too.
-                    const payload = await response.json();
-                    if (!expectedVersion || payload?.version === expectedVersion) {
+                    const payload = await response.json().catch(() => null) as { version?: string; status?: string } | null;
+                    const version = payload?.version;
+                    // After downtime, accept any healthy server — npm may land a
+                    // slightly different version than the UI expected (registry lag).
+                    if (!expectedVersion || version === expectedVersion || (sawDown && payload?.status === 'ok')) {
                         return true;
                     }
+                    // Still up on old binary (hasn't exited yet) — keep waiting.
+                } else {
+                    sawDown = true;
                 }
             } catch {
                 // Server still down — keep polling.
+                sawDown = true;
             }
             await new Promise(resolve => setTimeout(resolve, HEALTH_POLL_INTERVAL_MS));
         }
@@ -234,8 +242,8 @@ export function VersionUpgradeModal({
             setRestartPhase('ready');
             setTimeout(() => window.location.reload(), 800);
         } else {
-            appendOutput('\n⚠️ Server did not come back within 60s.\n');
-            appendOutput('Start it again manually (e.g. `pixcode` or your daemon/pm2), then refresh.\n');
+            appendOutput(`\n⚠️ Server did not come back within ${HEALTH_POLL_TIMEOUT_MS / 1000}s.\n`);
+            appendOutput('Start it again manually: `pixcode daemon install --mode system --port 3001 --single-port` then refresh.\n');
             setRestartPhase('timeout');
         }
     }, [appendOutput, latestVersion, pendingRestartVersion, pollHealthUntilReady, restartRequiresConfirmation]);
