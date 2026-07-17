@@ -544,14 +544,17 @@ export async function handleChatTurnStream({
   const actionDoIt = /\b(sen\s+yap|otomatik(?:\s+yap)?|kendin\s+yap|dosyay[ıi]\s+oluştur|dosyayi\s+olustur|uygula|implement|just\s+do\s+it|do\s+it\s+yourself|apply\s+(?:it|this)|write\s+the\s+file)\b/i.test(raw)
     || /kanka\s+bunu\s+sen|bunu\s+sen\s+yap/i.test(raw);
   let streamAgent = routing.agentType;
-  if (actionDoIt && !httpModel && !isCliAgentType(streamAgent)) {
-    const fallback = conv.defaultAgent && isCliAgentType(conv.defaultAgent)
-      ? conv.defaultAgent
-      : (softAgent && isCliAgentType(softAgent) ? softAgent : 'opencode');
+  // Badge / body agentType wins when client forced CLI
+  if (forceCli && softAgent && isCliAgentType(softAgent)) {
+    streamAgent = normalizeAgentType(softAgent);
+  }
+  if ((actionDoIt || forceCli) && !isCliAgentType(streamAgent)) {
+    const fallback = (softAgent && isCliAgentType(softAgent) && softAgent)
+      || (conv.defaultAgent && isCliAgentType(conv.defaultAgent) && conv.defaultAgent)
+      || 'opencode';
     streamAgent = normalizeAgentType(fallback);
   }
-  // Explicit /grok etc ALWAYS beats the HTTP model dropdown.
-  // HTTP model only blocks soft-default CLI follow-ups (no slash in message).
+  // Explicit /grok / badge ALWAYS CLI — never blocked by HTTP model picker
   const explicitCli = forceCli || routing.explicitAgent || actionDoIt;
   const wantsCli = explicitCli
     || (!httpModel && Boolean(routing.softUsed) && isCliAgentType(streamAgent) && !smallTalk && String(routing.prompt || '').length > 6);
@@ -560,7 +563,7 @@ export async function handleChatTurnStream({
   if (wantsCli || schedule) {
     const cliAgent = isCliAgentType(streamAgent)
       ? streamAgent
-      : (isCliAgentType(routing.agentType) ? routing.agentType : 'grok');
+      : (isCliAgentType(routing.agentType) ? routing.agentType : (isCliAgentType(softAgent) ? softAgent : 'opencode'));
     emit({ type: 'status', status: wantsCli ? `cli:${cliAgent}` : 'schedule' });
     const full = await handleChatTurn({
       projectId,
@@ -568,7 +571,7 @@ export async function handleChatTurnStream({
       message: raw,
       agentType: wantsCli ? cliAgent : softAgent,
       // Never feed provider::model composite ids into CLI spawns
-      model: wantsCli ? (isPixbotHttpModel(model) ? null : (model || modelHint)) : (model || modelHint),
+      model: wantsCli ? null : (model || modelHint),
       projectPath,
       forceCli: wantsCli,
       scheduleTools,
@@ -742,24 +745,28 @@ export async function handleChatTurn({
 
   const routing = parseUserRouting(raw, softAgent || conv.defaultAgent);
   let agentType = routing.agentType;
+  // Prefer body agentType when client forced a CLI agent (composer badge)
+  if (forceCli && softAgent && isCliAgentType(softAgent)) {
+    agentType = normalizeAgentType(softAgent);
+  }
   const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
   // Dropdown models like `cerebras-xxx::zai-glm-4.7` are HTTP picker ids.
-  // They must NOT block an explicit /grok request — only soft follow-ups.
+  // They must NOT block an explicit /grok or badge request — only soft follow-ups.
   const httpModel = isPixbotHttpModel(model) || isPixbotHttpModel(modelHint);
   // "sen yap / otomatik yap / dosyayı oluştur" → must run a real agent, not paste instructions
   const actionDoIt = /\b(sen\s+yap|otomatik(?:\s+yap)?|kendin\s+yap|dosyay[ıi]\s+oluştur|dosyayi\s+olustur|uygula|implement|just\s+do\s+it|do\s+it\s+yourself|apply\s+(?:it|this)|write\s+the\s+file)\b/i.test(raw)
     || /kanka\s+bunu\s+sen|bunu\s+sen\s+yap/i.test(raw);
   const explicitCli = forceCli || routing.explicitAgent || actionDoIt;
-  if (actionDoIt && (!agentType || agentType === 'pixbot' || agentType === 'local')) {
+  if ((actionDoIt || forceCli) && (!agentType || agentType === 'pixbot' || agentType === 'local')) {
     // Only fall back to a real CLI agent name — never "pixbot"
-    const fallback = conv.defaultAgent && isCliAgentType(conv.defaultAgent)
-      ? conv.defaultAgent
-      : (softAgent && isCliAgentType(softAgent) ? softAgent : 'opencode');
+    const fallback = (softAgent && isCliAgentType(softAgent) && softAgent)
+      || (conv.defaultAgent && isCliAgentType(conv.defaultAgent) && conv.defaultAgent)
+      || 'opencode';
     agentType = normalizeAgentType(fallback);
   }
-  // Explicit /grok ALWAYS CLI. HTTP model only blocks soft-default CLI reuse.
+  // Explicit /grok / badge / forceCli ALWAYS CLI. HTTP model only blocks soft-default.
   const wantsCli = explicitCli
     || (!httpModel && Boolean(routing.softUsed) && isCliAgentType(agentType) && !smallTalk && String(routing.prompt || '').length > 6);
 
@@ -981,84 +988,20 @@ export async function handleChatTurn({
     };
   }
 
-  // Explicit CLI path (/opencode, /claude, /grok, "grok ile", …)
-  // Guard: never call multi-runner with pixbot / HTTP composite models
-  if (!isCliAgentType(agentType) || agentType === 'pixbot' || httpModel) {
-    // Should not reach here — recover to HTTP if credentials exist
-    const creds = await getPixbotCredentials().catch(() => null);
-    if (creds) {
-      try {
-        let scanContext = '';
-        if (projectPath) {
-          try {
-            const { buildProjectScanContext } = await import('./pixbot-llm.js');
-            scanContext = await buildProjectScanContext(projectPath);
-          } catch { /* ignore */ }
-        }
-        const historyMsgs = (store.messages[conv.id] || [])
-          .filter((m) => m.id !== userMsg.id)
-          .slice(-20)
-          .map((m) => ({
-            role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
-            content: String(m.content || '').slice(0, 8000),
-          }))
-          .filter((m) => m.content);
-        const completion = await pixbotChatCompletion({
-          messages: [
-            {
-              role: 'system',
-              content: buildPixbotSystemPrompt({
-                projectId: conv.projectId,
-                projectPath,
-                scanContext,
-              }),
-            },
-            ...historyMsgs,
-            { role: 'user', content: promptWithFiles || routing.prompt },
-          ],
-          model: model || conv.defaultModel || undefined,
-        });
-        const assistantMsg = appendMessage(conv.id, {
-          role: 'assistant',
-          content: completion.content,
-          kind: 'text',
-          agentType: 'pixbot',
-          meta: {
-            model: completion.model,
-            provider: completion.providerName || completion.source,
-            mode: 'api',
-            recoveredFromCliGuard: true,
-          },
-        });
-        return {
-          conversation: publicConversation(store.conversations[conv.id]),
-          messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
-          proposals: [],
-          tasks: [],
-          mode: 'api',
-          agentType: 'pixbot',
-          model: completion.model,
-        };
-      } catch (apiError) {
-        const assistantMsg = appendMessage(conv.id, {
-          role: 'assistant',
-          content: `PixBot API hatası: ${apiError instanceof Error ? apiError.message : String(apiError)}`,
-          kind: 'error',
-          agentType: 'pixbot',
-        });
-        return {
-          conversation: publicConversation(store.conversations[conv.id]),
-          messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
-          mode: 'error',
-          agentType: 'pixbot',
-        };
-      }
+  // Explicit CLI path (/opencode, /claude, /grok, badge chip + forceCli, …)
+  // IMPORTANT: never fall back to PixBot HTTP here. HTTP recovery was incorrectly
+  // triggered when the UI model picker still held a provider::model id, so /grok
+  // and agent badges answered via Cerebras instead of spawning the CLI.
+  if (!isCliAgentType(agentType) || agentType === 'pixbot') {
+    if (softAgent && isCliAgentType(softAgent)) {
+      agentType = normalizeAgentType(softAgent);
+    } else if (conv.defaultAgent && isCliAgentType(conv.defaultAgent)) {
+      agentType = normalizeAgentType(conv.defaultAgent);
+    } else if (routing.agentType && isCliAgentType(routing.agentType)) {
+      agentType = normalizeAgentType(routing.agentType);
+    } else {
+      agentType = 'opencode';
     }
-    agentType = normalizeAgentType(
-      (conv.defaultAgent && isCliAgentType(conv.defaultAgent) && conv.defaultAgent)
-      || (softAgent && isCliAgentType(softAgent) && softAgent)
-      || 'opencode',
-    );
   }
 
   const history = (store.messages[conv.id] || [])

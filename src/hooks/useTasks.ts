@@ -165,7 +165,7 @@ export function useTasks(projectId?: string) {
   };
 }
 
-export function usePixBot(projectId?: string) {
+export function usePixBot(projectId?: string, projectPath?: string | null) {
   const [conversations, setConversations] = useState<BotConversation[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<BotMessage[]>([]);
@@ -308,6 +308,7 @@ export function usePixBot(projectId?: string) {
 
     const payloadBody = {
       projectId,
+      projectPath: projectPath || undefined,
       conversationId,
       message,
       agentType: opts?.agentType,
@@ -464,7 +465,7 @@ export function usePixBot(projectId?: string) {
     } finally {
       setSending(false);
     }
-  }, [conversationId, projectId, refreshSide]);
+  }, [conversationId, projectId, projectPath, refreshSide]);
 
   const approveProposal = useCallback(async (proposalId: string) => {
     const response = await authenticatedFetch(`/api/tasks/bot/proposals/${proposalId}/approve`, { method: 'POST', body: '{}' });

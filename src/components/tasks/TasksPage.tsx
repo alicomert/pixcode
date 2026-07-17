@@ -207,6 +207,10 @@ export function TasksPage({
     return () => { cancelled = true; };
   }, [projects]);
 
+  const projectPath = workspaceList.find((w) => (w.id || w.name) === projectId)?.path
+    || projects.find((w) => (w.id || w.name) === projectId)?.path
+    || null;
+
   const {
     conversations,
     conversationId,
@@ -218,7 +222,7 @@ export function TasksPage({
     sendMessage,
     startNewChat,
     refresh: refreshBot,
-  } = usePixBot(projectId);
+  } = usePixBot(projectId, projectPath);
 
   const [draft, setDraft] = useState('');
   /** Slash agent chip in the composer (visual badge; wire message still uses /claude …). */
