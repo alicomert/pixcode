@@ -62,7 +62,17 @@ function MessageBubble({ message }: { message: BotMessage }) {
   const model = meta && 'model' in meta ? String(meta.model || '') : '';
   const streaming = Boolean(meta && 'streaming' in meta && meta.streaming);
   const status = meta && 'status' in meta ? String(meta.status || '') : '';
-  const providerName = meta && 'providerName' in meta ? String(meta.providerName || '') : '';
+  const mode = meta && 'mode' in meta ? String(meta.mode || '') : '';
+  const providerName = meta && ('providerName' in meta || 'provider' in meta)
+    ? String((meta as { providerName?: string; provider?: string }).providerName
+      || (meta as { provider?: string }).provider || '')
+    : '';
+  const agentLabel = message.agentType && message.agentType !== 'pixbot'
+    ? String(message.agentType)
+    : '';
+  const routeLabel = [agentLabel || providerName, model, mode === 'cli' ? 'CLI' : null]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className={cn('flex w-full gap-3', isUser ? 'justify-end' : 'justify-start')}>
@@ -79,13 +89,16 @@ function MessageBubble({ message }: { message: BotMessage }) {
             : 'bg-muted/50 text-foreground',
         )}
       >
-        {!isUser && (model || providerName || streaming) ? (
+        {!isUser && (routeLabel || streaming) ? (
           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
-            {providerName || model ? <span>{[providerName, model].filter(Boolean).join(' · ')}</span> : null}
+            {routeLabel ? <span>{routeLabel}</span> : null}
             {streaming ? (
               <span className="inline-flex items-center gap-1 text-primary">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                {status === 'thinking' ? 'düşünüyor…' : status === 'cli' ? 'CLI…' : 'yazıyor…'}
+                {status?.startsWith('cli') ? `CLI ${status.replace(/^cli:?/, '') || ''}…`.trim()
+                  : status === 'thinking' ? 'düşünüyor…'
+                    : status === 'schedule' ? 'zamanlanıyor…'
+                      : 'yazıyor…'}
               </span>
             ) : null}
           </div>

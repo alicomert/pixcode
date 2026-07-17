@@ -1104,6 +1104,22 @@ export async function buildProjectScanContext(projectPath) {
       pkgHint = `package.json name=${pkg.name || '?'} scripts=${Object.keys(pkg.scripts || {}).slice(0, 12).join(', ')}`;
     } catch { /* no package.json */ }
 
+    let composerHint = '';
+    try {
+      const raw = await fsp.readFile(pathMod.join(projectPath, 'composer.json'), 'utf8');
+      const c = JSON.parse(raw);
+      const req = Object.keys(c.require || {}).slice(0, 16).join(', ');
+      composerHint = `composer.json name=${c.name || '?'} require=${req}`;
+    } catch { /* no composer */ }
+
+    let designHint = '';
+    for (const rel of ['DESIGN.md', 'DESIGN-news.md', 'AGENTS.md']) {
+      try {
+        const body = await fsp.readFile(pathMod.join(projectPath, rel), 'utf8');
+        designHint += `\n### ${rel} (first 600 chars)\n${body.slice(0, 600)}\n`;
+      } catch { /* skip */ }
+    }
+
     let readmeHint = '';
     try {
       const readme = await fsp.readFile(pathMod.join(projectPath, 'README.md'), 'utf8');
@@ -1113,8 +1129,10 @@ export async function buildProjectScanContext(projectPath) {
     return [
       '## Project scan (auto)',
       pkgHint,
+      composerHint,
       'Top-level entries:',
       ...names,
+      designHint,
       readmeHint,
     ].filter(Boolean).join('\n');
   } catch {

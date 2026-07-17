@@ -73,21 +73,40 @@ function nowIso() {
  * Expand natural-language + slash agent routing (beyond [agent:x] tags).
  * Returns cleaned prompt + preferred agent.
  */
+/** CLI agent ids that must never fall through to PixBot HTTP (Cerebras etc.). */
+export const CLI_AGENT_IDS = new Set([
+  'claude-code', 'codex', 'gemini', 'cursor', 'qwen', 'opencode', 'grok',
+]);
+
+export function isCliAgentType(agentType) {
+  const a = normalizeAgentType(agentType || '');
+  return CLI_AGENT_IDS.has(a) && a !== 'pixbot';
+}
+
 export function parseUserRouting(rawText, softDefaultAgent = null) {
   let text = String(rawText || '').trim();
   let agentType = null;
   let model = null;
   let nlAgent = false;
+  let slashAgent = false;
 
-  // Slash (preferred short forms): /opencode  /claude  /grok
-  // Legacy still accepted: /agent-opencode  /agent:codex  /agent opencode
-  const slash = text.match(
-    /^\s*\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b\s*/i,
-  );
+  // Slash agents anywhere in the message (start OR trailing "… /grok")
+  // Preferred: /opencode  /claude  /grok
+  // Legacy: /agent-opencode  /agent:codex
+  const slashRe = /(?:^|\s)\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b/i;
+  const slash = text.match(slashRe);
   if (slash) {
     agentType = normalizeAgentType(slash[1]);
-    text = text.slice(slash[0].length).trim();
+    slashAgent = true;
+    // Strip the slash token (keep surrounding text)
+    text = text.replace(slashRe, ' ').replace(/\s+/g, ' ').trim();
   }
+
+  // Leading-only strip leftovers if still present
+  text = text.replace(
+    /^\s*\/(?:agent[-:\s]+)?(claude-code|claude|codex|gemini|cursor|qwen|opencode|grok|grok-build)\b\s*/i,
+    '',
+  ).trim();
 
   // Bracket directive already handled by multi-runner; peel here for UI cleanliness
   const bracket = parseAgentDirective(text);
@@ -98,16 +117,19 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
   }
 
   // Natural language (TR / EN / mixed) — only if no explicit agent yet
-  // Covers: "opencode ile", "opencode un deepseek…", "bunu codex ile yap"
+  // Covers: "opencode ile", "opencode un deepseek…", "grok ile analiz", "bunu codex ile yap"
   if (!agentType) {
     const nl = text.match(
-      /(?:\b(?:use|with|via|run\s+on|let)\s+)?(opencode|codex|claude(?:\s*code)?|gemini|cursor|qwen|grok(?:\s*build)?)\s*(?:un|nun|'s)?\s*(?:ile|ile\s+yap|yapsın|yapsin|yap|ki\s+yapsın|should\s+(?:do|handle)|to\s+(?:do|handle)|ile\s+analiz|analiz\s+ettir)\b/i,
+      /(?:\b(?:use|with|via|run\s+on|let)\s+)?(opencode|codex|claude(?:\s*code)?|gemini|cursor|qwen|grok(?:\s*build)?)\s*(?:un|nun|'s)?\s*(?:ile|ile\s+yap|yapsın|yapsin|yap|ki\s+yapsın|should\s+(?:do|handle)|to\s+(?:do|handle)|ile\s+analiz|analiz\s+ettir|analiz\s+et)\b/i,
     )
       || text.match(
         /^(?:bunu|şunu|sunu|this|that)?\s*(opencode|codex|claude|gemini|cursor|qwen|grok)\s*(?:un|nun|'s|ile|yapsın|yapsin)/i,
       )
       || text.match(
         /\b(opencode|codex|claude|gemini|cursor|qwen|grok)\s+(?:un|nun|'s)\s+/i,
+      )
+      || text.match(
+        /\b(?:use|via|with)\s+(opencode|codex|claude|gemini|cursor|qwen|grok)\b/i,
       );
     if (nl) {
       agentType = normalizeAgentType(String(nl[1]).replace(/\s*code/i, ''));
@@ -136,10 +158,42 @@ export function parseUserRouting(rawText, softDefaultAgent = null) {
     agentType: agentType || 'pixbot',
     model,
     prompt: text || String(rawText || '').trim(),
-    // Natural-language "opencode ile" MUST count as explicit so we don't answer via Cerebras API.
-    explicitAgent: Boolean(slash || bracket.agentType || nlAgent),
+    // Slash / bracket / natural-language agent MUST count as explicit so we never
+    // answer via PixBot HTTP (Cerebras) when user asked for /grok or "grok ile".
+    explicitAgent: Boolean(slashAgent || bracket.agentType || nlAgent),
     softUsed,
   };
+}
+
+/**
+ * Auto-attach key project files for analysis turns so CLI agents don't ask the user to paste.
+ */
+export function autoAttachProjectContext(projectPath, { maxFiles = 8, budget = 60_000 } = {}) {
+  if (!projectPath || !fs.existsSync(projectPath)) return { text: '', files: [] };
+  const candidates = [
+    'composer.json',
+    'package.json',
+    'DESIGN.md',
+    'DESIGN-news.md',
+    'AGENTS.md',
+    'CLAUDE.md',
+    'README.md',
+    'app/Config/Routes.php',
+    'app/Config/App.php',
+    'spark',
+    'Procfile',
+  ];
+  const existing = [];
+  for (const rel of candidates) {
+    const abs = path.join(projectPath, rel);
+    try {
+      if (fs.existsSync(abs) && fs.statSync(abs).isFile()) existing.push(rel);
+    } catch { /* ignore */ }
+    if (existing.length >= maxFiles) break;
+  }
+  if (!existing.length) return { text: '', files: [] };
+  // Reuse @mention resolver
+  return resolveFileMentions(existing.map((r) => `@${r}`).join(' '), projectPath);
 }
 
 /**
@@ -460,18 +514,26 @@ export async function handleChatTurnStream({
   const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
+  const actionDoIt = /\b(sen\s+yap|otomatik(?:\s+yap)?|kendin\s+yap|dosyay[ıi]\s+oluştur|dosyayi\s+olustur|uygula|implement|just\s+do\s+it|do\s+it\s+yourself|apply\s+(?:it|this)|write\s+the\s+file)\b/i.test(raw)
+    || /kanka\s+bunu\s+sen|bunu\s+sen\s+yap/i.test(raw);
+  let streamAgent = routing.agentType;
+  if (actionDoIt && !isCliAgentType(streamAgent)) {
+    streamAgent = normalizeAgentType(conv.defaultAgent || softAgent || 'opencode');
+  }
   const wantsCli = forceCli
     || routing.explicitAgent
-    || (Boolean(routing.softUsed) && routing.agentType !== 'pixbot' && !smallTalk && String(routing.prompt || '').length > 6);
+    || actionDoIt
+    || isCliAgentType(streamAgent)
+    || (Boolean(routing.softUsed) && isCliAgentType(streamAgent) && !smallTalk && String(routing.prompt || '').length > 6);
 
   // CLI or real schedule → full non-stream turn (creates NanoClaw job / spawns CLI)
   if (wantsCli || schedule) {
-    emit({ type: 'status', status: wantsCli ? 'cli' : 'schedule' });
+    emit({ type: 'status', status: wantsCli ? `cli:${streamAgent}` : 'schedule' });
     const full = await handleChatTurn({
       projectId,
       conversationId: conv.id,
       message: raw,
-      agentType: softAgent,
+      agentType: isCliAgentType(streamAgent) ? streamAgent : softAgent,
       model: model || modelHint,
       projectPath,
       forceCli: wantsCli,
@@ -645,14 +707,22 @@ export async function handleChatTurn({
   }
 
   const routing = parseUserRouting(raw, softAgent || conv.defaultAgent);
-  const agentType = routing.agentType;
+  let agentType = routing.agentType;
   const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
-  // Explicit CLI: slash / "opencode ile" / follow-up after prior CLI agent ("sistemi yap")
+  // "sen yap / otomatik yap / dosyayı oluştur" → must run a real agent, not paste instructions
+  const actionDoIt = /\b(sen\s+yap|otomatik(?:\s+yap)?|kendin\s+yap|dosyay[ıi]\s+oluştur|dosyayi\s+olustur|uygula|implement|just\s+do\s+it|do\s+it\s+yourself|apply\s+(?:it|this)|write\s+the\s+file)\b/i.test(raw)
+    || /kanka\s+bunu\s+sen|bunu\s+sen\s+yap/i.test(raw);
+  if (actionDoIt && (!agentType || agentType === 'pixbot' || agentType === 'local')) {
+    agentType = normalizeAgentType(conv.defaultAgent || softAgent || 'opencode');
+  }
+  // Any CLI agent (/grok, "grok ile", soft default opencode, …) — NEVER PixBot HTTP
   const wantsCli = forceCli
     || routing.explicitAgent
-    || (Boolean(routing.softUsed) && agentType !== 'pixbot' && !smallTalk && String(routing.prompt || '').length > 6);
+    || actionDoIt
+    || isCliAgentType(agentType)
+    || (Boolean(routing.softUsed) && isCliAgentType(agentType) && !smallTalk && String(routing.prompt || '').length > 6);
 
   // Remember last explicit CLI agent for follow-ups ("sistemi yap")
   if (routing.explicitAgent && agentType && agentType !== 'pixbot') {
@@ -720,10 +790,28 @@ export async function handleChatTurn({
     };
   }
 
-  const { text: promptWithFiles, files } = resolveFileMentions(routing.prompt, projectPath);
+  let { text: promptWithFiles, files } = resolveFileMentions(routing.prompt, projectPath);
+
+  // CLI analysis: auto-attach composer.json / DESIGN.md / README so agent never asks to paste
+  if (wantsCli && projectPath) {
+    const needsContext = /analiz|analyze|review|tara|scan|incele|mimar|structure|proje/i.test(routing.prompt)
+      || !files?.some((f) => f.content);
+    if (needsContext) {
+      const auto = autoAttachProjectContext(projectPath);
+      if (auto.files?.length) {
+        files = [...(files || []), ...auto.files];
+        const extra = auto.text.includes('<attached_files>')
+          ? auto.text.slice(auto.text.indexOf('<attached_files>'))
+          : '';
+        if (extra) {
+          promptWithFiles = `${promptWithFiles || routing.prompt}\n\n${extra}`;
+        }
+      }
+    }
+  }
 
   // ── Primary path: OpenAI-compatible API (PixBot) ─────────────────────
-  // Preferred over CLI spawn — user configures key + base URL; models from /v1/models.
+  // Only when user did NOT request a CLI agent. /grok /opencode must never hit Cerebras.
   if (!wantsCli) {
     const creds = await getPixbotCredentials().catch(() => null);
     if (creds) {
@@ -846,16 +934,42 @@ export async function handleChatTurn({
     };
   }
 
-  // Explicit CLI path (/opencode, /claude, …) when user forces it
+  // Explicit CLI path (/opencode, /claude, /grok, "grok ile", …)
+  if (!isCliAgentType(agentType)) {
+    agentType = normalizeAgentType(conv.defaultAgent || softAgent || 'opencode');
+  }
+
   const history = (store.messages[conv.id] || [])
     .slice(-8)
     .filter((m) => m.id !== userMsg.id && m.role !== 'system')
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${String(m.content || '').slice(0, 500)}`)
     .join('\n');
 
+  let scanContext = '';
+  if (projectPath) {
+    try {
+      const { buildProjectScanContext } = await import('./pixbot-llm.js');
+      scanContext = await buildProjectScanContext(projectPath);
+    } catch { /* ignore */ }
+  }
+
+  const preamble = buildSystemPreamble({
+    projectId: conv.projectId,
+    projectPath,
+    agentType,
+    isSmallTalk: false,
+  });
+
   const fullPrompt = [
+    preamble,
+    '',
+    'CRITICAL: Do real work. Do NOT ask the user to paste composer.json / DESIGN.md / file contents.',
+    'Workspace context is already attached below when available. Read it and answer concretely.',
+    'If you can run tools/shell, use them. Prefer implementing over instructing.',
+    '',
     history ? `Prior chat (brief):\n${history}\n` : '',
-    promptWithFiles,
+    scanContext || '',
+    promptWithFiles || routing.prompt,
   ].filter(Boolean).join('\n\n').trim();
 
   const sessionId = conv.agentSessions?.[agentType] || undefined;
@@ -871,9 +985,9 @@ export async function handleChatTurn({
     isScheduledTask: false,
   });
 
-  if (run.newSessionId) {
+  if (run.newSessionId || isCliAgentType(agentType)) {
     conv.agentSessions = conv.agentSessions || {};
-    conv.agentSessions[agentType] = run.newSessionId;
+    if (run.newSessionId) conv.agentSessions[agentType] = run.newSessionId;
     conv.defaultAgent = agentType;
     conv.systemSeeded = true;
     store.conversations[conv.id] = conv;
@@ -882,7 +996,14 @@ export async function handleChatTurn({
 
   const replyText = run.status === 'success'
     ? (run.result || '…')
-    : `CLI hata (${agentType}): ${run.error || 'unknown'}\n\nİpucu: PixBot için Settings’te API key bağla; chat API üzerinden gider. CLI sadece /opencode /claude ile zorlanır.`;
+    : [
+        `CLI hata (**${agentType}**): ${run.error || 'unknown'}`,
+        '',
+        agentType === 'grok'
+          ? 'Grok CLI yoksa: https://x.ai/cli  (`curl -fsSL https://x.ai/cli/install.sh | bash`)'
+          : 'CLI kurulu mu kontrol et. PixBot HTTP sohbeti için `/grok` kullanma — o yol agent spawn eder.',
+        run.cwd ? `cwd: \`${run.cwd}\`` : null,
+      ].filter(Boolean).join('\n');
 
   const assistantMsg = appendMessage(conv.id, {
     role: 'assistant',
@@ -890,7 +1011,8 @@ export async function handleChatTurn({
     kind: run.status === 'success' ? 'text' : 'error',
     agentType,
     meta: {
-      provider: run.provider,
+      provider: run.provider || agentType,
+      model: run.model || model,
       cwd: run.cwd,
       files: files?.length ? files : undefined,
       sessionContinued: Boolean(sessionId),
