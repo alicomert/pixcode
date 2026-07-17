@@ -7,10 +7,20 @@ const CLI = new Set(['claude-code', 'codex', 'gemini', 'cursor', 'qwen', 'openco
 
 function normalizeAgentType(raw) {
   const value = String(raw || 'claude-code').toLowerCase().trim();
+  if (value === 'pixbot' || value === 'local') return 'claude-code';
   if (value === 'claude') return 'claude-code';
   if (value === 'grok-build' || value === 'xai-grok' || value === 'spacexai') return 'grok';
   if (CLI.has(value) || value === 'claude') return value === 'claude' ? 'claude-code' : value;
   return 'claude-code';
+}
+
+function isPixbotHttpModel(model) {
+  return String(model || '').includes('::');
+}
+
+function wantsCliFor(r, model) {
+  if (isPixbotHttpModel(model)) return false;
+  return r.explicitAgent || (CLI.has(r.agentType) && r.agentType !== 'pixbot' && r.explicitAgent);
 }
 
 function parseUserRouting(rawText) {
@@ -94,6 +104,18 @@ for (const c of cases) {
     got: { agent: r.agentType, wantsCli: r.wantsCli, model: r.model, explicit: r.explicitAgent },
     want: c.want,
   }));
+}
+
+// HTTP composite model + soft-default CLI agent → still HTTP (not Claude with bad model id)
+{
+  const r = parseUserRouting('yardimci olur musun', 'grok');
+  const httpModel = 'cerebras-a7b52dc1::zai-glm-4.7';
+  const wantsCli = isPixbotHttpModel(httpModel)
+    ? false
+    : wantsCliFor(r, httpModel, { softUsed: r.softUsed });
+  const pass = wantsCli === false && isPixbotHttpModel(httpModel) === true;
+  if (!pass) failed += 1;
+  console.log(pass ? 'PASS' : 'FAIL', 'http-model-blocks-cli', { softUsed: r.softUsed, agent: r.agentType, wantsCli });
 }
 
 const schedCases = [

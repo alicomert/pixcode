@@ -26,6 +26,8 @@ const VALID = new Set([
 
 export function normalizeAgentType(raw) {
   const value = String(raw || 'claude-code').toLowerCase().trim();
+  // HTTP chat brand — never treat as a CLI binary
+  if (value === 'pixbot' || value === 'local') return 'claude-code';
   if (value === 'claude') return 'claude-code';
   if (value === 'grok-build' || value === 'xai-grok' || value === 'spacexai') return 'grok';
   if (VALID.has(value)) return value === 'claude' ? 'claude-code' : value;

@@ -79,8 +79,25 @@ export const CLI_AGENT_IDS = new Set([
 ]);
 
 export function isCliAgentType(agentType) {
-  const a = normalizeAgentType(agentType || '');
-  return CLI_AGENT_IDS.has(a) && a !== 'pixbot';
+  const raw = String(agentType || '').toLowerCase().trim();
+  if (!raw || raw === 'pixbot' || raw === 'local') return false;
+  // Do NOT call normalizeAgentType() here — it maps unknowns to claude-code.
+  if (raw === 'claude' || raw === 'claude-code') return true;
+  if (raw === 'grok-build' || raw === 'xai-grok' || raw === 'spacexai') return true;
+  return CLI_AGENT_IDS.has(raw);
+}
+
+/**
+ * PixBot multi-provider model ids look like `providerUuid::model-name`.
+ * These are OpenAI-compatible HTTP models — never pass them to Claude/Grok CLI.
+ */
+export function isPixbotHttpModel(model) {
+  const m = String(model || '').trim();
+  if (!m) return false;
+  if (m.includes('::')) return true;
+  // provider-prefixed ids without :: (rare)
+  if (/^[a-f0-9]{8,}-[a-f0-9-]+::/i.test(m)) return true;
+  return false;
 }
 
 export function parseUserRouting(rawText, softDefaultAgent = null) {
@@ -517,17 +534,23 @@ export async function handleChatTurnStream({
   const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
+  const httpModel = isPixbotHttpModel(model) || isPixbotHttpModel(modelHint);
   const actionDoIt = /\b(sen\s+yap|otomatik(?:\s+yap)?|kendin\s+yap|dosyay[ıi]\s+oluştur|dosyayi\s+olustur|uygula|implement|just\s+do\s+it|do\s+it\s+yourself|apply\s+(?:it|this)|write\s+the\s+file)\b/i.test(raw)
     || /kanka\s+bunu\s+sen|bunu\s+sen\s+yap/i.test(raw);
   let streamAgent = routing.agentType;
-  if (actionDoIt && !isCliAgentType(streamAgent)) {
-    streamAgent = normalizeAgentType(conv.defaultAgent || softAgent || 'opencode');
+  if (actionDoIt && !httpModel && !isCliAgentType(streamAgent)) {
+    const fallback = conv.defaultAgent && isCliAgentType(conv.defaultAgent)
+      ? conv.defaultAgent
+      : (softAgent && isCliAgentType(softAgent) ? softAgent : 'opencode');
+    streamAgent = normalizeAgentType(fallback);
   }
-  const wantsCli = forceCli
+  // HTTP picker model wins over stale conversation CLI default
+  const wantsCli = !httpModel && (
+    forceCli
     || routing.explicitAgent
     || actionDoIt
-    || isCliAgentType(streamAgent)
-    || (Boolean(routing.softUsed) && isCliAgentType(streamAgent) && !smallTalk && String(routing.prompt || '').length > 6);
+    || (Boolean(routing.softUsed) && isCliAgentType(streamAgent) && !smallTalk && String(routing.prompt || '').length > 6)
+  );
 
   // CLI or real schedule → full non-stream turn (creates NanoClaw job / spawns CLI)
   if (wantsCli || schedule) {
@@ -537,7 +560,8 @@ export async function handleChatTurnStream({
       conversationId: conv.id,
       message: raw,
       agentType: isCliAgentType(streamAgent) ? streamAgent : softAgent,
-      model: model || modelHint,
+      // Never feed provider::model composite ids into CLI spawns
+      model: wantsCli && isPixbotHttpModel(model) ? null : (model || modelHint),
       projectPath,
       forceCli: wantsCli,
       scheduleTools,
@@ -714,23 +738,39 @@ export async function handleChatTurn({
   const model = modelHint || routing.model || conv.defaultModel || null;
   const schedule = detectScheduleIntent(routing.prompt);
   const smallTalk = looksLikeSmallTalk(routing.prompt);
+  // Dropdown models like `cerebras-xxx::zai-glm-4.7` are HTTP only — never CLI argv.
+  const httpModel = isPixbotHttpModel(model) || isPixbotHttpModel(modelHint);
   // "sen yap / otomatik yap / dosyayı oluştur" → must run a real agent, not paste instructions
   const actionDoIt = /\b(sen\s+yap|otomatik(?:\s+yap)?|kendin\s+yap|dosyay[ıi]\s+oluştur|dosyayi\s+olustur|uygula|implement|just\s+do\s+it|do\s+it\s+yourself|apply\s+(?:it|this)|write\s+the\s+file)\b/i.test(raw)
     || /kanka\s+bunu\s+sen|bunu\s+sen\s+yap/i.test(raw);
-  if (actionDoIt && (!agentType || agentType === 'pixbot' || agentType === 'local')) {
-    agentType = normalizeAgentType(conv.defaultAgent || softAgent || 'opencode');
+  if (actionDoIt && !httpModel && (!agentType || agentType === 'pixbot' || agentType === 'local')) {
+    // Only fall back to a real CLI agent name — never "pixbot"
+    const fallback = conv.defaultAgent && isCliAgentType(conv.defaultAgent)
+      ? conv.defaultAgent
+      : (softAgent && isCliAgentType(softAgent) ? softAgent : 'opencode');
+    agentType = normalizeAgentType(fallback);
   }
-  // Any CLI agent (/grok, "grok ile", soft default opencode, …) — NEVER PixBot HTTP
-  const wantsCli = forceCli
+  // CLI only when explicitly asked (/grok, "grok ile", sen yap) — NOT because
+  // a previous turn left defaultAgent=grok while the UI model picker is HTTP.
+  const wantsCli = !httpModel && (
+    forceCli
     || routing.explicitAgent
     || actionDoIt
-    || isCliAgentType(agentType)
-    || (Boolean(routing.softUsed) && isCliAgentType(agentType) && !smallTalk && String(routing.prompt || '').length > 6);
+    || (Boolean(routing.softUsed) && isCliAgentType(agentType) && !smallTalk && String(routing.prompt || '').length > 6)
+  );
 
   // Remember last explicit CLI agent for follow-ups ("sistemi yap")
-  if (routing.explicitAgent && agentType && agentType !== 'pixbot') {
+  if (routing.explicitAgent && agentType && agentType !== 'pixbot' && isCliAgentType(agentType)) {
     conv.defaultAgent = agentType;
-    if (model) conv.defaultModel = model;
+    // Only store CLI-native model ids on the conversation — never provider::model
+    if (model && !isPixbotHttpModel(model)) conv.defaultModel = model;
+    store.conversations[conv.id] = conv;
+    persist();
+  }
+  // Persist HTTP model selection for next API turns
+  if (!wantsCli && httpModel && model) {
+    conv.defaultModel = model;
+    conv.defaultAgent = 'pixbot';
     store.conversations[conv.id] = conv;
     persist();
   }
@@ -938,8 +978,83 @@ export async function handleChatTurn({
   }
 
   // Explicit CLI path (/opencode, /claude, /grok, "grok ile", …)
-  if (!isCliAgentType(agentType)) {
-    agentType = normalizeAgentType(conv.defaultAgent || softAgent || 'opencode');
+  // Guard: never call multi-runner with pixbot / HTTP composite models
+  if (!isCliAgentType(agentType) || agentType === 'pixbot' || httpModel) {
+    // Should not reach here — recover to HTTP if credentials exist
+    const creds = await getPixbotCredentials().catch(() => null);
+    if (creds) {
+      try {
+        let scanContext = '';
+        if (projectPath) {
+          try {
+            const { buildProjectScanContext } = await import('./pixbot-llm.js');
+            scanContext = await buildProjectScanContext(projectPath);
+          } catch { /* ignore */ }
+        }
+        const historyMsgs = (store.messages[conv.id] || [])
+          .filter((m) => m.id !== userMsg.id)
+          .slice(-20)
+          .map((m) => ({
+            role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
+            content: String(m.content || '').slice(0, 8000),
+          }))
+          .filter((m) => m.content);
+        const completion = await pixbotChatCompletion({
+          messages: [
+            {
+              role: 'system',
+              content: buildPixbotSystemPrompt({
+                projectId: conv.projectId,
+                projectPath,
+                scanContext,
+              }),
+            },
+            ...historyMsgs,
+            { role: 'user', content: promptWithFiles || routing.prompt },
+          ],
+          model: model || conv.defaultModel || undefined,
+        });
+        const assistantMsg = appendMessage(conv.id, {
+          role: 'assistant',
+          content: completion.content,
+          kind: 'text',
+          agentType: 'pixbot',
+          meta: {
+            model: completion.model,
+            provider: completion.providerName || completion.source,
+            mode: 'api',
+            recoveredFromCliGuard: true,
+          },
+        });
+        return {
+          conversation: publicConversation(store.conversations[conv.id]),
+          messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+          proposals: [],
+          tasks: [],
+          mode: 'api',
+          agentType: 'pixbot',
+          model: completion.model,
+        };
+      } catch (apiError) {
+        const assistantMsg = appendMessage(conv.id, {
+          role: 'assistant',
+          content: `PixBot API hatası: ${apiError instanceof Error ? apiError.message : String(apiError)}`,
+          kind: 'error',
+          agentType: 'pixbot',
+        });
+        return {
+          conversation: publicConversation(store.conversations[conv.id]),
+          messages: [publicMessage(userMsg), publicMessage(assistantMsg)],
+          mode: 'error',
+          agentType: 'pixbot',
+        };
+      }
+    }
+    agentType = normalizeAgentType(
+      (conv.defaultAgent && isCliAgentType(conv.defaultAgent) && conv.defaultAgent)
+      || (softAgent && isCliAgentType(softAgent) && softAgent)
+      || 'opencode',
+    );
   }
 
   const history = (store.messages[conv.id] || [])
@@ -978,12 +1093,15 @@ export async function handleChatTurn({
   const sessionId = conv.agentSessions?.[agentType] || undefined;
   const groupFolder = String(conv.projectId || 'general').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
 
+  // CLI runners only accept native model ids — never provider::model composites
+  const cliModel = isPixbotHttpModel(model) ? undefined : (model || undefined);
+
   const run = await runPixcodeMultiAgent({
     prompt: fullPrompt || routing.prompt,
     groupFolder,
     sessionId,
     agentType,
-    model,
+    model: cliModel,
     projectPath,
     isScheduledTask: false,
   });
