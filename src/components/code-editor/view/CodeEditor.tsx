@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { unifiedMergeView } from '@codemirror/merge';
 import type { Extension } from '@codemirror/state';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useCodeEditorDocument } from '../hooks/useCodeEditorDocument';
@@ -41,6 +41,31 @@ export default function CodeEditor({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showDiff, setShowDiff] = useState(Boolean(file.diffInfo));
   const [markdownPreview, setMarkdownPreview] = useState(false);
+  const editorRootRef = useRef<HTMLDivElement>(null);
+
+  // Pop-out/fullscreen editors are modal surfaces. Lock page scrolling and
+  // restore focus to the file opener without trapping Tab, which CodeMirror
+  // uses for indentation and editor navigation.
+  useEffect(() => {
+    if (isSidebar) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    document.body.style.overflow = 'hidden';
+    const focusFrame = window.requestAnimationFrame(() => {
+      editorRootRef.current
+        ?.querySelector<HTMLElement>('[data-code-editor-close]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true });
+    };
+  }, [isSidebar]);
 
   useEffect(() => {
     setShowDiff(Boolean(file.diffInfo));
@@ -196,7 +221,17 @@ export default function CodeEditor({
   return (
     <>
       <style>{getEditorStyles(isDarkMode)}</style>
-      <div className={outerContainerClassName}>
+      <div
+        ref={editorRootRef}
+        className={outerContainerClassName}
+        {...(!isSidebar
+          ? {
+            role: 'dialog',
+            'aria-modal': true,
+            'aria-labelledby': 'pixcode-code-editor-title',
+          }
+          : {})}
+      >
         <div className={innerContainerClassName}>
           <CodeEditorHeader
             file={file}

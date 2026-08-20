@@ -101,12 +101,12 @@
     "projectFiles": "项目文件",
     "landing": {
       "title": "启动 Pixcode 工作区",
-      "description": "选择一个项目、开始新聊天，或用一个目标启动编排。编排会管理你选择的 CLI Agent，显示每一步，并直接展示错误。",
-      "startOrchestration": "启动编排",
-      "startOrchestrationDescription": "自动创建项目，并打开带有 Agent 控制和运行历史的编排界面。",
+      "description": "选择一个项目、开始新聊天，或为一个目标运行 Agent 自动化。NanoClaw 会协调你选择的 CLI Agent，显示任务进度，并直接展示错误。",
+      "startOrchestration": "启动 Agent 自动化",
+      "startOrchestrationDescription": "自动创建项目，并打开带有任务控制和运行历史的 Agent 自动化界面。",
       "startChat": "开始新聊天",
       "startChatDescription": "自动创建文件夹，并用单个 Agent 打开普通聊天界面。",
-      "sidebarHint": "从侧边栏选择现有项目时，聊天历史、文件、git 状态、任务和编排会保留在同一个主界面中。"
+      "sidebarHint": "从侧边栏选择现有项目时，聊天历史、文件、Git 状态、任务和 Agent 自动化会保留在同一个主界面中。"
     }
   },
   "fileTree": {

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '../../../../auth/context/AuthContext';
 import { useCredentialsSettings } from '../../../hooks/useCredentialsSettings';
 
 import ApiKeysSection from './sections/ApiKeysSection';
@@ -8,6 +9,11 @@ import NewApiKeyAlert from './sections/NewApiKeyAlert';
 
 export default function CredentialsSettingsTab() {
   const { t } = useTranslation('settings');
+  const { user } = useAuth();
+  const roleAllowsElevatedScopes = ['admin', 'owner'].includes(String(user?.role || '').toLowerCase());
+  const apiKeyScopes = Array.isArray(user?.api_key_scopes) ? user.api_key_scopes : [];
+  const canGrantElevatedScopes = roleAllowsElevatedScopes
+    && (!user?.api_key_id || apiKeyScopes.some((scope) => ['*', 'admin', 'system'].includes(String(scope))));
   const {
     apiKeys,
     githubCredentials,
@@ -16,6 +22,8 @@ export default function CredentialsSettingsTab() {
     setShowNewKeyForm,
     newKeyName,
     setNewKeyName,
+    newKeyScopes,
+    setNewKeyScopes,
     showNewGithubForm,
     setShowNewGithubForm,
     newGithubName,
@@ -30,9 +38,13 @@ export default function CredentialsSettingsTab() {
     createApiKey,
     deleteApiKey,
     toggleApiKey,
+    updateApiKeyScopes,
     createGithubCredential,
     deleteGithubCredential,
     toggleGithubCredential,
+    githubOAuthStatus,
+    githubOAuthError,
+    startGithubOAuth,
     copyToClipboard,
     dismissNewlyCreatedKey,
     cancelNewApiKeyForm,
@@ -62,11 +74,15 @@ export default function CredentialsSettingsTab() {
         apiKeys={apiKeys}
         showNewKeyForm={showNewKeyForm}
         newKeyName={newKeyName}
+        newKeyScopes={newKeyScopes}
+        canGrantElevatedScopes={canGrantElevatedScopes}
         onShowNewKeyFormChange={setShowNewKeyForm}
         onNewKeyNameChange={setNewKeyName}
+        onNewKeyScopesChange={setNewKeyScopes}
         onCreateApiKey={createApiKey}
         onCancelCreateApiKey={cancelNewApiKeyForm}
         onToggleApiKey={toggleApiKey}
+        onUpdateApiKeyScopes={updateApiKeyScopes}
         onDeleteApiKey={deleteApiKey}
       />
 
@@ -86,6 +102,9 @@ export default function CredentialsSettingsTab() {
         onCancelCreateGithubCredential={cancelNewGithubForm}
         onToggleGithubCredential={toggleGithubCredential}
         onDeleteGithubCredential={deleteGithubCredential}
+        githubOAuthStatus={githubOAuthStatus}
+        githubOAuthError={githubOAuthError}
+        onStartGithubOAuth={startGithubOAuth}
       />
 
     </div>

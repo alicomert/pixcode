@@ -25,6 +25,8 @@ export type MainContentProps = {
   onNavigateToSession: (targetSessionId: string) => void;
   onShowSettings: () => void;
   externalMessageUpdate: number;
+  /** Open the focused terminal-only surface (desktop and mobile). */
+  onEnterTerminalOnly?: () => void;
   /** Forwarded to the empty-state view so landing cards can create a
    *  pixcode-project-N and open the selected workspace surface. */
   onQuickStartSession?: () => void | Promise<void>;
@@ -41,6 +43,8 @@ export type MainContentHeaderProps = {
   isMobile: boolean;
   onMenuClick: () => void;
   onCloseSidePanel?: () => void;
+  /** Open the focused terminal-only surface from the mobile shell header. */
+  onEnterTerminalOnly?: () => void;
 };
 
 export type MainContentStateViewProps = {

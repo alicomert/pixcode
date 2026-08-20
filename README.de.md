@@ -3,7 +3,7 @@
   <h1>Pixcode</h1>
   <p><strong>Self-hosted Kontrollraum für AI-Coding-Agents.</strong></p>
   <p>
-    Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code und OpenCode in einer Weboberfläche: Chat, Shell, Dateien, Git, Orchestrierung, API-Keys, Plugins, Benachrichtigungen, Telegram und Desktop-/Server-Betrieb.
+    Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code und OpenCode in einer Weboberfläche: Chat, Shell, Dateien, Git, Agenten-Automatisierung, API-Keys, Plugins, Benachrichtigungen, Telegram und Desktop-/Server-Betrieb.
   </p>
   <p>
     <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
@@ -11,14 +11,18 @@
   <p>
     <a href="README.md">English</a> ·
     <a href="README.tr.md">Türkçe</a> ·
+    <a href="README.de.md" aria-current="page">Deutsch</a> ·
     <a href="README.ru.md">Русский</a> ·
     <a href="README.ja.md">日本語</a> ·
     <a href="README.ko.md">한국어</a> ·
-    <a href="README.zh-CN.md">简体中文</a>
+    <a href="README.zh-CN.md">简体中文</a> ·
+    <a href="README.es-ES.md">Español</a>
   </p>
 </div>
 
 ## Was ist Pixcode?
+
+> **Aktueller API-Hinweis (1.64.x):** Die frühere Workflow-UI/API unter `/api/orchestration/*` wurde in v1.55 entfernt. Für Multi-CLI-Aufgaben, Gespräche und Zeitpläne verwende NanoClaw (`/api/nanoclaw/*` oder das Alias `/api/tasks/*`). Für den gepflegten Production-Agent-Loop verwende `/api/production-agent-loop/*`. Historische Orchestrierungsabschnitte dienen nur noch als Migrationskontext.
 
 Pixcode macht deinen Laptop, Desktop-Rechner oder Linux-Server zu einem browserbasierten Arbeitsbereich für Coding-Agents. Statt Terminalfenster, CLI-Ausgaben, Dateimanager, Git-Ansicht und Provider-Einstellungen getrennt zu öffnen, bündelt Pixcode alles in einer lokalen Web-App.
 
@@ -32,20 +36,16 @@ Pixcode ist keine gehostete Cloud-IDE. Projekte, Credentials, Sessions, lokale D
 
 ## Screenshots
 
-| Workspace | Mobile Chat |
+| Workspace | Mobiler Workspace |
 | --- | --- |
-| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
-
-| CLI-Auswahl | Tools und MCP |
-| --- | --- |
-| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Mobiler Pixcode-Arbeitsbereich" width="260" /> |
 
 ## Funktionen
 
 ### Ein UI für mehrere CLIs
 
 - Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code und OpenCode.
-- Provider-Auth, API-Key-Credentials, OAuth-Paste, Install-Status, Modelllisten und CLI-Versionen unter Settings.
+- Provider-Auth, API-Key-Credentials, anbieterspezifische OAuth-Callback/Paste-Flows, Install-Status, Modelllisten und CLI-Versionen unter Settings. GitHub wird dort über OAuth verbunden.
 - Provider-native CLIs bleiben erhalten; Pixcode ergänzt Session-Management, WebSocket-Streaming, Benachrichtigungen, Dateikontext und Projektsteuerung.
 - Der UI-Zustand zeigt, ob ein CLI denkt, Tools ausführt, auf Freigabe wartet oder Ausgabe streamt.
 
@@ -62,25 +62,18 @@ Pixcode ist keine gehostete Cloud-IDE. Projekte, Credentials, Sessions, lokale D
 
 Pixcode beobachtet lokale Working-Tree-Änderungen. Der Command-Center-Modus in Quick Settings listet geänderte Dateien sofort auf, markiert neue Änderungen sichtbar und kann direkt zur betroffenen Datei springen. So bleibt nachvollziehbar, was ein Agent im Projekt geändert hat.
 
-### Multi-Agent-Orchestrierung
+### Agent-Automatisierung (NanoClaw + Production-Agent-Loop)
 
-Die Orchestrierung koordiniert mehrere CLI-Agents für ein gemeinsames Ziel.
+Die gepflegten Automatisierungsflächen sind nach Aufgabe getrennt:
 
-- **Agent Team**: Aufgaben nach Rollen wie Frontend, Backend, Review oder Docs aufteilen.
-- **Multi-model Review**: dieselbe Änderung mit mehreren Providern oder Modellen prüfen.
-- **Sequential Handoff**: Arbeitsschritte nacheinander übergeben.
-- **Decision Debate**: Lösungswege vergleichen, bevor implementiert wird.
+- **NanoClaw** führt Multi-CLI-Konversationen, einzelne Runs und dauerhafte
+  `once`/`interval`/`cron`-Zeitpläne mit Projektkontext aus.
+- **Production-Agent-Loop** übernimmt administrative Abläufe wie Issue-to-PR,
+  CI-Reparaturpläne, Review-Queues, Checkpoints und Scheduler-Jobs.
 
-Kontrollen:
-
-- Agents pro Lauf aktivieren oder deaktivieren,
-- Provider mehrfach verwenden,
-- Rolle, Stage, Label und Instruktion pro Agent setzen,
-- Modell pro Agent auswählen, auch für OpenCode,
-- Fallback-CLI für fehlerhafte Schritte definieren,
-- Workflow-DAG vorab anzeigen,
-- Run-Events streamen und aktive Runs abbrechen,
-- Orchestrierungsbereiche per Drag ändern.
+Die frühere UI und Routenfamilie `/api/orchestration/*` wurde in v1.55 entfernt.
+Verbleibende Orchestrierungsdokumente sind nur Migrationsgeschichte; neue Clients
+sollten die unten genannten gepflegten APIs verwenden.
 
 ### API, Telegram und Benachrichtigungen
 
@@ -93,12 +86,12 @@ curl http://localhost:3001/api/projects \
 
 Weitere Möglichkeiten:
 
-- `POST /api/agent` für nicht-interaktive Agent-Läufe.
-- `/api/orchestration/workflows/*` für Preview, Start, Streaming und Cancel von Workflows.
+- `POST /api/nanoclaw/run` für nicht-interaktive Multi-CLI-Agent-Läufe.
+- `/api/nanoclaw/*` (oder `/api/tasks/*`) für Chat, Agent-Läufe, geplante Aufgaben und Events; `/api/production-agent-loop/*` für Issue-to-PR, CI-Reparatur, Review-Queue und Snapshots.
 - Browser-Push und Telegram-Benachrichtigungen für abgeschlossene, fehlgeschlagene oder wartende Tasks.
 - Telegram-Pairing über kurzlebige Codes und optionaler Prompt-Bridge.
 
-OpenAPI: [`public/openapi.yaml`](public/openapi.yaml)
+Interaktive API-Referenz: [`public/api-docs.html`](public/api-docs.html). Auf einer laufenden Pixcode-Instanz liefern `GET /api/public/manifest` die Discovery und `GET /api/public/openapi` den aktuellen maschinenlesbaren API-Ausschnitt; [`public/openapi.yaml`](public/openapi.yaml) ist der gebündelte Release-Snapshot.
 
 ### Themes, Plugins und MCP
 

@@ -1,8 +1,11 @@
 {
   "name": "@pixelbyte-software/pixcode",
-  "version": "1.63.8",
-  "description": "Self-hosted AI coding agent control room for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode with chat, files, shell, Git, orchestration, API keys, Telegram, MCP, plugins, themes, and desktop/server deployment.",
+  "version": "1.64.2",
+  "description": "Self-hosted AI coding agent control room for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode with chat, files, shell, Git, NanoClaw task automation, production agent loop, scoped API keys, Telegram, MCP, plugins, themes, and desktop/server deployment.",
   "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "main": "dist-server/server/index.js",
   "bin": {
     "pixcode": "dist-server/server/cli.js"
@@ -13,9 +16,18 @@
     "shared/",
     "dist/",
     "dist-server/",
+    "public/logo.png",
+    "public/screenshots/",
     "scripts/",
     "files-manifest.json",
     "README.md",
+    "README.tr.md",
+    "README.de.md",
+    "README.ru.md",
+    "README.ja.md",
+    "README.ko.md",
+    "README.zh-CN.md",
+    "README.es-ES.md",
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md"
@@ -29,7 +41,8 @@
     "url": "https://github.com/alicomert/pixcode/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
     "dev": "npm run server:dev",
@@ -54,16 +67,25 @@
     "smoke:static-root": "node scripts/smoke/static-root-routing.mjs",
     "smoke:telegram-control": "node scripts/smoke/telegram-control.mjs",
     "smoke:update-ux": "node scripts/smoke/update-ux.mjs",
+    "smoke:update-lock": "node scripts/smoke/system-update-lock.mjs",
+    "smoke:public-url": "node scripts/smoke/public-url.mjs",
+    "smoke:deployment": "node scripts/smoke/deployment-hardening.mjs",
+    "smoke:terminal-only": "node scripts/smoke/terminal-only-mode.mjs",
+    "smoke:remote-setup": "node scripts/smoke/remote-setup-clarity.mjs",
+    "smoke:github-oauth": "node scripts/smoke/github-oauth.mjs",
+    "smoke:public-api": "node scripts/smoke/public-api-contract.mjs",
+    "smoke:prepared-publish": "node scripts/smoke/prepared-publish.mjs",
     "smoke:v138-diagnostics": "node scripts/smoke/v138-diagnostics.mjs",
     "smoke:v138-desktop": "node scripts/smoke/v138-desktop-release-hardening.mjs",
     "smoke:v138-completion": "node scripts/smoke/v138-completion.mjs",
     "smoke:v138-issues": "node scripts/smoke/v138-issue-planner.mjs",
     "issues:v1.38": "node scripts/github/create-v1.38-issues.mjs --apply",
     "start": "npm run build && npm run server",
-    "release": "./release.sh",
+    "release": "node scripts/release.mjs",
+    "publish:prepared": "node scripts/publish-prepared.mjs",
     "prepublishOnly": "npm run build && node scripts/generate-files-manifest.mjs && node scripts/verify-package-assets.mjs",
     "postinstall": "node scripts/fix-node-pty.js",
-    "prepare": "husky",
+    "prepare": "node scripts/prepare.mjs",
     "update:platform": "./update-platform.sh"
   },
   "keywords": [
@@ -74,13 +96,12 @@
     "self-hosted developer tool",
     "coding agent ui",
     "coding agent dashboard",
-    "multi-agent orchestration",
-    "agent orchestration",
+    "NanoClaw",
+    "multi-CLI task automation",
+    "production agent loop",
     "openai compatible api",
     "claude code",
     "claude-code",
-    "claude-code-ui",
-    "claude code ui",
     "anthropic",
     "codex",
     "codex-ui",
@@ -129,7 +150,7 @@
     "gray-matter": "^4.0.3",
     "jsonwebtoken": "^9.0.2",
     "mime-types": "^3.0.1",
-    "monaco-editor": "^0.55.1",
+    "monaco-editor": "^0.56.0",
     "multer": "^2.0.1",
     "node-fetch": "^2.7.0",
     "node-pty": "^1.2.0-beta.12",
@@ -203,14 +224,14 @@
     "react-error-boundary": "^4.1.2",
     "react-i18next": "^16.5.3",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^6.8.1",
+    "react-router-dom": "^7.18.2",
     "react-syntax-highlighter": "^16.1.1",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
     "release-it": "^19.0.5",
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
-    "sharp": "^0.34.2",
+    "sharp": "^0.35.3",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.4.0",
     "tsc-alias": "^1.8.16",
@@ -224,6 +245,8 @@
     "server/**/*.{js,ts}": "eslint"
   },
   "overrides": {
-    "undici": ">=6.23.1"
+    "undici": ">=6.23.1",
+    "dompurify": ">=3.4.13",
+    "esbuild": ">=0.28.1"
   }
 }

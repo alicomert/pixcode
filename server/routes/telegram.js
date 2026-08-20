@@ -1,5 +1,6 @@
 import express from 'express';
 
+import { requireAdmin } from '../middleware/auth.js';
 import { telegramLinksDb } from '../database/db.js';
 import {
   createPairingCode,
@@ -48,7 +49,10 @@ router.get('/status', (req, res) => {
 });
 
 // POST /api/telegram/bot — save token and start the bot
-router.post('/bot', async (req, res) => {
+// The bot token and polling process are installation-wide state.  Keep these
+// controls administrator-only; regular members can still pair their own
+// Telegram account and manage personal notification/control preferences below.
+router.post('/bot', requireAdmin, async (req, res) => {
   const { token } = req.body || {};
   if (typeof token !== 'string' || token.length < 10) {
     return res.status(400).json({ error: 'A valid bot token is required' });
@@ -64,7 +68,7 @@ router.post('/bot', async (req, res) => {
 });
 
 // DELETE /api/telegram/bot — stop and remove the configured bot
-router.delete('/bot', async (req, res) => {
+router.delete('/bot', requireAdmin, async (req, res) => {
   try {
     await removeBotConfig();
     res.json({ success: true, bot: getBotState() });
@@ -75,7 +79,7 @@ router.delete('/bot', async (req, res) => {
 });
 
 // POST /api/telegram/bot/stop — stop polling but keep the token
-router.post('/bot/stop', async (req, res) => {
+router.post('/bot/stop', requireAdmin, async (req, res) => {
   try {
     await stopBot();
     res.json({ success: true, bot: getBotState() });

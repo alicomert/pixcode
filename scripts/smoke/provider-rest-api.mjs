@@ -80,7 +80,12 @@ for (const provider of providers) {
 }
 
 console.log(JSON.stringify({ apiUrl, projectPath, results }, null, 2));
-process.exit(results.every((result) => result.status === 'ok') ? 0 : 1);
+// Let undici/AbortSignal teardown complete before Node exits.  Calling
+// process.exit() here can trip a Windows libuv assertion
+// (`UV_HANDLE_CLOSING`) after a provider response even when every provider
+// result is successful.  Setting exitCode preserves the smoke status while
+// allowing the event loop to close its HTTP handles cleanly.
+process.exitCode = results.every((result) => result.status === 'ok') ? 0 : 1;
 
 function parseModelMap(raw) {
   try {

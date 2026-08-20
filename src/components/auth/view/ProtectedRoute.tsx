@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { IS_PLATFORM } from '../../../constants/config';
+import { PLATFORM_AUTH_BYPASS_ENABLED } from '../../../constants/config';
 import { useAuth } from '../context/AuthContext';
 import Onboarding from '../../onboarding/view/Onboarding';
 
@@ -19,7 +19,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <AuthLoadingScreen />;
   }
 
-  if (IS_PLATFORM) {
+  if (PLATFORM_AUTH_BYPASS_ENABLED) {
     if (!hasCompletedOnboarding) {
       return <Onboarding onComplete={refreshOnboardingStatus} />;
     }

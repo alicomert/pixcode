@@ -12,7 +12,7 @@ import { useFileTreeUpload } from '../hooks/useFileTreeUpload';
 import type { FileTreeImageSelection, FileTreeNode } from '../types/types';
 import { formatFileSize, formatRelativeTime, isImageFile } from '../utils/fileTreeUtils';
 import { Project } from '../../../types/app';
-import { ScrollArea, Input } from '../../../shared/view/ui';
+import { Dialog, DialogContent, DialogTitle, Input, ScrollArea } from '../../../shared/view/ui';
 
 import FileTreeBody from './FileTreeBody';
 import FileTreeDetailedColumns from './FileTreeDetailedColumns';
@@ -413,47 +413,64 @@ export default function FileTree({
 
       {/* Delete Confirmation Dialog */}
       {operations.deleteConfirmation.isOpen && operations.deleteConfirmation.item && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50">
-          <div className="mx-4 max-w-sm rounded-lg border border-border bg-background p-4 shadow-lg">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-full bg-red-100 p-2 dark:bg-red-900/30">
-                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) operations.handleCancelDelete();
+          }}
+        >
+          <DialogContent
+            aria-labelledby="pixcode-file-tree-delete-title"
+            className="w-[calc(100%-2rem)] max-w-sm p-0"
+          >
+            <DialogTitle id="pixcode-file-tree-delete-title">
+              {t('fileTree.delete.title', 'Delete {{type}}', {
+                type: operations.deleteConfirmation.item.type === 'directory' ? 'Folder' : 'File'
+              })}
+            </DialogTitle>
+            <div className="p-4">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-full bg-red-100 p-2 dark:bg-red-900/30">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-foreground">
+                    {t('fileTree.delete.title', 'Delete {{type}}', {
+                      type: operations.deleteConfirmation.item.type === 'directory' ? 'Folder' : 'File'
+                    })}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {operations.deleteConfirmation.item.name}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-medium text-foreground">
-                  {t('fileTree.delete.title', 'Delete {{type}}', {
-                    type: operations.deleteConfirmation.item.type === 'directory' ? 'Folder' : 'File'
-                  })}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {operations.deleteConfirmation.item.name}
-                </p>
+              <p className="mb-4 text-sm text-muted-foreground">
+                {operations.deleteConfirmation.item.type === 'directory'
+                  ? t('fileTree.delete.folderWarning', 'This folder and all its contents will be permanently deleted.')
+                  : t('fileTree.delete.fileWarning', 'This file will be permanently deleted.')}
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={operations.handleCancelDelete}
+                  disabled={operations.operationLoading}
+                  className="min-h-11 rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent"
+                >
+                  {t('common.cancel', 'Cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={operations.handleConfirmDelete}
+                  disabled={operations.operationLoading}
+                  className="flex min-h-11 items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {operations.operationLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t('fileTree.delete.confirm', 'Delete')}
+                </button>
               </div>
             </div>
-            <p className="mb-4 text-sm text-muted-foreground">
-              {operations.deleteConfirmation.item.type === 'directory'
-                ? t('fileTree.delete.folderWarning', 'This folder and all its contents will be permanently deleted.')
-                : t('fileTree.delete.fileWarning', 'This file will be permanently deleted.')}
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={operations.handleCancelDelete}
-                disabled={operations.operationLoading}
-                className="rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent"
-              >
-                {t('common.cancel', 'Cancel')}
-              </button>
-              <button
-                onClick={operations.handleConfirmDelete}
-                disabled={operations.operationLoading}
-                className="flex items-center gap-2 rounded-md bg-red-600 px-3 py-1.5 text-sm text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-              >
-                {operations.operationLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {t('fileTree.delete.confirm', 'Delete')}
-              </button>
-            </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Toast Notification */}

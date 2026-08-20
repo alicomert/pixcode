@@ -224,8 +224,8 @@ async function spawnGemini(command, options = {}, ws) {
         spawnArgs = ['-c', 'exec "$0" "$@"', geminiPath, ...args];
     }
 
-    // Pixcode UI-saved API key (stored in ~/.pixcode/provider-credentials.json)
-    // overlays on top of process.env so Gemini picks it up without the user
+    // The Pixcode UI-saved API key is loaded from the encrypted credential
+    // store and overlays process.env so Gemini picks it up without the user
     // exporting GEMINI_API_KEY in their shell.
     const spawnEnv = await buildSpawnEnv('gemini');
 

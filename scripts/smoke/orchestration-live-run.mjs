@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+import {
+  skipIfOrchestrationApiRetired,
+  skipIfOrchestrationRetired,
+} from './_orchestration-retired.mjs';
+
 const baseUrl = process.env.PIXCODE_BASE_URL || 'http://127.0.0.1:3001';
 const apiKey = process.env.PIXCODE_API_KEY;
 const goal = process.env.PIXCODE_LIVE_GOAL;
@@ -7,15 +12,7 @@ const timeoutMs = Number.parseInt(process.env.PIXCODE_LIVE_TIMEOUT_MS || '120000
 const minAgentOutputs = Number.parseInt(process.env.PIXCODE_LIVE_MIN_AGENT_OUTPUTS || '2', 10);
 const workflowId = process.env.PIXCODE_LIVE_WORKFLOW_ID || 'agent_team';
 
-if (!apiKey) {
-  console.error('PIXCODE_API_KEY is required.');
-  process.exit(1);
-}
-
-if (!goal) {
-  console.error('PIXCODE_LIVE_GOAL is required.');
-  process.exit(1);
-}
+if (skipIfOrchestrationRetired('orchestration live-run smoke')) process.exit(0);
 
 function parseJsonEnv(name) {
   const raw = process.env[name];
@@ -89,6 +86,16 @@ async function cancelRun(runId) {
 }
 
 async function main() {
+  if (await skipIfOrchestrationApiRetired({ baseUrl, label: 'orchestration live-run smoke' })) return;
+  if (!apiKey) {
+    console.error('PIXCODE_API_KEY is required.');
+    process.exit(1);
+  }
+  if (!goal) {
+    console.error('PIXCODE_LIVE_GOAL is required.');
+    process.exit(1);
+  }
+
   const agents = parseJsonEnv('PIXCODE_LIVE_AGENTS_JSON');
   assert(Array.isArray(agents) && agents.length > 0, 'PIXCODE_LIVE_AGENTS_JSON must be a non-empty array.');
 

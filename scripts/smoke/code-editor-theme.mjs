@@ -7,7 +7,9 @@ const surface = read('src/components/code-editor/view/subcomponents/CodeEditorSu
 const styles = read('src/components/code-editor/utils/editorStyles.ts');
 const editorSettings = read('src/components/code-editor/hooks/useCodeEditorSettings.ts');
 const settingsController = read('src/components/settings/hooks/useSettingsController.ts');
-const settingsConstants = read('src/components/settings/constants/constants.ts');
+// Settings defaults now live with the controller rather than a standalone
+// constants module. Keep the smoke portable across the refactor.
+const settingsConstants = read('src/components/settings/hooks/useSettingsController.ts');
 const themeContext = read('src/contexts/ThemeContext.jsx');
 
 assert.match(

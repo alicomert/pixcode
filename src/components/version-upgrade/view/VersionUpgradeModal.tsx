@@ -124,7 +124,72 @@ export function VersionUpgradeModal({
     const [restartRequiresConfirmation, setRestartRequiresConfirmation] = useState(false);
     const outputRef = useRef<HTMLDivElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
+    const onCloseRef = useRef(onClose);
     const pollingJobIdRef = useRef<string | null>(null);
+    const isBusy = restartPhase === 'restarting' || restartPhase === 'waiting';
+    const isBusyRef = useRef(isBusy);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
+    useEffect(() => {
+        isBusyRef.current = isBusy;
+    }, [isBusy]);
+
+    // Keep the release dialog usable on keyboard and mobile: lock the page
+    // behind it, trap focus, and restore the trigger after it closes.
+    useEffect(() => {
+        if (!isOpen) return undefined;
+
+        const previousOverflow = document.body.style.overflow;
+        const previouslyFocused = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        document.body.style.overflow = 'hidden';
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Tab') {
+                const focusable = Array.from(
+                    modalRef.current?.querySelectorAll<HTMLElement>(
+                        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+                    ) ?? [],
+                ).filter((element) => element.getClientRects().length > 0);
+                if (focusable.length > 0) {
+                    const first = focusable[0];
+                    const last = focusable[focusable.length - 1];
+                    const activeElement = document.activeElement;
+                    if (event.shiftKey && (activeElement === first || !modalRef.current?.contains(activeElement))) {
+                        event.preventDefault();
+                        last.focus({ preventScroll: true });
+                    } else if (!event.shiftKey && (activeElement === last || !modalRef.current?.contains(activeElement))) {
+                        event.preventDefault();
+                        first.focus({ preventScroll: true });
+                    }
+                }
+                return;
+            }
+
+            if (event.key !== 'Escape' || isBusyRef.current) return;
+            event.preventDefault();
+            onCloseRef.current();
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        const focusFrame = window.requestAnimationFrame(() => {
+            modalRef.current
+                ?.querySelector<HTMLElement>('[data-version-upgrade-close]')
+                ?.focus({ preventScroll: true });
+        });
+
+        return () => {
+            window.cancelAnimationFrame(focusFrame);
+            document.removeEventListener('keydown', handleKeyDown);
+            document.body.style.overflow = previousOverflow;
+            previouslyFocused?.focus({ preventScroll: true });
+        };
+    }, [isOpen]);
+
     useGsapEntrance(modalRef, 'modal');
     // True only when a pending restart target is strictly newer than what is running.
     const actionablePendingRestart = Boolean(
@@ -515,12 +580,11 @@ export function VersionUpgradeModal({
 
     if (!isOpen) return null;
 
-    const isBusy = restartPhase === 'restarting' || restartPhase === 'waiting';
-
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)]">
             {/* Backdrop */}
             <button
+                type="button"
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm"
                 onClick={isBusy ? undefined : onClose}
                 aria-label={t('versionUpdate.ariaLabels.closeModal')}
@@ -530,7 +594,10 @@ export function VersionUpgradeModal({
             {/* Modal */}
             <div
                 ref={modalRef}
-                className="relative mx-4 max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="pixcode-version-upgrade-title"
+                className="relative mx-2 max-h-[90vh] w-[calc(100%-1rem)] max-w-2xl space-y-4 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:mx-4 sm:w-full sm:p-6"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between">
@@ -541,7 +608,7 @@ export function VersionUpgradeModal({
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            <h2 id="pixcode-version-upgrade-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                                 {isUpdateAvailable
                                     ? t('versionUpdate.title')
                                     : t('versionUpdate.releaseNotesTitle', { defaultValue: 'Release Notes' })}
@@ -554,9 +621,12 @@ export function VersionUpgradeModal({
                         </div>
                     </div>
                     <button
+                        type="button"
+                        data-version-upgrade-close
                         onClick={onClose}
                         disabled={isBusy}
-                        className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                        aria-label={t('versionUpdate.ariaLabels.closeModal')}
                     >
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

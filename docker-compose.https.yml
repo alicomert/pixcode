@@ -1,0 +1,67 @@
+# Optional HTTPS overlay. The base compose file remains LAN/local friendly.
+# Set PUBLIC_IP (or PIXCODE_DOMAIN) before starting this overlay. The Caddy
+# container derives `pixcode.<PUBLIC_IP>.<PUBLIC_PROXY_DOMAIN>` at runtime so
+# Compose never has to interpolate a nested variable default.
+services:
+  pixcode:
+    # The base compose file publishes 3001 for LAN/local use.  In the HTTPS
+    # overlay keep that port reachable only from the host itself; Caddy talks
+    # to Pixcode over the private compose network and is the only public edge.
+    # Compose normally merges list values from the base file.  `!override`
+    # prevents the public `3001:3001` base mapping from surviving alongside
+    # this loopback-only mapping when the HTTPS overlay is applied.
+    ports: !override
+      - "127.0.0.1:3001:3001"
+    environment:
+      PUBLIC_IP: "${PUBLIC_IP:-}"
+      PUBLIC_PROXY_DOMAIN: "${PUBLIC_PROXY_DOMAIN:-sslip.io}"
+      PUBLIC_PROXY_PREFIX: "${PUBLIC_PROXY_PREFIX:-pixcode}"
+      PUBLIC_SCHEME: "https"
+      TRUST_PROXY_HOPS: "1"
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
+
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: pixcode-caddy
+    restart: unless-stopped
+    depends_on:
+      pixcode:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # The command below derives PIXCODE_DOMAIN inside the container. Keeping
+      # this as a plain variable avoids Compose's ambiguous nested-default
+      # interpolation and still permits an explicit real domain.
+      PIXCODE_DOMAIN: "${PIXCODE_DOMAIN:-}"
+      PUBLIC_IP: "${PUBLIC_IP:-}"
+      PUBLIC_PROXY_DOMAIN: "${PUBLIC_PROXY_DOMAIN:-sslip.io}"
+      PUBLIC_PROXY_PREFIX: "${PUBLIC_PROXY_PREFIX:-pixcode}"
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        if [ -z "$${PIXCODE_DOMAIN}" ]; then
+          if [ -n "$${PUBLIC_IP}" ]; then
+            export PIXCODE_DOMAIN="$${PUBLIC_PROXY_PREFIX}.$${PUBLIC_IP}.$${PUBLIC_PROXY_DOMAIN}";
+          else
+            echo 'PUBLIC_IP or PIXCODE_DOMAIN is required for the HTTPS overlay.' >&2;
+            exit 64;
+          fi;
+        fi;
+        case "$${PIXCODE_DOMAIN}" in
+          ''|*[!A-Za-z0-9.-]*)
+            echo 'PIXCODE_DOMAIN must contain only DNS hostname characters.' >&2;
+            exit 64;
+            ;;
+        esac;
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

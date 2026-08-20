@@ -214,7 +214,7 @@
   <a href="/" class="topbar-brand">
     <img src="/logo.svg" alt="Pixcode" />
     <span data-i18n="title">Pixcode API</span>
-    <span class="badge" data-i18n="badge">v1.36</span>
+    <span class="badge" data-i18n="badge">current</span>
   </a>
   <div class="topbar-spacer"></div>
   <div class="topbar-actions">
@@ -228,7 +228,7 @@
       <option value="ru">Русский</option>
       <option value="zh-CN">中文</option>
     </select>
-    <a href="/openapi.yaml" class="btn" download>
+    <a href="openapi.yaml" class="btn" download>
       <span class="icon" aria-hidden="true">⬇</span><span data-i18n="downloadSpec">Download spec</span>
     </a>
     <a href="/" class="btn primary">
@@ -242,7 +242,7 @@
   <input
     id="api-key-input"
     type="password"
-    placeholder="ck_..."
+    placeholder="px_..."
     autocomplete="off"
     spellcheck="false"
   />
@@ -252,33 +252,35 @@
 
 <section class="quick-guide" aria-labelledby="quick-guide-title">
   <div>
-    <h2 id="quick-guide-title" data-i18n="guide.title">Orchestration API quick start</h2>
+    <h2 id="quick-guide-title" data-i18n="guide.title">NanoClaw API quick start</h2>
     <p data-i18n="guide.body">
-      Use role-based metadata to preview, run, stream, and cancel multi-agent work modes. Instructions and model ids are optional; omit model to use CLI settings.
+      Use the maintained NanoClaw task API for multi-CLI runs and schedules. The
+      older <code>/api/orchestration/workflows/*</code> routes were retired in
+      v1.55; use the production agent loop for admin review and CI automation.
     </p>
-    <div class="guide-grid" aria-label="Orchestration endpoints">
+    <div class="guide-grid" aria-label="NanoClaw endpoints">
       <div class="guide-card">
-        <strong data-i18n="guide.preview">Preview DAG</strong>
-        <code>POST /api/orchestration/workflows/{id}/preview</code>
+        <strong data-i18n="guide.status">Engine status</strong>
+        <code>GET /api/nanoclaw/status</code>
       </div>
       <div class="guide-card">
-        <strong data-i18n="guide.run">Start run</strong>
-        <code>POST /api/orchestration/workflows/{id}/runs</code>
+        <strong data-i18n="guide.run">Run an agent</strong>
+        <code>POST /api/nanoclaw/run</code>
       </div>
       <div class="guide-card">
-        <strong data-i18n="guide.stream">Stream run</strong>
-        <code>GET /api/orchestration/workflows/runs/{runId}/events</code>
+        <strong data-i18n="guide.schedule">Schedule a task</strong>
+        <code>POST /api/nanoclaw/tasks</code>
       </div>
       <div class="guide-card">
-        <strong data-i18n="guide.context">Execution context</strong>
-        <code>GET /api/orchestration/workflows/context</code>
+        <strong data-i18n="guide.help">Full cookbook</strong>
+        <code>GET /api/nanoclaw/help</code>
       </div>
     </div>
   </div>
-  <pre class="curl-box"><code data-i18n="guide.curl">curl -H "Authorization: Bearer px_..." \
+  <pre class="curl-box"><code data-i18n="guide.curl">curl -X POST -H "X-API-Key: px_..." \
   -H "content-type: application/json" \
-  -d '{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}' \
-  /api/orchestration/workflows/agent_team/preview</code></pre>
+  -d '{"prompt":"summarize git status","agentType":"codex","projectId":"my-app"}' \
+  /api/nanoclaw/run</code></pre>
 </section>
 
 <div id="scalar-host">
@@ -295,147 +297,83 @@
   // do not. Future work: x-translations extension on each operation.
   const I18N = {
     en: {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: 'Download spec',
-      backToApp: 'Back to app',
-      'apiKey.label': 'API key',
-      'apiKey.notSet': 'Not set',
-      'apiKey.set': 'Saved',
+      title: 'Pixcode API', badge: 'current', downloadSpec: 'Download spec', backToApp: 'Back to app',
+      'apiKey.label': 'API key', 'apiKey.notSet': 'Not set', 'apiKey.set': 'Saved',
       'apiKey.hint': 'Generate one under Settings → API. Stored locally only.',
-      'guide.title': 'Orchestration API quick start',
-      'guide.body': 'Use role-based metadata to preview, run, stream, and cancel multi-agent work modes. Instructions and model ids are optional; omit model to use CLI settings.',
-      'guide.preview': 'Preview DAG',
-      'guide.run': 'Start run',
-      'guide.stream': 'Stream run',
-      'guide.context': 'Execution context',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'NanoClaw API quick start',
+      'guide.body': 'Use NanoClaw for multi-CLI runs and schedules. The former orchestration workflow routes were retired in v1.55; production-agent-loop is the maintained admin automation surface.',
+      'guide.status': 'Engine status', 'guide.run': 'Run an agent', 'guide.schedule': 'Schedule a task', 'guide.help': 'Full cookbook',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"summarize git status","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: 'Loading API reference…',
     },
     tr: {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: 'Spec\'i indir',
-      backToApp: 'Uygulamaya dön',
-      'apiKey.label': 'API anahtarı',
-      'apiKey.notSet': 'Boş',
-      'apiKey.set': 'Kaydedildi',
+      title: 'Pixcode API', badge: 'güncel', downloadSpec: 'Spec\'i indir', backToApp: 'Uygulamaya dön',
+      'apiKey.label': 'API anahtarı', 'apiKey.notSet': 'Boş', 'apiKey.set': 'Kaydedildi',
       'apiKey.hint': 'Ayarlar → API\'den oluşturun. Sadece bu cihazda saklanır.',
-      'guide.title': 'Orkestrasyon API hızlı başlangıç',
-      'guide.body': 'Çok ajanlı çalışma modlarını rol tabanlı metadata ile önizleyin, başlatın, izleyin ve iptal edin. Instruction ve model id opsiyoneldir; model verilmezse CLI ayarları kullanılır.',
-      'guide.preview': 'DAG önizle',
-      'guide.run': 'Run başlat',
-      'guide.stream': 'Run izle',
-      'guide.context': 'Çalışma bağlamı',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'NanoClaw API hızlı başlangıç',
+      'guide.body': 'Çok ajanlı çalıştırma ve zamanlama için NanoClaw API’yi kullanın. Eski orkestrasyon workflow rotaları v1.55’te kaldırıldı; yönetim otomasyonu için production-agent-loop kullanılır.',
+      'guide.status': 'Motor durumu', 'guide.run': 'Ajan çalıştır', 'guide.schedule': 'Görev zamanla', 'guide.help': 'Cookbook’u aç',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"git durumunu özetle","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: 'API referansı yükleniyor…',
     },
     de: {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: 'Spezifikation laden',
-      backToApp: 'Zurück zur App',
-      'apiKey.label': 'API-Schlüssel',
-      'apiKey.notSet': 'Nicht gesetzt',
-      'apiKey.set': 'Gespeichert',
+      title: 'Pixcode API', badge: 'aktuell', downloadSpec: 'Spezifikation laden', backToApp: 'Zurück zur App',
+      'apiKey.label': 'API-Schlüssel', 'apiKey.notSet': 'Nicht gesetzt', 'apiKey.set': 'Gespeichert',
       'apiKey.hint': 'Unter Einstellungen → API erstellen. Nur lokal gespeichert.',
-      'guide.title': 'Orchestrierungs-API Schnellstart',
-      'guide.body': 'Verwenden Sie rollenbasierte Metadaten, um Multi-Agent-Arbeitsmodi vorzuschauen, zu starten, zu streamen und abzubrechen. Instructions und Model-IDs sind optional; ohne Model werden CLI-Einstellungen genutzt.',
-      'guide.preview': 'DAG-Vorschau',
-      'guide.run': 'Run starten',
-      'guide.stream': 'Run streamen',
-      'guide.context': 'Ausführungskontext',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'NanoClaw API Schnellstart',
+      'guide.body': 'NanoClaw führt Multi-CLI-Aufgaben und Zeitpläne aus. Die alten Orchestrierungs-Workflow-Routen wurden in v1.55 entfernt; für Admin-Automatisierung dient production-agent-loop.',
+      'guide.status': 'Motorstatus', 'guide.run': 'Agent ausführen', 'guide.schedule': 'Aufgabe planen', 'guide.help': 'Cookbook öffnen',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"git status zusammenfassen","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: 'API-Referenz wird geladen…',
     },
     it: {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: 'Scarica specifica',
-      backToApp: "Torna all'app",
-      'apiKey.label': 'Chiave API',
-      'apiKey.notSet': 'Non impostata',
-      'apiKey.set': 'Salvata',
+      title: 'Pixcode API', badge: 'attuale', downloadSpec: 'Scarica specifica', backToApp: "Torna all'app",
+      'apiKey.label': 'Chiave API', 'apiKey.notSet': 'Non impostata', 'apiKey.set': 'Salvata',
       'apiKey.hint': 'Generala in Impostazioni → API. Memorizzata solo localmente.',
-      'guide.title': 'Avvio rapido API di orchestrazione',
-      'guide.body': 'Usa metadata basati sui ruoli per visualizzare, avviare, seguire e annullare modalità multi-agente. Instruction e model id sono opzionali; senza model si usano le impostazioni CLI.',
-      'guide.preview': 'Anteprima DAG',
-      'guide.run': 'Avvia run',
-      'guide.stream': 'Stream run',
-      'guide.context': 'Contesto di esecuzione',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'Avvio rapido API NanoClaw',
+      'guide.body': 'Usa NanoClaw per esecuzioni multi-CLI e pianificazioni. Le vecchie route workflow di orchestrazione sono state ritirate in v1.55; production-agent-loop è la superficie admin mantenuta.',
+      'guide.status': 'Stato motore', 'guide.run': 'Esegui agente', 'guide.schedule': 'Pianifica attività', 'guide.help': 'Apri cookbook',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"riassumi lo stato git","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: 'Caricamento riferimento API…',
     },
     ja: {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: '仕様をダウンロード',
-      backToApp: 'アプリに戻る',
-      'apiKey.label': 'API キー',
-      'apiKey.notSet': '未設定',
-      'apiKey.set': '保存済み',
+      title: 'Pixcode API', badge: '最新', downloadSpec: '仕様をダウンロード', backToApp: 'アプリに戻る',
+      'apiKey.label': 'API キー', 'apiKey.notSet': '未設定', 'apiKey.set': '保存済み',
       'apiKey.hint': '設定 → API で生成してください。このデバイスのみに保存されます。',
-      'guide.title': 'オーケストレーション API クイックスタート',
-      'guide.body': 'ロールベースのメタデータでマルチエージェントの実行モードをプレビュー、開始、ストリーム、キャンセルできます。instruction と model id は任意で、model を省略すると CLI 設定を使います。',
-      'guide.preview': 'DAG をプレビュー',
-      'guide.run': 'Run を開始',
-      'guide.stream': 'Run をストリーム',
-      'guide.context': '実行コンテキスト',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'NanoClaw API クイックスタート',
+      'guide.body': 'NanoClaw でマルチ CLI の実行とスケジュールを管理します。旧オーケストレーション workflow ルートは v1.55 で廃止され、管理自動化には production-agent-loop を使用します。',
+      'guide.status': 'エンジン状態', 'guide.run': 'エージェントを実行', 'guide.schedule': 'タスクを予約', 'guide.help': 'Cookbook を開く',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"git の状態を要約","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: 'API リファレンスを読み込み中…',
     },
     ko: {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: '스펙 다운로드',
-      backToApp: '앱으로 돌아가기',
-      'apiKey.label': 'API 키',
-      'apiKey.notSet': '미설정',
-      'apiKey.set': '저장됨',
+      title: 'Pixcode API', badge: '최신', downloadSpec: '스펙 다운로드', backToApp: '앱으로 돌아가기',
+      'apiKey.label': 'API 키', 'apiKey.notSet': '미설정', 'apiKey.set': '저장됨',
       'apiKey.hint': '설정 → API에서 생성하세요. 이 기기에만 저장됩니다.',
-      'guide.title': '오케스트레이션 API 빠른 시작',
-      'guide.body': '역할 기반 metadata로 멀티 에이전트 작업 모드를 미리보기, 시작, 스트리밍, 취소할 수 있습니다. instruction과 model id는 선택 사항이며, model을 생략하면 CLI 설정을 사용합니다.',
-      'guide.preview': 'DAG 미리보기',
-      'guide.run': 'Run 시작',
-      'guide.stream': 'Run 스트림',
-      'guide.context': '실행 컨텍스트',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'NanoClaw API 빠른 시작',
+      'guide.body': 'NanoClaw로 멀티 에이전트 실행과 예약을 처리합니다. 이전 오케스트레이션 workflow 경로는 v1.55에서 폐기되었으며 관리 자동화에는 production-agent-loop를 사용합니다.',
+      'guide.status': '엔진 상태', 'guide.run': '에이전트 실행', 'guide.schedule': '작업 예약', 'guide.help': 'Cookbook 열기',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"git 상태 요약","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: 'API 참조 로드 중…',
     },
     ru: {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: 'Скачать спецификацию',
-      backToApp: 'Вернуться в приложение',
-      'apiKey.label': 'API-ключ',
-      'apiKey.notSet': 'Не задан',
-      'apiKey.set': 'Сохранён',
+      title: 'Pixcode API', badge: 'текущая', downloadSpec: 'Скачать спецификацию', backToApp: 'Вернуться в приложение',
+      'apiKey.label': 'API-ключ', 'apiKey.notSet': 'Не задан', 'apiKey.set': 'Сохранён',
       'apiKey.hint': 'Создайте в Настройки → API. Хранится только локально.',
-      'guide.title': 'Быстрый старт API оркестрации',
-      'guide.body': 'Используйте role-based metadata, чтобы предварительно просматривать, запускать, стримить и отменять multi-agent work modes. instruction и model id необязательны; без model используются настройки CLI.',
-      'guide.preview': 'Просмотр DAG',
-      'guide.run': 'Запустить run',
-      'guide.stream': 'Стрим run',
-      'guide.context': 'Контекст выполнения',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'Быстрый старт API NanoClaw',
+      'guide.body': 'NanoClaw запускает multi-CLI задачи и расписания. Старые workflow-маршруты orchestration удалены в v1.55; для административной автоматизации используйте production-agent-loop.',
+      'guide.status': 'Статус движка', 'guide.run': 'Запустить агента', 'guide.schedule': 'Запланировать задачу', 'guide.help': 'Открыть cookbook',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"суммировать git status","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: 'Загрузка справочника API…',
     },
     'zh-CN': {
-      title: 'Pixcode API',
-      badge: 'v1.36',
-      downloadSpec: '下载规范',
-      backToApp: '返回应用',
-      'apiKey.label': 'API 密钥',
-      'apiKey.notSet': '未设置',
-      'apiKey.set': '已保存',
+      title: 'Pixcode API', badge: '当前', downloadSpec: '下载规范', backToApp: '返回应用',
+      'apiKey.label': 'API 密钥', 'apiKey.notSet': '未设置', 'apiKey.set': '已保存',
       'apiKey.hint': '在 设置 → API 生成。仅本地存储。',
-      'guide.title': '编排 API 快速开始',
-      'guide.body': '使用基于角色的 metadata 预览、启动、流式跟踪和取消多代理工作模式。instruction 和 model id 都是可选字段；省略 model 时使用 CLI 设置。',
-      'guide.preview': '预览 DAG',
-      'guide.run': '启动 run',
-      'guide.stream': '流式 run',
-      'guide.context': '执行上下文',
-      'guide.curl': 'curl -H "Authorization: Bearer px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"metadata":{"agents":[{"adapterId":"codex","role":"frontend"},{"adapterId":"codex","role":"backend"},{"adapterId":"codex","role":"review"}]}}\' \\\n  /api/orchestration/workflows/agent_team/preview',
+      'guide.title': 'NanoClaw API 快速开始',
+      'guide.body': '使用 NanoClaw 执行多 CLI 任务和计划。旧的 orchestration workflow 路由已在 v1.55 退役；管理自动化请使用 production-agent-loop。',
+      'guide.status': '引擎状态', 'guide.run': '运行代理', 'guide.schedule': '安排任务', 'guide.help': '打开 Cookbook',
+      'guide.curl': 'curl -X POST -H "X-API-Key: px_..." \\\n  -H "content-type: application/json" \\\n  -d \'{"prompt":"总结 git 状态","agentType":"codex","projectId":"my-app"}\' \\\n  /api/nanoclaw/run',
       loading: '正在加载 API 参考…',
     },
   };
@@ -488,8 +426,9 @@
       localStorage.removeItem(STORAGE_KEY);
       setStatus(false);
     }
-    // Re-render Scalar so the new key is prefilled in "Try it" panels.
-    renderScalar();
+    // Reload the protected catalog with the new credential, then re-render
+    // Scalar so the key is also prefilled in "Try it" panels.
+    refreshScalar();
   });
 
   // ── Language picker ───────────────────────────────────────────────
@@ -504,26 +443,56 @@
 
   // ── Scalar mount ──────────────────────────────────────────────────
   // Scalar API Reference: lightweight, modern, mobile-friendly, built-in
-  // try-it panel with auth header support. Loaded from CDN as a single
-  // global; no build step required.
+  // try-it panel with auth header support. The current OpenAPI document is
+  // protected by Pixcode auth, so fetch it with the app JWT/API key first and
+  // pass the parsed document as `content` instead of asking Scalar to make an
+  // unauthenticated fetch.
   function getCurrentApiKey() {
     return apiKeyInput.value.trim();
   }
 
-  function renderScalar() {
+  function getCatalogCredential() {
+    return getCurrentApiKey() || localStorage.getItem('auth-token') || '';
+  }
+
+  async function fetchOpenApiDocument() {
+    const credential = getCatalogCredential();
+    const headers = credential ? { Authorization: `Bearer ${credential}` } : {};
+    const response = await fetch('/api/public/openapi', {
+      headers,
+      credentials: 'same-origin',
+    });
+    if (!response.ok) {
+      const error = new Error(`OpenAPI request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
+    return response.json();
+  }
+
+  function showCatalogError(error) {
+    const host = document.getElementById('scalar-host');
+    const status = Number(error?.status);
+    const message = status === 401 || status === 403
+      ? 'Sign in to Pixcode or enter a scoped px_ API key above to load the current API reference.'
+      : 'The current OpenAPI document could not be loaded. Use the bundled openapi.yaml for offline reference.';
+    host.innerHTML = `<div class="loader"><span>⚠ ${message} <a href="/openapi.yaml" style="color:var(--primary)">Download the offline OpenAPI spec</a></span></div>`;
+  }
+
+  async function renderScalar(documentContent) {
     if (!window.Scalar || typeof window.Scalar.createApiReference !== 'function') return;
     const host = document.getElementById('scalar-host');
     host.innerHTML = '';
     window.Scalar.createApiReference(host, {
-      url: '/openapi.yaml',
+      content: documentContent,
       theme: 'default',
       darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
       hideClientButton: true,
       hideDarkModeToggle: false,
       authentication: getCurrentApiKey()
         ? {
-            preferredSecurityScheme: 'bearerAuth',
-            http: { bearer: { token: getCurrentApiKey() } },
+            preferredSecurityScheme: 'PixcodeApiKey',
+            apiKey: { token: getCurrentApiKey() },
           }
         : undefined,
       defaultHttpClient: { targetKey: 'shell', clientKey: 'curl' },
@@ -534,12 +503,25 @@
     });
   }
 
+  let openApiDocument = null;
+  async function refreshScalar() {
+    try {
+      openApiDocument = await fetchOpenApiDocument();
+      renderScalar(openApiDocument);
+    } catch (error) {
+      showCatalogError(error);
+    }
+  }
+
   const scalarScript = document.createElement('script');
   scalarScript.src = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1';
-  scalarScript.onload = renderScalar;
+  scalarScript.onload = () => {
+    if (openApiDocument) renderScalar(openApiDocument);
+    else refreshScalar();
+  };
   scalarScript.onerror = () => {
     document.getElementById('scalar-host').innerHTML =
-      '<div class="loader"><span>⚠ Scalar CDN unreachable. <a href="/openapi.yaml" style="color:var(--primary)">Download the OpenAPI spec</a> and load it in your own viewer.</span></div>';
+      '<div class="loader"><span>⚠ Scalar CDN unreachable. <a href="/openapi.yaml" style="color:var(--primary)">Download the offline OpenAPI spec</a> and load it in your own viewer.</span></div>';
   };
   document.head.appendChild(scalarScript);
 </script>

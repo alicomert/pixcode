@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useProviderModels } from "../../../../hooks/useProviderModels";
 import { useProviderAuthStatus } from "../../../provider-auth/hooks/useProviderAuthStatus";
 import { PROVIDER_INSTALL_COMMANDS } from "../../../provider-auth/types";
-import { authenticatedFetch } from "../../../../utils/api";
+import { authenticatedFetch, createStreamAuthUrl } from "../../../../utils/api";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import {
   CLAUDE_MODELS,
@@ -591,10 +591,14 @@ function ProviderInstallDialog({
       return;
     }
 
-    const token = localStorage.getItem("auth-token") || "";
-    const url =
-      `/api/providers/${provider}/install/${jobId}/stream`
-      + (token ? `?token=${encodeURIComponent(token)}` : "");
+    let url: string;
+    try {
+      url = await createStreamAuthUrl(`/api/providers/${provider}/install/${jobId}/stream`);
+    } catch (err: any) {
+      setError(err?.message || "Unable to authenticate install stream");
+      setState("error");
+      return;
+    }
     const es = new EventSource(url);
     esRef.current = es;
 
@@ -627,6 +631,9 @@ function ProviderInstallDialog({
     });
 
     es.onerror = () => {
+      // The ticket is single-use; EventSource's built-in retry would replay
+      // the consumed URL and turn a transient disconnect into a 401 loop.
+      try { es.close(); } catch { /* noop */ }
       if (es.readyState === EventSource.CLOSED) {
         // The `done` handler normally transitions state before this fires.
         // If we reach here in a non-terminal state it means the stream

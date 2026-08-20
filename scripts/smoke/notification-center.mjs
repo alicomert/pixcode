@@ -3,6 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('notification center smoke')) process.exit(0);
+
 const orchestrator = readFileSync('server/services/notification-orchestrator.js', 'utf8');
 const server = readFileSync('server/index.js', 'utf8');
 const workflowRoutes = readFileSync('server/modules/orchestration/workflows/workflow.routes.ts', 'utf8');

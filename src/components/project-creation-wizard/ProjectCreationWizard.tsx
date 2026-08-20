@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { Project } from '../../types/app';
+import { useGithubOAuth } from '../../hooks/useGithubOAuth';
 
 import ErrorBanner from './components/ErrorBanner';
 import StepConfiguration from './components/StepConfiguration';
@@ -43,6 +44,79 @@ export default function ProjectCreationWizard({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cloneProgress, setCloneProgress] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const isCreatingRef = useRef(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    isCreatingRef.current = isCreating;
+  }, [isCreating]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+
+        if (focusable.length > 0) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          const activeElement = document.activeElement;
+          if (event.shiftKey && (activeElement === first || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          } else if (!event.shiftKey && (activeElement === last || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+
+      if (event.key !== 'Escape' || isCreatingRef.current) return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>('[data-project-wizard-close]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, []);
+
+  const githubOAuth = useGithubOAuth({
+    onSuccess: async () => {
+      // The active OAuth credential is selected server-side; no token needs to
+      // enter this wizard state. Clone falls back to that active credential.
+      setFormState((previous) => ({
+        ...previous,
+        tokenMode: 'none',
+        selectedGithubToken: '',
+        newGithubToken: '',
+      }));
+    },
+  });
 
   const shouldLoadTokens =
     step === 2 && shouldShowGithubAuthentication(formState.workspaceType, formState.githubUrl);
@@ -168,21 +242,37 @@ export default function ProjectCreationWizard({
   );
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 top-0 z-[60] flex items-center justify-center bg-black/50 p-0 backdrop-blur-sm sm:p-4">
-      <div className="h-full w-full overflow-y-auto rounded-none border-0 border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:h-auto sm:max-w-2xl sm:rounded-lg sm:border">
+    <div
+      className="fixed bottom-0 left-0 right-0 top-0 z-[60] flex items-center justify-center bg-black/50 pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] backdrop-blur-sm sm:p-4"
+      onMouseDown={(event) => {
+        if (!isCreating && event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pixcode-project-wizard-title"
+        className="h-full w-full overflow-y-auto rounded-none border-0 border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 sm:h-auto sm:max-w-2xl sm:rounded-lg sm:border"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/50">
               <FolderPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3 id="pixcode-project-wizard-title" className="text-lg font-semibold text-gray-900 dark:text-white">
               {t('projectWizard.title')}
             </h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            data-project-wizard-close
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
             disabled={isCreating}
+            aria-label={t('common.buttons.close', { defaultValue: 'Close project wizard' })}
+            title={t('common.buttons.close', { defaultValue: 'Close project wizard' })}
           >
             <X className="h-5 w-5" />
           </button>
@@ -212,6 +302,8 @@ export default function ProjectCreationWizard({
               availableTokens={availableTokens}
               loadingTokens={loadingTokens}
               tokenLoadError={tokenLoadError}
+              githubOAuthStatus={githubOAuth.status}
+              githubOAuthError={githubOAuth.error}
               isCreating={isCreating}
               onWorkspacePathChange={(workspacePath) => updateField('workspacePath', workspacePath)}
               onGithubUrlChange={(githubUrl) => updateField('githubUrl', githubUrl)}
@@ -223,6 +315,7 @@ export default function ProjectCreationWizard({
               onNewGithubTokenChange={(newGithubToken) =>
                 updateField('newGithubToken', newGithubToken)
               }
+              onStartGithubOAuth={githubOAuth.start}
               onAdvanceToConfirm={() => setStep(3)}
             />
           )}

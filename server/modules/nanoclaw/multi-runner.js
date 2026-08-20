@@ -99,7 +99,6 @@ function resolveCwd(groupFolder, projectPathHint) {
     projectPathHint,
     path.join(home, 'pixcode', 'projects', groupFolder),
     path.join(home, groupFolder),
-    process.cwd(),
   ].filter(Boolean);
   for (const candidate of candidates) {
     try {
@@ -108,7 +107,10 @@ function resolveCwd(groupFolder, projectPathHint) {
       }
     } catch { /* ignore */ }
   }
-  // General / non-coding assistant: use a scratch workspace
+  // General / non-coding assistant: use a scratch workspace. Never fall back
+  // to process.cwd(): in a daemon this is the Pixcode server checkout, which
+  // would let a missing/expired project path execute an agent against the
+  // host application itself.
   const general = path.join(
     process.env.PIXCODE_HOME || path.join(home, '.pixcode'),
     'nanoclaw',

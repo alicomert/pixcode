@@ -7,7 +7,10 @@
          brand mark changes. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
     <link rel="icon" type="image/png" href="/favicon.png?v=2" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- Keep pinch-zoom available for accessibility. The app prevents iOS
+         input zoom through 16px controls in CSS instead of disabling zoom
+         globally. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Pixcode</title>
 
     <!-- Inter variable font — crisper UI text than system Segoe UI on Windows
@@ -30,29 +33,18 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png?v=2" />
     
     <!-- Theme Color -->
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="msapplication-TileColor" content="#ffffff" />
+    <!-- Pixcode starts in its dark workbench theme; ThemeContext updates this
+         value immediately when a saved light theme is detected. -->
+    <meta name="theme-color" content="#0d1211" />
+    <meta name="msapplication-TileColor" content="#0d1211" />
+    <meta name="color-scheme" content="dark light" />
     
-    <!-- Prevent zoom on iOS -->
+    <!-- Avoid automatic telephone-number linkification in code/chat output. -->
     <meta name="format-detection" content="telephone=no" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     
-    <!-- Service Worker Registration -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('SW registered: ', registration);
-            })
-            .catch(registrationError => {
-              console.log('SW registration failed: ', registrationError);
-            });
-        });
-      }
-    </script>
   </body>
 </html>

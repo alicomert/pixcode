@@ -16,14 +16,27 @@ export default function PreviewPane({ tabs, mobile = false, onClose }: PreviewPa
     () => tabs.find((tab) => tab.id === activeId) ?? tabs[0],
     [activeId, tabs],
   );
+  const source = active ? active.proxiedUrl || active.url : '';
+  // Never copy the reusable browser JWT/API key into an iframe URL. Apart
+  // from leaking into history and proxy logs, the old `/preview/?token=…`
+  // fallback had no matching backend route in current Pixcode builds. Live
+  // View share paths are already scoped by their random share id; other
+  // previews should provide a public/signed URL in the artifact itself.
+  const src = useMemo(() => {
+    if (!source || typeof window === 'undefined') return '';
+    try {
+      const parsed = new URL(source, window.location.origin);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+      for (const key of ['token', 'apiKey', 'access_token', 'auth']) {
+        parsed.searchParams.delete(key);
+      }
+      return parsed.toString();
+    } catch {
+      return '';
+    }
+  }, [source]);
 
   if (!active) return null;
-
-  const token = typeof window !== 'undefined' ? window.localStorage.getItem('auth-token') : null;
-  const source = active.proxiedUrl || active.url;
-  const src = token && source.startsWith('/preview/')
-    ? `${source}${source.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
-    : source;
 
   return (
     <section

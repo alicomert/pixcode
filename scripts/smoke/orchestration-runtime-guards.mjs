@@ -3,6 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('orchestration runtime guards smoke')) process.exit(0);
+
 const a2aRoutes = readFileSync('server/modules/orchestration/a2a/routes.ts', 'utf8');
 const hostWorkspace = readFileSync('server/modules/orchestration/workspace/workspace-manager.ts', 'utf8');
 const worktreeWorkspace = readFileSync('server/modules/orchestration/workspace/worktree-workspace.ts', 'utf8');

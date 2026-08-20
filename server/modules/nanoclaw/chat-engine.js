@@ -397,6 +397,29 @@ export function looksLikeSmallTalk(text) {
   return /^(selam+|merhaba+|hello+|hi+|hey+)\W*$/i.test(t);
 }
 
+function canonicalMentionPath(inputPath) {
+  const resolved = path.resolve(String(inputPath || ''));
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    // A project may be created just after the request arrives. Walk up to the
+    // nearest existing parent so a symlinked workspace root is still checked
+    // against its real location.
+    const suffix = [];
+    let cursor = resolved;
+    while (cursor && cursor !== path.dirname(cursor)) {
+      suffix.unshift(path.basename(cursor));
+      cursor = path.dirname(cursor);
+      try {
+        return path.join(fs.realpathSync.native(cursor), ...suffix);
+      } catch {
+        // Continue toward the filesystem root.
+      }
+    }
+    return resolved;
+  }
+}
+
 /**
  * Resolve @file or @path mentions relative to project root.
  * Mentions stay as text; contents of small files are inlined (budgeted).
@@ -417,16 +440,34 @@ export function resolveFileMentions(text, projectPath) {
 
   const files = [];
   let budget = 48_000;
+  const projectRoot = canonicalMentionPath(projectPath);
   for (const rel of [...new Set(mentions)].slice(0, 12)) {
-    const abs = path.isAbsolute(rel) ? path.resolve(rel) : path.resolve(projectPath, rel);
+    const absoluteMention = path.isAbsolute(rel)
+      || path.win32.isAbsolute(rel)
+      || /^[A-Za-z]:[\\/]/.test(rel)
+      || rel.startsWith('\\\\');
+    const abs = absoluteMention ? path.resolve(rel) : path.resolve(projectRoot, rel);
     try {
-      if (!abs.startsWith(path.resolve(projectPath)) && !path.isAbsolute(rel)) continue;
-      const st = fs.statSync(abs);
+      // `path.resolve` is lexical and therefore treats a symlink inside the
+      // workspace as if it were still inside it. Canonicalize the existing
+      // target before the containment check so @link/to/secret cannot escape
+      // the project through a directory or file symlink.
+      const canonicalTarget = fs.realpathSync.native(abs);
+      const relative = path.relative(projectRoot, canonicalTarget);
+      const insideProject = relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+      // Absolute mentions are never allowed to escape the active project.
+      // Previously the containment check was skipped for absolute paths,
+      // allowing @/etc/passwd (or a Windows drive path) into model prompts.
+      if (!insideProject) {
+        files.push({ path: rel, note: 'outside project / skip' });
+        continue;
+      }
+      const st = fs.statSync(canonicalTarget);
       if (!st.isFile() || st.size > 200_000) {
         files.push({ path: rel, note: st.isDirectory() ? 'directory' : 'too large / skip' });
         continue;
       }
-      const content = fs.readFileSync(abs, 'utf8');
+      const content = fs.readFileSync(canonicalTarget, 'utf8');
       const slice = content.slice(0, Math.min(content.length, budget));
       budget -= slice.length;
       files.push({ path: rel, content: slice, truncated: slice.length < content.length });
@@ -477,6 +518,7 @@ function publicConversation(row) {
     title: row.title,
     agentType: row.defaultAgent || 'pixbot',
     defaultModel: row.defaultModel || null,
+    ownerUserId: row.ownerUserId ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -495,20 +537,23 @@ function publicMessage(row) {
   };
 }
 
-export function listConversations(projectId) {
+export function listConversations(projectId, ownerUserId = null) {
   ensureStore();
   return Object.values(store.conversations)
-    .filter((c) => !projectId || c.projectId === projectId || (projectId === 'general' && !c.projectId))
+    .filter((c) => (!projectId || c.projectId === projectId || (projectId === 'general' && !c.projectId))
+      && (!ownerUserId || Number(c.ownerUserId) === Number(ownerUserId)))
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)))
     .map(publicConversation);
 }
 
-export function getMessages(conversationId) {
+export function getMessages(conversationId, ownerUserId = null) {
   ensureStore();
+  const conversation = store.conversations[conversationId];
+  if (ownerUserId && (!conversation || Number(conversation.ownerUserId) !== Number(ownerUserId))) return [];
   return (store.messages[conversationId] || []).map(publicMessage);
 }
 
-export function createConversation({ projectId, title, defaultAgent, defaultModel } = {}) {
+export function createConversation({ projectId, title, defaultAgent, defaultModel, ownerUserId = null } = {}) {
   ensureStore();
   const id = uid('conv');
   const row = {
@@ -520,6 +565,7 @@ export function createConversation({ projectId, title, defaultAgent, defaultMode
       ? 'pixbot'
       : normalizeAgentType(defaultAgent),
     defaultModel: defaultModel || null,
+    ownerUserId: ownerUserId ?? null,
     agentSessions: {}, // agentType → sessionId (warm reuse — no MCP re-bootstrap each turn)
     systemSeeded: false,
     createdAt: nowIso(),
@@ -570,6 +616,7 @@ export async function handleChatTurnStream({
   projectPath = null,
   forceCli = false,
   scheduleTools = null,
+  ownerUserId = null,
   onEvent,
 }) {
   const emit = (payload) => {
@@ -585,8 +632,9 @@ export async function handleChatTurnStream({
   }
 
   let conv = conversationId ? store.conversations[conversationId] : null;
+  if (ownerUserId && (!conv || Number(conv.ownerUserId) !== Number(ownerUserId))) conv = null;
   if (!conv || (projectId && conv.projectId !== projectId && projectId !== 'general')) {
-    conv = store.conversations[createConversation({ projectId, defaultAgent: softAgent }).id];
+    conv = store.conversations[createConversation({ projectId, defaultAgent: softAgent, ownerUserId }).id];
   }
 
   const routing = parseUserRouting(raw, softAgent || conv.defaultAgent);
@@ -792,6 +840,7 @@ export async function handleChatTurn({
   projectPath = null,
   scheduleTools = null, // optional { toolScheduleTask, toolContext }
   forceCli = false,
+  ownerUserId = null,
 }) {
   ensureStore();
   const raw = String(message || '').trim();
@@ -802,8 +851,9 @@ export async function handleChatTurn({
   }
 
   let conv = conversationId ? store.conversations[conversationId] : null;
+  if (ownerUserId && (!conv || Number(conv.ownerUserId) !== Number(ownerUserId))) conv = null;
   if (!conv || (projectId && conv.projectId !== projectId && projectId !== 'general')) {
-    conv = store.conversations[createConversation({ projectId, defaultAgent: softAgent }).id];
+    conv = store.conversations[createConversation({ projectId, defaultAgent: softAgent, ownerUserId }).id];
   }
 
   const routing = parseUserRouting(raw, softAgent || conv.defaultAgent);
@@ -1222,6 +1272,11 @@ export function postScheduledTaskResult({
   agentType = null,
   conversationId = null,
   prompt = null,
+  // Non-admin NanoClaw task groups are namespaced as `u<userId>_<project>`.
+  // The scheduler callback can therefore carry the task owner's identity so
+  // a user-supplied [pixconv:<id>] tag cannot redirect output into another
+  // user's conversation.
+  ownerUserId = null,
 } = {}) {
   ensureStore();
   let body = String(text || '').trim();
@@ -1245,7 +1300,21 @@ export function postScheduledTaskResult({
     body = body.replace(/\[pixconv:[^\]]+\]/gi, '').trim();
   }
 
+  const ownerScopeProvided = ownerUserId !== null && ownerUserId !== undefined;
+  const normalizedOwnerUserId = Number.isSafeInteger(Number(ownerUserId)) && Number(ownerUserId) > 0
+    ? Number(ownerUserId)
+    : null;
   let conv = convId ? store.conversations[convId] : null;
+
+  // A conversation id is not an authorization token.  Scheduled jobs may
+  // contain user-authored prompt text, so always enforce the owner carried by
+  // the task's namespaced group before appending a result.
+  if (conv && (
+    (normalizedOwnerUserId === null && ownerScopeProvided)
+    || (normalizedOwnerUserId !== null && Number(conv.ownerUserId) !== normalizedOwnerUserId)
+  )) {
+    conv = null;
+  }
 
   if (!conv) {
     let pid = projectId;
@@ -1257,7 +1326,10 @@ export function postScheduledTaskResult({
       .filter((c) => {
         const cPid = String(c.projectId || 'general');
         const cFolder = cPid.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
-        return cPid === pid || cFolder === folder || cPid === folder;
+        const ownerMatches = normalizedOwnerUserId !== null
+          ? Number(c.ownerUserId) === normalizedOwnerUserId
+          : !ownerScopeProvided;
+        return ownerMatches && (cPid === pid || cFolder === folder || cPid === folder);
       })
       .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || null;
   }

@@ -4,8 +4,8 @@
   "description": "Pixcode web application",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#0d1211",
+  "theme_color": "#0d1211",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [

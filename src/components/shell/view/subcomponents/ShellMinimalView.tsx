@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { RefObject } from 'react';
 
 import type { AuthCopyStatus } from '../../types/types';
@@ -23,6 +24,7 @@ export default function ShellMinimalView({
   openAuthUrlInBrowser,
   copyAuthUrlToClipboard,
 }: ShellMinimalViewProps) {
+  const { t } = useTranslation('chat');
   const [authUrlCopyStatus, setAuthUrlCopyStatus] = useState<AuthCopyStatus>('idle');
   const [isAuthPanelHidden, setIsAuthPanelHidden] = useState(false);
 
@@ -42,7 +44,7 @@ export default function ShellMinimalView({
   const showMobileAuthPanelToggle = hasAuthUrl && isAuthPanelHidden;
 
   return (
-    <div className="relative h-full w-full min-w-0 overflow-hidden bg-gray-900 pb-14 md:pb-0">
+    <div className="relative h-full w-full min-w-0 overflow-hidden bg-gray-900 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0">
       <div
         ref={terminalContainerRef}
         className="pixcode-shell-terminal h-full min-h-0 w-full min-w-0 max-w-full focus:outline-none"
@@ -50,16 +52,19 @@ export default function ShellMinimalView({
       />
 
       {showMobileAuthPanel && (
-        <div className="absolute inset-x-0 bottom-14 z-20 border-t border-gray-700/80 bg-gray-900/95 p-3 backdrop-blur-sm md:hidden">
+        <div className="absolute inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] z-20 border-t border-gray-700/80 bg-gray-900/95 p-3 backdrop-blur-sm md:hidden">
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-gray-300">Open or copy the login URL:</p>
+              <p className="text-xs text-gray-300">
+                {t('shell.auth.openOrCopy', { defaultValue: 'Open or copy the login URL:' })}
+              </p>
               <button
                 type="button"
                 onClick={() => setIsAuthPanelHidden(true)}
-                className="rounded bg-gray-700 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-gray-100 hover:bg-gray-600"
+                className="min-h-11 rounded bg-gray-700 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-gray-100 hover:bg-gray-600"
+                aria-label={t('shell.auth.hide', { defaultValue: 'Hide login URL' })}
               >
-                Hide
+                {t('shell.auth.hide', { defaultValue: 'Hide' })}
               </button>
             </div>
 
@@ -68,8 +73,8 @@ export default function ShellMinimalView({
               value={displayAuthUrl}
               readOnly
               onClick={(event) => event.currentTarget.select()}
-              className="w-full rounded border border-gray-600 bg-gray-800 px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              aria-label="Authentication URL"
+              className="min-h-11 w-full rounded border border-gray-600 bg-gray-800 px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              aria-label={t('shell.auth.urlLabel', { defaultValue: 'Authentication URL' })}
             />
 
             <div className="flex items-center gap-2">
@@ -78,9 +83,10 @@ export default function ShellMinimalView({
                 onClick={() => {
                   openAuthUrlInBrowser(displayAuthUrl);
                 }}
-                className="flex-1 rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
+                className="min-h-11 flex-1 rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700"
+                aria-label={t('shell.auth.open', { defaultValue: 'Open login URL' })}
               >
-                Open URL
+                {t('shell.auth.open', { defaultValue: 'Open URL' })}
               </button>
 
               <button
@@ -89,9 +95,12 @@ export default function ShellMinimalView({
                   const copied = await copyAuthUrlToClipboard(displayAuthUrl);
                   setAuthUrlCopyStatus(copied ? 'copied' : 'failed');
                 }}
-                className="flex-1 rounded bg-gray-700 px-3 py-2 text-xs font-medium text-white hover:bg-gray-600"
+                className="min-h-11 flex-1 rounded bg-gray-700 px-3 py-2 text-xs font-medium text-white hover:bg-gray-600"
+                aria-label={t('shell.auth.copy', { defaultValue: 'Copy login URL' })}
               >
-                {authUrlCopyStatus === 'copied' ? 'Copied' : 'Copy URL'}
+                {authUrlCopyStatus === 'copied'
+                  ? t('shell.auth.copied', { defaultValue: 'Copied' })
+                  : t('shell.auth.copy', { defaultValue: 'Copy URL' })}
               </button>
             </div>
           </div>
@@ -99,13 +108,14 @@ export default function ShellMinimalView({
       )}
 
       {showMobileAuthPanelToggle && (
-        <div className="absolute bottom-14 right-3 z-20 md:hidden">
+        <div className="absolute bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] right-3 z-20 md:hidden">
           <button
             type="button"
             onClick={() => setIsAuthPanelHidden(false)}
-            className="rounded bg-gray-800/95 px-3 py-2 text-xs font-medium text-gray-100 shadow-lg backdrop-blur-sm hover:bg-gray-700"
+            className="min-h-11 rounded bg-gray-800/95 px-3 py-2 text-xs font-medium text-gray-100 shadow-lg backdrop-blur-sm hover:bg-gray-700"
+            aria-label={t('shell.auth.show', { defaultValue: 'Show login URL' })}
           >
-            Show login URL
+            {t('shell.auth.show', { defaultValue: 'Show login URL' })}
           </button>
         </div>
       )}

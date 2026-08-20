@@ -112,7 +112,7 @@ sbx exec -d my-project pixcode start --port 3001
 |----------|---------|-------------|
 | `SERVER_PORT` | `3001` | Web UI port |
 | `HOST` | `0.0.0.0` | Bind address (must be `0.0.0.0` for `sbx ports`) |
-| `DATABASE_PATH` | `~/.pixcode/auth.db` | SQLite database location |
+| `DATABASE_PATH` | `~/.pixcode/auth.json` | JSON auth-store location; a `.db` value imports a legacy SQLite store into a sibling `.json` file |
 
 ## Advanced usage
 

@@ -192,6 +192,39 @@ export function useShellConnection({
   const connectingRef = useRef(false);
   const manualDisconnectRef = useRef(false);
   const initTimeoutRef = useRef<number | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  // Invalidate in-flight stream-ticket requests when a terminal is switched
+  // or torn down.  A ticket request can outlive the panel that started it;
+  // without an epoch guard its eventual resolution would open a stale PTY
+  // socket against the newly selected project/session.
+  const connectionEpochRef = useRef(0);
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleReconnect = useCallback((connect: () => void) => {
+    if (!autoConnect || manualDisconnectRef.current || reconnectTimerRef.current !== null) {
+      return;
+    }
+
+    // Keep the terminal/session alive across Wi-Fi changes, sleep and reverse
+    // proxy hiccups without hammering the server.  The cap makes reconnects
+    // effectively continuous while keeping the worst-case retry rate low.
+    const attempt = reconnectAttemptRef.current;
+    const delay = Math.min(10_000, 500 * (2 ** Math.min(attempt, 5)));
+    reconnectAttemptRef.current = attempt + 1;
+    reconnectTimerRef.current = window.setTimeout(() => {
+      reconnectTimerRef.current = null;
+      if (!manualDisconnectRef.current && autoConnect) {
+        connect();
+      }
+    }, delay);
+  }, [autoConnect]);
 
   const handleProcessCompletion = useCallback(
     (output: string) => {
@@ -270,14 +303,31 @@ export function useShellConnection({
   );
 
   const connectWebSocket = useCallback(
-    (isConnectionLocked = false) => {
+    async (isConnectionLocked = false) => {
       if ((connectingRef.current && !isConnectionLocked) || isConnecting || isConnected) {
         return;
       }
 
+      const connectionEpoch = connectionEpochRef.current;
+
       try {
-        const wsUrl = getShellWebSocketUrl();
+        const wsUrl = await getShellWebSocketUrl();
         if (!wsUrl) {
+          connectingRef.current = false;
+          setIsConnecting(false);
+          return;
+        }
+
+        if (connectionEpochRef.current !== connectionEpoch) {
+          connectingRef.current = false;
+          setIsConnecting(false);
+          return;
+        }
+
+        // A ticket is minted asynchronously.  The user may have closed the
+        // terminal while it was being requested; avoid opening a late socket
+        // in that case.
+        if (manualDisconnectRef.current) {
           connectingRef.current = false;
           setIsConnecting(false);
           return;
@@ -290,6 +340,8 @@ export function useShellConnection({
 
         socket.onopen = () => {
           if (wsRef.current !== socket) return;
+          clearReconnectTimer();
+          reconnectAttemptRef.current = 0;
           setIsConnected(true);
           setIsConnecting(false);
           connectingRef.current = false;
@@ -371,6 +423,7 @@ export function useShellConnection({
           setIsConnecting(false);
           connectingRef.current = false;
           clearTerminalScreen();
+          scheduleReconnect(connectWebSocket);
         };
 
         socket.onerror = () => {
@@ -380,9 +433,17 @@ export function useShellConnection({
           connectingRef.current = false;
         };
       } catch {
+        if (connectionEpochRef.current !== connectionEpoch) {
+          return;
+        }
+        if (manualDisconnectRef.current) {
+          connectingRef.current = false;
+          return;
+        }
         setIsConnected(false);
         setIsConnecting(false);
         connectingRef.current = false;
+        scheduleReconnect(connectWebSocket);
       }
     },
     [
@@ -405,6 +466,8 @@ export function useShellConnection({
       terminalContainerRef,
       terminalRef,
       wsRef,
+      clearReconnectTimer,
+      scheduleReconnect,
     ],
   );
 
@@ -414,15 +477,22 @@ export function useShellConnection({
     }
 
     manualDisconnectRef.current = false;
+    clearReconnectTimer();
     connectingRef.current = true;
     setIsConnecting(true);
     connectWebSocket(true);
-  }, [connectWebSocket, isConnected, isConnecting, isInitialized]);
+  }, [clearReconnectTimer, connectWebSocket, isConnected, isConnecting, isInitialized]);
 
   const disconnectFromShell = useCallback((manual = true) => {
+    // Cancel any pending ticket acquisition before closing the current
+    // socket.  `manual` controls PTY teardown/reconnect policy; both manual
+    // and automatic switches must invalidate the old connection attempt.
+    connectionEpochRef.current += 1;
     if (manual) {
       manualDisconnectRef.current = true;
+      reconnectAttemptRef.current = 0;
     }
+    clearReconnectTimer();
     // Manual close (user closed terminal / left tab) must kill the backend PTY.
     // Non-manual teardowns keep provider CLI sessions reusable for reconnect.
     closeSocket(manual ? { killSession: true } : undefined);
@@ -435,7 +505,35 @@ export function useShellConnection({
     setIsConnecting(false);
     connectingRef.current = false;
     setAuthUrl('');
-  }, [clearTerminalScreen, closeSocket, setAuthUrl]);
+  }, [clearReconnectTimer, clearTerminalScreen, closeSocket, setAuthUrl]);
+
+  // Stop reconnect work when the shell leaves the tree.  The websocket URL is
+  // fetched asynchronously, so simply closing the current socket is not
+  // enough: a pending ticket request could otherwise resolve after unmount
+  // and open a new socket against a disposed terminal.  Marking the
+  // connection as manual also makes the guard in connectWebSocket reject that
+  // late result.
+  useEffect(() => () => {
+    connectionEpochRef.current += 1;
+    manualDisconnectRef.current = true;
+    reconnectAttemptRef.current = 0;
+    clearReconnectTimer();
+    if (initTimeoutRef.current !== null) {
+      window.clearTimeout(initTimeoutRef.current);
+      initTimeoutRef.current = null;
+    }
+    connectingRef.current = false;
+    closeSocket();
+  }, [clearReconnectTimer, closeSocket]);
+
+  // Deactivating a tab/panel should not leave a backoff timer armed.  The
+  // terminal can be mounted but inactive on desktop split layouts, so this is
+  // separate from the unmount cleanup above.
+  useEffect(() => {
+    if (!autoConnect) {
+      clearReconnectTimer();
+    }
+  }, [autoConnect, clearReconnectTimer]);
 
   useEffect(() => {
     if (!autoConnect || manualDisconnectRef.current || !isInitialized || isConnecting || isConnected) {

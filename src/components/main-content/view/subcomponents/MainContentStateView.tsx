@@ -18,7 +18,7 @@ export default function MainContentStateView({
   const isLoading = mode === 'loading';
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       {isMobile && (
         <div className="pwa-header-safe flex-shrink-0 border-b border-border/50 bg-background/80 p-2 backdrop-blur-sm sm:p-3">
           <MobileMenuButton onMenuClick={onMenuClick} compact />
@@ -43,19 +43,19 @@ export default function MainContentStateView({
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center overflow-auto p-5">
-          <div className="w-full max-w-4xl">
+        <div className="flex min-w-0 flex-1 items-center justify-center overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+          <div className="w-full min-w-0 max-w-4xl">
             <div className="mb-6">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-muted/60">
                 <Folder className="h-6 w-6 text-muted-foreground" />
               </div>
-              <h2 className="text-2xl font-semibold text-foreground">{t('mainContent.landing.title')}</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              <h2 className="break-words text-2xl font-semibold text-foreground">{t('mainContent.landing.title')}</h2>
+              <p className="mt-2 max-w-2xl break-words text-sm leading-6 text-muted-foreground">
                 {t('mainContent.landing.description')}
               </p>
             </div>
 
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))] gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
               <button
                 type="button"
                 onClick={onOpenControlRoom}

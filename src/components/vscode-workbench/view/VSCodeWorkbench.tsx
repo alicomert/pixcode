@@ -3,13 +3,11 @@ import type { ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Send as TelegramIcon } from 'lucide-react';
-import { ClipboardCheck as TasksIcon } from '@/lib/icons';
 
 import CodeEditor from '../../code-editor/view/CodeEditor';
 import type { CodeEditorDiffInfo, CodeEditorFile } from '../../code-editor/types/types';
 import ControlRoomPage from '../../control-room/ControlRoomPage';
 import { TasksPage } from '../../tasks/TasksPage';
-
 import FileTree from '../../file-tree/view/FileTree';
 import GitPanel from '../../git-panel/view/GitPanel';
 import SessionProviderLogo from '../../llm-logo-provider/SessionProviderLogo';
@@ -28,7 +26,7 @@ import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import type { WorkspaceType } from '../../project-creation-wizard/types';
 import { DarkModeToggle } from '../../../shared/view/ui';
 import { cn } from '../../../lib/utils';
-import { authenticatedFetch } from '../../../utils/api';
+import { authenticatedFetch, createStreamAuthUrl } from '../../../utils/api';
 import { PIXCODE_UPDATE_AVAILABLE_EVENT, compareVersions, useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useAgentAutoDiff } from '../../../hooks/useAgentAutoDiff';
 import { useFilesystemDiffAutoOpener } from '../../../hooks/useFilesystemDiffAutoOpener';
@@ -37,6 +35,7 @@ import type { AppTab, LLMProvider, Project, ProjectSession } from '../../../type
 import type { MainContentProps } from '../../main-content/types/types';
 
 import {
+  ClipboardCheck as TasksIcon,
   AlertCircle,
   Bot,
   Check,
@@ -418,8 +417,9 @@ function VSCodeWorkbench({
   isLoading,
   onShowSettings,
   onQuickStartSession,
+  onEnterTerminalOnly,
   hidePixBot = false,
-  showShellModeSwitcher = false,
+  showShellModeSwitcher: _showShellModeSwitcher = false,
 }: VSCodeWorkbenchProps) {
   const { t } = useTranslation('common');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -724,7 +724,7 @@ function VSCodeWorkbench({
   }, [openEditorTabs]);
 
   const handleEditorTabContextMenu = useCallback((
-    event: React.MouseEvent<HTMLButtonElement>,
+    event: React.MouseEvent<HTMLElement>,
     filePath: string,
   ) => {
     event.preventDefault();
@@ -1121,19 +1121,29 @@ function VSCodeWorkbench({
           <div className="flex h-9 shrink-0 items-center border-b border-border bg-muted/20">
             <div
               ref={editorTabStripRef}
+              role="tablist"
+              aria-label={t('vscodeWorkbench.editor.openFiles', { defaultValue: 'Open files' })}
               className="flex min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {openEditorTabs.map((tab) => {
                 const active = tab.path === activeEditorFile.path;
                 return (
-                  <button
+                  <div
                     key={tab.path}
-                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    tabIndex={active ? 0 : -1}
                     className={cn(
-                      'group flex h-9 w-44 shrink-0 items-center gap-2 border-r border-border px-2.5 text-xs transition-colors',
+                      'group flex h-9 w-44 shrink-0 cursor-pointer items-center gap-2 border-r border-border px-2.5 text-xs transition-colors',
                       active ? 'bg-background text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
                     )}
                     onClick={() => setActiveEditorPath(tab.path)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setActiveEditorPath(tab.path);
+                      }
+                    }}
                     onMouseDown={(event) => {
                       if (event.button === 1) {
                         event.preventDefault();
@@ -1150,27 +1160,19 @@ function VSCodeWorkbench({
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1 truncate text-left">{tab.name}</span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      className="rounded p-0.5 text-muted-foreground opacity-70 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                    <button
+                      type="button"
+                      className="rounded p-1 text-muted-foreground opacity-70 transition hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 group-hover:opacity-100"
                       onClick={(event) => {
                         event.stopPropagation();
                         handleCloseEditorTab(tab.path);
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleCloseEditorTab(tab.path);
-                        }
                       }}
                       aria-label={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
                       title={t('vscodeWorkbench.editor.closeTab', { file: tab.name, defaultValue: 'Close {{file}}' })}
                     >
                       <X className="h-3 w-3" />
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -1290,6 +1292,7 @@ function VSCodeWorkbench({
         onSystemTab={openSystemTab}
         onShowSettings={onShowSettings}
         onQuickStartSession={onQuickStartSession}
+        onEnterTerminalOnly={onEnterTerminalOnly}
       />
       <WorkbenchWorkspaceTabs
         tabs={workspaceTabs}
@@ -1481,6 +1484,7 @@ type WorkbenchMenuBarProps = {
   onSystemTab: (tab: AppTab) => void;
   onShowSettings: () => void;
   onQuickStartSession?: () => void | Promise<void>;
+  onEnterTerminalOnly?: () => void;
 };
 
 type WorkbenchMenuCommand = {
@@ -1498,6 +1502,7 @@ function WorkbenchMenuBar({
   onSystemTab,
   onShowSettings,
   onQuickStartSession,
+  onEnterTerminalOnly,
 }: WorkbenchMenuBarProps) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
@@ -1600,6 +1605,11 @@ function WorkbenchMenuBar({
           icon: Bot,
           action: () => onActivityPanel('terminal', 'shell'),
         },
+        {
+          label: t('vscodeWorkbench.cli.focusTerminal', { defaultValue: 'Focus terminal (terminal-only mode)' }),
+          icon: Terminal,
+          action: onEnterTerminalOnly,
+        },
       ],
     },
     {
@@ -1616,6 +1626,7 @@ function WorkbenchMenuBar({
     onActivityPanel,
     onQuickStartSession,
     onShowSettings,
+    onEnterTerminalOnly,
     onSystemTab,
     t,
   ]);
@@ -2623,7 +2634,7 @@ function WorkbenchCliPanel({
                   className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                   onClick={() => setActiveCliTabId(tab.id)}
                   onDoubleClick={() => renameCliTab(tab.id)}
-                  title="Double-click to rename"
+                   title={t('vscodeWorkbench.cli.renameTab', { defaultValue: 'Double-click to rename' })}
                 >
                   {tab.type === 'plain' ? (
                     <Terminal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -2639,7 +2650,8 @@ function WorkbenchCliPanel({
                     event.stopPropagation();
                     closeCliTab(tab.id);
                   }}
-                  aria-label="Close CLI tab"
+                   aria-label={t('vscodeWorkbench.cli.closeTab', { defaultValue: 'Close CLI tab' })}
+                   title={t('vscodeWorkbench.cli.closeTab', { defaultValue: 'Close CLI tab' })}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -2663,7 +2675,8 @@ function WorkbenchCliPanel({
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
         disabled={!project}
         onClick={openPlainShellTab}
-        title="New terminal tab"
+         title={t('vscodeWorkbench.cli.newPlainTerminal', { defaultValue: 'New terminal tab' })}
+         aria-label={t('vscodeWorkbench.cli.newPlainTerminal', { defaultValue: 'New terminal tab' })}
       >
         <Terminal className="h-3.5 w-3.5" />
       </button>
@@ -2672,7 +2685,8 @@ function WorkbenchCliPanel({
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
         disabled={!project || installState.state === 'running'}
         onClick={openProviderPickerForNewTab}
-        title="New CLI tab"
+         title={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI tab' })}
+         aria-label={t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI tab' })}
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
@@ -2808,8 +2822,7 @@ function WorkbenchCliPanel({
         }));
       }
 
-      const token = window.localStorage.getItem('auth-token') || '';
-      const streamUrl = `/api/providers/${provider}/install/${jobId}/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const streamUrl = await createStreamAuthUrl(`/api/providers/${provider}/install/${jobId}/stream`);
       const stream = new EventSource(streamUrl);
       installEventSourceRef.current = stream;
 
@@ -2859,6 +2872,9 @@ function WorkbenchCliPanel({
       });
 
       stream.onerror = () => {
+        // The ticket is single-use; close instead of letting EventSource retry
+        // the consumed URL and spin on 401 responses.
+        try { stream.close(); } catch { /* noop */ }
         setInstallState((current) => (
           current.state === 'running'
             ? {
@@ -2941,8 +2957,16 @@ function WorkbenchCliPanel({
         {showProviderPicker && (
           <div className="absolute inset-x-2 top-2 z-30 max-h-[58%] overflow-hidden rounded-md border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
             <div className="flex items-center justify-between border-b border-gray-800 px-2.5 py-2">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">New CLI tab</div>
-              <button type="button" className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100" onClick={() => setShowProviderPicker(false)}>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                {t('vscodeWorkbench.cli.newSession', { defaultValue: 'New CLI tab' })}
+              </div>
+              <button
+                type="button"
+                className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-gray-100"
+                onClick={() => setShowProviderPicker(false)}
+                aria-label={t('buttons.close', { defaultValue: 'Close' })}
+                title={t('buttons.close', { defaultValue: 'Close' })}
+              >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -2973,7 +2997,11 @@ function WorkbenchCliPanel({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] font-semibold">{provider.label}</span>
                       <span className="block truncate text-[10px] text-gray-500">
-                        {isInstalling ? 'Installing...' : isLocked ? 'Install first' : 'Open new tab'}
+                        {isInstalling
+                          ? t('vscodeWorkbench.cli.installing', { defaultValue: 'Installing...' })
+                          : isLocked
+                            ? t('vscodeWorkbench.cli.installProvider', { defaultValue: 'Install first' })
+                            : t('vscodeWorkbench.cli.openNewTab', { defaultValue: 'Open new tab' })}
                       </span>
                     </span>
                     <Plus className="h-3.5 w-3.5 shrink-0 opacity-70" />

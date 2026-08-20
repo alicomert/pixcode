@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '../../../utils/api';
@@ -194,7 +194,7 @@ function CallbackPasteSection({ provider }: { provider: LLMProvider }) {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="http://127.0.0.1:49312/callback?code=..."
-          className="flex-1 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground focus:border-primary focus:outline-none"
+          className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground focus:border-primary focus:outline-none"
           onKeyDown={(e) => {
             if (e.key === 'Enter') void submit();
           }}
@@ -202,7 +202,7 @@ function CallbackPasteSection({ provider }: { provider: LLMProvider }) {
         <button
           onClick={() => void submit()}
           disabled={pending || !url.trim()}
-          className="flex items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="flex min-h-11 items-center gap-1.5 rounded-md bg-foreground px-3 py-2 text-xs font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Forward'}
         </button>
@@ -320,12 +320,12 @@ function ApiKeyTab({ provider, onSaved }: { provider: LLMProvider; onSaved: () =
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={meta.keyExample}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary focus:outline-none"
+            className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary focus:outline-none"
             autoComplete="off"
             spellCheck={false}
           />
           <p className="text-[11px] text-muted-foreground">
-            Stored locally at <code className="rounded bg-muted px-1 font-mono text-[10px]">~/.pixcode/provider-credentials.json</code> with 0600 permissions.
+            Stored locally in Pixcode's encrypted credential store (0600 permissions).
           </p>
         </div>
 
@@ -339,7 +339,7 @@ function ApiKeyTab({ provider, onSaved }: { provider: LLMProvider; onSaved: () =
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder={meta.baseUrlExample}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary focus:outline-none"
+              className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary focus:outline-none"
               autoComplete="off"
               spellCheck={false}
             />
@@ -353,7 +353,7 @@ function ApiKeyTab({ provider, onSaved }: { provider: LLMProvider; onSaved: () =
           <button
             onClick={() => void save()}
             disabled={pending || !apiKey.trim()}
-            className="inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Save API Key
@@ -381,6 +381,8 @@ export default function ProviderLoginModal({
 }: ProviderLoginModalProps) {
   const { t: _t } = useTranslation('common');
   const apiKeyAvailable = provider !== 'cursor';
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
   // Default to the API-key tab when available. Three reasons:
   //   1. Users asked for "our design" to show first, not a raw terminal.
   //   2. The embedded shell only mounts when the Browser tab is active
@@ -397,6 +399,60 @@ export default function ProviderLoginModal({
     if (isOpen) setTab(apiKeyAvailable ? 'apiKey' : 'browser');
   }, [isOpen, provider, apiKeyAvailable]);
 
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+        if (focusable.length > 0) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          const activeElement = document.activeElement;
+          if (event.shiftKey && (activeElement === first || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          } else if (!event.shiftKey && (activeElement === last || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>('[data-provider-login-close]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, [isOpen]);
+
   const title = useMemo(() => {
     const name = PROVIDER_DISPLAY_NAMES[provider] ?? provider;
     return `${name} Login`;
@@ -408,15 +464,30 @@ export default function ProviderLoginModal({
   const handleComplete = (exitCode: number) => onComplete?.(exitCode);
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50 max-md:items-stretch max-md:justify-stretch">
-      <div className="flex h-3/4 w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800 max-md:m-0 max-md:h-full max-md:max-w-none max-md:rounded-none md:m-4 md:h-3/4 md:max-w-4xl md:rounded-lg">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50 pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] max-md:items-stretch max-md:justify-stretch"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pixcode-provider-login-title"
+        className="flex h-3/4 w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl dark:bg-gray-800 max-md:m-0 max-md:h-full max-md:max-w-none max-md:rounded-none md:m-4 md:h-3/4 md:max-w-4xl md:rounded-lg"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <h3 id="pixcode-provider-login-title" className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
+            type="button"
+            data-provider-login-close
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
             aria-label="Close login modal"
+            title="Close login modal"
           >
             <X className="h-6 w-6" />
           </button>

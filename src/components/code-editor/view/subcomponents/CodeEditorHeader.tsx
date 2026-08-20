@@ -55,7 +55,7 @@ export default function CodeEditorHeader({
       <div className="flex min-w-0 flex-1 shrink items-center gap-2">
         <div className="min-w-0 shrink">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white">{file.name}</h3>
+            <h3 id={!isSidebar ? 'pixcode-code-editor-title' : undefined} className="truncate text-sm font-medium text-gray-900 dark:text-white">{file.name}</h3>
             {file.diffInfo && (
               <span className="shrink-0 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium leading-none text-blue-600 dark:border-blue-800/70 dark:bg-blue-950/50 dark:text-blue-300">
                 {labels.showingChanges}
@@ -72,12 +72,13 @@ export default function CodeEditorHeader({
           <button
             type="button"
             onClick={onToggleMarkdownPreview}
-            className={`flex items-center justify-center rounded-md p-1.5 transition-colors ${
+            className={`flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 transition-colors ${
               markdownPreview
                 ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
             }`}
             title={markdownPreview ? labels.editMarkdown : labels.previewMarkdown}
+            aria-label={markdownPreview ? labels.editMarkdown : labels.previewMarkdown}
           >
             {markdownPreview ? <Code2 className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -86,8 +87,9 @@ export default function CodeEditorHeader({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
           title={labels.settings}
+          aria-label={labels.settings}
         >
           <SettingsIcon className="h-4 w-4" />
         </button>
@@ -95,8 +97,9 @@ export default function CodeEditorHeader({
         <button
           type="button"
           onClick={onDownload}
-          className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
           title={labels.download}
+          aria-label={labels.download}
         >
           <Download className="h-4 w-4" />
         </button>
@@ -105,12 +108,13 @@ export default function CodeEditorHeader({
           type="button"
           onClick={onSave}
           disabled={saving}
-          className={`flex items-center justify-center rounded-md p-1.5 transition-colors disabled:opacity-50 ${
+          className={`flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 transition-colors disabled:opacity-50 ${
             saveSuccess
               ? 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'
               : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
           }`}
           title={saveTitle}
+          aria-label={saveTitle}
         >
           {saveSuccess ? (
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,8 +129,9 @@ export default function CodeEditorHeader({
           <button
             type="button"
             onClick={onToggleFullscreen}
-            className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
             title={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
+            aria-label={isFullscreen ? labels.exitFullscreen : labels.fullscreen}
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
@@ -134,9 +139,11 @@ export default function CodeEditorHeader({
 
         <button
           type="button"
+          data-code-editor-close={!isSidebar ? true : undefined}
           onClick={onClose}
-          className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
           title={labels.close}
+          aria-label={labels.close}
         >
           <X className="h-4 w-4" />
         </button>

@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs';
+import fsSync, { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 
@@ -20,6 +20,15 @@ const __dirname = getModuleDir(import.meta.url);
 const APP_ROOT = findAppRoot(__dirname);
 
 const router = express.Router();
+
+function canonicalExistingPath(inputPath) {
+  const resolved = path.resolve(String(inputPath || ''));
+  try {
+    return fsSync.realpathSync.native(resolved);
+  } catch {
+    return resolved;
+  }
+}
 
 /**
  * Recursively scan directory for command files (.md)
@@ -518,10 +527,16 @@ router.post('/execute', async (req, res) => {
 
     // Load command content
     // Security: validate commandPath is within allowed directories
+    let authorizedCommandPath = null;
     {
-      const resolvedPath = path.resolve(commandPath);
-      const userBase = path.resolve(path.join(os.homedir(), '.claude', 'commands'));
-      const contextProjectPath = typeof context?.projectPath === 'string' ? path.resolve(context.projectPath) : null;
+      // Resolve existing symlinks before checking the command root.  A lexical
+      // `path.relative` check alone lets `.claude/commands/foo.md` point at an
+      // arbitrary host file through a symlink.
+      const resolvedPath = canonicalExistingPath(commandPath);
+      const userBase = canonicalExistingPath(path.join(os.homedir(), '.claude', 'commands'));
+      const contextProjectPath = typeof context?.projectPath === 'string'
+        ? canonicalExistingPath(context.projectPath)
+        : null;
       if (contextProjectPath && !userHasProjectPathAccess(req.user, { fullPath: contextProjectPath, path: contextProjectPath, projectPath: contextProjectPath }, resolvedPath, 'viewFiles')) {
         return res.status(403).json({ error: 'Project access denied.' });
       }
@@ -538,8 +553,11 @@ router.post('/execute', async (req, res) => {
           message: 'Command must be in .claude/commands directory'
         });
       }
+      authorizedCommandPath = resolvedPath;
     }
-    const content = await fs.readFile(commandPath, 'utf8');
+    // Read the canonical path we just authorized.  This avoids following a
+    // command symlink (or a swapped path) after the lexical access check.
+    const content = await fs.readFile(authorizedCommandPath, 'utf8');
     const { data: metadata, content: commandContent } = parseFrontmatter(content);
     // Basic argument replacement (will be enhanced in command parser utility)
     let processedContent = commandContent;

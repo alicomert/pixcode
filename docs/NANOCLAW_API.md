@@ -3,11 +3,17 @@
 Pixcode embeds **NanoClaw-lite** as the agent/schedule/messaging engine.  
 Everything below is reachable over HTTP so remote clients, scripts, and other machines can drive the system without the UI.
 
-> **Base URL:** `http://HOST:3001` (default `SERVER_PORT=3001`)  
+> **Base URL:** your Pixcode origin, for example `https://pixcode.203-0-113-10.sslip.io` in a public Caddy deployment or `http://127.0.0.1:3001` locally.
 > **Auth:** `X-API-Key: px_…` or `Authorization: Bearer px_…` (Settings → API keys; scopes `tasks:read` / `tasks:write`)  
 > **Live help:** `GET /api/nanoclaw/help`  
 > **Cookbook:** `GET /api/public/cookbook`  
 > **UI alias:** `/api/tasks/*` is the same router as `/api/nanoclaw/*`
+
+Use headers for API authentication. Browser SSE/WebSocket clients should use
+the one-shot `streamTicket` returned by `POST /api/auth/stream-ticket`; raw
+`?token=` and `?apiKey=` credentials are disabled by default because URLs can
+leak through history, proxy logs, and referrer headers. Legacy query
+credentials can be explicitly enabled with `PIXCODE_ALLOW_QUERY_CREDENTIALS=1`.
 
 ## Quick start
 
@@ -261,8 +267,8 @@ curl -H "X-API-Key: $PIXCODE_API_KEY" "$PIXCODE_URL/api/public/openapi"
 
 - Engine lives under `server/vendor/nanoclaw-lite` and is bridged by `server/modules/nanoclaw/bridge.js`.
 - Multi-CLI execution is `server/modules/nanoclaw/multi-runner.js` → `server/services/task-runtime.js`.
-- Schedules are stored in NanoClaw’s SQLite under `~/.pixcode/nanoclaw` (not the Pixcode auth DB).
-- Desktop / remote: same HTTP API; point `PIXCODE_URL` at the host running the daemon (`HOST=0.0.0.0`).
+- Schedules are stored in NanoClaw’s SQLite under `~/.pixcode/nanoclaw` (not the Pixcode JSON auth store).
+- Desktop / remote: use the same HTTP API, but point `PIXCODE_URL` at the public HTTPS origin exposed by Caddy. `HOST=0.0.0.0` is only appropriate for an intentional LAN/private-network bind; do not expose port 3001 directly on the public internet. See [REMOTE-HTTPS.md](REMOTE-HTTPS.md) for the sslip.io/nip.io + Caddy deployment.
 
 ## Branding
 

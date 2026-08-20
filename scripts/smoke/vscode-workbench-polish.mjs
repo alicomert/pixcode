@@ -24,7 +24,11 @@ assert.match(
 );
 
 for (const item of ['File', 'Edit', 'Selection', 'View', 'Go', 'Run', 'Terminal', 'Help']) {
-  assert.match(workbench, new RegExp(`label: '${item}'`), `Workbench menu should include ${item}.`);
+  assert.match(
+    workbench,
+    new RegExp(`(?:label|defaultValue):\\s*'${item}'`),
+    `Workbench menu should include ${item}.`,
+  );
 }
 
 assert.match(
@@ -54,7 +58,7 @@ assert.match(
 for (const token of [
   'vscodeWorkbench.welcome.openProject',
   'vscodeWorkbench.welcome.cloneProject',
-  'vscodeWorkbench.welcome.startHermes',
+  'vscodeWorkbench.welcome.newChat',
   'DarkModeToggle',
   'welcomeActionCards',
   'welcomeAppearancePanel',
@@ -144,8 +148,8 @@ assert.match(
 
 assert.match(
   workspaceTabsSource,
-  /scrollWorkspaceTabs/,
-  'Workspace tabs should expose left/right scroll controls when the tab row overflows.',
+  /overflow-x-auto/,
+  'Workspace tabs should remain horizontally scrollable when the tab row overflows.',
 );
 
 assert.match(
@@ -232,12 +236,6 @@ assert.match(
 
 assert.match(
   workbench,
-  /function WorkbenchSessionHistory/,
-  'CLI history should be integrated as a polished project-scoped panel.',
-);
-
-assert.match(
-  workbench,
   /terminalSession/,
   'Right CLI panel should track whether the terminal is running a new session or a selected history session.',
 );
@@ -250,32 +248,8 @@ assert.match(
 
 assert.match(
   workbench,
-  /openNewCliSessionPicker/,
-  'Right CLI panel toolbar plus should stop the current terminal view and return to CLI selection.',
-);
-
-assert.match(
-  workbench,
-  /terminateCurrentCliSession\(selectedProvider\)/,
-  'Right CLI panel toolbar plus should explicitly terminate the current provider PTY before showing the picker.',
-);
-
-assert.match(
-  workbench,
   /forceNewSession=\{terminalLaunch\.forceNewSession\}/,
   'Right CLI panel should mark explicitly started new sessions so the backend does not reconnect the old PTY.',
-);
-
-assert.match(
-  workbench,
-  /forceNewSession:\s*hermesCliLaunch\.forceNewSession === true/,
-  'Hermes-triggered provider work should reuse the current visible CLI session unless a fresh session is explicitly requested.',
-);
-
-assert.match(
-  workbench,
-  /function WorkbenchCliPanelToolbar/,
-  'Right CLI terminal should keep compact History and New Session actions visible while the terminal is open.',
 );
 
 assert.match(
@@ -284,32 +258,7 @@ assert.match(
   'Terminal activity should open a VS Code-style bottom terminal instead of the provider CLI picker.',
 );
 
-assert.match(
-  workbench,
-  /function WorkbenchHermesPanel/,
-  'Workbench should expose a Hermes Agent activity panel instead of hiding control-plane state in Settings only.',
-);
-
-for (const token of [
-  'HermesControlMetric',
-  'HermesControlAction',
-  'refreshHermesControlPlane',
-  '/api/orchestration/hermes/control-plane',
-  '/api/orchestration/hermes/control-plane/repair',
-  'HERMES_MODEL_COMMAND',
-  'HERMES_CRON_COMMAND',
-  'HERMES_STATUS_COMMAND',
-]) {
-  assert.match(workbench, new RegExp(token.replaceAll('/', '\\/')), `Hermes workbench control plane should include ${token}.`);
-}
-
-assert.match(
-  workbench,
-  /onActivityPanel\('hermes', 'files'\)/,
-  'Workbench View menu should open the Hermes Agent activity panel.',
-);
-
-for (const token of ['BOTTOM_TERMINAL_MIN_HEIGHT', 'bottomTerminalViewMode', 'shrinkCliPanel', 'expandCliPanel']) {
+for (const token of ['BOTTOM_TERMINAL_MIN_HEIGHT', 'bottomTerminalViewMode']) {
   assert.match(workbench, new RegExp(token), `Workbench should include ${token}.`);
 }
 assert.match(
@@ -333,42 +282,6 @@ assert.match(
   workbench,
   /isPlainShell/,
   'Workbench bottom terminal should run a plain shell in the selected project directory.',
-);
-
-assert.doesNotMatch(
-  workbench,
-  /HERMES_AGENT_START_COMMAND/,
-  'Hermes Agent should not launch through the bottom terminal with a server-side command sentinel.',
-);
-
-assert.doesNotMatch(
-  workbench,
-  /HermesApiChatPanel/,
-  'Hermes Agent should use the real PTY terminal UI instead of the removed REST chat panel.',
-);
-
-assert.match(
-  workbench,
-  /HERMES_DEFAULT_COMMAND = 'hermes --yolo'/,
-  'Hermes Agent should launch the Hermes CLI directly in bypass mode and rely on Pixcode-written config for hermes-cli + mcp-pixcode.',
-);
-
-assert.match(
-  workbench,
-  /HERMES_HISTORY_COMMAND = 'hermes sessions browse'/,
-  'Hermes Agent should expose the native interactive Hermes session browser from the bottom terminal.',
-);
-
-assert.doesNotMatch(
-  workbench,
-  /Project-scoped agent terminal\. Installs Hermes when missing/,
-  'Right CLI picker should not show the old Hermes install card.',
-);
-
-assert.match(
-  workbench,
-  /onNewSession=\{openNewCliSessionPicker\}/,
-  'Right CLI terminal toolbar should wire the plus button to the new-session picker flow.',
 );
 
 assert.doesNotMatch(

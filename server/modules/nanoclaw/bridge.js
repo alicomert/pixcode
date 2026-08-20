@@ -2,11 +2,14 @@
  * Pixcode ↔ NanoClaw-lite bridge.
  * Embeds vendor/nanoclaw-lite in the Pixcode daemon with thin HTTP surface for PixBot UI.
  */
-import crypto from 'node:crypto';
 import path from 'node:path';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import express from 'express';
+
+import { userHasProjectAccess, userHasProjectPathAccess } from '../../services/platformization.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NANOCLAW_ROOT = path.resolve(__dirname, '../../vendor/nanoclaw-lite/src');
@@ -16,6 +19,43 @@ let nanoclaw = null;
 let db = null;
 let mcp = null;
 let scheduler = null;
+
+// NanoClaw requests can start provider processes and persist task rows. Keep
+// their individual fields bounded even though the global JSON parser accepts
+// larger payloads for file-oriented APIs; otherwise one authenticated client
+// could enqueue megabytes of prompt/cron text and pin memory or the scheduler.
+const MAX_NANO_PROMPT_CHARS = 64 * 1024;
+const MAX_NANO_SCHEDULE_CHARS = 256;
+const MAX_NANO_PROJECT_ID_CHARS = 256;
+const MAX_NANO_PROJECT_PATH_CHARS = 4096;
+
+function readNanoText(value, maxChars, field, { required = false } = {}) {
+  if (value === undefined || value === null) {
+    if (required) {
+      const error = new Error(`${field} is required.`);
+      error.statusCode = 400;
+      throw error;
+    }
+    return '';
+  }
+  if (typeof value !== 'string') {
+    const error = new Error(`${field} must be a string.`);
+    error.statusCode = 400;
+    throw error;
+  }
+  const text = value.trim();
+  if (text.length > maxChars) {
+    const error = new Error(`${field} exceeds the ${maxChars} character limit.`);
+    error.statusCode = 400;
+    throw error;
+  }
+  if (required && !text) {
+    const error = new Error(`${field} is required.`);
+    error.statusCode = 400;
+    throw error;
+  }
+  return text;
+}
 
 async function loadNanoclaw() {
   if (nanoclaw) return nanoclaw;
@@ -70,6 +110,16 @@ export async function ensureProjectGroup(project) {
   const projectId = project.name || project.id;
   const folder = String(projectId).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80) || 'project';
   const jid = `pixcode:project:${projectId}`;
+  let projectPath = project.fullPath || project.path || null;
+  if (projectPath) {
+    try {
+      // Persist a canonical path so a later scheduler restart cannot follow a
+      // newly introduced symlink and silently move agent execution elsewhere.
+      projectPath = await fs.realpath(projectPath);
+    } catch {
+      projectPath = path.resolve(String(projectPath));
+    }
+  }
   const group = {
     name: project.displayName || projectId,
     folder,
@@ -78,7 +128,7 @@ export async function ensureProjectGroup(project) {
     requiresTrigger: false,
     isMain: false,
     // Extra metadata for Pixcode (not all fields used by nanoclaw)
-    projectPath: project.fullPath || project.path || null,
+    projectPath,
   };
   nc.registerGroup(jid, group);
   return { jid, group };
@@ -191,6 +241,15 @@ export async function startNanoclawBridge() {
           const folder = String(jid || '').startsWith('pixcode:project:')
             ? String(jid).slice('pixcode:project:'.length).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80)
             : null;
+          // Member task groups are namespaced by user id (`u<id>_...`).
+          // Preserve that owner when routing the scheduler's outbound text;
+          // the chat engine uses it to authorize any conversation id carried
+          // by the task prompt.
+          const ownerMatch = folder?.match(/^u(\d+)_/u);
+          const parsedOwnerUserId = ownerMatch ? Number(ownerMatch[1]) : null;
+          const ownerUserId = ownerMatch
+            ? (Number.isSafeInteger(parsedOwnerUserId) && parsedOwnerUserId > 0 ? parsedOwnerUserId : 0)
+            : null;
           const tasks = folder
             ? database.getTasksForGroup(folder)
             : database.getAllTasks();
@@ -205,14 +264,15 @@ export async function startNanoclawBridge() {
           if (agentMatch) agentType = agentMatch[1];
         } catch { /* ignore */ }
 
-        const posted = chat.postScheduledTaskResult({
-          jid,
-          text,
-          taskId,
-          prompt,
-          conversationId,
-          agentType,
-        });
+          const posted = chat.postScheduledTaskResult({
+            jid,
+            text,
+            taskId,
+            prompt,
+            conversationId,
+            agentType,
+            ownerUserId,
+          });
         if (posted?.message) {
           console.log(`[nanoclaw] Task result → conversation ${posted.conversation?.id || '?'}`);
         } else if (posted?.skipped) {
@@ -246,17 +306,193 @@ export async function stopNanoclawBridge() {
   started = false;
 }
 
+function isPrivilegedNanoclawUser(req) {
+  if (!['admin', 'owner'].includes(req?.user?.role)) return false;
+  // API-key authenticated admin users must opt into the admin scope. A key
+  // should never inherit the browser/JWT administrator role implicitly.
+  if (!req?.user?.api_key_id) return true;
+  const scopes = Array.isArray(req.user.api_key_scopes) ? req.user.api_key_scopes : [];
+  return scopes.includes('*') || scopes.includes('admin') || scopes.includes('system');
+}
+
+function projectFolder(projectId) {
+  return String(projectId || 'general').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 64) || 'general';
+}
+
+function scopedProjectFolder(req, projectId) {
+  const folder = projectFolder(projectId);
+  if (isPrivilegedNanoclawUser(req)) return folder;
+  const userId = String(req?.user?.id || req?.user?.userId || 'anonymous').replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return `u${userId}_${folder}`.slice(0, 80);
+}
+
+function isPathInside(basePath, targetPath) {
+  const relative = path.relative(path.resolve(basePath), path.resolve(targetPath));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function privateWorkspaceRootFor(user) {
+  const userId = Number(user?.id ?? user?.userId);
+  if (!Number.isSafeInteger(userId) || userId <= 0) return null;
+  const base = path.resolve(process.env.WORKSPACES_BASE || path.join(os.homedir(), 'pixcode', 'projects'));
+  return path.join(base, 'users', String(userId));
+}
+
+function isPrivateNanoclawPath(req, targetPath) {
+  if (!targetPath || isPrivilegedNanoclawUser(req)) return false;
+  const root = privateWorkspaceRootFor(req.user);
+  return Boolean(root && isPathInside(root, targetPath));
+}
+
+/**
+ * Resolve a request's workspace before any NanoClaw runner is invoked.  The
+ * direct `/run` endpoint used to pass a missing projectPath to multi-runner,
+ * whose fallback was process.cwd() (the server checkout) for members.  Named
+ * projects are resolved through the Pixcode registry; path-less member work is
+ * forced into that user's private workspace instead.
+ */
+async function resolveRequestProjectPath(req, projectId, requestedPath) {
+  const explicit = typeof requestedPath === 'string' ? requestedPath.trim() : '';
+  const { resolveNanoclawProjectPath } = await import('./project-path.js');
+  const resolved = await resolveNanoclawProjectPath({ projectId, projectPath: explicit || null });
+  if (resolved || isPrivilegedNanoclawUser(req)) return resolved;
+  if (explicit) {
+    const error = new Error('Project path does not exist or is not a directory.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  try {
+    const privateRoot = privateWorkspaceRootFor(req.user);
+    if (!privateRoot) return null;
+    const { validateWorkspacePath } = await import('../../routes/projects.js');
+    const validation = await validateWorkspacePath(privateRoot, { allowedRoot: path.dirname(privateRoot) });
+    if (!validation.valid) return null;
+    await fs.mkdir(privateRoot, { recursive: true });
+    return privateRoot;
+  } catch {
+    return null;
+  }
+}
+
+function taskBelongsToRequest(req, task) {
+  if (isPrivilegedNanoclawUser(req)) return true;
+  const userId = String(req?.user?.id || req?.user?.userId || 'anonymous').replace(/[^a-zA-Z0-9_-]+/g, '_');
+  return Boolean(task?.group_folder && task.group_folder.startsWith(`u${userId}_`));
+}
+
+function visibleTasks(database, req, projectId = null) {
+  if (projectId) return database.getTasksForGroup(scopedProjectFolder(req, projectId));
+  const all = database.getAllTasks();
+  return isPrivilegedNanoclawUser(req) ? all : all.filter((task) => taskBelongsToRequest(req, task));
+}
+
+async function ensureRequestProjectGroup(req, projectId, projectPath = null) {
+  const rawProjectId = projectId || 'general';
+  return ensureProjectGroup({
+    name: scopedProjectFolder(req, rawProjectId),
+    displayName: rawProjectId,
+    path: projectPath,
+    fullPath: projectPath,
+  });
+}
+
 function toolContext(req, body = {}) {
-  const projectId = body.projectId || body.project_id || req.query.projectId || 'main';
-  const folder = String(projectId).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+  const projectId = body.projectId || body.project_id || req.query.projectId || 'general';
+  const folder = scopedProjectFolder(req, projectId);
   return {
-    chatJid: `pixcode:project:${projectId}`,
+    // Non-admin task groups are namespaced by user id. This keeps NanoClaw
+    // schedules and session state separate even when two users use the same
+    // project name (including the default "general" project).
+    chatJid: `pixcode:project:${folder}`,
     groupFolder: folder,
-    isMain: true,
+    // Main-group privileges are reserved for the server owner.  Treating
+    // every authenticated request as `isMain` bypassed NanoClaw's group
+    // ownership checks and mixed users' task/conversation state.
+    isMain: isPrivilegedNanoclawUser(req),
     sendMessage: async (text) => {
       console.log(`[nanoclaw/pixbot] ${projectId}: ${String(text).slice(0, 200)}`);
     },
   };
+}
+
+function canUseNanoclawProject(req, projectId, projectPath, capability = 'runAgents') {
+  // Administrators/owners may operate NanoClaw against any registered or
+  // explicitly selected workspace.  Everyone else must have an explicit
+  // project grant whenever a path is supplied.
+  if (isPrivilegedNanoclawUser(req)) return true;
+
+  const normalizedProjectId = typeof projectId === 'string' ? projectId.trim() : '';
+  const normalizedProjectPath = typeof projectPath === 'string' ? projectPath.trim() : '';
+
+  // `general` is the harmless, path-less personal workspace.  Do not let a
+  // caller smuggle an arbitrary cwd through that default project id.
+  if ((!normalizedProjectId || normalizedProjectId === 'general') && !normalizedProjectPath) {
+    return true;
+  }
+
+  // Every member receives a private workspace root for path-less NanoClaw
+  // chats/runs.  This path is not represented in the collaborator table, so
+  // authorize it explicitly before checking shared-project grants.
+  if (normalizedProjectPath && isPrivateNanoclawPath(req, normalizedProjectPath)) {
+    return true;
+  }
+
+  const project = {
+    name: normalizedProjectId || 'general',
+    projectName: normalizedProjectId || 'general',
+    fullPath: normalizedProjectPath || undefined,
+    path: normalizedProjectPath || undefined,
+  };
+  if (normalizedProjectPath) {
+    return userHasProjectPathAccess(req?.user, project, normalizedProjectPath, capability);
+  }
+  return userHasProjectAccess(req?.user, project, capability);
+}
+
+/**
+ * Build the NanoClaw context used by task mutations after ownership has been
+ * checked.  Frontend calls intentionally omit projectId for these endpoints;
+ * use the task's persisted group so a legitimate user's own task is not
+ * compared against the default `general` group.
+ */
+function taskMutationContext(req, body, task) {
+  const context = toolContext(req, body);
+  if (!isPrivilegedNanoclawUser(req) && task?.group_folder) {
+    context.groupFolder = task.group_folder;
+    context.chatJid = task.chat_jid || `pixcode:project:${task.group_folder}`;
+  }
+  return context;
+}
+
+function taskMutationResponse(res, result) {
+  const message = result?.content?.[0]?.text || 'Task operation failed.';
+  if (result?.isError) return res.status(400).json({ ok: false, error: message, message });
+  return res.json({ ok: true, message });
+}
+
+/**
+ * Conversation visibility must follow the same NanoClaw privilege/scope
+ * rules as task and provider mutations.  In particular, an API-key-authenticated
+ * admin without an explicit admin/system scope is not a global administrator.
+ */
+function conversationOwnerScope(req) {
+  return isPrivilegedNanoclawUser(req) ? null : (req?.user?.id || req?.user?.userId || null);
+}
+
+/**
+ * Find a conversation only when both its owner and project are visible to the
+ * current request.  The chat engine intentionally returns an empty message
+ * list for an owner mismatch; checking here avoids turning that into a false
+ * successful response and prevents project ids from becoming an access oracle.
+ */
+function accessibleConversation(chat, req, conversationId) {
+  const ownerUserId = conversationOwnerScope(req);
+  const conversation = chat.listConversations(null, ownerUserId)
+    .find((entry) => entry.id === conversationId);
+  if (!conversation) return null;
+  if (!canUseNanoclawProject(req, conversation.projectId || 'general', null, 'viewFiles')) return null;
+  return conversation;
 }
 
 /**
@@ -265,12 +501,26 @@ function toolContext(req, body = {}) {
  */
 export function nanoclawRouter() {
   const router = express.Router();
+  const requireTaskScope = (scope) => (req, res, next) => {
+    if (!req.user?.api_key_id) return next();
+    const scopes = Array.isArray(req.user.api_key_scopes) ? req.user.api_key_scopes : [];
+    if (scopes.includes('*') || scopes.includes('admin') || scopes.includes('system') || scopes.includes(scope)) return next();
+    return res.status(403).json({ error: `API key lacks required scope: ${scope}.` });
+  };
+  const requireTaskRead = requireTaskScope('tasks:read');
+  const requireTaskWrite = requireTaskScope('tasks:write');
+  const requireNanoclawAdmin = (req, res, next) => {
+    if (!isPrivilegedNanoclawUser(req)) {
+      return res.status(403).json({ error: 'NanoClaw administration requires an admin-scoped account.' });
+    }
+    return next();
+  };
 
-  router.get('/help', (_req, res) => {
+  router.get('/help', requireTaskRead, (_req, res) => {
     res.json(buildNanoclawApiHelp());
   });
 
-  router.get('/status', async (_req, res) => {
+  router.get('/status', requireTaskRead, async (_req, res) => {
     try {
       const nc = started ? await loadNanoclaw() : null;
       const channels = await getChannelCapabilities();
@@ -291,7 +541,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.post('/start', async (_req, res) => {
+  router.post('/start', requireNanoclawAdmin, async (_req, res) => {
     try {
       const result = await startNanoclawBridge();
       res.json(result);
@@ -300,7 +550,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.get('/channels', async (_req, res) => {
+  router.get('/channels', requireTaskRead, async (_req, res) => {
     try {
       res.json({ ok: true, channels: await getChannelCapabilities() });
     } catch (error) {
@@ -309,33 +559,47 @@ export function nanoclawRouter() {
   });
 
   /** Immediate multi-CLI run (does not require a schedule). */
-  router.post('/run', async (req, res) => {
+  router.post('/run', requireTaskWrite, async (req, res) => {
     try {
       if (!started) {
         await startNanoclawBridge();
       }
-      const prompt = String(req.body?.prompt || req.body?.message || '').trim();
-      if (!prompt) {
-        return res.status(400).json({ error: 'prompt is required' });
-      }
+      const prompt = readNanoText(
+        req.body?.prompt ?? req.body?.message,
+        MAX_NANO_PROMPT_CHARS,
+        'prompt',
+        { required: true },
+      );
 
-      const projectId = req.body?.projectId || req.body?.project_id || 'general';
-      const projectPath = req.body?.projectPath || req.body?.cwd || null;
-      if (projectId && projectId !== 'general') {
-        await ensureProjectGroup({
-          name: projectId,
-          displayName: projectId,
-          path: projectPath,
-          fullPath: projectPath,
-        });
+      const projectId = readNanoText(
+        req.body?.projectId ?? req.body?.project_id ?? 'general',
+        MAX_NANO_PROJECT_ID_CHARS,
+        'projectId',
+      ) || 'general';
+      const requestedProjectPath = readNanoText(
+        req.body?.projectPath ?? req.body?.cwd,
+        MAX_NANO_PROJECT_PATH_CHARS,
+        'projectPath',
+      ) || null;
+      const projectPath = await resolveRequestProjectPath(req, projectId, requestedProjectPath);
+      if (!canUseNanoclawProject(req, projectId, projectPath)) {
+        return res.status(403).json({ error: 'NanoClaw access denied for this project.' });
       }
+      // Provider session ids are opaque and are not self-authenticating. The
+      // normal chat/WebSocket paths record ownership centrally, but this
+      // standalone runner has no durable ownership context. Do not allow a
+      // regular user to guess another user's provider session and resume it.
+      if (req.body?.sessionId && !isPrivilegedNanoclawUser(req)) {
+        return res.status(403).json({ error: 'Resuming a provider session requires an admin-scoped account.' });
+      }
+      await ensureRequestProjectGroup(req, projectId, projectPath);
 
       const { runPixcodeMultiAgent, normalizeAgentType } = await import('./multi-runner.js');
       const agentType = normalizeAgentType(req.body?.agentType || req.body?.agent || req.body?.provider);
       const logs = [];
       const result = await runPixcodeMultiAgent({
         prompt,
-        groupFolder: String(projectId).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80),
+        groupFolder: scopedProjectFolder(req, projectId),
         sessionId: req.body?.sessionId || undefined,
         agentType,
         model: req.body?.model || undefined,
@@ -355,21 +619,17 @@ export function nanoclawRouter() {
         logs: logs.slice(-100),
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
   // MCP-equivalent REST: schedule_task, list_tasks, get_task, update_task, pause/resume/cancel
-  router.get('/tasks', async (req, res) => {
+  router.get('/tasks', requireTaskRead, async (req, res) => {
     try {
       const database = await loadDb();
       const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : null;
-      const folder = projectId
-        ? String(projectId).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80)
-        : null;
-      const tasks = folder
-        ? database.getTasksForGroup(folder)
-        : database.getAllTasks();
+      const tasks = visibleTasks(database, req, projectId);
       res.json({
         tasks: tasks.map(publicScheduledTask),
         crons: tasks.filter((t) => t.status === 'active').map(publicScheduledTask),
@@ -379,11 +639,11 @@ export function nanoclawRouter() {
     }
   });
 
-  router.get('/tasks/:taskId', async (req, res) => {
+  router.get('/tasks/:taskId', requireTaskRead, async (req, res) => {
     try {
       const database = await loadDb();
       const task = database.getTaskById(req.params.taskId);
-      if (!task) return res.status(404).json({ error: 'Task not found' });
+      if (!task || !taskBelongsToRequest(req, task)) return res.status(404).json({ error: 'Task not found' });
       let runLogs = [];
       try {
         if (typeof database.getTaskRunLogs === 'function') {
@@ -409,16 +669,26 @@ export function nanoclawRouter() {
     }
   });
 
-  router.post('/tasks', async (req, res) => {
+  router.post('/tasks', requireTaskWrite, async (req, res) => {
     try {
       const tools = await loadMcp();
-      const prompt = String(req.body?.prompt || req.body?.message || '').trim();
-      if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+      const prompt = readNanoText(
+        req.body?.prompt ?? req.body?.message,
+        MAX_NANO_PROMPT_CHARS,
+        'prompt',
+        { required: true },
+      );
 
-      const schedule_type = ['cron', 'interval', 'once'].includes(req.body?.schedule_type)
-        ? req.body.schedule_type
-        : (req.body?.scheduleType || 'once');
-      let schedule_value = String(req.body?.schedule_value || req.body?.scheduleValue || '').trim();
+      const requestedScheduleType = req.body?.schedule_type ?? req.body?.scheduleType ?? 'once';
+      if (typeof requestedScheduleType !== 'string' || !['cron', 'interval', 'once'].includes(requestedScheduleType)) {
+        return res.status(400).json({ error: 'schedule_type must be one of: cron, interval, once' });
+      }
+      const schedule_type = requestedScheduleType;
+      let schedule_value = readNanoText(
+        req.body?.schedule_value ?? req.body?.scheduleValue,
+        MAX_NANO_SCHEDULE_CHARS,
+        'schedule_value',
+      );
       if (schedule_type === 'once' && !schedule_value) {
         // Run soon (local time without TZ suffix — nanoclaw once format)
         const d = new Date(Date.now() + 5000);
@@ -433,10 +703,21 @@ export function nanoclawRouter() {
         schedule_value = '0 9 * * *';
       }
 
-      const projectId = req.body?.projectId || req.body?.project_id;
-      if (projectId) {
-        await ensureProjectGroup({ name: projectId, displayName: projectId, path: req.body?.projectPath });
+      const projectId = readNanoText(
+        req.body?.projectId ?? req.body?.project_id ?? 'general',
+        MAX_NANO_PROJECT_ID_CHARS,
+        'projectId',
+      ) || 'general';
+      const requestedProjectPath = readNanoText(
+        req.body?.projectPath ?? req.body?.cwd,
+        MAX_NANO_PROJECT_PATH_CHARS,
+        'projectPath',
+      ) || null;
+      const projectPath = await resolveRequestProjectPath(req, projectId, requestedProjectPath);
+      if (!canUseNanoclawProject(req, projectId, projectPath)) {
+        return res.status(403).json({ error: 'NanoClaw access denied for this project.' });
       }
+      await ensureRequestProjectGroup(req, projectId, projectPath);
 
       const result = await tools.toolScheduleTask(
         {
@@ -453,7 +734,7 @@ export function nanoclawRouter() {
       }
 
       const database = await loadDb();
-      const tasks = database.getAllTasks();
+      const tasks = visibleTasks(database, req, typeof projectId === 'string' ? projectId : null);
       const created = tasks[0];
       res.status(201).json({
         ok: true,
@@ -462,61 +743,97 @@ export function nanoclawRouter() {
         tasks: tasks.map(publicScheduledTask),
       });
     } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
     }
   });
 
-  router.post('/tasks/:taskId/pause', async (req, res) => {
-    try {
-      const tools = await loadMcp();
-      const result = await tools.toolPauseTask(req.params.taskId, toolContext(req, req.body));
-      res.json({ ok: !result.isError, message: result.content?.[0]?.text });
-    } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
-    }
-  });
-
-  router.post('/tasks/:taskId/resume', async (req, res) => {
-    try {
-      const tools = await loadMcp();
-      const result = await tools.toolResumeTask(req.params.taskId, toolContext(req, req.body));
-      res.json({ ok: !result.isError, message: result.content?.[0]?.text });
-    } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
-    }
-  });
-
-  router.post('/tasks/:taskId/cancel', async (req, res) => {
-    try {
-      const tools = await loadMcp();
-      const result = await tools.toolCancelTask(req.params.taskId, toolContext(req, req.body));
-      res.json({ ok: !result.isError, message: result.content?.[0]?.text });
-    } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
-    }
-  });
-
-  router.patch('/tasks/:taskId', async (req, res) => {
-    try {
-      const tools = await loadMcp();
-      const result = await tools.toolUpdateTask(
-        {
-          task_id: req.params.taskId,
-          prompt: req.body?.prompt,
-          schedule_type: req.body?.schedule_type || req.body?.scheduleType,
-          schedule_value: req.body?.schedule_value || req.body?.scheduleValue,
-        },
-        toolContext(req, req.body),
-      );
-      res.json({ ok: !result.isError, message: result.content?.[0]?.text });
-    } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
-    }
-  });
-
-  router.delete('/tasks/:taskId', async (req, res) => {
+  router.post('/tasks/:taskId/pause', requireTaskWrite, async (req, res) => {
     try {
       const database = await loadDb();
+      const task = database.getTaskById(req.params.taskId);
+      if (!task || !taskBelongsToRequest(req, task)) return res.status(404).json({ error: 'Task not found' });
+      const tools = await loadMcp();
+      const result = await tools.toolPauseTask(req.params.taskId, taskMutationContext(req, req.body, task));
+      return taskMutationResponse(res, result);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.post('/tasks/:taskId/resume', requireTaskWrite, async (req, res) => {
+    try {
+      const database = await loadDb();
+      const task = database.getTaskById(req.params.taskId);
+      if (!task || !taskBelongsToRequest(req, task)) return res.status(404).json({ error: 'Task not found' });
+      const tools = await loadMcp();
+      const result = await tools.toolResumeTask(req.params.taskId, taskMutationContext(req, req.body, task));
+      return taskMutationResponse(res, result);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.post('/tasks/:taskId/cancel', requireTaskWrite, async (req, res) => {
+    try {
+      const database = await loadDb();
+      const task = database.getTaskById(req.params.taskId);
+      if (!task || !taskBelongsToRequest(req, task)) return res.status(404).json({ error: 'Task not found' });
+      const tools = await loadMcp();
+      const result = await tools.toolCancelTask(req.params.taskId, taskMutationContext(req, req.body, task));
+      return taskMutationResponse(res, result);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.patch('/tasks/:taskId', requireTaskWrite, async (req, res) => {
+    try {
+      const database = await loadDb();
+      const task = database.getTaskById(req.params.taskId);
+      if (!task || !taskBelongsToRequest(req, task)) return res.status(404).json({ error: 'Task not found' });
+      const tools = await loadMcp();
+      const update = { task_id: req.params.taskId };
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, 'prompt')
+        || Object.prototype.hasOwnProperty.call(req.body || {}, 'message')) {
+        update.prompt = readNanoText(
+          req.body?.prompt ?? req.body?.message,
+          MAX_NANO_PROMPT_CHARS,
+          'prompt',
+          { required: true },
+        );
+      }
+      const requestedScheduleType = req.body?.schedule_type ?? req.body?.scheduleType;
+      if (requestedScheduleType !== undefined) {
+        if (typeof requestedScheduleType !== 'string' || !['cron', 'interval', 'once'].includes(requestedScheduleType)) {
+          return res.status(400).json({ error: 'schedule_type must be one of: cron, interval, once' });
+        }
+        update.schedule_type = requestedScheduleType;
+      }
+      const requestedScheduleValue = req.body?.schedule_value ?? req.body?.scheduleValue;
+      if (requestedScheduleValue !== undefined) {
+        update.schedule_value = readNanoText(
+          requestedScheduleValue,
+          MAX_NANO_SCHEDULE_CHARS,
+          'schedule_value',
+        );
+      }
+      const result = await tools.toolUpdateTask(
+        update,
+        taskMutationContext(req, req.body, task),
+      );
+      return taskMutationResponse(res, result);
+    } catch (error) {
+      const status = error?.statusCode || 500;
+      res.status(status).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.delete('/tasks/:taskId', requireTaskWrite, async (req, res) => {
+    try {
+      const database = await loadDb();
+      const task = database.getTaskById(req.params.taskId);
+      if (!task || !taskBelongsToRequest(req, task)) return res.status(404).json({ error: 'Task not found' });
       database.deleteTask(req.params.taskId);
       res.status(204).end();
     } catch (error) {
@@ -525,25 +842,28 @@ export function nanoclawRouter() {
   });
 
   // ---- NanoClaw conversation surface (chat-first; not a job board) ----
-  router.get('/bot/crons', async (req, res) => {
+  router.get('/bot/crons', requireTaskRead, async (req, res) => {
     // Compat alias → real scheduled tasks list (preserve query string e.g. projectId)
     const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     req.url = `/tasks${qs}`;
     return router.handle(req, res, () => {});
   });
 
-  router.get('/bot/help', (_req, res) => {
+  router.get('/bot/help', requireTaskRead, (_req, res) => {
     import('./chat-engine.js')
       .then((chat) => res.json({ ok: true, brand: 'PixBot', ...chat.chatHelpHints() }))
       .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
   });
 
   // PixBot LLM — multi custom providers + models.dev catalog
-  router.get('/bot/llm', async (req, res) => {
+  router.get('/bot/llm', requireTaskRead, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const bootstrap = String(req.query.bootstrap || '') === '1';
       if (bootstrap) {
+        if (!isPrivilegedNanoclawUser(req)) {
+          return res.status(403).json({ error: 'NanoClaw administration requires an admin-scoped account.' });
+        }
         res.json({ ok: true, brand: 'PixBot', ...(await llm.bootstrapPixbot({ refresh: true })) });
         return;
       }
@@ -554,7 +874,7 @@ export function nanoclawRouter() {
   });
 
   /** Open PixBot: sync system providers + pull models (also used as background refresh). */
-  router.post('/bot/bootstrap', async (req, res) => {
+  router.post('/bot/bootstrap', requireNanoclawAdmin, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const refresh = req.body?.refresh !== false;
@@ -564,7 +884,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.put('/bot/llm', async (req, res) => {
+  router.put('/bot/llm', requireNanoclawAdmin, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const config = await llm.savePixbotConfig({
@@ -580,7 +900,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.get('/bot/providers', async (_req, res) => {
+  router.get('/bot/providers', requireTaskRead, async (_req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       res.json({ ok: true, brand: 'PixBot', ...(await llm.listPixbotProviders()) });
@@ -589,7 +909,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.post('/bot/providers', async (req, res) => {
+  router.post('/bot/providers', requireNanoclawAdmin, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const result = await llm.addPixbotProvider({
@@ -609,7 +929,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.patch('/bot/providers/:id', async (req, res) => {
+  router.patch('/bot/providers/:id', requireNanoclawAdmin, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const provider = await llm.updatePixbotProvider(req.params.id, {
@@ -628,7 +948,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.delete('/bot/providers/:id', async (req, res) => {
+  router.delete('/bot/providers/:id', requireNanoclawAdmin, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const result = await llm.removePixbotProvider(req.params.id);
@@ -638,7 +958,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.post('/bot/providers/:id/activate', async (req, res) => {
+  router.post('/bot/providers/:id/activate', requireNanoclawAdmin, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const provider = await llm.setActivePixbotProvider(req.params.id);
@@ -649,13 +969,17 @@ export function nanoclawRouter() {
     }
   });
 
-  router.get('/bot/catalog', async (req, res) => {
+  router.get('/bot/catalog', requireTaskRead, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
+      const forceRefresh = String(req.query.refresh || '') === '1';
+      if (forceRefresh && !isPrivilegedNanoclawUser(req)) {
+        return res.status(403).json({ error: 'NanoClaw administration requires an admin-scoped account.' });
+      }
       const payload = await llm.listCatalogProviders({
         q: typeof req.query.q === 'string' ? req.query.q : '',
         limit: Number(req.query.limit) || 80,
-        force: String(req.query.refresh || '') === '1',
+        force: forceRefresh,
       });
       res.json({ ok: true, brand: 'PixBot', ...payload });
     } catch (error) {
@@ -663,11 +987,14 @@ export function nanoclawRouter() {
     }
   });
 
-  router.get('/bot/models', async (req, res) => {
+  router.get('/bot/models', requireTaskRead, async (req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const providerId = typeof req.query.providerId === 'string' ? req.query.providerId : undefined;
       const refresh = String(req.query.refresh || '') === '1';
+      if (refresh && !isPrivilegedNanoclawUser(req)) {
+        return res.status(403).json({ error: 'NanoClaw administration requires an admin-scoped account.' });
+      }
       const payload = await llm.fetchPixbotModels({ providerId, refresh });
       res.json({ ok: true, brand: 'PixBot', ...payload });
     } catch (error) {
@@ -679,7 +1006,7 @@ export function nanoclawRouter() {
     }
   });
 
-  router.post('/bot/models/refresh', async (_req, res) => {
+  router.post('/bot/models/refresh', requireNanoclawAdmin, async (_req, res) => {
     try {
       const llm = await import('./pixbot-llm.js');
       const payload = await llm.refreshAllPixbotModels({ force: true });
@@ -689,35 +1016,46 @@ export function nanoclawRouter() {
     }
   });
 
-  router.post('/bot/chat', async (req, res) => {
+  router.post('/bot/chat', requireTaskWrite, async (req, res) => {
     try {
+      const message = readNanoText(
+        req.body?.message ?? req.body?.prompt,
+        MAX_NANO_PROMPT_CHARS,
+        'message',
+        { required: true },
+      );
+      const projectId = readNanoText(
+        req.body?.projectId ?? req.body?.project_id ?? 'general',
+        MAX_NANO_PROJECT_ID_CHARS,
+        'projectId',
+      ) || 'general';
+      const requestedProjectPath = readNanoText(
+        req.body?.projectPath ?? req.body?.cwd,
+        MAX_NANO_PROJECT_PATH_CHARS,
+        'projectPath',
+      ) || null;
       if (!started) {
         await startNanoclawBridge();
       }
       const chat = await import('./chat-engine.js');
-      const { resolveNanoclawProjectPath } = await import('./project-path.js');
-      const projectId = req.body?.projectId || req.body?.project_id || 'general';
-      let projectPath = req.body?.projectPath || req.body?.cwd || null;
-      projectPath = await resolveNanoclawProjectPath({ projectId, projectPath });
+      const projectPath = await resolveRequestProjectPath(req, projectId, requestedProjectPath);
 
-      if (projectId && projectId !== 'general') {
-        await ensureProjectGroup({
-          name: projectId,
-          displayName: projectId,
-          path: projectPath,
-          fullPath: projectPath,
-        });
+      if (!canUseNanoclawProject(req, projectId, projectPath)) {
+        return res.status(403).json({ error: 'NanoClaw access denied for this project.' });
       }
+
+      await ensureRequestProjectGroup(req, projectId, projectPath);
 
       const tools = await loadMcp();
       const payload = await chat.handleChatTurn({
         projectId,
         conversationId: req.body?.conversationId || null,
-        message: req.body?.message || req.body?.prompt || '',
+        message,
         agentType: req.body?.agentType || req.body?.agent || null,
         model: req.body?.model || null,
         projectPath,
         forceCli: Boolean(req.body?.forceCli),
+        ownerUserId: req.user?.id || null,
         scheduleTools: {
           toolScheduleTask: tools.toolScheduleTask,
           toolContext: toolContext(req, req.body),
@@ -731,25 +1069,35 @@ export function nanoclawRouter() {
   });
 
   /** Streaming chat — SSE events: user, status, assistant_start, delta, done, error */
-  router.post('/bot/chat/stream', async (req, res) => {
+  router.post('/bot/chat/stream', requireTaskWrite, async (req, res) => {
     try {
+      const message = readNanoText(
+        req.body?.message ?? req.body?.prompt,
+        MAX_NANO_PROMPT_CHARS,
+        'message',
+        { required: true },
+      );
+      const projectId = readNanoText(
+        req.body?.projectId ?? req.body?.project_id ?? 'general',
+        MAX_NANO_PROJECT_ID_CHARS,
+        'projectId',
+      ) || 'general';
+      const requestedProjectPath = readNanoText(
+        req.body?.projectPath ?? req.body?.cwd,
+        MAX_NANO_PROJECT_PATH_CHARS,
+        'projectPath',
+      ) || null;
       if (!started) {
         await startNanoclawBridge();
       }
       const chat = await import('./chat-engine.js');
-      const { resolveNanoclawProjectPath } = await import('./project-path.js');
-      const projectId = req.body?.projectId || req.body?.project_id || 'general';
-      let projectPath = req.body?.projectPath || req.body?.cwd || null;
-      projectPath = await resolveNanoclawProjectPath({ projectId, projectPath });
+      const projectPath = await resolveRequestProjectPath(req, projectId, requestedProjectPath);
 
-      if (projectId && projectId !== 'general') {
-        await ensureProjectGroup({
-          name: projectId,
-          displayName: projectId,
-          path: projectPath,
-          fullPath: projectPath,
-        });
+      if (!canUseNanoclawProject(req, projectId, projectPath)) {
+        return res.status(403).json({ error: 'NanoClaw access denied for this project.' });
       }
+
+      await ensureRequestProjectGroup(req, projectId, projectPath);
 
       res.status(200);
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -767,11 +1115,12 @@ export function nanoclawRouter() {
       await chat.handleChatTurnStream({
         projectId,
         conversationId: req.body?.conversationId || null,
-        message: req.body?.message || req.body?.prompt || '',
+        message,
         agentType: req.body?.agentType || req.body?.agent || null,
         model: req.body?.model || null,
         projectPath,
         forceCli: Boolean(req.body?.forceCli),
+        ownerUserId: req.user?.id || null,
         scheduleTools: {
           toolScheduleTask: tools.toolScheduleTask,
           toolContext: toolContext(req, req.body),
@@ -793,39 +1142,53 @@ export function nanoclawRouter() {
     }
   });
 
-  router.get('/bot/conversations', (req, res) => {
+  router.get('/bot/conversations', requireTaskRead, (req, res) => {
     import('./chat-engine.js')
       .then((chat) => {
         const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : null;
-        res.json({ conversations: chat.listConversations(projectId) });
+        if (projectId && !canUseNanoclawProject(req, projectId, null, 'viewFiles')) {
+          return res.status(403).json({ error: 'NanoClaw access denied for this project.' });
+        }
+        const ownerUserId = conversationOwnerScope(req);
+        const conversations = chat.listConversations(projectId, ownerUserId)
+          .filter((conversation) => canUseNanoclawProject(req, conversation.projectId || 'general', null, 'viewFiles'));
+        return res.json({ conversations });
       })
       .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
   });
 
-  router.post('/bot/conversations', (req, res) => {
+  router.post('/bot/conversations', requireTaskWrite, (req, res) => {
     import('./chat-engine.js')
       .then((chat) => {
+        const projectId = String(req.body?.projectId || 'general').trim() || 'general';
+        if (!canUseNanoclawProject(req, projectId, null, 'chatAgents')) {
+          return res.status(403).json({ error: 'NanoClaw access denied for this project.' });
+        }
         const conversation = chat.createConversation({
-          projectId: req.body?.projectId || 'general',
+          projectId,
           title: req.body?.title,
           defaultAgent: req.body?.agentType || req.body?.defaultAgent,
+          ownerUserId: isPrivilegedNanoclawUser(req) ? null : (req.user?.id || req.user?.userId || null),
         });
-        res.status(201).json({ conversation });
+        return res.status(201).json({ conversation });
       })
       .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
   });
 
-  router.get('/bot/conversations/:id/messages', (req, res) => {
+  router.get('/bot/conversations/:id/messages', requireTaskRead, (req, res) => {
     import('./chat-engine.js')
       .then((chat) => {
-        res.json({ messages: chat.getMessages(req.params.id) });
+        const conversation = accessibleConversation(chat, req, req.params.id);
+        if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+        const ownerUserId = conversationOwnerScope(req);
+        return res.json({ messages: chat.getMessages(req.params.id, ownerUserId) });
       })
       .catch((error) => res.status(500).json({ error: error?.message || String(error) }));
   });
 
-  router.get('/bot/proposals', (_req, res) => res.json({ proposals: [] }));
-  router.get('/bot/plans', (_req, res) => res.json({ plans: [] }));
-  router.get('/meta/agents', async (_req, res) => {
+  router.get('/bot/proposals', requireTaskRead, (_req, res) => res.json({ proposals: [] }));
+  router.get('/bot/plans', requireTaskRead, (_req, res) => res.json({ plans: [] }));
+  router.get('/meta/agents', requireTaskRead, async (_req, res) => {
     try {
       const { MULTI_CLI_AGENTS } = await import('./multi-runner.js');
       const chat = await import('./chat-engine.js');
@@ -852,14 +1215,14 @@ export function nanoclawRouter() {
       });
     }
   });
-  router.get('/agents', (req, res) => {
+  router.get('/agents', requireTaskRead, (req, res) => {
     req.url = '/meta/agents';
     return router.handle(req, res, () => {});
   });
-  router.get('/meta/roles', (_req, res) => res.json({ roles: [] }));
-  router.get('/events', (req, res) => {
+  router.get('/meta/roles', requireTaskRead, (_req, res) => res.json({ roles: [] }));
+  router.get('/events', requireTaskRead, (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-store, no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.write(`data: ${JSON.stringify({ type: 'connected', engine: 'nanoclaw-lite', started })}\n\n`);
     const timer = setInterval(() => {
@@ -869,14 +1232,11 @@ export function nanoclawRouter() {
       clearInterval(timer);
     });
   });
-  router.get('/', async (req, res) => {
+  router.get('/', requireTaskRead, async (req, res) => {
     try {
       const database = await loadDb();
       const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : null;
-      const folder = projectId
-        ? String(projectId).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80)
-        : null;
-      const tasks = folder ? database.getTasksForGroup(folder) : database.getAllTasks();
+      const tasks = visibleTasks(database, req, projectId);
       res.json({
         tasks: tasks.map((t) => {
           const pub = publicScheduledTask(t);
@@ -943,7 +1303,9 @@ function publicScheduledTask(row) {
   const lastResult = row.last_result;
   return {
     id: row.id,
-    projectId: row.group_folder,
+    // Storage folders for non-admin users are namespaced (`u<id>_...`), but
+    // that implementation detail should not leak into the UI/API contract.
+    projectId: String(row.group_folder || '').replace(/^u(?:\d+|anonymous)_/u, ''),
     title: body.slice(0, 80) || row.prompt?.slice(0, 80),
     prompt: row.prompt,
     scheduleType: row.schedule_type,

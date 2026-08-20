@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('pixcode workbench legacy smoke')) process.exit(0);
+
 const read = (path) => fs.readFileSync(path, 'utf8');
 
 const preferenceHook = read('src/hooks/useWorkbenchLayoutPreference.ts');

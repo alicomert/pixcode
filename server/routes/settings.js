@@ -1,11 +1,29 @@
 import express from 'express';
 
 import { apiKeysDb, credentialsDb, notificationPreferencesDb, pushSubscriptionsDb } from '../database/db.js';
+import { isAdminUser } from '../services/platformization.js';
 import { getPublicKey } from '../services/vapid-keys.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '../services/notification-orchestrator.js';
 import { listNotificationTaxonomy } from '../services/notification-taxonomy.js';
 
 const router = express.Router();
+
+const ELEVATED_API_KEY_SCOPES = new Set(['*', 'admin', 'system', 'system:update', 'system:restart']);
+const MAX_API_KEY_NAME_LENGTH = 120;
+const MAX_CREDENTIAL_NAME_LENGTH = 160;
+const MAX_CREDENTIAL_TYPE_LENGTH = 120;
+const MAX_CREDENTIAL_VALUE_LENGTH = 8192;
+const DEFAULT_NEW_API_KEY_SCOPES = ['projects:read'];
+
+function normalizeUserApiKeyScopes(req, requested) {
+  const scopes = apiKeysDb.normalizeScopes(requested);
+  if (!isAdminUser(req.user) && scopes.some((scope) => ELEVATED_API_KEY_SCOPES.has(scope))) {
+    const error = new Error('Only an admin-scoped account may grant admin or system API-key scopes.');
+    error.statusCode = 403;
+    throw error;
+  }
+  return scopes;
+}
 
 // ===============================
 // API Keys Management
@@ -32,16 +50,35 @@ router.post('/api-keys', async (req, res) => {
   try {
     const { keyName, scopes } = req.body;
 
-    if (!keyName || !keyName.trim()) {
+    if (typeof keyName !== 'string' || !keyName.trim()) {
       return res.status(400).json({ error: 'Key name is required' });
     }
+    if (keyName.trim().length > MAX_API_KEY_NAME_LENGTH) {
+      return res.status(400).json({ error: `Key name must be ${MAX_API_KEY_NAME_LENGTH} characters or fewer.` });
+    }
 
-    const result = apiKeysDb.createApiKey(req.user.id, keyName.trim(), scopes);
+    // Keep pre-scope clients (which omit `scopes`) backwards compatible while
+    // treating an explicitly supplied empty array as an intentional
+    // least-privilege key.  The database records this distinction for the
+    // central API-key scope middleware.
+    const hasScopesField = Object.prototype.hasOwnProperty.call(req.body || {}, 'scopes');
+    if (hasScopesField && !Array.isArray(scopes)) {
+      return res.status(400).json({ error: 'scopes must be a non-empty array' });
+    }
+    const normalizedScopes = normalizeUserApiKeyScopes(
+      req,
+      hasScopesField ? scopes : DEFAULT_NEW_API_KEY_SCOPES,
+    );
+    if (normalizedScopes.length === 0) {
+      return res.status(400).json({ error: 'At least one API-key scope is required.' });
+    }
+    const result = apiKeysDb.createApiKey(req.user.id, keyName.trim(), normalizedScopes);
     res.json({
       success: true,
       apiKey: result
     });
   } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     console.error('Error creating API key:', error);
     res.status(500).json({ error: 'Failed to create API key' });
   }
@@ -94,10 +131,15 @@ router.patch('/api-keys/:keyId/scopes', async (req, res) => {
     const { scopes } = req.body;
 
     if (!Array.isArray(scopes)) {
-      return res.status(400).json({ error: 'scopes must be an array' });
+      return res.status(400).json({ error: 'scopes must be a non-empty array' });
     }
 
-    const success = apiKeysDb.updateApiKeyScopes(req.user.id, parseInt(keyId), scopes);
+    const normalizedScopes = normalizeUserApiKeyScopes(req, scopes);
+    if (normalizedScopes.length === 0) {
+      return res.status(400).json({ error: 'At least one API-key scope is required.' });
+    }
+
+    const success = apiKeysDb.updateApiKeyScopes(req.user.id, parseInt(keyId), normalizedScopes);
 
     if (success) {
       res.json({ success: true });
@@ -105,6 +147,7 @@ router.patch('/api-keys/:keyId/scopes', async (req, res) => {
       res.status(404).json({ error: 'API key not found' });
     }
   } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     console.error('Error updating API key scopes:', error);
     res.status(500).json({ error: 'Failed to update API key scopes' });
   }
@@ -132,16 +175,25 @@ router.post('/credentials', async (req, res) => {
   try {
     const { credentialName, credentialType, credentialValue, description } = req.body;
 
-    if (!credentialName || !credentialName.trim()) {
+    if (typeof credentialName !== 'string' || !credentialName.trim()) {
       return res.status(400).json({ error: 'Credential name is required' });
     }
-
-    if (!credentialType || !credentialType.trim()) {
-      return res.status(400).json({ error: 'Credential type is required' });
+    if (credentialName.trim().length > MAX_CREDENTIAL_NAME_LENGTH) {
+      return res.status(400).json({ error: `Credential name must be ${MAX_CREDENTIAL_NAME_LENGTH} characters or fewer.` });
     }
 
-    if (!credentialValue || !credentialValue.trim()) {
+    if (typeof credentialType !== 'string' || !credentialType.trim()) {
+      return res.status(400).json({ error: 'Credential type is required' });
+    }
+    if (credentialType.trim().length > MAX_CREDENTIAL_TYPE_LENGTH) {
+      return res.status(400).json({ error: `Credential type must be ${MAX_CREDENTIAL_TYPE_LENGTH} characters or fewer.` });
+    }
+
+    if (typeof credentialValue !== 'string' || !credentialValue.trim()) {
       return res.status(400).json({ error: 'Credential value is required' });
+    }
+    if (credentialValue.length > MAX_CREDENTIAL_VALUE_LENGTH) {
+      return res.status(400).json({ error: `Credential value must be ${MAX_CREDENTIAL_VALUE_LENGTH} characters or fewer.` });
     }
 
     const result = credentialsDb.createCredential(
@@ -149,7 +201,7 @@ router.post('/credentials', async (req, res) => {
       credentialName.trim(),
       credentialType.trim(),
       credentialValue.trim(),
-      description?.trim() || null
+      typeof description === 'string' ? description.trim().slice(0, 500) || null : null
     );
 
     res.json({

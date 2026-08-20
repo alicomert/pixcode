@@ -22,6 +22,13 @@ RUN npm ci --no-audit --no-fund
 # Copy the rest of the source and build both frontend (dist/) and backend
 # (dist-server/).
 COPY . .
+# Vite embeds these values into the browser bundle at build time. Keep the
+# secure self-hosted defaults, while allowing a deliberately configured
+# platform image to opt into the external identity-proxy contract.
+ARG VITE_IS_PLATFORM=false
+ARG VITE_PLATFORM_AUTH_BYPASS=false
+ENV VITE_IS_PLATFORM=${VITE_IS_PLATFORM} \
+    VITE_PLATFORM_AUTH_BYPASS=${VITE_PLATFORM_AUTH_BYPASS}
 RUN npm run build
 
 # Strip dev dependencies once the build is done so the runtime image can
@@ -57,9 +64,9 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/public ./public
 COPY --from=build /app/shared ./shared
 
-# Auth DB + install sandbox both live under ~/.pixcode. Mount this as a
-# volume in compose/Kubernetes so login state and installed provider CLIs
-# survive container rebuilds.
+# The JSON auth store + install sandbox both live under ~/.pixcode. Mount this
+# as a volume in compose/Kubernetes so login state and installed provider CLIs
+# survive container rebuilds. Legacy auth.db files are imported on first boot.
 VOLUME ["/root/.pixcode"]
 
 EXPOSE 3001

@@ -38,11 +38,11 @@ if [ ! -d "$APP_PATH" ]; then
 fi
 
 echo "Removing quarantine flag from $APP_PATH…"
-if xattr -cr "$APP_PATH" 2>/dev/null; then
+if xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null; then
   echo "✅ Done."
 else
-  # xattr -cr can fail silently on some macOS versions; try the
-  # explicit name as a fallback.
+  # Recursive removal of the named quarantine attribute can fail on some
+  # macOS versions; retry the bundle root explicitly.
   echo "Retrying with explicit attribute name…"
   xattr -rd com.apple.quarantine "$APP_PATH" 2>/dev/null || true
   echo "✅ Done (via explicit attribute removal)."

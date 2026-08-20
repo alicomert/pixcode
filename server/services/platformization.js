@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import dns from 'node:dns/promises';
+import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
@@ -150,7 +153,21 @@ function normalizeRole(role) {
 }
 
 export function isAdminUser(user = {}) {
-  return user?.role === 'admin' || user?.role === 'owner';
+  if (user?.role !== 'admin' && user?.role !== 'owner') return false;
+  // API keys are capability-scoped even when they were minted for an admin
+  // account.  Treat an admin key without an explicit admin/system wildcard as
+  // a regular project-scoped caller so it cannot bypass workspace and
+  // collaborator checks (JWT/browser sessions remain full admin sessions).
+  if (user?.api_key_id) {
+    const scopes = Array.isArray(user.api_key_scopes) ? user.api_key_scopes : [];
+    // Keys created before scoped API keys were introduced have no explicit
+    // scope marker. Preserve their historical full-admin behavior; only keys
+    // created/updated with an explicit scope set are least-privilege.
+    const hasExplicitScopes = user.api_key_has_explicit_scopes === true || scopes.length > 0;
+    if (!hasExplicitScopes) return true;
+    return scopes.includes('*') || scopes.includes('admin') || scopes.includes('system');
+  }
+  return true;
 }
 
 function resolveUser(input = {}) {
@@ -175,8 +192,30 @@ function projectMatches(collaborator, project = {}) {
   );
 }
 
+function canonicalPath(inputPath) {
+  const resolved = path.resolve(inputPath);
+  try {
+    return fs.realpathSync.native(resolved);
+  } catch {
+    // The target may be a new file. Resolve the nearest existing parent so a
+    // symlinked directory cannot make a non-existent child appear in-bounds.
+    const suffix = [];
+    let cursor = resolved;
+    while (cursor && cursor !== path.dirname(cursor)) {
+      suffix.unshift(path.basename(cursor));
+      cursor = path.dirname(cursor);
+      try {
+        return path.join(fs.realpathSync.native(cursor), ...suffix);
+      } catch {
+        // Keep walking toward the filesystem root.
+      }
+    }
+    return resolved;
+  }
+}
+
 function isPathInside(basePath, targetPath) {
-  const relative = path.relative(path.resolve(basePath), path.resolve(targetPath));
+  const relative = path.relative(canonicalPath(basePath), canonicalPath(targetPath));
   return relative === '' || (relative && !relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
@@ -253,6 +292,37 @@ export function userHasProjectPathAccess(user, project, targetPath, capability =
   return access.allowedRoots.some((root) => {
     const allowedPath = root === '.' ? projectPath : path.resolve(projectPath, root);
     return isPathInside(allowedPath, targetPath);
+  });
+}
+
+/**
+ * Resolve path-scoped collaborator permissions when the caller only knows an
+ * absolute workspace path (for example the member workspace picker). This
+ * keeps custom `allowedRoots` restrictions intact instead of requiring the UI
+ * to guess the parent project identifier.
+ */
+export function userHasWorkspacePathAccess(user, targetPath, capability = 'viewFiles') {
+  if (isAdminUser(user)) return true;
+  if (!targetPath || (!user?.id && !user?.userId)) return false;
+
+  const userId = Number(user.id ?? user.userId);
+  const username = String(user.username || '').toLowerCase();
+  const store = readStore();
+  return store.projectCollaborators.some((collaborator) => {
+    if (collaborator.status === 'disabled') return false;
+    const sameUser = Number(collaborator.userId) === userId
+      || String(collaborator.userRef || '').toLowerCase() === username;
+    if (!sameUser) return false;
+    const projectPath = collaborator.projectPath;
+    if (!projectPath) return false;
+    const capabilityAllowed = capability === 'viewFiles'
+      ? collaborator.capabilities?.viewFiles !== false
+      : collaborator.capabilities?.[capability] === true;
+    if (!capabilityAllowed) return false;
+    return collaboratorAllowedRoots(collaborator).some((root) => {
+      const allowedPath = root === '.' ? projectPath : path.resolve(projectPath, root);
+      return isPathInside(allowedPath, targetPath);
+    });
   });
 }
 
@@ -482,6 +552,7 @@ export function createProjectCollaborator(input = {}, actorId = null) {
   const role = ['partner', 'worker', 'reviewer', 'viewer'].includes(input.role) ? input.role : 'worker';
   const capabilities = {
     chatAgents: input.capabilities?.chatAgents !== false,
+    runAgents: ['partner', 'worker'].includes(role) && input.capabilities?.runAgents !== false,
     viewFiles: true,
     editFiles: role === 'partner' || role === 'worker',
     useShell: role === 'partner',
@@ -510,6 +581,39 @@ export function createProjectCollaborator(input = {}, actorId = null) {
   addAudit(store, 'project.collaborator.created', actorId, { collaboratorId: collaborator.id, projectName, userRef, role });
   writeStore(store);
   return collaborator;
+}
+
+/**
+ * Idempotent collaborator grant used when a member creates a private
+ * workspace. Admin-managed collaborator assignments keep their existing
+ * capabilities; repeated quick-start requests never create duplicate rows.
+ */
+export function ensureProjectCollaborator(input = {}, actorId = null) {
+  const projectName = compactProjectIdentifier(input.projectName || input.project || '');
+  const projectPath = compactProjectIdentifier(input.projectPath || '');
+  const targetUser = resolveUser(input);
+  const userId = Number(input.userId ?? input.user?.id ?? targetUser?.id);
+  const userRef = compact(input.userRef || input.email || input.username || targetUser?.username || '');
+  if (!projectName || !userRef || !Number.isFinite(userId)) {
+    throw new Error('Project collaborator requires a project name and user reference.');
+  }
+
+  const store = readStore();
+  const existing = store.projectCollaborators.find((collaborator) => {
+    if (collaborator.status === 'disabled') return false;
+    if (Number(collaborator.userId) !== userId) return false;
+    return collaborator.projectName === projectName
+      || (projectPath && collaborator.projectPath === projectPath);
+  });
+  if (existing) return existing;
+
+  return createProjectCollaborator({
+    ...input,
+    projectName,
+    projectPath: projectPath || input.projectPath || null,
+    userId,
+    userRef,
+  }, actorId);
 }
 
 export function updateProjectCollaborator(collaboratorId, patch = {}, actorId = null) {
@@ -867,14 +971,80 @@ function runTailscaleCommand(command, args, options = {}) {
 function normalizePublicUrl(value) {
   const raw = typeof value === 'string' ? value.trim() : '';
   if (!raw) return null;
+  if (/[\u0000-\u001f\u007f]/u.test(raw)) {
+    throw new Error('Remote access URL must not contain control characters.');
+  }
   const url = new URL(raw);
   if (!['http:', 'https:'].includes(url.protocol)) {
     throw new Error('Remote access URL must use http or https.');
+  }
+  if (url.username || url.password) {
+    throw new Error('Remote access URL must not contain embedded credentials.');
   }
   url.pathname = url.pathname.replace(/\/+$/, '');
   url.search = '';
   url.hash = '';
   return url.toString().replace(/\/$/, '');
+}
+
+function isPrivateRemoteAddress(value) {
+  const normalized = String(value || '').toLowerCase().replace(/^\[|\]$/g, '');
+  const version = net.isIP(normalized);
+  if (version === 4) {
+    const [a, b] = normalized.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31)
+      || (a === 192 && b === 168)
+      || (a === 100 && b >= 64 && b <= 127)
+      || (a === 198 && b >= 18 && b <= 19)
+      || a >= 224;
+  }
+  if (version === 6) {
+    // IPv4-mapped IPv6 literals have multiple spellings. In particular,
+    // [::ffff:7f00:1] reaches 127.0.0.1 through Node fetch, so expand the
+    // compressed form before evaluating the IPv4 private ranges.
+    const mapped = normalized.split('::');
+    const head = mapped[0] ? mapped[0].split(':') : [];
+    const tail = mapped[1] ? mapped[1].split(':') : [];
+    if (mapped.length <= 2 && head.length + tail.length <= 8) {
+      const expanded = [
+        ...head,
+        ...Array(Math.max(0, 8 - head.length - tail.length)).fill('0'),
+        ...tail,
+      ];
+      if (expanded.length === 8
+        && expanded.slice(0, 5).every((part) => Number.parseInt(part || '0', 16) === 0)
+        && Number.parseInt(expanded[5] || '0', 16) === 0xffff) {
+        const high = Number.parseInt(expanded[6] || '0', 16);
+        const low = Number.parseInt(expanded[7] || '0', 16);
+        return isPrivateRemoteAddress(`${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`);
+      }
+    }
+    const compact = normalized.replace(/^::ffff:/u, '');
+    if (compact !== normalized && net.isIP(compact) === 4) return isPrivateRemoteAddress(compact);
+    return normalized === '::' || normalized === '::1'
+      || normalized.startsWith('fc') || normalized.startsWith('fd')
+      || normalized.startsWith('fe8') || normalized.startsWith('fe9')
+      || normalized.startsWith('fea') || normalized.startsWith('feb');
+  }
+  return false;
+}
+
+async function assertRemoteHealthTargetSafe(value) {
+  if (process.env.PIXCODE_ALLOW_PRIVATE_REMOTE === '1') return;
+  const parsed = new URL(value);
+  if (isPrivateRemoteAddress(parsed.hostname)) {
+    throw new Error('Remote access health checks cannot target private, loopback, or metadata addresses. Set PIXCODE_ALLOW_PRIVATE_REMOTE=1 for an intentional local bridge.');
+  }
+  try {
+    const records = await dns.lookup(parsed.hostname, { all: true, verbatim: true });
+    if (records.some((record) => isPrivateRemoteAddress(record.address))) {
+      throw new Error('Remote access hostname resolves to a private or loopback address.');
+    }
+  } catch (error) {
+    if (error?.code === 'ENOTFOUND' || error?.code === 'EAI_AGAIN') return;
+    throw error;
+  }
 }
 
 export function saveRemoteAccessConfig(input = {}, actorId = null) {
@@ -1015,10 +1185,18 @@ export async function checkRemoteAccessHealth(input = {}, actorId = null) {
     throw new Error('Remote access health check requires a URL.');
   }
   const parsed = new URL(url);
+  await assertRemoteHealthTargetSafe(url);
+  const requestedTimeout = Number(input.timeoutMs);
+  const timeoutMs = Number.isFinite(requestedTimeout)
+    ? Math.max(500, Math.min(15_000, requestedTimeout))
+    : 5_000;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(input.timeoutMs || 5000));
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${url}/api/auth/status`, { signal: controller.signal });
+    const response = await fetch(`${url}/api/auth/status`, {
+      signal: controller.signal,
+      redirect: 'error',
+    });
     const health = {
       url,
       reachable: response.ok,

@@ -1,5 +1,3 @@
-import { useEffect } from 'react';
-
 import {
   CONFIRMATION_ACTION_LABELS,
   CONFIRMATION_BUTTON_CLASSES,
@@ -9,6 +7,7 @@ import {
 import type { ConfirmationRequest } from '../../types/types';
 
 import { Check, Download, RotateCcw, Trash2, Upload } from '@/lib/icons';
+import { Dialog, DialogContent, DialogTitle } from '@/shared/view/ui';
 
 type ConfirmActionModalProps = {
   action: ConfirmationRequest | null;
@@ -39,42 +38,25 @@ function renderConfirmActionIcon(actionType: ConfirmationRequest['type']) {
 export default function ConfirmActionModal({ action, onCancel, onConfirm }: ConfirmActionModalProps) {
   const titleId = action ? `confirmation-title-${action.type}` : undefined;
 
-  useEffect(() => {
-    if (!action) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onCancel();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [action, onCancel]);
-
   if (!action) {
     return null;
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
-      <div
-        className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
-        role="dialog"
-        aria-modal="true"
+    <Dialog open onOpenChange={(open) => {
+      if (!open) onCancel();
+    }}>
+      <DialogContent
         aria-labelledby={titleId}
+        className="w-[calc(100%-2rem)] max-w-md overflow-hidden p-0 sm:rounded-xl"
       >
+        <DialogTitle id={titleId}>{CONFIRMATION_TITLES[action.type]}</DialogTitle>
         <div className="p-6">
           <div className="mb-4 flex items-center">
             <div className={`mr-3 rounded-full p-2 ${CONFIRMATION_ICON_CONTAINER_CLASSES[action.type]}`}>
               {renderConfirmActionIcon(action.type)}
             </div>
-            <h3 id={titleId} className="text-lg font-semibold text-foreground">
+            <h3 className="text-lg font-semibold text-foreground">
               {CONFIRMATION_TITLES[action.type]}
             </h3>
           </div>
@@ -83,21 +65,23 @@ export default function ConfirmActionModal({ action, onCancel, onConfirm }: Conf
 
           <div className="flex justify-end space-x-3">
             <button
+              type="button"
               onClick={onCancel}
-              className="rounded-lg px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={onConfirm}
-              className={`flex items-center space-x-2 rounded-lg px-4 py-2 text-sm text-white transition-colors ${CONFIRMATION_BUTTON_CLASSES[action.type]}`}
+              className={`flex min-h-11 items-center space-x-2 rounded-lg px-4 py-2 text-sm text-white transition-colors ${CONFIRMATION_BUTTON_CLASSES[action.type]}`}
             >
               {renderConfirmActionIcon(action.type)}
               <span>{CONFIRMATION_ACTION_LABELS[action.type]}</span>
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

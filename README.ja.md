@@ -3,7 +3,7 @@
   <h1>Pixcode</h1>
   <p><strong>AI coding agent のための self-hosted control room。</strong></p>
   <p>
-    Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code、OpenCode を 1 つの Web UI で操作します。Chat、Shell、Files、Git、Orchestration、API keys、Plugins、Notifications、Telegram、Desktop/Server deployment をまとめて扱えます。
+    Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code、OpenCode を 1 つの Web UI で操作します。Chat、Shell、Files、Git、agent automation、API keys、Plugins、Notifications、Telegram、Desktop/Server deployment をまとめて扱えます。
   </p>
   <p>
     <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
@@ -13,8 +13,10 @@
     <a href="README.tr.md">Türkçe</a> ·
     <a href="README.de.md">Deutsch</a> ·
     <a href="README.ru.md">Русский</a> ·
+    <a href="README.ja.md" aria-current="page">日本語</a> ·
     <a href="README.ko.md">한국어</a> ·
-    <a href="README.zh-CN.md">简体中文</a>
+    <a href="README.zh-CN.md">简体中文</a> ·
+    <a href="README.es-ES.md">Español</a>
   </p>
 </div>
 
@@ -32,20 +34,16 @@ Pixcode は hosted cloud IDE ではありません。Projects、credentials、CL
 
 ## Screenshots
 
-| Workspace | Mobile chat |
+| Workspace | Mobile workspace |
 | --- | --- |
-| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
-
-| CLI selection | Tools and MCP |
-| --- | --- |
-| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode モバイルワークスペース" width="260" /> |
 
 ## Features
 
 ### Multiple CLI providers
 
 - Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code、OpenCode。
-- Provider auth、API key credentials、OAuth paste、install status、model catalog、CLI version status を Settings で管理。
+- Provider auth、API key credentials、provider 固有の OAuth callback/paste flow、install status、model catalog、CLI version status を Settings で管理。GitHub 接続は OAuth を使います。
 - Native CLI を置き換えるのではなく、session management、WebSocket streaming、notifications、file context、project controls を追加します。
 - CLI が thinking、tool execution、approval waiting、output streaming のどれなのか UI で分かります。
 
@@ -60,29 +58,24 @@ Pixcode は hosted cloud IDE ではありません。Projects、credentials、CL
 
 ### Command Center for changed files
 
-Pixcode は local working tree の変更も追跡します。Quick Settings の Command Center は changed files を即座に表示し、新しい変更を highlight して、該当 file/line に移動できます。AI agent が何を変更したかを chat/orchestration view を閉じずに確認できます。
+Pixcode は local working tree の変更も追跡します。Quick Settings の Command Center は changed files を即座に表示し、新しい変更を highlight して、該当 file/line に移動できます。AI agent が何を変更したかを main workspace を閉じずに確認できます。
 
-### Multi-agent orchestration
+### Agent automation (NanoClaw + production agent loop)
 
-Orchestration は 1 つの goal に対して複数の CLI agents を coordinating します。
+Pixcode の保守対象となる自動化 API は目的ごとに分かれています。
 
-- **Agent Team**: frontend、backend、review、docs、custom roles に分割。
-- **Multi-model Review**: 複数 provider/model で同じ変更を review。
-- **Sequential Handoff**: step-by-step に作業を受け渡し。
-- **Decision Debate**: 実装前に approach を比較。
+- **NanoClaw** は multi-CLI conversation、one-shot run、`once`/`interval`/`cron`
+  schedule を project context 付きで処理します。
+- **Production agent loop** は issue-to-PR、CI repair、review queue、checkpoint、
+  scheduler などの管理ワークフローを処理します。
 
-Controls:
-
-- agents を run ごとに enable/disable、
-- 同じ provider を複数 worker として使う、
-- agent ごとに role、stage、label、instruction を設定、
-- agent ごとに model を選択、OpenCode model も対象、
-- failed step の fallback CLI agent を選択、
-- workflow DAG preview、
-- event streaming と cancel、
-- resizable orchestration panes。
+旧 `/api/orchestration/*` workflow UI/route は v1.55 で廃止されました。
+残っている orchestration の説明は migration history であり、新しい client は
+以下の保守対象 API を利用してください。
 
 ### API, Telegram, notifications
+
+> **Current API note (1.64.x):** 旧 `/api/orchestration/*` workflow API は v1.55 で廃止されました。Multi-CLI の chat、実行、schedule には NanoClaw（`/api/nanoclaw/*` または `/api/tasks/*` alias）、保守対象の production agent loop には `/api/production-agent-loop/*` を使用してください。古い orchestration の記述は移行用コンテキストとして残しています。
 
 Pixcode frontend は REST/WebSocket API を使っています。External automation も API keys で同じ control plane を使えます。新しい keys は `px_` で始まり、古い `ck_` keys も互換性のため受け付けます。
 
@@ -91,12 +84,12 @@ curl http://localhost:3001/api/projects \
   -H "Authorization: Bearer px_your_key_here"
 ```
 
-- `POST /api/agent` for one-shot agent runs。
-- `/api/orchestration/workflows/*` for preview, start, stream, cancel。
+- `POST /api/nanoclaw/run` で one-shot の multi-CLI agent run を実行できます。
+- `/api/nanoclaw/*`（または `/api/tasks/*`）で chat、agent run、schedule、events、`/api/production-agent-loop/*` で issue-to-PR、CI repair、review queue、snapshot を利用できます。
 - Browser push notifications。
 - Telegram pairing, task notifications, optional prompt bridge。
 
-OpenAPI: [`public/openapi.yaml`](public/openapi.yaml)
+対話型 API リファレンス: [`public/api-docs.html`](public/api-docs.html)。稼働中の Pixcode では `GET /api/public/manifest` が discovery、`GET /api/public/openapi` が最新の machine-readable API fragment です。[`public/openapi.yaml`](public/openapi.yaml) は同梱の release snapshot です。
 
 ### Themes, plugins, MCP
 

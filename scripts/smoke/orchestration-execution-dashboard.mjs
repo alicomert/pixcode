@@ -3,6 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('orchestration execution dashboard smoke')) process.exit(0);
+
 const source = readFileSync('src/components/orchestration/OrchestrationPage.tsx', 'utf8');
 
 assert.ok(

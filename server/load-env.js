@@ -29,8 +29,10 @@ try {
   }
 }
 
-// Keep the default database in a stable user-level location so rebuilding dist-server
-// never changes where the backend stores auth.db when DATABASE_PATH is not set explicitly.
+// Keep the historical raw database setting in a stable user-level location so
+// rebuilding dist-server never changes where the backend looks for legacy auth.db
+// input when DATABASE_PATH is not set explicitly. server/database/db.js maps this
+// value to the active sibling auth.json store.
 const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.pixcode', 'auth.db');
 
 if (!process.env.DATABASE_PATH) {

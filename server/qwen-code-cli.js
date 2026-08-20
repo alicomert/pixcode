@@ -132,10 +132,10 @@ async function spawnQwen(command, options = {}, ws) {
         spawnArgs = ['-c', 'exec "$0" "$@"', qwenPath, ...args];
     }
 
-    // Credentials stored in ~/.pixcode/provider-credentials.json take
-    // precedence over the host shell env, so an API key saved via the
-    // Pixcode UI reaches the Qwen subprocess even when the user never
-    // exported it in their login shell.
+    // Credentials stored in Pixcode's encrypted credential store take
+    // precedence over the host shell env, so an API key saved via the Pixcode
+    // UI reaches the Qwen subprocess even when the user never exported it in
+    // their login shell.
     const spawnEnv = await buildSpawnEnv('qwen');
 
     return new Promise((resolve, reject) => {

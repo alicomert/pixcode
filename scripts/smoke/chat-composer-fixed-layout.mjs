@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const chatInterface = readFileSync('src/components/chat/view/ChatInterface.tsx', 'utf8');
 const chatComposer = readFileSync('src/components/chat/view/subcomponents/ChatComposer.tsx', 'utf8');
@@ -42,10 +42,12 @@ assert.ok(
   'Chat content should sit inside a flex-1 wrapper so removing the Changes rail does not leave a right-side gap.',
 );
 
-assert.ok(
-  /<div className="min-h-0 min-w-0 flex-1 overflow-hidden">\s*<OrchestrationPage/.test(mainContent),
-  'Orchestration content should sit inside a flex-1 wrapper so removing the Changes rail does not leave a right-side gap.',
-);
+if (existsSync('src/components/orchestration')) {
+  assert.ok(
+    /<div className="min-h-0 min-w-0 flex-1 overflow-hidden">\s*<OrchestrationPage/.test(mainContent),
+    'Orchestration content should sit inside a flex-1 wrapper so removing the Changes rail does not leave a right-side gap.',
+  );
+}
 
 assert.ok(
   !mainContent.includes("showChangedFilesRail && 'flex gap-3'"),

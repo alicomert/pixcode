@@ -1084,7 +1084,7 @@ async function getSessions(projectName, limit = 5, offset = 0) {
       });
 
       // Early exit optimization for large projects
-      if (allSessions.size >= (limit + offset) * 2 && filesScanned >= Math.min(3, filesWithStats.length)) {
+      if (allSessions.size >= (limit + offset) * 2 && filesScanned >= Math.min(3, newestFiles.length)) {
         break;
       }
     }

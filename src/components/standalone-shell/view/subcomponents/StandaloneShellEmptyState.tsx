@@ -1,8 +1,12 @@
+import { useTranslation } from 'react-i18next';
+
 type StandaloneShellEmptyStateProps = {
   className: string;
 };
 
 export default function StandaloneShellEmptyState({ className }: StandaloneShellEmptyStateProps) {
+  const { t } = useTranslation('chat');
+
   return (
     <div className={`flex h-full items-center justify-center ${className}`}>
       <div className="text-center text-gray-500 dark:text-gray-400">
@@ -16,8 +20,10 @@ export default function StandaloneShellEmptyState({ className }: StandaloneShell
             />
           </svg>
         </div>
-        <h3 className="mb-2 text-lg font-semibold">No Project Selected</h3>
-        <p>A project is required to open a shell</p>
+        <h3 className="mb-2 text-lg font-semibold">
+          {t('shell.selectProject.title', { defaultValue: 'Select a project' })}
+        </h3>
+        <p>{t('shell.selectProject.description', { defaultValue: 'Choose a project to open an interactive shell.' })}</p>
       </div>
     </div>
   );

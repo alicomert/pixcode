@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '../../auth/context/AuthContext';
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 import { Button } from '../../../shared/view/ui';
 import SettingsSidebar from '../view/SettingsSidebar';
@@ -20,11 +22,17 @@ import { useWebPush } from '../../../hooks/useWebPush';
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import type { SettingsProps } from '../types/types';
 
+import { canUseAdminSettingsSurface } from './SettingsSidebar';
+
 import { X } from '@/lib/icons';
 
 function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: SettingsProps) {
   const { t } = useTranslation('settings');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
+  const { user } = useAuth();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const showLoginModalRef = useRef(false);
   const {
     activeTab,
     setActiveTab,
@@ -60,6 +68,77 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     initialTab
   });
 
+  const canUseAdminSurface = canUseAdminSettingsSurface(user);
+  const visibleActiveTab = !canUseAdminSurface && (activeTab === 'access' || activeTab === 'diagnostics')
+    ? 'agents'
+    : activeTab;
+
+  useEffect(() => {
+    if (visibleActiveTab !== activeTab) setActiveTab(visibleActiveTab);
+  }, [activeTab, setActiveTab, visibleActiveTab]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    showLoginModalRef.current = showLoginModal;
+  }, [showLoginModal]);
+
+  // Settings is a full-screen surface on phones. Lock the document behind it,
+  // make Escape predictable, and return focus to the control that opened it.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (showLoginModalRef.current) return;
+
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+        if (focusable.length > 0) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>('[data-settings-close]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, [isOpen]);
+
   const {
     permission: pushPermission,
     isSubscribed: isPushSubscribed,
@@ -70,35 +149,52 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
   } = useWebPush();
 
   const handleEnablePush = async () => {
-    await pushSubscribe();
-    // Server sets webPush: true in preferences on subscribe; sync local state
-    setNotificationPreferences({
-      ...notificationPreferences,
-      channels: { ...notificationPreferences.channels, webPush: true },
-    });
+    const subscribed = await pushSubscribe();
+    if (!subscribed) return;
+
+    // Keep the preference in sync only after both the browser subscription and
+    // the server registration succeeded. Failed permission/VAPID requests must
+    // not make the UI claim that push is enabled.
+    setNotificationPreferences((previous) => ({
+      ...previous,
+      channels: { ...previous.channels, webPush: true },
+    }));
   };
 
   const handleDisablePush = async () => {
-    await pushUnsubscribe();
-    // Server sets webPush: false in preferences on unsubscribe; sync local state
-    setNotificationPreferences({
-      ...notificationPreferences,
-      channels: { ...notificationPreferences.channels, webPush: false },
-    });
+    const unsubscribed = await pushUnsubscribe();
+    if (!unsubscribed) return;
+
+    setNotificationPreferences((previous) => ({
+      ...previous,
+      channels: { ...previous.channels, webPush: false },
+    }));
   };
 
   if (!isOpen) {
     return null;
   }
 
-  const isAuthenticated = Boolean(loginProvider && providerAuthStatus[loginProvider].authenticated);
+  const isAuthenticated = Boolean(loginProvider && providerAuthStatus[loginProvider]?.authenticated);
 
   return (
-    <div className="modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 backdrop-blur-sm md:p-4">
-      <div className="flex h-full w-full flex-col overflow-hidden border border-border bg-background shadow-2xl md:h-[90vh] md:max-w-4xl md:rounded-xl">
+    <div
+      className="modal-backdrop fixed inset-0 z-[9999] flex items-center justify-center bg-background/80 pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] backdrop-blur-sm md:p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pixcode-settings-title"
+        className="flex h-full w-full flex-col overflow-hidden border border-border bg-background shadow-2xl md:h-[90vh] md:max-w-4xl md:rounded-xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-4 py-3 md:px-5">
-          <h2 className="text-base font-semibold text-foreground">{t('title')}</h2>
+          <h2 id="pixcode-settings-title" className="text-base font-semibold text-foreground">{t('title')}</h2>
           <div className="flex items-center gap-2">
             {saveStatus === 'success' && (
               <span className="animate-in fade-in text-xs text-muted-foreground">{t('saveStatus.success')}</span>
@@ -107,7 +203,10 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               variant="ghost"
               size="sm"
               onClick={onClose}
+              data-settings-close
               className="h-10 w-10 touch-manipulation p-0 text-muted-foreground hover:text-foreground active:bg-accent/50"
+              aria-label={t('close', { defaultValue: 'Close settings' })}
+              title={t('close', { defaultValue: 'Close settings' })}
             >
               <X className="h-5 w-5" />
             </Button>
@@ -116,15 +215,15 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
 
         {/* Body: sidebar + content */}
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <SettingsSidebar activeTab={activeTab} onChange={setActiveTab} />
+          <SettingsSidebar activeTab={visibleActiveTab} onChange={setActiveTab} />
 
           {/* Content */}
-          <main className="min-h-0 flex-1 overflow-y-auto">
+          <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div
-              key={activeTab}
+              key={visibleActiveTab}
               className={`settings-content-enter ${isMobile ? 'space-y-4 p-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]' : 'space-y-8 p-6 pb-safe-area-inset-bottom'}`}
             >
-              {activeTab === 'appearance' && (
+              {visibleActiveTab === 'appearance' && (
                 <AppearanceSettingsTab
                   projectSortOrder={projectSortOrder}
                   onProjectSortOrderChange={setProjectSortOrder}
@@ -137,11 +236,11 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 />
               )}
 
-              {activeTab === 'git' && <GitSettingsTab />}
+              {visibleActiveTab === 'git' && <GitSettingsTab />}
 
-              {activeTab === 'access' && <AccessSettingsTab />}
+              {visibleActiveTab === 'access' && canUseAdminSurface && <AccessSettingsTab />}
 
-              {activeTab === 'agents' && (
+              {visibleActiveTab === 'agents' && (
                 <AgentsSettingsTab
                   providerAuthStatus={providerAuthStatus}
                   onProviderLogin={openLoginForProvider}
@@ -163,7 +262,7 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 />
               )}
 
-            {activeTab === 'notifications' && (
+            {visibleActiveTab === 'notifications' && (
               <NotificationsSettingsTab
                 notificationPreferences={notificationPreferences}
                 onNotificationPreferencesChange={setNotificationPreferences}
@@ -176,19 +275,19 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               />
             )}
 
-              {activeTab === 'api' && <CredentialsSettingsTab />}
+              {visibleActiveTab === 'api' && <CredentialsSettingsTab />}
 
-              {activeTab === 'plugins' && <PluginSettingsTab />}
+              {visibleActiveTab === 'plugins' && <PluginSettingsTab />}
 
-              {activeTab === 'market' && <GlobalMarketSettingsTab />}
+              {visibleActiveTab === 'market' && <GlobalMarketSettingsTab />}
 
-              {activeTab === 'mobile' && <MobileSettingsTab />}
+              {visibleActiveTab === 'mobile' && <MobileSettingsTab />}
 
-              {activeTab === 'telegram' && <TelegramSettingsTab />}
+              {visibleActiveTab === 'telegram' && <TelegramSettingsTab />}
 
-              {activeTab === 'diagnostics' && <DiagnosticsSettingsTab />}
+              {visibleActiveTab === 'diagnostics' && canUseAdminSurface && <DiagnosticsSettingsTab />}
 
-              {activeTab === 'about' && <AboutTab />}
+              {visibleActiveTab === 'about' && <AboutTab />}
             </div>
           </main>
         </div>

@@ -6,7 +6,6 @@ import {
   PIXCODE_UPDATE_AVAILABLE_EVENT,
   compareVersions,
   useVersionCheck,
-  type VersionCheckResult,
 } from '../../../hooks/useVersionCheck';
 import { useUiPreferences, type HistoryViewMode } from '../../../hooks/useUiPreferences';
 import { useSidebarController } from '../hooks/useSidebarController';
@@ -53,7 +52,6 @@ function Sidebar({
     'pixcode',
   );
   const autoShownVersionRef = useRef<string | null>(null);
-  const [versionModalSnapshot, setVersionModalSnapshot] = useState<VersionCheckResult | null>(null);
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible, historyView } = preferences;
   const [newProjectInitialType, setNewProjectInitialType] = useState<WorkspaceType>('existing');
@@ -146,9 +144,7 @@ function Sidebar({
   }, [setShowNewProject]);
 
   useEffect(() => {
-    const handleUpdateAvailable = (event: Event) => {
-      const detail = (event as CustomEvent<VersionCheckResult>).detail;
-      setVersionModalSnapshot(detail ?? null);
+    const handleUpdateAvailable = () => {
       setShowVersionModal(true);
     };
 
@@ -183,7 +179,6 @@ function Sidebar({
         if (seenPrompt === promptKey) return;
 
         window.localStorage.setItem(UPDATE_RESTART_PROMPT_SEEN_KEY, promptKey);
-        setVersionModalSnapshot(null);
         setShowVersionModal(true);
       } catch {
         // Ignore transient auth/network failures; normal update check still runs.
@@ -204,7 +199,6 @@ function Sidebar({
 
     if (updateAvailable) {
       autoShownVersionRef.current = latestVersion;
-      setVersionModalSnapshot(null);
       setShowVersionModal(true);
       return;
     }

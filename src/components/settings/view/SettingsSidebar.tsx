@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Send as TelegramIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '../../auth/context/AuthContext';
 import { cn } from '../../../lib/utils';
 import type { SettingsMainTab } from '../types/types';
 
@@ -33,10 +34,21 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'about', labelKey: 'mainTabs.about', icon: Info },
 ];
 
+export function canUseAdminSettingsSurface(user: { role?: string | null; api_key_id?: unknown; api_key_scopes?: unknown } | null) {
+  if (!user || !['admin', 'owner'].includes(String(user.role || '').toLowerCase())) return false;
+  if (!user.api_key_id) return true;
+  const scopes = Array.isArray(user.api_key_scopes) ? user.api_key_scopes : [];
+  return scopes.includes('*') || scopes.includes('admin') || scopes.includes('system');
+}
+
 export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebarProps) {
   const { t } = useTranslation('settings');
+  const { user } = useAuth();
+  const visibleItems = canUseAdminSettingsSurface(user)
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.id !== 'access' && item.id !== 'diagnostics');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const activeItem = NAV_ITEMS.find((item) => item.id === activeTab) ?? NAV_ITEMS[0];
+  const activeItem = visibleItems.find((item) => item.id === activeTab) ?? visibleItems[0];
   const ActiveIcon = activeItem.icon;
 
   return (
@@ -44,7 +56,7 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
       {/* Desktop sidebar */}
       <aside className="hidden w-56 flex-shrink-0 border-r border-border bg-muted/30 md:flex md:flex-col">
         <nav className="flex flex-col gap-1 p-3">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
 
@@ -82,7 +94,7 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
 
         {mobileMenuOpen && (
           <div className="mt-2 grid grid-cols-3 gap-1.5">
-            {NAV_ITEMS.map((item) => {
+            {visibleItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
 

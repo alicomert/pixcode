@@ -3,7 +3,7 @@
   <h1>Pixcode</h1>
   <p><strong>AI coding agent'ları için self-hosted kontrol odası.</strong></p>
   <p>
-    Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code ve OpenCode'u tek web arayüzünden yönet. Chat, shell, dosyalar, git, orkestrasyon, API key, plugin, bildirim, Telegram ve desktop/server kurulumları aynı sistemde.
+    Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code ve OpenCode'u tek web arayüzünden yönet. Chat, shell, dosyalar, git, agent otomasyonu, API key, plugin, bildirim, Telegram ve desktop/server kurulumları aynı sistemde.
   </p>
   <p>
     <a href="https://www.npmjs.com/package/@pixelbyte-software/pixcode"><img src="https://img.shields.io/npm/v/@pixelbyte-software/pixcode?style=for-the-badge&color=10b981" alt="npm version" /></a>
@@ -16,15 +16,19 @@
   </p>
   <p>
     <a href="README.md">English</a> ·
+    <a href="README.tr.md" aria-current="page">Türkçe</a> ·
     <a href="README.de.md">Deutsch</a> ·
     <a href="README.ru.md">Русский</a> ·
     <a href="README.ja.md">日本語</a> ·
     <a href="README.ko.md">한국어</a> ·
-    <a href="README.zh-CN.md">简体中文</a>
+    <a href="README.zh-CN.md">简体中文</a> ·
+    <a href="README.es-ES.md">Español</a>
   </p>
 </div>
 
 ## Pixcode Nedir?
+
+> **Güncel API notu (1.64.x):** Eski `/api/orchestration/*` workflow UI/API'si v1.55'te kaldırıldı. Çoklu CLI görevleri, konuşmalar ve zamanlamalar için NanoClaw (`/api/nanoclaw/*` veya `/api/tasks/*` alias'ı), üretim agent döngüsü için `/api/production-agent-loop/*` kullanılmalıdır. Tarihsel orkestrasyon bölümleri yalnızca migration bağlamı olarak tutulur.
 
 Pixcode kendi bilgisayarını, VDS'ini veya workstation'ını tarayıcıdan yönetilen bir AI geliştirme kokpitine çevirir. Terminal, desktop uygulama, CLI logları, dosya gezgini, Git ekranı ve provider ayarları arasında dağılmak yerine bütün coding-agent akışını tek arayüzde toplar.
 
@@ -38,20 +42,16 @@ Pixcode hosted cloud IDE değildir. Projelerin, credential'ların, CLI session'l
 
 ## Ekran Görüntüleri
 
-| Workspace kontrol odası | Mobil chat |
+| Workspace kontrol odası | Mobil çalışma alanı |
 | --- | --- |
-| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
-
-| CLI seçimi | Tool ve MCP ekranı |
-| --- | --- |
-| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobil çalışma alanı" width="260" /> |
 
 ## Öne Çıkanlar
 
 ### Kullandığın CLI'lar tek ekranda
 
 - Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code ve OpenCode aynı proje ekranında.
-- Provider auth, API key credential, OAuth paste, kurulum kontrolü, model listesi ve CLI version durumu Settings altında.
+- Provider auth, API key credential, provider'a özgü OAuth callback/paste akışları, kurulum kontrolü, model listesi ve CLI version durumu Settings altında. GitHub bağlantısı Settings içinden OAuth ile yapılır.
 - Provider'ın kendi CLI mantığı korunur; Pixcode üstüne session yönetimi, WebSocket, bildirim, dosya bağlamı ve proje kontrolleri ekler.
 - CLI düşünürken, tool çalıştırırken, approval beklerken veya çıktı üretirken işlem durumu görünür. Kullanıcı boş ekrana bakmaz.
 
@@ -76,29 +76,20 @@ Pixcode hosted cloud IDE değildir. Projelerin, credential'ların, CLI session'l
 
 Pixcode sadece GitHub'dan gelen güncellemeyi beklemez; local working tree değişikliklerini de takip eder. Quick Settings içindeki **Hakimiyet** modu değişen dosyaları anlık listeler, yeşil belirteçle öne çıkarır ve tıklayınca direkt ilgili dosya/satıra götürür.
 
-Amaç kontrol hissi: AI agent dosya değiştirirken kullanıcı hangi dosyanın oynadığını görür, sağ panelde açar ve ana chat/orkestrasyon ekranını kaybetmez.
+Amaç kontrol hissi: AI agent dosya değiştirirken kullanıcı hangi dosyanın oynadığını görür, sağ panelde açar ve ana chat/görev ekranını kaybetmez.
 
-### Çok ajanlı orkestrasyon
+### Agent otomasyonu (NanoClaw + production agent loop)
 
-Orkestrasyon sadece "tek prompt, tek bot" değildir. Pixcode aynı hedef için birden fazla CLI agent'ını organize edebilir.
+Pixcode'un güncel otomasyon yüzeyleri amaca göre ayrılır:
 
-Hazır çalışma tipleri:
+- **NanoClaw** proje bağlamını koruyarak çoklu CLI konuşmaları, tek seferlik
+  çalıştırmalar ve kalıcı `once`/`interval`/`cron` zamanlamaları yürütür.
+- **Production agent loop** issue-to-PR, CI repair, review queue, checkpoint ve
+  scheduler gibi yönetici akışlarını yürütür.
 
-- **Agent Team**: frontend, backend, review, docs veya özel rollere göre görev dağıtımı.
-- **Multi-model Review**: aynı değişikliği farklı provider/model ile inceletme.
-- **Sequential Handoff**: birbirine bağlı işleri sırayla devretme.
-- **Decision Debate**: uygulamadan önce yaklaşım karşılaştırma.
-
-Orkestrasyon içinde:
-
-- ajanları aç/kapat,
-- aynı provider'dan birden fazla worker oluştur,
-- role, stage, label ve instruction ver,
-- her ajan için model seç,
-- hata alırsa kullanılacak yedek CLI agent'ı belirle,
-- workflow DAG'ini çalıştırmadan önce preview et,
-- run event'lerini stream et ve aktif run'ı iptal et,
-- sağ/sol panelleri sürükleyerek genişlet.
+Eski `/api/orchestration/*` workflow UI ve route ailesi v1.55'te kaldırıldı.
+Kalan orkestrasyon dokümanları yalnızca migration geçmişidir; yeni istemciler
+aşağıdaki güncel API'leri kullanmalıdır.
 
 ### API odaklı yapı
 
@@ -111,39 +102,35 @@ curl http://localhost:3001/api/projects \
   -H "Authorization: Bearer px_your_key_here"
 ```
 
-Tek seferlik agent işi:
+NanoClaw ile tek seferlik agent işi (schedule oluşturmaz):
 
 ```bash
-curl http://localhost:3001/api/agent \
+curl -X POST http://localhost:3001/api/nanoclaw/run \
   -H "Authorization: Bearer px_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "codex",
-    "projectPath": "/home/me/project",
-    "message": "Mevcut diff'i incele ve riskli değişiklikleri listele.",
-    "stream": false
+    "agentType": "codex",
+    "projectId": "my-app",
+    "prompt": "Mevcut diff'i incele ve riskli değişiklikleri listele."
   }'
 ```
 
-Orkestrasyon preview:
+NanoClaw çoklu-CLI konuşması:
 
 ```bash
-curl http://localhost:3001/api/orchestration/workflows/agent_team/preview \
+curl -X POST http://localhost:3001/api/nanoclaw/bot/chat \
   -H "Authorization: Bearer px_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "metadata": {
-      "agents": [
-        { "adapterId": "codex", "label": "Backend", "role": "backend" },
-        { "adapterId": "opencode", "label": "Reviewer", "role": "review" }
-      ]
-    }
+    "message": "Auth yapılandırması nerede?",
+    "projectId": "my-app",
+    "agentType": "claude-code"
   }'
 ```
 
 Eski kurulumlardaki `ck_` key'ler çalışmaya devam eder. Güncel standart `px_`.
 
-OpenAPI referansı: [`public/openapi.yaml`](public/openapi.yaml)
+Etkileşimli API referansı: [`public/api-docs.html`](public/api-docs.html). Çalışan bir Pixcode instance'ında oturum açtıktan sonra keşif için `GET /api/public/manifest`, güncel makine-okur API parçası için `GET /api/public/openapi` kullanılır. Bu katalog uçları Pixcode oturumunu kullanır; otomasyon çağrılarında kapsamlı `px_` API anahtarı gerekir. [`public/openapi.yaml`](public/openapi.yaml) paketle gelen sürüm anlık görüntüsüdür.
 
 ### Tema ve görünüm
 
@@ -207,16 +194,17 @@ Releases: <https://github.com/alicomert/pixcode/releases/latest>
 
 #### macOS Gatekeeper: "Pixcode hasar görmüş"
 
-Şu an macOS desktop build'leri Apple Developer ID ile imzalı/notarize değil. macOS `Pixcode hasar görmüş ve açılamıyor. Çöp kutusuna taşınsın mı?` benzeri bir uyarı gösterirse, önce DMG dosyasını resmi Pixcode GitHub Releases sayfasından indirdiğinden emin ol, sonra:
+Şu an macOS desktop build'leri Apple Developer ID ile imzalı/notarize olmayabilir. Bu uyarı tek başına indirme dosyasının güvenli olduğunu kanıtlamaz. Gatekeeper'ı değiştirmeden önce:
 
-1. DMG'yi aç ve `Pixcode.app` dosyasını `/Applications` içine sürükle.
-2. DMG içindeki `Fix Gatekeeper.command` dosyasına çift tıkla.
-3. Pixcode, `/Applications/Pixcode.app` üzerindeki quarantine bayrağını kaldırıp uygulamayı açar.
+1. DMG'yi yalnızca resmi [GitHub Releases](https://github.com/alicomert/pixcode/releases/latest) sayfasından indir.
+2. Yayınlanan SHA-256/checksum varsa karşılaştır ve dosyanın eşleştiğini doğrula. Kaynağını veya bütünlüğünü doğrulayamadığın DMG'yi çalıştırma.
+3. DMG'yi açıp `Pixcode.app` dosyasını `/Applications` içine sürükle. Finder'da uygulamaya sağ tıklayıp **Aç** seçeneğini kullan; macOS imzasız uygulama için bu açık onaydan sonra izin verebilir.
+4. Doğrulanmış uygulama hâlâ engelleniyorsa, yalnızca resmi ve doğrulanmış DMG içindeki `Fix Gatekeeper.command` dosyasını çalıştır. Bu script güvenlik özniteliklerini değiştirir ve uygulamayı açar; üçüncü taraf kopyalarda kullanma.
 
-Manuel çözüm:
+Manuel çözüm (yalnızca DMG doğrulandıktan sonra):
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Pixcode.app"
+xattr -d com.apple.quarantine "/Applications/Pixcode.app" 2>/dev/null || true
 open "/Applications/Pixcode.app"
 ```
 
@@ -274,10 +262,13 @@ npm run build
 
 - `src/` - React + Vite frontend.
 - `server/` - Express, WebSocket, CLI adapter'ları, route'lar, auth, daemon, bildirim.
-- `server/modules/orchestration/` - multi-agent workflow engine ve CLI adapter'ları.
+- `server/modules/nanoclaw/` - NanoClaw chat, task ve multi-CLI agent köprüsü.
+- `server/routes/production-agent-loop.js` - production otomasyonu, CI ve review API'si.
 - `server/modules/providers/` - provider auth, MCP, session, model ve install endpoint'leri.
 - `shared/` - frontend/backend ortak contract'lar.
-- `public/openapi.yaml` - uygulamayla gelen API referansı.
+- `public/api-docs.html` - uygulamayla gelen etkileşimli API referansı.
+- `GET /api/public/manifest` ve `GET /api/public/openapi` - oturum gerektiren, çalışan instance için kanonik API keşif ve makine-okur belgeleri.
+- `public/openapi.yaml` - core REST API'nin paketle gelen sürüm anlık görüntüsü.
 - `public/screenshots/` - README ve tanıtım görselleri.
 
 ## Güvenlik Mantığı
@@ -293,6 +284,6 @@ npm run build
 - npm: <https://www.npmjs.com/package/@pixelbyte-software/pixcode>
 - GitHub: <https://github.com/alicomert/pixcode>
 - Releases: <https://github.com/alicomert/pixcode/releases/latest>
-- API docs: [`public/openapi.yaml`](public/openapi.yaml)
-- Static docs: [`public/docs.html`](public/docs.html), [`public/features.html`](public/features.html), [`public/orchestration.html`](public/orchestration.html), [`public/api-automation.html`](public/api-automation.html)
+- API docs: [`public/api-docs.html`](public/api-docs.html), veya çalışan instance'ta `GET /api/public/openapi`
+- Static docs: [`public/docs.html`](public/docs.html), [`public/features.html`](public/features.html), [`public/orchestration.html` (migration bağlamı)](public/orchestration.html), [`public/api-automation.html`](public/api-automation.html)
 - AI discovery: [`public/llms.txt`](public/llms.txt), [`public/llms-full.txt`](public/llms-full.txt)

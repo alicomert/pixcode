@@ -23,9 +23,59 @@ assert.doesNotMatch(
 
 assert.match(
   serverIndex,
-  /updateCommandLabel[\s\S]*Pixcode source update/,
-  'Server update stream should describe git installs with product language instead of an internal script command.',
+  /function buildSystemUpdateInvocation[\s\S]*?label:\s*'Pixcode source update'/,
+  'Queued git updates should expose a product-facing source-update label instead of an internal script path.',
 );
+
+assert.match(
+  serverIndex,
+  /appendUpdateJobLog\(job, 'meta', `Running: \$\{invocation\.label\}\\n`\)/,
+  'The queued update transcript should show the product-facing source-update label to users.',
+);
+
+assert.match(
+  serverIndex,
+  /command:\s*process\.execPath,[\s\S]*?args:\s*\[gitUpdateScript\],[\s\S]*?label:\s*'Pixcode source update'/,
+  'Git installs should execute the trusted updater script through Node with explicit argv.',
+);
+
+assert.match(
+  serverIndex,
+  /shell:\s*false,[\s\S]{0,160}detached:\s*false/,
+  'Queued updates should not rely on a detached shell wrapper for ownership or completion.',
+);
+
+assert.match(
+  serverIndex,
+  /const lockResult = acquireSystemUpdateLock\(\{[\s\S]*?if \(!lockResult\.acquired\) return null;/,
+  'Queued updates should acquire a persistent cross-process lock before creating a job.',
+);
+
+assert.match(
+  serverIndex,
+  /updateSystemUpdateLockWorker\(job\.updateLock, child\.pid\)/,
+  'Queued updates should record the actual worker PID in the persistent update lock.',
+);
+
+assert.match(
+  serverIndex,
+  /if \(!keepLockUntilProcessExit\) \{\s*releaseSystemUpdateLock\(job\.updateLock\);/,
+  'Ordinary terminal jobs should release only their own persistent update lock.',
+);
+
+assert.match(
+  serverIndex,
+  /installMode === 'npm' && latest\.latestVersion && latest\.latestVersion === SERVER_VERSION/,
+  'Queued source updates must not treat an equal npm version as proof that a git checkout is current.',
+);
+
+assert.match(
+  serverIndex,
+  /job\.logListeners\.add\(onLog\)/,
+  'The compatibility SSE endpoint should subscribe to the queued update job log stream.',
+);
+
+assert.doesNotMatch(serverIndex, /legacyUpdateActive/, 'The retired legacy SSE lock must not be reintroduced.');
 
 assert.match(
   modal,
@@ -82,9 +132,27 @@ assert.match(
 );
 
 assert.match(
+  fs.readFileSync('server/services/startup-update.js', 'utf8'),
+  /Building the updated Pixcode source before restart[\s\S]*runNpmInherited\(\['run', 'build'\]/,
+  'Startup source updates must rebuild dist/ and dist-server before re-exec.',
+);
+
+assert.match(
   updater,
   /Build inputs unchanged; skipping build\./,
   'Safe updater should skip build when only non-runtime files changed.',
+);
+
+const gitAvailability = spawnSync('git', ['--version'], { encoding: 'utf8' });
+if (gitAvailability.error?.code === 'EPERM') {
+  console.log('git install update integration skipped: this sandbox blocks child git processes (EPERM).');
+  console.log('git install update static architecture checks passed');
+  process.exit(0);
+}
+assert.equal(
+  gitAvailability.status,
+  0,
+  `git --version failed\nstdout:\n${gitAvailability.stdout || ''}\nstderr:\n${gitAvailability.stderr || ''}`,
 );
 
 function makeTempRepo(name) {
@@ -123,6 +191,10 @@ function run(command, args, cwd) {
       GIT_COMMITTER_EMAIL: 'smoke@pixcode.local',
     },
   });
+
+  if (result.error) {
+    throw result.error;
+  }
 
   assert.equal(
     result.status,
@@ -187,7 +259,7 @@ function writePackage(root, version, dependencies = {}) {
     'Safe updater should fast-forward the install checkout.',
   );
   assert.equal(
-    fs.readFileSync(path.join(install, 'tracked.txt'), 'utf8'),
+    fs.readFileSync(path.join(install, 'tracked.txt'), 'utf8').replace(/\r\n/g, '\n'),
     'new\n',
     'Safe updater should apply the remote tracked file after stashing local edits.',
   );

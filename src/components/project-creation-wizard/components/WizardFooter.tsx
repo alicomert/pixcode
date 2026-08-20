@@ -28,7 +28,7 @@ export default function WizardFooter({
 
   return (
     <div className="flex items-center justify-between border-t border-gray-200 p-6 dark:border-gray-700">
-      <Button variant="outline" onClick={step === 1 ? onClose : onBack} disabled={isCreating}>
+      <Button type="button" variant="outline" className="min-h-11" onClick={step === 1 ? onClose : onBack} disabled={isCreating}>
         {step === 1 ? (
           t('projectWizard.buttons.cancel')
         ) : (
@@ -39,7 +39,7 @@ export default function WizardFooter({
         )}
       </Button>
 
-      <Button onClick={step === 3 ? onCreate : onNext} disabled={isCreating}>
+      <Button type="button" className="min-h-11" onClick={step === 3 ? onCreate : onNext} disabled={isCreating}>
         {isCreating ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

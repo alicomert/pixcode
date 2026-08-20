@@ -17,6 +17,10 @@ const required = [
   'dist-server/server/index.js',
   'package.json',
   'files-manifest.json',
+  'public/logo.png',
+  'public/screenshots/desktop-main.png',
+  'public/screenshots/mobile-chat.png',
+  'public/screenshots/pixcode-banner.png',
 ];
 
 const missing = required.filter((rel) => !fs.existsSync(path.join(root, rel)));

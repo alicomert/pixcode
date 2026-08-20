@@ -1,19 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import {
-  AlertCircle,
-  Bot,
-  ChevronDown,
-  FolderOpen,
-  KeyRound,
-  Loader2,
-  Plus,
-  RefreshCw,
-  SendHorizonalIcon,
-  Sparkles,
-  Terminal,
-  X,
-} from '@/lib/icons';
 
 import { Markdown } from '../chat/view/subcomponents/Markdown';
 import { usePixBot } from '../../hooks/useTasks';
@@ -30,6 +16,21 @@ import { useNanoClawComposerAutocomplete } from './hooks/useNanoClawComposerAuto
 import { PixbotProviderModal } from './PixbotProviderModal';
 import { ScheduledTasksPanel, ScheduledTasksTrigger } from './ScheduledTasksPanel';
 import type { BotMessage, WorkspaceOption } from './types';
+
+import {
+  AlertCircle,
+  Bot,
+  ChevronDown,
+  FolderOpen,
+  KeyRound,
+  Loader2,
+  Plus,
+  RefreshCw,
+  SendHorizonalIcon,
+  Sparkles,
+  Terminal,
+  X,
+} from '@/lib/icons';
 
 const MODEL_STORAGE_KEY = 'pixbot.selectedModel';
 
@@ -249,6 +250,64 @@ export function TasksPage({
   const [showSidebar, setShowSidebar] = useState(true);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const taskSheetRef = useRef<HTMLDivElement | null>(null);
+
+  // The mobile scheduled-task panel is a bottom-sheet modal. Keep the chat
+  // page inert while it is open and cycle keyboard focus within the sheet.
+  useEffect(() => {
+    if (
+      !showTasksPanel
+      || typeof window === 'undefined'
+      || !window.matchMedia
+      || !window.matchMedia('(max-width: 1023px)').matches
+    ) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          taskSheetRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+        if (focusable.length > 0) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          const activeElement = document.activeElement;
+          if (event.shiftKey && (activeElement === first || !taskSheetRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          } else if (!event.shiftKey && (activeElement === last || !taskSheetRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setShowTasksPanel(false);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    const focusFrame = window.requestAnimationFrame(() => {
+      taskSheetRef.current
+        ?.querySelector<HTMLElement>('[data-scheduled-tasks-close]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, [showTasksPanel]);
 
   /** Keep draft free of leading /agent — promote to badge chip. */
   const setDraftSmart = useCallback((next: string) => {
@@ -635,7 +694,7 @@ export function TasksPage({
             )}
           >
             <span className="font-medium">Görevler</span>
-            <span className="tabular-nums text-[11px] opacity-80">
+            <span className="text-[11px] tabular-nums opacity-80">
               {activeTaskCount > 0 ? `${activeTaskCount} aktif` : (scheduledTasks.length || '—')}
             </span>
           </button>
@@ -661,7 +720,7 @@ export function TasksPage({
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <div
             ref={scrollerRef}
-            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
             data-scroll-container
             data-pixbot-messages
           >
@@ -714,7 +773,7 @@ export function TasksPage({
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col gap-5 select-text">
+                <div className="flex select-text flex-col gap-5">
                   {messages.map((message) => <MessageBubble key={message.id} message={message} />)}
                 </div>
               )}
@@ -799,7 +858,7 @@ export function TasksPage({
                         ? `${agentChip.title} ile yaz… (@ dosya · Enter)`
                         : (llmConfigured ? 'Mesajını yaz… (/claude /grok badge · @ dosya · Enter)' : 'Önce API bağla…')
                     }
-                    className="max-h-40 min-h-[44px] min-w-[8rem] flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] outline-none"
+                    className="max-h-40 min-h-[44px] min-w-32 flex-1 resize-none bg-transparent px-2 py-2.5 text-[15px] outline-none"
                   />
                 </div>
                 <button
@@ -823,7 +882,7 @@ export function TasksPage({
         {/* Desktop: tasks side panel */}
         {showTasksPanel ? (
           <aside className="hidden h-full min-h-0 w-[min(100%,22rem)] shrink-0 overflow-hidden border-l border-border lg:flex">
-            <ScheduledTasksPanel {...tasksPanelProps} className="h-full w-full min-h-0" />
+            <ScheduledTasksPanel {...tasksPanelProps} className="h-full min-h-0 w-full" />
           </aside>
         ) : null}
       </div>
@@ -836,12 +895,13 @@ export function TasksPage({
           role="presentation"
         >
           <div
+            ref={taskSheetRef}
             className="flex max-h-[88dvh] min-h-0 flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-label="Zamanlanmış görevler"
           >
-            <ScheduledTasksPanel {...tasksPanelProps} className="min-h-0 max-h-[88dvh]" />
+            <ScheduledTasksPanel {...tasksPanelProps} className="max-h-[88dvh] min-h-0" />
           </div>
         </div>
       ) : null}

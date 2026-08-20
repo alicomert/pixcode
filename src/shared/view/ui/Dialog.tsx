@@ -109,7 +109,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
       } else if (previousFocusRef.current) {
         // Prefer the trigger, fall back to whatever was focused before
         const restoreTarget = triggerRef.current || previousFocusRef.current;
-        restoreTarget?.focus();
+        if (restoreTarget?.isConnected) restoreTarget.focus({ preventScroll: true });
         previousFocusRef.current = null;
       }
     }, [open, triggerRef]);
@@ -134,13 +134,14 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 
           const first = focusable[0];
           const last = focusable[focusable.length - 1];
+          const activeElement = document.activeElement;
 
-          if (e.shiftKey && document.activeElement === first) {
+          if (e.shiftKey && (activeElement === first || !contentRef.current.contains(activeElement))) {
             e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
+            last.focus({ preventScroll: true });
+          } else if (!e.shiftKey && (activeElement === last || !contentRef.current.contains(activeElement))) {
             e.preventDefault();
-            first.focus();
+            first.focus({ preventScroll: true });
           }
         }
       };
@@ -159,13 +160,15 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
 
     // Auto-focus first focusable element on open
     React.useEffect(() => {
-      if (open && contentRef.current) {
-        // Small delay to let the portal render
-        requestAnimationFrame(() => {
+      if (!open || !contentRef.current) return undefined;
+      // Small delay to let the portal render
+      const frame = requestAnimationFrame(() => {
+        if (contentRef.current) {
           const first = contentRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-          first?.focus();
-        });
-      }
+          first?.focus({ preventScroll: true });
+        }
+      });
+      return () => cancelAnimationFrame(frame);
     }, [open]);
 
     if (!open) return null;

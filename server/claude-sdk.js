@@ -29,7 +29,7 @@ import { sessionsService } from './modules/providers/services/sessions.service.j
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { resolveClaudeExecutable, resolveGitBashPath } from './services/install-jobs.js';
 import { createNormalizedMessage } from './shared/utils.js';
-import { evaluatePermissionRequest } from './modules/security/permission-policy.js';
+import { evaluatePermissionRequest } from './modules/security/index.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();

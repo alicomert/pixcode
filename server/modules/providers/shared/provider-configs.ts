@@ -23,6 +23,12 @@ export type ProviderConfigFile = {
   relativePath: string;
   format: ProviderConfigFormat;
   readonly?: boolean;
+  /**
+   * The file can contain API keys/OAuth tokens. Sensitive files are never
+   * returned through the config-file API; manage credentials through the
+   * encrypted Pixcode credential store instead.
+   */
+  sensitive?: boolean;
   description?: string;
 };
 
@@ -40,7 +46,9 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       label: '.env',
       relativePath: '.claude/.env',
       format: 'env',
-      description: 'Environment variables loaded when Claude runs (e.g. ANTHROPIC_API_KEY).',
+      readonly: true,
+      sensitive: true,
+      description: 'Credential environment variables are managed in Settings → API credentials and are never shown here.',
     },
   ],
   codex: [
@@ -56,7 +64,9 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       label: '.env',
       relativePath: '.codex/.env',
       format: 'env',
-      description: 'Environment variables (OPENAI_API_KEY, OPENAI_BASE_URL, …).',
+      readonly: true,
+      sensitive: true,
+      description: 'Credential environment variables are managed in Settings → API credentials and are never shown here.',
     },
     {
       id: 'auth',
@@ -64,6 +74,7 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       relativePath: '.codex/auth.json',
       format: 'json',
       readonly: true,
+      sensitive: true,
       description: 'OAuth tokens managed by `codex login`. Read-only; editing here would corrupt the session.',
     },
   ],
@@ -73,7 +84,9 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       label: '.env',
       relativePath: '.cursor/.env',
       format: 'env',
-      description: 'Cursor CLI environment variables.',
+      readonly: true,
+      sensitive: true,
+      description: 'Credential environment variables are managed by the Cursor CLI and are never shown here.',
     },
   ],
   gemini: [
@@ -89,7 +102,9 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       label: '.env',
       relativePath: '.gemini/.env',
       format: 'env',
-      description: 'Environment variables (GOOGLE_API_KEY, GEMINI_API_KEY, …).',
+      readonly: true,
+      sensitive: true,
+      description: 'Credential environment variables are managed in Settings → API credentials and are never shown here.',
     },
   ],
   qwen: [
@@ -105,7 +120,9 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       label: '.env',
       relativePath: '.qwen/.env',
       format: 'env',
-      description: 'Environment variables (DASHSCOPE_API_KEY, OPENAI_API_KEY for OpenAI-compatible routes, …).',
+      readonly: true,
+      sensitive: true,
+      description: 'Credential environment variables are managed in Settings → API credentials and are never shown here.',
     },
   ],
   opencode: [
@@ -129,6 +146,7 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       relativePath: '.local/share/opencode/auth.json',
       format: 'json',
       readonly: true,
+      sensitive: true,
       description: 'Provider credentials managed by `opencode auth login`. Read-only here; editing would corrupt stored OAuth tokens.',
     },
   ],

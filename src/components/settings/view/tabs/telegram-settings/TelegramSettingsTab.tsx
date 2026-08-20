@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '../../../../../utils/api';
+import { useAuth } from '../../../../auth/context/AuthContext';
+import { canUseAdminSettingsSurface } from '../../SettingsSidebar';
 
 import { AlertCircle, CheckCircle, RefreshCw, Trash2 } from '@/lib/icons';
 
@@ -59,6 +61,8 @@ const Section = ({ title, description, children }: { title: string; description?
 
 export default function TelegramSettingsTab() {
   const { t, i18n } = useTranslation('settings');
+  const { user } = useAuth();
+  const canManageBot = canUseAdminSettingsSurface(user);
 
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -233,6 +237,16 @@ export default function TelegramSettingsTab() {
 
       {/* Bot token section */}
       <Section title={t('telegram.botToken')} description={t('telegram.botTokenHelp') as string}>
+        {!canManageBot && (
+          <div
+            role="status"
+            className="mb-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+          >
+            {t('telegram.adminOnly', {
+              defaultValue: 'Only an administrator can configure, start, stop, or remove the shared Telegram bot.',
+            })}
+          </div>
+        )}
         {botRunning && status?.bot?.username && (
           <div className="mb-3 flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2 text-xs text-green-700 dark:text-green-400">
             <CheckCircle className="h-3.5 w-3.5" />
@@ -245,7 +259,7 @@ export default function TelegramSettingsTab() {
           </div>
         )}
 
-        {!botRunning && (
+        {canManageBot && !botRunning && (
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               type="password"
@@ -266,7 +280,7 @@ export default function TelegramSettingsTab() {
           </div>
         )}
 
-        {botRunning && (
+        {canManageBot && botRunning && (
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"

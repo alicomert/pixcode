@@ -1,10 +1,11 @@
-import { IS_PLATFORM } from '../../../constants/config';
+import { PLATFORM_AUTH_BYPASS_ENABLED } from '../../../constants/config';
+import { createStreamAuthUrl } from '../../../utils/api';
 import type { ShellIncomingMessage, ShellOutgoingMessage } from '../types/types';
 
-export function getShellWebSocketUrl(): string | null {
+export async function getShellWebSocketUrl(): Promise<string | null> {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
-  if (IS_PLATFORM) {
+  if (PLATFORM_AUTH_BYPASS_ENABLED) {
     return `${protocol}//${window.location.host}/shell`;
   }
 
@@ -14,7 +15,8 @@ export function getShellWebSocketUrl(): string | null {
     return null;
   }
 
-  return `${protocol}//${window.location.host}/shell?token=${encodeURIComponent(token)}`;
+  const ticketUrl = await createStreamAuthUrl('/shell', 'ws');
+  return `${protocol}//${window.location.host}${ticketUrl}`;
 }
 
 export function parseShellMessage(payload: string): ShellIncomingMessage | null {

@@ -11,18 +11,12 @@ type SetupFormState = {
   username: string;
   password: string;
   confirmPassword: string;
-  connectionMode: 'local' | 'remote';
-  remoteUrl: string;
-  remoteApiKey: string;
 };
 
 const initialState: SetupFormState = {
   username: '',
   password: '',
   confirmPassword: '',
-  connectionMode: 'local',
-  remoteUrl: '',
-  remoteApiKey: '',
 };
 
 /**
@@ -67,10 +61,6 @@ function validateSetupForm(formState: SetupFormState): string | null {
     return 'Passwords do not match.';
   }
 
-  if (formState.connectionMode === 'remote' && !formState.remoteUrl.trim()) {
-    return 'Remote Pixcode server URL is required.';
-  }
-
   return null;
 }
 
@@ -103,110 +93,26 @@ export default function SetupForm() {
       }
 
       setIsSubmitting(true);
-      let connectionOk = true;
-      let connectionError = '';
       try {
-        const connectionResponse = await fetch('/api/auth/connection-mode', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mode: formState.connectionMode,
-            remoteUrl: formState.connectionMode === 'remote' ? formState.remoteUrl.trim() : null,
-            apiKey: formState.connectionMode === 'remote' ? formState.remoteApiKey.trim() : null,
-          }),
-        });
-        if (!connectionResponse.ok) {
-          if (formState.connectionMode === 'remote') {
-            const payload = await connectionResponse.json().catch(() => null);
-            const rawError = payload?.error;
-            connectionError = typeof rawError === 'string'
-              ? rawError
-              : (rawError?.message || payload?.message || 'Could not save connection mode.');
-          }
-          connectionOk = false;
+        const result = await register(formState.username.trim(), formState.password);
+        if (!result.success) {
+          setErrorMessage(result.error);
         }
-      } catch {
-        connectionOk = false;
-      }
-      if (!connectionOk && formState.connectionMode === 'remote') {
-        setErrorMessage(connectionError);
+      } finally {
         setIsSubmitting(false);
-        return;
       }
-      // Non-remote (local) setup continues even if connection-mode save fails
-
-      const result = await register(formState.username.trim(), formState.password);
-      if (!result.success) {
-        setErrorMessage(result.error);
-      }
-      setIsSubmitting(false);
     },
     [formState, register],
   );
 
   return (
     <AuthScreenLayout
-      title="Welcome to Pixcode"
-      description="Create the first admin account to get started"
+      title="Set up Pixcode"
+      description="Create the first administrator account for this Pixcode server"
       footerText="The first account becomes admin and can add more users later."
       logo={<img src="/logo.svg" alt="Pixcode" className="h-16 w-16" />}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid gap-2 rounded-lg border border-border/70 bg-muted/30 p-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => updateField('connectionMode', 'local')}
-            disabled={isSubmitting}
-            className={`rounded-md px-3 py-2 text-left text-sm transition-colors ${
-              formState.connectionMode === 'local'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-            }`}
-          >
-            <span className="block font-medium">Use this computer directly</span>
-            <span className="block text-xs opacity-80">Run Pixcode and CLIs on this machine.</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => updateField('connectionMode', 'remote')}
-            disabled={isSubmitting}
-            className={`rounded-md px-3 py-2 text-left text-sm transition-colors ${
-              formState.connectionMode === 'remote'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-            }`}
-          >
-            <span className="block font-medium">Connect to a remote Pixcode server</span>
-            <span className="block text-xs opacity-80">Control another always-on Pixcode host by API.</span>
-          </button>
-        </div>
-
-        {formState.connectionMode === 'remote' && (
-          <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-3">
-            <AuthInputField
-              id="remoteUrl"
-              name="remoteUrl"
-              label="Remote API URL"
-              value={formState.remoteUrl}
-              onChange={(value) => updateField('remoteUrl', value)}
-              placeholder="https://your-server.example.com"
-              isDisabled={isSubmitting}
-              autoComplete="url"
-            />
-            <AuthInputField
-              id="remoteApiKey"
-              name="remoteApiKey"
-              label="Remote API Key"
-              value={formState.remoteApiKey}
-              onChange={(value) => updateField('remoteApiKey', value)}
-              placeholder="px_..."
-              isDisabled={isSubmitting}
-              type="password"
-              autoComplete="off"
-            />
-          </div>
-        )}
-
         <AuthInputField
           id="username"
           name="username"

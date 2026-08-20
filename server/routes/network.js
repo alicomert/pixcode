@@ -9,6 +9,7 @@ import {
   stopTunnel,
 } from '../services/external-access.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { getPublicAccessConfig } from '../utils/public-url.js';
 
 const router = express.Router();
 
@@ -87,11 +88,21 @@ router.get('/external', (req, res) => {
     res.json({
       upnp: getUpnpState(),
       tunnel: getTunnelState(),
+      // sslip.io/nip.io are DNS helpers only.  The `requiresReverseProxy`
+      // flag lets the UI explain that Caddy/nginx must terminate HTTPS.
+      publicAccess: getPublicAccessConfig({ request: req }),
     });
   } catch (error) {
     console.error('Error reading external-access state:', error);
     res.status(500).json({ error: 'Failed to read external access state' });
   }
+});
+
+// Return the canonical public URL separately so lightweight clients (QR
+// generators, desktop wrappers, health scripts) do not need to understand the
+// tunnel state shape.  No credentials are included in this response.
+router.get('/public-url', (req, res) => {
+  res.json({ publicAccess: getPublicAccessConfig({ request: req }) });
 });
 
 // UPnP endpoints removed in v1.32 (see external-access.js for rationale).

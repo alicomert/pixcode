@@ -12,12 +12,47 @@ const sessionsByProject = new Map();
 const sessionsByShareId = new Map();
 const READY_TIMEOUT_MS = 12000;
 const LOG_LIMIT = 200;
+const LOCAL_UPSTREAM_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
 
 const localUrlRegex = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[[^\]]+\])(?::(\d+))?[^\s"'<>]*/i;
 
 function normalizeHost(host) {
   if (!host || host === '0.0.0.0' || host === '::') return '127.0.0.1';
   return host.replace(/^\[|\]$/g, '');
+}
+
+/**
+ * Parse a URL printed by a local preview process and prove that it really
+ * points at loopback. Process output is untrusted: a project can print an
+ * URL containing user-info (`127.0.0.1@attacker.example`) or an external host,
+ * and the public share proxy must never turn that into an SSRF primitive.
+ */
+export function parseLocalUpstreamUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(String(value || '').trim());
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
+    return null;
+  }
+  const hostname = String(parsed.hostname || '').toLowerCase();
+  if (!LOCAL_UPSTREAM_HOSTS.has(hostname)) return null;
+
+  const port = parsed.port
+    ? Number.parseInt(parsed.port, 10)
+    : (parsed.protocol === 'https:' ? 443 : 80);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
+
+  const host = normalizeHost(hostname);
+  const authority = host.includes(':') ? `[${host}]` : host;
+  return {
+    protocol: parsed.protocol,
+    host,
+    port,
+    url: `${parsed.protocol}//${authority}:${port}`,
+  };
 }
 
 async function fileExists(filePath) {
@@ -711,15 +746,11 @@ function appendLog(session, line) {
   if (session.log.length > LOG_LIMIT) session.log.shift();
 
   const url = line.match(localUrlRegex)?.[0];
-  if (url) {
-    try {
-      const parsed = new URL(url.replace('0.0.0.0', '127.0.0.1'));
-      session.host = normalizeHost(parsed.hostname);
-      session.port = parsed.port ? Number(parsed.port) : session.port;
-      session.upstreamUrl = `http://${session.host}:${session.port}`;
-    } catch {
-      // Ignore malformed tool output.
-    }
+  const upstream = parseLocalUpstreamUrl(url);
+  if (upstream) {
+    session.host = upstream.host;
+    session.port = upstream.port;
+    session.upstreamUrl = upstream.url;
   }
 }
 

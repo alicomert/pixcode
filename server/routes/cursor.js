@@ -8,6 +8,28 @@ import { getDefaultProviderModel, getStaticProviderModels } from '../services/mo
 
 const router = express.Router();
 
+// Cursor's CLI config can contain credentials and machine-specific paths in
+// addition to the model picker data the web client needs.  Never return the
+// raw file over a multi-user API; keep only the stable, non-secret shape.
+function publicCursorConfig(config) {
+  const model = config && typeof config.model === 'object' ? config.model : {};
+  const permissions = config && typeof config.permissions === 'object' ? config.permissions : {};
+  const strings = (value) => (Array.isArray(value)
+    ? value.filter((entry) => typeof entry === 'string').map((entry) => entry.slice(0, 200)).slice(0, 200)
+    : []);
+  return {
+    version: typeof config?.version === 'number' || typeof config?.version === 'string' ? config.version : 1,
+    model: {
+      modelId: typeof model.modelId === 'string' ? model.modelId.slice(0, 200) : null,
+      displayName: typeof model.displayName === 'string' ? model.displayName.slice(0, 200) : null,
+    },
+    permissions: {
+      allow: strings(permissions.allow),
+      deny: strings(permissions.deny),
+    },
+  };
+}
+
 function readCursorDefaultModel() {
   const modelId = getDefaultProviderModel('cursor');
   const displayName = getStaticProviderModels('cursor').find((model) => model.value === modelId)?.label || modelId;
@@ -25,8 +47,7 @@ router.get('/config', async (req, res) => {
 
       res.json({
         success: true,
-        config,
-        path: configPath,
+        config: publicCursorConfig(config),
       });
     } catch (error) {
       // Config doesn't exist or is invalid, so return the UI default shape.

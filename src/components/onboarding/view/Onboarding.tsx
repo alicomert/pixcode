@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { LLMProvider } from '../../../types/app';
 import { authenticatedFetch } from '../../../utils/api';
+import { useGithubOAuth } from '../../../hooks/useGithubOAuth';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
 import ProviderLoginModal from '../../provider-auth/view/ProviderLoginModal';
 
@@ -24,6 +25,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [gitName, setGitName] = useState('');
   const [gitEmail, setGitEmail] = useState('');
   const [githubToken, setGithubToken] = useState('');
+  const [hasGithubToken, setHasGithubToken] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [activeLoginProvider, setActiveLoginProvider] = useState<LLMProvider | null>(null);
@@ -42,17 +44,20 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
         return;
       }
 
-      const payload = (await response.json()) as { gitName?: string; gitEmail?: string };
+      const payload = (await response.json()) as { gitName?: string; gitEmail?: string; hasGithubToken?: boolean };
       if (payload.gitName) {
         setGitName(payload.gitName);
       }
       if (payload.gitEmail) {
         setGitEmail(payload.gitEmail);
       }
+      setHasGithubToken(Boolean(payload.hasGithubToken));
     } catch (caughtError) {
       console.error('Error loading git config:', caughtError);
     }
   }, []);
+
+  const githubOAuth = useGithubOAuth({ onSuccess: loadGitConfig });
 
   useEffect(() => {
     void loadGitConfig();
@@ -156,20 +161,24 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   return (
     <>
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex min-h-dvh items-start justify-center bg-background px-4 py-6 sm:items-center sm:py-4">
         <div className="w-full max-w-2xl">
           <OnboardingStepProgress currentStep={currentStep} />
 
-          <div className="rounded-lg border border-border bg-card p-8 shadow-lg">
+          <div className="rounded-lg border border-border bg-card p-4 shadow-lg sm:p-8">
             {currentStep === 0 ? (
               <GitConfigurationStep
                 gitName={gitName}
                 gitEmail={gitEmail}
                 githubToken={githubToken}
+                hasGithubToken={hasGithubToken}
+                githubOAuthStatus={githubOAuth.status}
+                githubOAuthError={githubOAuth.error}
                 isSubmitting={isSubmitting}
                 onGitNameChange={setGitName}
                 onGitEmailChange={setGitEmail}
                 onGithubTokenChange={setGithubToken}
+                onStartGithubOAuth={githubOAuth.start}
               />
             ) : currentStep === 1 ? (
               <AgentConnectionsStep
@@ -191,9 +200,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
             <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
               <button
+                type="button"
                 onClick={handlePreviousStep}
                 disabled={currentStep === 0 || isSubmitting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-11 items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ChevronLeft className="h-4 w-4" />
                 Previous
@@ -202,9 +212,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               <div className="flex items-center gap-3">
                 {currentStep < 1 ? (
                   <button
+                    type="button"
                     onClick={handleNextStep}
                     disabled={!isCurrentStepValid || isSubmitting}
-                    className="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+                    className="flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white transition-colors duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
                   >
                     {isSubmitting ? (
                       <>
@@ -220,9 +231,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleFinish}
                     disabled={isSubmitting}
-                    className="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-medium text-white transition-colors duration-200 hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-400"
+                    className="flex min-h-11 items-center gap-2 rounded-lg bg-green-600 px-6 py-3 font-medium text-white transition-colors duration-200 hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-400"
                   >
                     {isSubmitting ? (
                       <>

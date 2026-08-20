@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import type { ReactNode } from 'react';
 
 import { useAuth } from '../components/auth/context/AuthContext';
-import { IS_PLATFORM } from '../constants/config';
+import { PLATFORM_AUTH_BYPASS_ENABLED } from '../constants/config';
 import { authenticatedFetch } from '../utils/api';
 
 export type Plugin = {
@@ -49,7 +49,7 @@ export function PluginsProvider({ children }: { children: ReactNode }) {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [pluginsError, setPluginsError] = useState<string | null>(null);
-  const canLoadPlugins = IS_PLATFORM || Boolean(user && token);
+  const canLoadPlugins = PLATFORM_AUTH_BYPASS_ENABLED || Boolean(user && token);
 
   const refreshPlugins = useCallback(async () => {
     if (!canLoadPlugins) {

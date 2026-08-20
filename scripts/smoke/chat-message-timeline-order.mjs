@@ -1,4 +1,20 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+// The assertion exercises a TypeScript hook. Re-enter through tsx when the
+// smoke is launched with plain `node` (the normal npm/script invocation).
+if (!process.env.PIXCODE_CHAT_TIMELINE_TSX) {
+  const result = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', fileURLToPath(import.meta.url)],
+    {
+      env: { ...process.env, PIXCODE_CHAT_TIMELINE_TSX: '1' },
+      stdio: 'inherit',
+    },
+  );
+  process.exit(result.status ?? 1);
+}
 
 const { normalizedToChatMessages } = await import('../../src/components/chat/hooks/useChatMessages.ts');
 

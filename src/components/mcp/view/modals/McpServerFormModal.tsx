@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { Button, Input } from '../../../../shared/view/ui';
+import { Button, Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import {
   MCP_PROVIDER_NAMES,
   MCP_SUPPORTED_SCOPES,
@@ -121,11 +121,29 @@ export default function McpServerFormModal({
   const showCodexOnlyFields = provider === 'codex' && !isGlobalMode;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-background">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSubmitting) onClose();
+      }}
+    >
+      <DialogContent
+        aria-labelledby="pixcode-mcp-form-title"
+        className="max-h-[90vh] w-[calc(100%-1rem)] max-w-2xl overflow-y-auto p-0 sm:rounded-lg"
+      >
+        <DialogTitle id="pixcode-mcp-form-title">{modalTitle}</DialogTitle>
         <div className="flex items-center justify-between border-b border-border p-4">
           <h3 className="text-lg font-medium text-foreground">{modalTitle}</h3>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="min-h-11 min-w-11"
+            aria-label={t('mcpForm.actions.cancel')}
+            title={t('mcpForm.actions.cancel')}
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -413,13 +431,13 @@ export default function McpServerFormModal({
           )}
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onClose} disabled={isSubmitting}>
               {t('mcpForm.actions.cancel')}
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting || !canSubmit}
-              className="bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+              className="min-h-11 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
             >
               {isSubmitting
                 ? t('mcpForm.actions.saving')
@@ -429,7 +447,7 @@ export default function McpServerFormModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

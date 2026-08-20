@@ -339,6 +339,7 @@ export default function ChatComposer({
             <PromptInputButton
               tooltip={{ content: t('input.attachImages') }}
               onClick={openImagePicker}
+              className="mobile-touch-target"
             >
               <ImageIcon />
             </PromptInputButton>
@@ -346,7 +347,7 @@ export default function ChatComposer({
             <button
               type="button"
               onClick={onModeSwitch}
-              className={`rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
+              className={`mobile-touch-target rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
                 permissionMode === 'default'
                   ? 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted'
                   : permissionMode === 'acceptEdits'
@@ -382,7 +383,7 @@ export default function ChatComposer({
               <button
                 type="button"
                 onClick={() => setPermissionMode(permissionMode === 'plan' ? 'default' : 'plan')}
-                className={`flex items-center gap-1 rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
+                className={`mobile-touch-target flex items-center gap-1 rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
                   permissionMode === 'plan'
                     ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/15'
                     : 'border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -406,7 +407,7 @@ export default function ChatComposer({
             <PromptInputButton
               tooltip={{ content: t('input.showAllCommands') }}
               onClick={onToggleCommandMenu}
-              className="relative"
+              className="mobile-touch-target relative"
             >
               <MessageSquareIcon />
               {slashCommandsCount > 0 && (
@@ -422,7 +423,7 @@ export default function ChatComposer({
               <PromptInputButton
                 tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
                 onClick={onClearInput}
-                className="sm:No-flex hidden"
+                className="mobile-touch-target"
               >
                 <XIcon />
               </PromptInputButton>
@@ -441,7 +442,7 @@ export default function ChatComposer({
               disabled={isLoading}
               align="right"
               buttonClassName={cn(
-                'rounded-full border-dashed bg-muted/25 opacity-75 hover:opacity-100',
+                'mobile-touch-target rounded-full border-dashed bg-muted/25 opacity-75 hover:opacity-100',
                 compact ? 'h-9 w-9' : 'h-10 w-10',
               )}
               panelClassName={compact ? 'w-[min(24rem,calc(100vw-2rem))]' : undefined}
@@ -449,7 +450,7 @@ export default function ChatComposer({
             <PromptInputSubmit
               disabled={!input.trim() || isLoading}
               className={cn(
-                'flex-none shrink-0',
+                'mobile-touch-target flex-none shrink-0',
                 compact ? 'h-9 w-9 min-w-9 sm:h-9 sm:w-9 sm:min-w-9' : 'h-10 w-10 min-w-10 sm:h-10 sm:w-10 sm:min-w-10',
               )}
               onMouseDown={(event) => {

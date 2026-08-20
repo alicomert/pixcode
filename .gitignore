@@ -25,6 +25,11 @@ tasks/
 
 # Local runtime / secrets (never publish)
 server/database/auth.json
+.pixcode-dev/
 .env
 .env.local
+
+# Local audit artifacts, screenshots, and temporary registries (never commit)
+.tmp-opensandbox/
+.tmp-npm-cache/
 

@@ -20,6 +20,7 @@ function assertIncludes(path, patterns) {
 
 const rootPackage = readJson('package.json');
 const desktopPackage = readJson('desktop/package.json');
+const releaseConfig = readJson('.release-it.json');
 const bundledPixcodeVersion = desktopPackage.dependencies?.['@pixelbyte-software/pixcode'];
 
 if (desktopPackage.version !== rootPackage.version) {
@@ -30,18 +31,34 @@ if (bundledPixcodeVersion !== rootPackage.version) {
   throw new Error(`desktop bundled pixcode version ${bundledPixcodeVersion} does not match root ${rootPackage.version}`);
 }
 
+const releaseHooks = releaseConfig.hooks || {};
+if (!String(releaseHooks['after:npm:bump'] || '').includes('sync-desktop-release')) {
+  throw new Error('release-it must sync desktop package metadata after npm bumps the root version');
+}
+const afterBump = String(releaseHooks['after:bump'] || '');
+if (!afterBump.includes('npm run build') || !afterBump.includes('generate-files-manifest')) {
+  throw new Error('release-it must build and regenerate the delta manifest after the version bump');
+}
+const afterNpmRelease = String(releaseHooks['after:npm:release'] || '');
+if (!afterNpmRelease.includes('desktop install --package-lock-only')) {
+  throw new Error('release-it must refresh the desktop lockfile after npm publication');
+}
+if (!afterNpmRelease.includes('git add files-manifest.json desktop/package.json desktop/package-lock.json')) {
+  throw new Error('release-it must stage the publish-time manifest and refreshed desktop release metadata before committing the release');
+}
+
 assertIncludes('README.md', [
   'macOS Gatekeeper: "Pixcode is damaged"',
   'Fix Gatekeeper.command',
-  'xattr -dr com.apple.quarantine',
+  'xattr -d com.apple.quarantine',
   'unsigned',
 ]);
 
 assertIncludes('README.tr.md', [
   'macOS Gatekeeper: "Pixcode hasar görmüş"',
   'Fix Gatekeeper.command',
-  'xattr -dr com.apple.quarantine',
-  'imzalı/notarize değil',
+  'xattr -d com.apple.quarantine',
+  'imzalı/notarize olmayabilir',
 ]);
 
 assertIncludes('desktop/README.md', [
@@ -59,9 +76,21 @@ assertIncludes('desktop/electron-builder.yml', [
   'identity: null',
 ]);
 
+assertIncludes('desktop/electron/main.cjs', [
+  'PIXCODE_DESKTOP_ALLOW_LAN',
+  'PIXCODE_DESKTOP_HOST',
+  "const LOOPBACK_HOST = '127.0.0.1'",
+  'HOST: DESKTOP_BIND_HOST',
+  'PIXCODE_REMOTE_URL',
+  'isPixcodeNavigation',
+  "url === 'about:blank'",
+  'sandbox: true',
+  'openExternalPopup',
+]);
+
 assertIncludes('desktop/build-resources/Fix Gatekeeper.command', [
   'Pixcode Gatekeeper Fix',
-  'xattr -cr "$APP_PATH"',
+  'xattr -dr com.apple.quarantine "$APP_PATH"',
   'com.apple.quarantine',
   'open "$APP_PATH"',
 ]);

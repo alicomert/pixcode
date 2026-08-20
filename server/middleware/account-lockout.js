@@ -2,6 +2,7 @@ import { securityLog } from '../utils/security-log.js';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+const MAX_TRACKED_ATTEMPT_KEYS = 10_000;
 const failedAttempts = new Map();
 
 function cleanupExpired() {
@@ -45,6 +46,14 @@ export function recordFailedLogin(username, ip) {
     const key = `${username}:${ip}`;
     let entry = failedAttempts.get(key);
     if (!entry) {
+        if (failedAttempts.size >= MAX_TRACKED_ATTEMPT_KEYS) {
+            cleanupExpired();
+            while (failedAttempts.size >= MAX_TRACKED_ATTEMPT_KEYS) {
+                const oldestKey = failedAttempts.keys().next().value;
+                if (oldestKey === undefined) break;
+                failedAttempts.delete(oldestKey);
+            }
+        }
         entry = { count: 0, lockedUntil: null, lastAttempt: Date.now() };
         failedAttempts.set(key, entry);
     }

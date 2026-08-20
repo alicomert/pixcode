@@ -29,7 +29,13 @@ function readSessionOwnership() {
 }
 
 function canUserReadSession(user, provider, sessionId) {
-  if (['admin', 'owner'].includes(user?.role)) return true;
+  if (['admin', 'owner'].includes(user?.role)) {
+    if (!user?.api_key_id) return true;
+    const scopes = Array.isArray(user.api_key_scopes) ? user.api_key_scopes : [];
+    const hasExplicitScopes = user.api_key_has_explicit_scopes === true || scopes.length > 0;
+    if (!hasExplicitScopes) return true;
+    return scopes.includes('*') || scopes.includes('admin') || scopes.includes('system');
+  }
   const owner = readSessionOwnership()[`${provider || 'claude'}:${sessionId}`];
   return Boolean(owner?.userId && Number(owner.userId) === Number(user?.id ?? user?.userId));
 }
@@ -49,6 +55,10 @@ function canUserReadSession(user, provider, sessionId) {
 router.get('/:sessionId/messages', async (req, res) => {
   try {
     const { sessionId } = req.params;
+    const safeSessionId = String(sessionId).replace(/[^a-zA-Z0-9._-]/g, '');
+    if (!safeSessionId || safeSessionId !== String(sessionId)) {
+      return res.status(400).json({ error: 'Invalid sessionId' });
+    }
     const provider = String(req.query.provider || 'claude').trim().toLowerCase();
     const projectName = req.query.projectName || '';
     const projectPath = req.query.projectPath || '';
@@ -76,11 +86,11 @@ router.get('/:sessionId/messages', async (req, res) => {
       return res.status(403).json({ error: 'Project access denied.' });
     }
 
-    if (!canUserReadSession(req.user, provider, sessionId)) {
+    if (!canUserReadSession(req.user, provider, safeSessionId)) {
       return res.status(403).json({ error: 'Session access denied.' });
     }
 
-    const result = await sessionsService.fetchHistory(provider, sessionId, {
+    const result = await sessionsService.fetchHistory(provider, safeSessionId, {
       projectName,
       projectPath,
       limit,

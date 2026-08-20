@@ -8,7 +8,7 @@ import {
   PROVIDER_INSTALL_COMMANDS,
 } from '../../../../../../provider-auth/types';
 import { copyTextToClipboard } from '../../../../../../../utils/clipboard';
-import { authenticatedFetch } from '../../../../../../../utils/api';
+import { authenticatedFetch, createStreamAuthUrl } from '../../../../../../../utils/api';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
 
 import { Check, Copy, LogIn, Download, ExternalLink, Loader2, RefreshCw, X } from '@/lib/icons';
@@ -154,13 +154,16 @@ function useInstaller(agent: AgentProvider, onDone?: () => void | Promise<void>)
       return;
     }
 
-    // EventSource can't send custom headers, so the server accepts
-    // ?token= as a query-string auth fallback (same pattern as the
-    // conversations search endpoint).
-    const token = localStorage.getItem('auth-token') || '';
-    const url =
-      `/api/providers/${agent}/install/${jobId}/stream`
-      + (token ? `?token=${encodeURIComponent(token)}` : '');
+    let url: string;
+    try {
+      url = await createStreamAuthUrl(`/api/providers/${agent}/install/${jobId}/stream`);
+    } catch (err: any) {
+      setError(err?.message || t('agents.install.errors.streamAuthFailed', {
+        defaultValue: 'Unable to authenticate install stream.',
+      }));
+      setState('error');
+      return;
+    }
     const es = new EventSource(url);
     esRef.current = es;
 
@@ -197,10 +200,12 @@ function useInstaller(agent: AgentProvider, onDone?: () => void | Promise<void>)
     });
 
     es.onerror = () => {
-      // EventSource auto-reconnects on transient errors (that's the whole
-      // point of using it). Only surface an error if the stream has gone
-      // to CLOSED without ever producing a `done` — the callback above
-      // normally transitions state before we get here.
+      // The ticket is single-use; prevent EventSource from reconnecting with
+      // a consumed URL and repeatedly receiving 401 responses.
+      try { es.close(); } catch { /* noop */ }
+      // The stream is intentionally closed above: its single-use ticket must
+      // not be retried. Surface the interruption while the install job itself
+      // continues on the server and can be inspected on the next attempt.
       if (es.readyState === EventSource.CLOSED && state !== 'done' && state !== 'error') {
         setError(t('agents.install.errors.streamLost'));
         setState('error');

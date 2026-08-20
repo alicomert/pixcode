@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { Plus, RefreshCw } from '@/lib/icons';
+import { Dialog, DialogContent, DialogTitle } from '@/shared/view/ui';
 
 type NewBranchModalProps = {
   isOpen: boolean;
@@ -49,14 +50,17 @@ export default function NewBranchModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
-        role="dialog"
-        aria-modal="true"
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isCreatingBranch) onClose();
+      }}
+    >
+      <DialogContent
         aria-labelledby="new-branch-title"
+        className="w-[calc(100%-2rem)] max-w-md overflow-hidden p-0 sm:rounded-xl"
       >
+        <DialogTitle id="new-branch-title">Create New Branch</DialogTitle>
         <div className="p-6">
           <h3 className="mb-4 text-lg font-semibold text-foreground">Create New Branch</h3>
 
@@ -95,15 +99,18 @@ export default function NewBranchModal({
 
           <div className="flex justify-end space-x-3">
             <button
+              type="button"
               onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              disabled={isCreatingBranch}
+              className="min-h-11 rounded-lg px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={() => void handleCreateBranch()}
               disabled={!newBranchName.trim() || isCreatingBranch}
-              className="flex items-center space-x-2 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-11 items-center space-x-2 rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isCreatingBranch ? (
                 <>
@@ -119,7 +126,7 @@ export default function NewBranchModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

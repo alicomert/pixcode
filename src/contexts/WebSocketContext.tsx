@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useAuth } from '../components/auth/context/AuthContext';
-import { IS_PLATFORM } from '../constants/config';
+import { PLATFORM_AUTH_BYPASS_ENABLED } from '../constants/config';
+import { createStreamAuthUrl } from '../utils/api';
 
 type WebSocketContextType = {
   ws: WebSocket | null;
@@ -20,11 +21,12 @@ export const useWebSocket = () => {
   return context;
 };
 
-const buildWebSocketUrl = (token: string | null) => {
+const buildWebSocketUrl = async (token: string | null) => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  if (IS_PLATFORM) return `${protocol}//${window.location.host}/ws`; // Platform mode: Use same domain as the page (goes through proxy)
+  if (PLATFORM_AUTH_BYPASS_ENABLED) return `${protocol}//${window.location.host}/ws`; // Trusted platform proxy: same-domain WebSocket
   if (!token) return null;
-  return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
+  const ticketPath = await createStreamAuthUrl('/ws', 'ws');
+  return `${protocol}//${window.location.host}${ticketPath}`; // OSS mode: Use same host:port that served the page
 };
 
 const useWebSocketProviderState = (): WebSocketContextType => {
@@ -34,19 +36,29 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const connectionGenerationRef = useRef(0);
   const { token } = useAuth();
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (unmountedRef.current) return; // Prevent connection if unmounted
+    const generation = connectionGenerationRef.current;
     try {
       // Construct WebSocket URL
-      const wsUrl = buildWebSocketUrl(token);
+      const wsUrl = await buildWebSocketUrl(token);
+      if (unmountedRef.current || connectionGenerationRef.current !== generation) return;
 
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
       
       const websocket = new WebSocket(wsUrl);
+      // Keep a reference while CONNECTING as well as OPEN so unmounts and
+      // token changes can close the socket before it finishes its handshake.
+      wsRef.current = websocket;
 
       websocket.onopen = () => {
+        if (unmountedRef.current || wsRef.current !== websocket) {
+          websocket.close();
+          return;
+        }
         setIsConnected(true);
         wsRef.current = websocket;
         if (hasConnectedRef.current) {
@@ -57,6 +69,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       };
 
       websocket.onmessage = (event) => {
+        if (unmountedRef.current || wsRef.current !== websocket) return;
         try {
           const data = JSON.parse(event.data);
           setLatestMessage(data);
@@ -66,8 +79,11 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       };
 
       websocket.onclose = () => {
+        if (wsRef.current !== websocket) return;
         setIsConnected(false);
         wsRef.current = null;
+
+        if (unmountedRef.current) return;
         
         // Attempt to reconnect after 3 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -82,14 +98,25 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
+      if (!unmountedRef.current && connectionGenerationRef.current === generation) {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          if (!unmountedRef.current) void connect();
+        }, 3000);
+      }
     }
   }, [token]); // everytime token changes, we reconnect
 
   useEffect(() => {
-    connect();
+    // The cleanup below runs when the auth token changes as well as on
+    // unmount. Reset the lifecycle guard before starting the new connection.
+    unmountedRef.current = false;
+    connectionGenerationRef.current += 1;
+    void connect();
 
     return () => {
       unmountedRef.current = true;
+      connectionGenerationRef.current += 1;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

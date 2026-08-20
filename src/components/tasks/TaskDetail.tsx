@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { AlertCircle, Bot, Clock, FileText, Loader2, MessageSquare, RefreshCw, Sparkles, X } from '@/lib/icons';
 
 import { cn } from '../../lib/utils';
 
 import type { Task, TaskInteraction, TaskLog } from './types';
+
+import { AlertCircle, Bot, Clock, FileText, Loader2, MessageSquare, RefreshCw, Sparkles, X } from '@/lib/icons';
 
 type TaskDetailProps = {
   task: Task;
@@ -23,6 +24,63 @@ export function TaskDetail({ task, onClose, getLogs, getInteractions, answerInte
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Task details are a full-screen sheet on phones. Keep the background
+  // inert while preserving keyboard navigation and trigger focus restoration.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+        if (focusable.length > 0) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          const activeElement = document.activeElement;
+          if (event.shiftKey && (activeElement === first || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          } else if (!event.shiftKey && (activeElement === last || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>('[data-task-detail-close]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -58,17 +116,29 @@ export function TaskDetail({ task, onClose, getLogs, getInteractions, answerInte
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 backdrop-blur-sm sm:items-center sm:p-5">
-      <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:max-h-[92vh] sm:rounded-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-border bg-gradient-to-r from-primary/8 via-background to-amber-500/8 px-5 py-4">
+    <div
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] backdrop-blur-sm sm:items-center sm:p-5"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pixcode-task-detail-title"
+        className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:max-h-[92vh] sm:rounded-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="from-primary/8 to-amber-500/8 flex items-start justify-between gap-4 border-b border-border bg-gradient-to-r via-background px-5 py-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <span className="rounded-full border border-border bg-card px-2 py-1">{task.status.replace('_', ' ')}</span>
               <span>{task.agentType}{task.model ? ` · ${task.model}` : ''}</span>
             </div>
-            <h2 className="mt-2 truncate text-lg font-semibold text-foreground">{task.title}</h2>
+            <h2 id="pixcode-task-detail-title" className="mt-2 truncate text-lg font-semibold text-foreground">{task.title}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+          <button type="button" data-task-detail-close onClick={onClose} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label={t('buttons.close')}><X className="h-4 w-4" /></button>
         </div>
 
         <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:overflow-hidden">
@@ -88,7 +158,7 @@ export function TaskDetail({ task, onClose, getLogs, getInteractions, answerInte
             )}
 
             {interactions.map((interaction) => (
-              <section key={interaction.id} className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
+              <section key={interaction.id} className="bg-amber-500/8 rounded-2xl border border-amber-500/30 p-4">
                 <div className="text-sm font-medium text-foreground">{interaction.question}</div>
                 {interaction.options && interaction.options.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -127,8 +197,8 @@ export function TaskDetail({ task, onClose, getLogs, getInteractions, answerInte
         </div>
 
         <div className="flex justify-end gap-2 border-t border-border bg-background p-4">
-          <button type="button" onClick={onClose} className="h-9 rounded-xl px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground">{t('buttons.close')}</button>
-          <button type="button" onClick={onFollowUp} className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Sparkles className="h-4 w-4" />{t('taskSystem.detail.followUp', { defaultValue: 'Create follow-up' })}</button>
+          <button type="button" onClick={onClose} className="min-h-11 rounded-xl px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground">{t('buttons.close')}</button>
+          <button type="button" onClick={onFollowUp} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground"><Sparkles className="h-4 w-4" />{t('taskSystem.detail.followUp', { defaultValue: 'Create follow-up' })}</button>
         </div>
       </div>
     </div>

@@ -53,11 +53,11 @@ type TerminalShortcutsPanelProps = {
 const preventFocusSteal = (e: React.PointerEvent) => e.preventDefault();
 
 const KEY_BTN =
-  'shrink-0 rounded-md border border-gray-600 bg-gray-700 px-2.5 py-1.5 text-xs font-medium text-gray-100 transition-colors select-none active:bg-blue-600 active:text-white active:border-blue-600 disabled:cursor-not-allowed disabled:opacity-40';
+  'flex min-h-11 shrink-0 items-center justify-center rounded-md border border-gray-600 bg-gray-700 px-2.5 py-1.5 text-xs font-medium text-gray-100 transition-colors select-none active:bg-blue-600 active:text-white active:border-blue-600 disabled:cursor-not-allowed disabled:opacity-40';
 const KEY_BTN_ACTIVE =
-  'shrink-0 rounded-md border border-blue-500 bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors select-none disabled:cursor-not-allowed disabled:opacity-40';
+  'flex min-h-11 shrink-0 items-center justify-center rounded-md border border-blue-500 bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors select-none disabled:cursor-not-allowed disabled:opacity-40';
 const ICON_BTN =
-  'shrink-0 rounded-md border border-gray-600 bg-gray-700 p-1.5 text-gray-100 transition-colors select-none active:bg-blue-600 active:text-white active:border-blue-600 disabled:cursor-not-allowed disabled:opacity-40';
+  'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md border border-gray-600 bg-gray-700 p-1.5 text-gray-100 transition-colors select-none active:bg-blue-600 active:text-white active:border-blue-600 disabled:cursor-not-allowed disabled:opacity-40';
 
 export default function TerminalShortcutsPanel({
   wsRef,
@@ -105,6 +105,16 @@ export default function TerminalShortcutsPanel({
     return () => window.clearTimeout(timeoutId);
   }, [pasteError]);
 
+  // A pending modifier must never leak across a reconnect or terminal switch.
+  // Otherwise the first key pressed after reconnect is unexpectedly sent as
+  // Ctrl/Alt input to the new PTY.
+  useEffect(() => {
+    if (!isConnected) {
+      setCtrlActive(false);
+      setAltActive(false);
+    }
+  }, [isConnected]);
+
   const handleKeyPress = useCallback(
     (seq: string) => {
       let finalSeq = seq;
@@ -128,8 +138,12 @@ export default function TerminalShortcutsPanel({
     <div className={`pointer-events-none ${placement} inset-x-0 ${bottomOffset} z-40 px-2 pb-[max(env(safe-area-inset-bottom),0px)] md:hidden`}>
       <div className="pointer-events-auto flex items-center gap-1 overflow-x-auto rounded-lg border border-gray-700/80 bg-gray-900/95 px-1.5 py-1.5 shadow-lg backdrop-blur-sm [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {pasteError && (
-          <span className="shrink-0 rounded-md border border-yellow-500/50 bg-yellow-500/15 px-2 py-1 text-[11px] text-yellow-100">
-            Clipboard blocked
+          <span
+            className="shrink-0 rounded-md border border-yellow-500/50 bg-yellow-500/15 px-2 py-1 text-[11px] text-yellow-100"
+            role="status"
+            aria-live="polite"
+          >
+            {t('terminalShortcuts.clipboardBlocked', { defaultValue: 'Clipboard blocked' })}
           </span>
         )}
         <button
@@ -161,6 +175,8 @@ export default function TerminalShortcutsPanel({
                 onClick={toggle}
                 disabled={!isConnected}
                 className={isActive ? KEY_BTN_ACTIVE : KEY_BTN}
+                aria-pressed={isActive}
+                aria-label={key.label}
               >
                 {key.label}
               </button>
@@ -177,6 +193,12 @@ export default function TerminalShortcutsPanel({
                 onClick={() => sendInput(key.sequence)}
                 disabled={!isConnected}
                 className={ICON_BTN}
+                title={t(`terminalShortcuts.arrow${key.icon[0].toUpperCase()}${key.icon.slice(1)}`, {
+                  defaultValue: `${key.icon[0].toUpperCase()}${key.icon.slice(1)} arrow`,
+                })}
+                aria-label={t(`terminalShortcuts.arrow${key.icon[0].toUpperCase()}${key.icon.slice(1)}`, {
+                  defaultValue: `${key.icon[0].toUpperCase()}${key.icon.slice(1)} arrow`,
+                })}
               >
                 <Icon className="h-4 w-4" />
               </button>

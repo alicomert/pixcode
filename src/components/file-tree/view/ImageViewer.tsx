@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { Button } from '../../../shared/view/ui';
+import { Button, Dialog, DialogContent, DialogTitle } from '../../../shared/view/ui';
 import { authenticatedFetch } from '../../../utils/api';
 import type { FileTreeImageSelection } from '../types/types';
 
@@ -60,11 +60,25 @@ export default function ImageViewer({ file, onClose }: ImageViewerProps) {
   }, [imagePath]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="mx-4 max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-xl dark:bg-gray-800">
+    <Dialog open onOpenChange={(open) => {
+      if (!open) onClose();
+    }}>
+      <DialogContent
+        aria-labelledby="pixcode-image-viewer-title"
+        className="mx-2 max-h-[90vh] w-[calc(100%-1rem)] max-w-4xl overflow-hidden p-0 sm:mx-4 sm:rounded-lg"
+      >
+        <DialogTitle id="pixcode-image-viewer-title">{file.name}</DialogTitle>
         <div className="flex items-center justify-between border-b p-4">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{file.name}</h3>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="min-h-11 min-w-11"
+            aria-label="Close image viewer"
+            title="Close image viewer"
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -93,7 +107,7 @@ export default function ImageViewer({ file, onClose }: ImageViewerProps) {
         <div className="border-t bg-gray-50 p-4 dark:bg-gray-800">
           <p className="text-sm text-gray-600 dark:text-gray-400">{file.path}</p>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import os from 'os';
-import { promises as fs } from 'fs';
+import fsSync, { promises as fs } from 'fs';
 import crypto from 'crypto';
 
 import express from 'express';
@@ -15,25 +15,90 @@ import { queryCodex } from '../openai-codex.js';
 import { spawnGemini } from '../gemini-cli.js';
 import { spawnQwen } from '../qwen-code-cli.js';
 import { spawnOpencode } from '../opencode-cli.js';
-import { IS_PLATFORM } from '../constants/config.js';
 import { getDefaultProviderModel } from '../services/model-registry.js';
+import { buildGitSpawnEnv, isSafeGithubCloneUrl } from '../utils/gitConfig.js';
+import { isAdminUser, userHasWorkspacePathAccess } from '../services/platformization.js';
+import { ALLOW_QUERY_CREDENTIALS, PLATFORM_AUTH_BYPASS_ENABLED } from '../middleware/auth.js';
 
 const router = express.Router();
 const isPixcodeApiKey = (token) => typeof token === 'string' && (token.startsWith('px_') || token.startsWith('ck_'));
 const EXTERNAL_PROJECTS_BASE = path.join(os.homedir(), '.claude', 'external-projects');
+const MAX_AGENT_MESSAGE_CHARS = 128 * 1024;
+const MAX_AGENT_PATH_CHARS = 4096;
+const MAX_AGENT_URL_CHARS = 2048;
+const MAX_AGENT_MODEL_CHARS = 256;
+const MAX_AGENT_BRANCH_CHARS = 256;
 
-function isPathWithinExternalProjects(resolvedPath) {
-  const normalized = path.resolve(resolvedPath);
-  return normalized.startsWith(EXTERNAL_PROJECTS_BASE + path.sep) || normalized === EXTERNAL_PROJECTS_BASE;
+function readBoundedAgentText(value, maxChars, field, { required = false } = {}) {
+  if (value === undefined || value === null) {
+    if (required) return { error: `${field} is required.` };
+    return { value: null };
+  }
+  if (typeof value !== 'string') return { error: `${field} must be a string.` };
+  const text = value.trim();
+  if (text.length > maxChars) return { error: `${field} exceeds the ${maxChars} character limit.` };
+  if (required && !text) return { error: `${field} is required.` };
+  return { value: text };
+}
+
+function externalProjectsBaseForUser(user) {
+  const userId = Number(user?.id ?? user?.userId);
+  return Number.isSafeInteger(userId) && userId > 0
+    ? path.join(EXTERNAL_PROJECTS_BASE, String(userId))
+    : null;
+}
+
+function isPathWithinExternalProjects(resolvedPath, user = null) {
+  const normalized = canonicalExistingPath(resolvedPath);
+  const base = canonicalExistingPath(externalProjectsBaseForUser(user) || EXTERNAL_PROJECTS_BASE);
+  const relative = path.relative(base, normalized);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function canonicalExistingPath(inputPath) {
+  const resolved = path.resolve(String(inputPath || ''));
+  try {
+    return fsSync.realpathSync.native(resolved);
+  } catch {
+    // The final target may not exist yet (for example a clone destination),
+    // but an existing parent can still be a symlink. Resolve the nearest
+    // existing ancestor and append the missing suffix so containment checks
+    // cannot be bypassed by placing `link -> outside` inside the workspace.
+    const suffix = [];
+    let cursor = resolved;
+    while (cursor && cursor !== path.dirname(cursor)) {
+      suffix.unshift(path.basename(cursor));
+      cursor = path.dirname(cursor);
+      try {
+        return path.join(fsSync.realpathSync.native(cursor), ...suffix);
+      } catch {
+        // Keep walking toward the filesystem root.
+      }
+    }
+    return resolved;
+  }
+}
+
+function userCanRunAgentInPath(user, resolvedPath) {
+  if (isAdminUser(user)) return true;
+  const canonical = canonicalExistingPath(resolvedPath);
+  if (isPathWithinExternalProjects(canonical, user)) return true;
+  return userHasWorkspacePathAccess(user, canonical, 'runAgents')
+    || userHasWorkspacePathAccess(user, canonical, 'chatAgents');
+}
+
+function isPrivilegedAgentUser(user) {
+  return isAdminUser(user);
 }
 
 /**
  * Middleware to authenticate agent API requests.
  *
  * Supports two authentication modes:
- * 1. Platform mode (IS_PLATFORM=true): For managed/hosted deployments where
- *    authentication is handled by an external proxy. Requests are trusted and
- *    the default user context is used.
+ * 1. Explicit platform bypass (VITE_IS_PLATFORM=true plus
+ *    PIXCODE_ALLOW_PLATFORM_AUTH_BYPASS=1): For managed/hosted deployments
+ *    where authentication is handled by an external proxy. Requests are
+ *    trusted and the default user context is used.
  *
  * 2. API key mode (default): For self-hosted deployments where users authenticate
  *    via API keys created in the UI. Keys are validated against the local database.
@@ -41,7 +106,7 @@ function isPathWithinExternalProjects(resolvedPath) {
 const validateExternalApiKey = (req, res, next) => {
   // Platform mode: Authentication is handled externally (e.g., by a proxy layer).
   // Trust the request and use the default user context.
-  if (IS_PLATFORM) {
+  if (PLATFORM_AUTH_BYPASS_ENABLED) {
     try {
       const user = userDb.getFirstUser();
       if (!user) {
@@ -59,21 +124,28 @@ const validateExternalApiKey = (req, res, next) => {
   //   - Authorization: Bearer px_... (legacy ck_... still accepted)
   //     auth shape as the rest of the API, per the auth-unify in this turn)
   //   - X-API-Key: px_...
-  //   - ?apiKey=px_... (EventSource workaround)
+  //   - ?apiKey=px_... (legacy EventSource workaround; opt in with
+  //     PIXCODE_ALLOW_QUERY_CREDENTIALS=1 because URLs leak credentials)
   const authHeader = req.headers['authorization'];
   const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const apiKey = (isPixcodeApiKey(bearer) ? bearer : null)
     || req.headers['x-api-key']
-    || (typeof req.query.apiKey === 'string' ? req.query.apiKey : null);
+    || (ALLOW_QUERY_CREDENTIALS && typeof req.query.apiKey === 'string' ? req.query.apiKey : null);
 
   if (!apiKey) {
-    return res.status(401).json({ error: 'API key required (Authorization: Bearer px_..., X-API-Key, or ?apiKey=)' });
+    return res.status(401).json({ error: 'API key required (Authorization: Bearer px_... or X-API-Key)' });
   }
 
   const user = apiKeysDb.validateApiKey(apiKey);
 
   if (!user) {
     return res.status(401).json({ error: 'Invalid or inactive API key' });
+  }
+
+  const scopes = Array.isArray(user.api_key_scopes) ? user.api_key_scopes : [];
+  const hasExplicitScopes = user.api_key_has_explicit_scopes === true || scopes.length > 0;
+  if (hasExplicitScopes && !scopes.includes('*') && !scopes.includes('agent') && !scopes.includes('agent:run')) {
+    return res.status(403).json({ error: 'API key lacks agent:run scope' });
   }
 
   req.user = user;
@@ -405,18 +477,22 @@ async function createGitHubPR(octokit, owner, repo, branchName, title, body, bas
  * @param {string} projectPath - Path for cloning the repository
  * @returns {Promise<string>} - Path to the cloned repository
  */
-async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
+async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath, user = null) {
   return new Promise(async (resolve, reject) => {
     try {
-      // Validate GitHub URL
-      if (!githubUrl || !githubUrl.includes('github.com')) {
-        throw new Error('Invalid GitHub URL');
+      // Reject local/file remotes and private hosts before any filesystem or
+      // git work starts; this endpoint is reachable through API keys.
+      if (!isSafeGithubCloneUrl(githubUrl)) {
+        throw new Error('Clone source must be a GitHub HTTPS or SSH repository.');
       }
 
       const cloneDir = path.resolve(projectPath);
 
-      if (!isPathWithinExternalProjects(cloneDir)) {
-        throw new Error('Clone directory must be within ~/.claude/external-projects');
+      // Members are isolated to their per-user external-projects root. Admins
+      // retain the documented full-path behavior for the agent API, including
+      // cloning into an explicitly selected workspace outside that root.
+      if (!isAdminUser(user) && !isPathWithinExternalProjects(cloneDir, user)) {
+        throw new Error('Clone directory must be within your private external-projects workspace');
       }
 
       // Check if directory already exists
@@ -444,20 +520,17 @@ async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
       // Ensure parent directory exists
       await fs.mkdir(path.dirname(cloneDir), { recursive: true });
 
-      // Prepare the git clone URL with authentication if token is provided
-      let cloneUrl = githubUrl;
-      if (githubToken) {
-        // Convert HTTPS URL to authenticated URL
-        // Example: https://github.com/user/repo -> https://token@github.com/user/repo
-        cloneUrl = githubUrl.replace('https://github.com', `https://${githubToken}@github.com`);
-      }
+      // Keep credentials out of argv and .git/config. buildGitSpawnEnv adds a
+      // process-scoped HTTP Authorization header for GitHub instead.
+      const cloneUrl = githubUrl;
 
       console.log('🔄 Cloning repository:', githubUrl);
       console.log('📁 Destination:', cloneDir);
 
       // Execute git clone
       const gitProcess = spawn('git', ['clone', '--depth', '1', cloneUrl, cloneDir], {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: buildGitSpawnEnv({ githubToken }),
       });
 
       let stdout = '';
@@ -496,11 +569,11 @@ async function cloneGitHubRepo(githubUrl, githubToken = null, projectPath) {
  * @param {string} projectPath - Path to the project directory
  * @param {string} sessionId - Session ID to clean up
  */
-async function cleanupProject(projectPath, sessionId = null) {
+async function cleanupProject(projectPath, sessionId = null, user = null) {
   try {
     // Only clean up projects in the external-projects directory
     const resolvedPath = path.resolve(projectPath);
-    if (!isPathWithinExternalProjects(resolvedPath)) {
+    if (!isAdminUser(user) && !isPathWithinExternalProjects(resolvedPath, user)) {
       console.warn('⚠️ Refusing to clean up non-external project:', projectPath);
       return;
     }
@@ -974,20 +1047,47 @@ class ResponseCollector {
  *   }
  */
 router.post('/', validateExternalApiKey, async (req, res) => {
-  const { githubUrl, projectPath, message, provider = 'claude', model, githubToken, branchName, sessionId } = req.body;
-  const requestedPermissionMode = typeof req.body.permissionMode === 'string' ? req.body.permissionMode : null;
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const githubUrlResult = readBoundedAgentText(body.githubUrl, MAX_AGENT_URL_CHARS, 'githubUrl');
+  const projectPathResult = readBoundedAgentText(body.projectPath, MAX_AGENT_PATH_CHARS, 'projectPath');
+  const messageResult = readBoundedAgentText(body.message, MAX_AGENT_MESSAGE_CHARS, 'message', { required: true });
+  const modelResult = readBoundedAgentText(body.model, MAX_AGENT_MODEL_CHARS, 'model');
+  const branchResult = readBoundedAgentText(body.branchName, MAX_AGENT_BRANCH_CHARS, 'branchName');
+  const sessionResult = readBoundedAgentText(body.sessionId, 256, 'sessionId');
+  const firstInputError = [githubUrlResult, projectPathResult, messageResult, modelResult, branchResult, sessionResult]
+    .find((entry) => entry.error)?.error;
+  if (firstInputError) return res.status(400).json({ error: firstInputError });
+
+  const githubUrl = githubUrlResult.value;
+  const projectPath = projectPathResult.value;
+  const message = messageResult.value;
+  const model = modelResult.value;
+  const branchName = branchResult.value;
+  const sessionId = sessionResult.value;
+  const providerResult = body.provider === undefined
+    ? { value: 'claude' }
+    : readBoundedAgentText(body.provider, 32, 'provider');
+  if (providerResult.error) return res.status(400).json({ error: providerResult.error });
+  const provider = providerResult.value;
+  const { githubToken } = body;
+  const requestedPermissionMode = typeof body.permissionMode === 'string' ? body.permissionMode : null;
   const permissionMode = ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto_edit', 'yolo'].includes(requestedPermissionMode)
     ? requestedPermissionMode
     : null;
-  const suppressNotifications = req.body.suppressNotifications === true || req.body.suppressNotifications === 'true';
+  const privilegedAgentUser = isPrivilegedAgentUser(req.user);
+  const suppressNotifications = body.suppressNotifications === true || body.suppressNotifications === 'true';
 
   // Parse stream and cleanup as booleans (handle string "true"/"false" from curl)
-  const stream = req.body.stream === undefined ? true : (req.body.stream === true || req.body.stream === 'true');
-  const cleanup = req.body.cleanup === undefined ? true : (req.body.cleanup === true || req.body.cleanup === 'true');
+  const stream = body.stream === undefined ? true : (body.stream === true || body.stream === 'true');
+  const cleanup = body.cleanup === undefined ? true : (body.cleanup === true || body.cleanup === 'true');
 
   // If branchName is provided, automatically enable createBranch
-  const createBranch = branchName ? true : (req.body.createBranch === true || req.body.createBranch === 'true');
-  const createPR = req.body.createPR === true || req.body.createPR === 'true';
+  const createBranch = branchName ? true : (body.createBranch === true || body.createBranch === 'true');
+  const createPR = body.createPR === true || body.createPR === 'true';
+
+  if (githubToken != null && (typeof githubToken !== 'string' || githubToken.length > 512)) {
+    return res.status(400).json({ error: 'githubToken must be a short string credential.' });
+  }
 
   // Validate inputs
   if (!githubUrl && !projectPath) {
@@ -1001,6 +1101,30 @@ router.post('/', validateExternalApiKey, async (req, res) => {
   if (!['claude', 'cursor', 'codex', 'gemini', 'qwen', 'opencode'].includes(provider)) {
     return res.status(400).json({ error: 'provider must be one of: claude, cursor, codex, gemini, qwen, opencode' });
   }
+
+  if (sessionId) {
+    const normalizedSessionId = String(sessionId);
+    if (!/^[a-zA-Z0-9._-]{1,256}$/.test(normalizedSessionId)) {
+      return res.status(400).json({ error: 'sessionId is invalid.' });
+    }
+    // Provider session IDs are opaque and not self-authenticating. The
+    // external API has no project/session ownership lookup, so only a
+    // browser admin or an explicitly admin-scoped API key may resume one.
+    if (!privilegedAgentUser) {
+      return res.status(403).json({ error: 'Resuming an existing provider session requires admin scope.' });
+    }
+  }
+
+  // Unattended external calls must not silently switch a member into a host
+  // bypass mode. Dangerous permission flags are reserved for admin-scoped
+  // callers; everyone else gets the provider's normal approval policy.
+  const effectivePermissionMode = privilegedAgentUser
+    ? (permissionMode || 'bypassPermissions')
+    : (permissionMode && !['bypassPermissions', 'auto_edit', 'yolo'].includes(permissionMode)
+      ? permissionMode
+      : 'default');
+  const allowDangerousPermissions = privilegedAgentUser
+    && ['bypassPermissions', 'auto_edit', 'yolo'].includes(effectivePermissionMode);
 
   // Validate GitHub branch/PR creation requirements
   // Allow branch/PR creation with projectPath as long as it has a GitHub remote
@@ -1023,10 +1147,14 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       } else {
         // Generate a unique path for cloning
         const repoHash = crypto.createHash('md5').update(githubUrl + Date.now()).digest('hex');
-        targetPath = path.join(os.homedir(), '.claude', 'external-projects', repoHash);
+        const externalBase = externalProjectsBaseForUser(req.user);
+        if (!externalBase) {
+          return res.status(400).json({ error: 'A numeric user id is required for agent workspaces.' });
+        }
+        targetPath = path.join(externalBase, repoHash);
       }
 
-      finalProjectPath = await cloneGitHubRepo(githubUrl.trim(), tokenToUse, targetPath);
+      finalProjectPath = await cloneGitHubRepo(githubUrl.trim(), tokenToUse, targetPath, req.user);
     } else {
       // Use existing project path
       finalProjectPath = path.resolve(projectPath);
@@ -1037,6 +1165,13 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       } catch (error) {
         throw new Error(`Project path does not exist: ${finalProjectPath}`);
       }
+    }
+
+    // Non-admin API clients may only run agents in a registered collaborator
+    // project (or the isolated external-projects area created by this route).
+    // Do not let a valid API key execute a CLI against arbitrary host folders.
+    if (!userCanRunAgentInPath(req.user, finalProjectPath)) {
+      return res.status(403).json({ error: 'Agent access denied for this project path.' });
     }
 
     // Register the project (or use existing registration)
@@ -1091,7 +1226,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model,
-        permissionMode: permissionMode || 'bypassPermissions', // Bypass all permissions for API calls unless explicitly restricted
+        permissionMode: effectivePermissionMode,
         suppressNotifications,
       }, writer);
 
@@ -1103,7 +1238,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model || undefined,
-        skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
+        skipPermissions: allowDangerousPermissions && (effectivePermissionMode === 'bypassPermissions' || effectivePermissionMode === 'acceptEdits' || effectivePermissionMode === 'yolo'),
         suppressNotifications,
       }, writer);
     } else if (provider === 'codex') {
@@ -1114,7 +1249,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model || getDefaultProviderModel('codex'),
-        permissionMode: permissionMode || 'bypassPermissions',
+        permissionMode: effectivePermissionMode,
         suppressNotifications,
       }, writer);
     } else if (provider === 'gemini') {
@@ -1125,8 +1260,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model,
-        permissionMode: permissionMode || undefined,
-        skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
+        permissionMode: effectivePermissionMode,
+        skipPermissions: allowDangerousPermissions && (effectivePermissionMode === 'bypassPermissions' || effectivePermissionMode === 'acceptEdits' || effectivePermissionMode === 'yolo'),
         suppressNotifications,
       }, writer);
     } else if (provider === 'qwen') {
@@ -1137,8 +1272,8 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model,
-        permissionMode: permissionMode || undefined,
-        skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
+        permissionMode: effectivePermissionMode,
+        skipPermissions: allowDangerousPermissions && (effectivePermissionMode === 'bypassPermissions' || effectivePermissionMode === 'acceptEdits' || effectivePermissionMode === 'yolo'),
         suppressNotifications,
       }, writer);
     } else if (provider === 'opencode') {
@@ -1149,11 +1284,11 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model,
-        permissionMode: permissionMode || 'bypassPermissions',
+        permissionMode: effectivePermissionMode,
         toolsSettings: {
           allowPatterns: [],
           denyPatterns: [],
-          skipPermissions: permissionMode ? permissionMode === 'bypassPermissions' || permissionMode === 'acceptEdits' || permissionMode === 'yolo' : true,
+          skipPermissions: allowDangerousPermissions && (effectivePermissionMode === 'bypassPermissions' || effectivePermissionMode === 'acceptEdits' || effectivePermissionMode === 'yolo'),
         },
         suppressNotifications,
       }, writer);
@@ -1396,7 +1531,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       // Only cleanup if we cloned a repo (not for existing project paths)
       const sessionIdForCleanup = writer.getSessionId();
       setTimeout(() => {
-        cleanupProject(finalProjectPath, sessionIdForCleanup);
+        cleanupProject(finalProjectPath, sessionIdForCleanup, req.user);
       }, 5000);
     }
 
@@ -1406,7 +1541,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
     // Clean up on error
     if (finalProjectPath && cleanup && githubUrl) {
       const sessionIdForCleanup = writer ? writer.getSessionId() : null;
-      cleanupProject(finalProjectPath, sessionIdForCleanup);
+      cleanupProject(finalProjectPath, sessionIdForCleanup, req.user);
     }
 
     if (stream) {

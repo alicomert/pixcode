@@ -600,7 +600,7 @@ Options:
   --single-port, --no-frontend
                               Serve the built UI from the backend port only (default)
   -m, --mode <mode>           Service mode: user | system | auto (default: system)
-  --database-path <path>      Set service database path
+  --database-path <path>      Set service auth-store path (.json; .db imports legacy SQLite)
 
 Examples:
   $ ${installExample}

@@ -3,6 +3,47 @@
 All notable changes to Pixcode will be documented in this file.
 
 
+## [Unreleased]
+
+### Security and reliability
+
+* preserve legacy unscoped API-key behavior while enforcing least-privilege scopes on new keys
+* block private, loopback, metadata, and redirect-based webhook SSRF targets by default
+* harden Electron navigation and remote-access health checks with origin, DNS, timeout, and redirect guards
+
+### Packaging
+
+* ship the current product logo and desktop/mobile screenshots with the npm package
+
+## [1.64.2](https://github.com/alicomert/pixcode/compare/v1.64.1...v1.64.2) (2026-08-20)
+
+### Fixes
+
+* align the release snapshot and fallback version with the published source
+* document GitHub OAuth as the normal connection path and keep PATs as legacy overrides
+* clarify canonical runtime API discovery, admin-only remote control, and HTTPS deployment
+
+
+## [1.64.1](https://github.com/alicomert/pixcode/compare/v1.64.0...v1.64.1) (2026-08-20)
+
+### Fixes
+
+* publish the stabilized mobile, terminal-only, OAuth, scoped API-key, and HTTPS deployment surfaces as a patch release
+* align the npm package, desktop wrapper metadata, public API contract, and release screenshots on the same version
+
+
+## [1.64.0](https://github.com/alicomert/pixcode/compare/v1.63.8...v1.64.0) (2026-08-19)
+
+### Highlights
+
+* add the Spanish README contribution from PR #116 and synchronize all language menus and API examples
+* replace retired orchestration API references with NanoClaw tasks and the maintained production agent loop
+* add a focused terminal-only surface, mobile-safe navigation, resilient terminal reconnects, and accessible shell controls
+* prefer GitHub OAuth for repository access while keeping personal access tokens as an explicit legacy fallback
+* harden auth, scoped API keys, stream tickets, project ownership, update rollback, public URLs, and HTTPS deployment guidance
+* refresh the README product screenshots from the current workspace UI and align desktop package metadata
+
+
 ## [1.63.8](https://github.com/alicomert/pixcode/compare/v1.63.7...v1.63.8) (2026-07-17)
 
 ### Bug Fixes

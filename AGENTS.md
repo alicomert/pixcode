@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode. React+Vite frontend, Express+WS backend, SQLite auth, optional plugins. Also ships an isolated Electron wrapper (`desktop/`) and Docker sandbox images (`docker/`).
+Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, and OpenCode. React+Vite frontend, Express+WS backend, JSON auth store, optional plugins. Also ships an isolated Electron wrapper (`desktop/`) and Docker sandbox images (`docker/`).
 
 ## Stack & topology
 
@@ -23,6 +23,7 @@ Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen C
 - `npm run lint` / `lint:fix` — eslint on `src/` and `server/`.
 - `npm run release` — runs `release.sh`, which exports `GITHUB_TOKEN` from `.env` and then `npx release-it "$@"`. Release-it requires `main` + clean tree and runs `npm run build` before publishing.
 - `npm run smoke:*` — a subset of smoke scripts aliased in `package.json`. Run any other script in `scripts/smoke/` via `node scripts/smoke/<name>.mjs`. Two kinds: static source-regex checks (no server needed) and live API checks (need running backend + `PIXCODE_API_KEY`).
+- `npm run smoke:mobile-ux` — static mobile parity checks for the responsive shell, navigation, settings switcher, and terminal surface.
 - No `.github/workflows/` are present in this checkout; local hooks/checks are the only verified gate.
 
 ## Don't-get-burned list
@@ -31,7 +32,7 @@ Web UI (`pixcode`) for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen C
 - **`npm run dev` installs/starts a daemon**, not a foreground process. On servers it persists after the shell exits. Use `pixcode --no-daemon` or `PIXCODE_NO_DAEMON=1` for foreground, or run `client` + `server` scripts directly.
 - `npm run server` runs **compiled** output (`dist-server/server/cli.js`). Editing `server/*.js` without rebuilding will not take effect. `server:dev` runs from source (`server/cli.js`).
 - `better-sqlite3` and `node-pty` are native modules — `npm install` may need build tools (python3, make, g++). `node-pty` on macOS needs the postinstall fix (already wired). Password hashing uses pure-JS `bcryptjs`, not native `bcrypt`.
-- Default auth DB is `~/.pixcode/auth.db` (hardcoded in `server/load-env.js`). Override with `DATABASE_PATH`.
+- Default auth store is `~/.pixcode/auth.json` (the historical `auth.db` path is retained as a migration/input alias). Override with `DATABASE_PATH`; `.db` values are mapped to a sibling `.json` store.
 - `.env` is loaded manually by `server/load-env.js` from the app root (found by walking up to the nearest `server/` folder). `VITE_*` vars are separately read by Vite via `loadEnv`.
 - Port env vars: `SERVER_PORT` (backend), `VITE_PORT` (frontend). Legacy `PORT` is still accepted but planned for removal. `HOST=0.0.0.0` binds all interfaces; Vite uses `shared/networkHosts.js` to pick the right loopback/proxy host.
 - Frontend entry is `main.jsx` (JSX file) but imports `App.tsx`. Mixed JS/TS is intentional — don't mass-rename.
@@ -71,7 +72,7 @@ Config: `eslint.config.js` (flat config, two blocks).
 - `server/modules/tasks/` — lightweight module that imports provider services only through `server/modules/providers/index.ts`.
 - `server/shared/{types,interfaces,utils}.ts` — TypeScript contracts (see boundaries rules above).
 - `server/routes/*.js` — 23 legacy route files (auth, projects, git, mcp-utils, per-provider routes, plugins, agent, commands, settings, user, messages, telegram, remote, webhooks, live-view, diagnostics, network, platformization, production-agent-loop, public-api).
-- `server/database/{db.js,json-store.js}` — `better-sqlite3` auth/user/token storage.
+- `server/database/{db.js,json-store.js}` — JSON-backed auth/user/token storage (`better-sqlite3` is used only when importing a legacy SQLite `auth.db`).
 - `server/utils/plugin-loader.js` + `plugin-process-manager.js` — dynamic plugin loading.
 - `server/{claude-sdk,cursor-cli,opencode-cli,openai-codex,gemini-cli,qwen-code-cli}.js` + `*-response-handler.js` companions — agent runtime files.
 - `~/.claude` is read/written directly for MCP config, sessions, permissions.

@@ -6,19 +6,19 @@
     <title>Pixcode Documentation - Complete Self-hosted AI Coding Agent Guide</title>
     <meta
       name="description"
-      content="Complete Pixcode documentation covering Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, VS Code-style workspaces, files, terminal panels, Git/local changes, orchestration, API keys, Telegram, notifications, MCP, plugins, themes, desktop installers, and Linux server deployment."
+      content="Complete Pixcode documentation covering Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, VS Code-style workspaces, files, terminal panels, Git/local changes, NanoClaw tasks, production agent automation, API keys, Telegram, notifications, MCP, plugins, themes, desktop installers, and Linux server deployment."
     />
     <meta
       name="keywords"
-      content="Pixcode documentation, Claude Code web UI documentation, Codex UI documentation, Cursor CLI web interface, AI coding agent orchestration docs, Orchestration, OpenCode UI docs, MCP server manager, local AI coding assistant, self-hosted coding agent dashboard"
+      content="Pixcode documentation, Claude Code web UI documentation, Codex UI documentation, Cursor CLI web interface, NanoClaw multi-CLI task docs, production agent loop, OpenCode UI docs, MCP server manager, local AI coding assistant, self-hosted coding agent dashboard"
     />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
     <link rel="canonical" href="https://alicomert.github.io/pixcode/docs.html" />
     <link rel="icon" href="favicon.png" />
     <link rel="stylesheet" href="site.css" />
     <meta property="og:title" content="Pixcode Documentation" />
-    <meta property="og:description" content="A complete guide to Pixcode features, setup, orchestration, API automation, providers, plugins, MCP, Telegram, themes, and deployment." />
-    <meta property="og:image" content="screenshots/desktop-main.png" />
+    <meta property="og:description" content="A complete guide to Pixcode features, setup, NanoClaw task automation, production agent loop, providers, plugins, MCP, Telegram, themes, and deployment." />
+    <meta property="og:image" content="screenshots/pixcode-banner.png" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -26,9 +26,9 @@
         "headline": "Pixcode Documentation",
         "about": [
           "AI coding agents",
-          "Claude Code UI",
+          "Claude Code workspace",
           "OpenAI Codex UI",
-          "multi-agent orchestration",
+          "multi-CLI task automation",
           "self-hosted developer tools"
         ],
         "description": "Complete documentation for Pixcode, a self-hosted AI coding agent control room.",
@@ -48,7 +48,7 @@
       <div class="nav-links">
         <a href="docs.html">Documentation</a>
         <a href="features.html">Features</a>
-        <a href="orchestration.html">Orchestration</a>
+        <a href="orchestration.html">Automation migration</a>
         <a href="api-automation.html">API</a>
         <a href="https://github.com/alicomert/pixcode">GitHub</a>
       </div>
@@ -59,12 +59,13 @@
         <div class="eyebrow">Complete documentation</div>
         <h1>Pixcode from start to finish.</h1>
         <p class="lead">
-          Pixcode is a self-hosted control plane for AI coding agents. This page explains the full system: providers, chat, files, shell, source control, orchestration, API keys, Telegram, notifications, plugins, MCP, themes, desktop builds, Linux daemon mode, and development workflow.
+          Pixcode is a self-hosted control plane for AI coding agents. This page explains the full system: providers, chat, files, shell, source control, NanoClaw tasks, production agent automation, API keys, Telegram, notifications, plugins, MCP, themes, desktop builds, Linux daemon mode, and development workflow.
         </p>
       </div>
-      <div class="image-slot">
-        <span><strong>Documentation hero image slot</strong>Recommended: 1400 x 1000. Show a clean overview of Pixcode with chat, panels, provider status, and orchestration.</span>
-      </div>
+      <figure class="doc-screenshot">
+        <img src="screenshots/desktop-main.png" alt="Pixcode desktop workspace with project navigation, editor, and CLI panels" />
+        <figcaption>Current desktop workspace: project navigation, editor, provider status, and a full-height CLI surface in one view.</figcaption>
+      </figure>
     </header>
 
     <main class="section">
@@ -74,7 +75,7 @@
           <a href="#providers">Provider support</a>
           <a href="#workspace">Workspace UI</a>
           <a href="#command-center">Changed files</a>
-          <a href="#orchestration">Orchestration</a>
+          <a href="#orchestration">Agent automation</a>
           <a href="#background-workflows">Background workflows</a>
           <a href="#api">API and automation</a>
           <a href="#telegram">Notifications and Telegram</a>
@@ -89,7 +90,7 @@
           <section id="overview" class="doc-section">
             <h2>Overview</h2>
             <p>
-              Pixcode gives developers one browser-based workspace for AI coding CLIs. The app runs locally or on a server, serves a React/Vite frontend, and exposes an Express/WebSocket backend that controls provider processes, project files, Git state, shell sessions, notifications, and orchestration workflows.
+              Pixcode gives developers one browser-based workspace for AI coding CLIs. The app runs locally or on a server, serves a React/Vite frontend, and exposes an Express/WebSocket backend that controls provider processes, project files, Git state, shell sessions, notifications, NanoClaw tasks, and the production agent loop.
             </p>
             <p>
               The core idea is simple: keep the provider-native command line tools, but add a serious control surface around them. A coding agent can edit files, run commands, wait for permissions, fail, recover, or hand work to another model. Pixcode is designed to make those states visible and manageable instead of hiding them behind a blank terminal.
@@ -119,15 +120,19 @@
               <li>Qwen Code support for Qwen-based coding flows.</li>
               <li>OpenCode support with model selection and free/open provider use cases.</li>
             </ul>
-            <div class="image-slot wide">
-              <span><strong>Provider settings image slot</strong>Recommended: 1600 x 900. Show provider auth status, model refresh, API key/base URL fields, and CLI version update notices.</span>
-            </div>
+            <p>
+              GitHub repository access is OAuth-first: use the authenticated browser flow from onboarding or Settings. A personal access token is only a legacy fallback, and saved GitHub credentials remain encrypted in Pixcode's credential store.
+            </p>
+            <figure class="doc-screenshot">
+              <img src="screenshots/desktop-main.png" alt="Pixcode desktop provider and CLI workspace" />
+              <figcaption>The same workbench keeps provider status and terminal actions close to the active project.</figcaption>
+            </figure>
           </section>
 
           <section id="workspace" class="doc-section">
             <h2>Workspace UI</h2>
             <p>
-              The Pixcode workspace is organized around the active project. The main area can be a chat screen or the orchestration system, depending on what the user is doing. Supporting panels such as Shell, Files, and Source Control can open alongside the main view, so the user does not lose context.
+              The Pixcode workspace is organized around the active project. The main area can be a chat screen, task surface, or control room, depending on what the user is doing. Supporting panels such as Shell, Files, and Source Control can open alongside the main view, so the user does not lose context.
             </p>
             <h3>Chat</h3>
             <p>
@@ -159,41 +164,42 @@
             <p>
               The important design point is that this does not depend on GitHub pushes. It works with local changes, so the user can review the agent's work before committing, pushing, tagging, or publishing.
             </p>
-            <div class="image-slot">
-              <span><strong>Changed files image slot</strong>Recommended: 1200 x 900. Show Quick Settings with changed file list, green highlight, and right panel file preview.</span>
-            </div>
+            <figure class="doc-screenshot">
+              <img src="screenshots/desktop-main.png" alt="Pixcode project workspace for reviewing changed files" />
+              <figcaption>Review project state beside the editor and CLI without leaving the active workspace.</figcaption>
+            </figure>
           </section>
 
           <section id="orchestration" class="doc-section">
-            <h2>Multi-agent orchestration</h2>
+            <h2>Multi-agent task automation</h2>
             <p>
-              Pixcode orchestration coordinates multiple child agents around one goal. The workflow layer uses adapter-backed tasks, shared context, per-agent metadata, run events, preview endpoints, cancellation, and a UI that lets users resize the setup and output panes.
+              NanoClaw is the maintained multi-CLI task surface. It runs an agent immediately, schedules one-shot/interval/cron work, keeps task ownership scoped to the caller, and exposes status, channels, agent inventory, task lifecycle, conversations, and SSE events.
             </p>
             <ul class="feature-list">
-              <li>Agent Team for role-based work distribution.</li>
-              <li>Multi-model Review for independent review from different providers or models.</li>
-              <li>Sequential Handoff for ordered workflows where later steps depend on earlier output.</li>
-              <li>Decision Debate for comparing approaches before implementation.</li>
-              <li>Per-agent label, role, model, instruction, and fallback CLI selection.</li>
-              <li>Workflow DAG preview before execution.</li>
-              <li>Run event streaming and cancellation.</li>
+              <li>Immediate multi-CLI runs through <code>/api/nanoclaw/run</code>.</li>
+              <li>Schedules through <code>/api/nanoclaw/tasks</code> (or the UI-compatible <code>/api/tasks</code> alias).</li>
+              <li>Pause, resume, cancel, update, and delete task controls.</li>
+              <li>Per-user project and task ownership checks for remote clients.</li>
+              <li>Channel, agent, conversation, and SSE event endpoints.</li>
+              <li>Admin-only production agent loop for review queue, CI repair plans, checkpoints, and release policy.</li>
             </ul>
             <p>
-              For deeper orchestration details, see <a href="orchestration.html">orchestration.html</a>.
+              The pre-1.55 <code>/api/orchestration/*</code> workflow routes are retired. See <a href="orchestration.html">orchestration.html</a> for migration context and the active API reference for current routes.
             </p>
           </section>
 
           <section id="background-workflows" class="doc-section">
             <h2>Background workflows</h2>
             <p>
-              Pixcode uses orchestration for project-aware background workflow, review, and verification tasks. It runs inside the current Pixcode instance, understands the selected project, and routes work to the configured CLI provider.
+              NanoClaw schedules project-aware background tasks inside the current Pixcode instance. The production agent loop adds admin-only review, CI repair, scheduler jobs, workspace checkpoints, and desktop release policy checks.
             </p>
             <p>
-              Orchestration APIs expose agent metadata, workflow state, project-scoped task history, streamed output, and artifacts under authenticated endpoints.
+              Use a scoped API key in an <code>Authorization</code> or <code>X-API-Key</code> header. Browser SSE/WebSocket clients should mint a one-shot ticket with <code>POST /api/auth/stream-ticket</code> instead of putting a reusable credential in a URL.
             </p>
-            <div class="code-panel"><pre><code>GET /api/orchestration/agents
-GET /api/orchestration/tasks
-GET /api/orchestration/workflows/runs/:runId</code></pre></div>
+            <div class="code-panel"><pre><code>GET /api/nanoclaw/status
+GET /api/nanoclaw/tasks?projectId=my-app
+POST /api/nanoclaw/run
+GET /api/production-agent-loop/review-queue</code></pre></div>
           </section>
 
           <section id="api" class="doc-section">
@@ -204,7 +210,7 @@ GET /api/orchestration/workflows/runs/:runId</code></pre></div>
             <div class="code-panel"><pre><code>curl http://localhost:3001/api/projects \
   -H "Authorization: Bearer px_your_key_here"</code></pre></div>
             <p>
-              Automation can list projects, run one-shot provider tasks, preview orchestration graphs, start workflow runs, stream events, cancel work, and integrate Pixcode into CI, scripts, dashboards, or Telegram-style bridges.
+              Automation can list projects, run or schedule NanoClaw tasks, stream task events, manage review queues, parse CI output into repair plans, and integrate Pixcode into CI, scripts, dashboards, or Telegram-style bridges.
             </p>
             <p>
               See <a href="api-automation.html">api-automation.html</a> and <a href="openapi.yaml">openapi.yaml</a>.
@@ -216,15 +222,16 @@ GET /api/orchestration/workflows/runs/:runId</code></pre></div>
             <p>
               Long-running agent tasks should report back. Pixcode includes browser push notification support and a Telegram pairing flow. Users can receive notifications when sessions complete, fail, or require action. Telegram bridge behavior can route messages back into the Pixcode instance when enabled.
             </p>
-            <div class="image-slot">
-              <span><strong>Telegram and notification image slot</strong>Recommended: 1200 x 900. Show notification settings, Telegram pairing code, and a task completion notification.</span>
-            </div>
+            <figure class="doc-screenshot">
+              <img src="screenshots/mobile-chat.png" alt="Pixcode mobile control room and task surface" />
+              <figcaption>Mobile layout keeps the control room, task state, and navigation reachable on a narrow screen.</figcaption>
+            </figure>
           </section>
 
           <section id="plugins" class="doc-section">
             <h2>Plugins and MCP</h2>
             <p>
-              Pixcode includes extension points for provider tools, MCP server management, and plugins. Provider-specific settings can manage MCP configuration, sessions, API-key credentials, OAuth paste flows, install jobs, and model catalogs. Plugins can add frontend tabs and optional backend services.
+              Pixcode includes extension points for provider tools, MCP server management, and plugins. Provider-specific settings can manage MCP configuration, sessions, API-key credentials, provider-native OAuth or login state where supported, install jobs, and model catalogs. Plugins can add frontend tabs and optional backend services.
             </p>
             <ul class="feature-list">
               <li>MCP server management for supported providers.</li>
@@ -240,12 +247,14 @@ GET /api/orchestration/workflows/runs/:runId</code></pre></div>
               Pixcode supports dark/light mode, built-in accent palettes, VS Code-like colors, emerald command-style colors, and custom accent values for dark and light modes. Theme tokens affect buttons, active states, focus rings, navigation, and other high-emphasis UI parts together.
             </p>
             <div class="grid two">
-              <div class="image-slot">
-                <span><strong>Dark theme slot</strong>Recommended: 1200 x 900. Show a terminal-like dark UI with emerald or amber accents.</span>
-              </div>
-              <div class="image-slot">
-                <span><strong>Light theme slot</strong>Recommended: 1200 x 900. Show custom accent color and readable light mode.</span>
-              </div>
+              <figure class="doc-screenshot">
+                <img src="screenshots/desktop-main.png" alt="Pixcode dark theme desktop workspace" />
+                <figcaption>Dark theme with high-contrast project, editor, and terminal surfaces.</figcaption>
+              </figure>
+              <figure class="doc-screenshot">
+                <img src="screenshots/mobile-chat.png" alt="Pixcode responsive mobile workspace" />
+                <figcaption>Responsive mobile layout with the same project context and touch-sized controls.</figcaption>
+              </figure>
             </div>
           </section>
 
@@ -264,16 +273,20 @@ pixcode daemon status --mode auto</code></pre></div>
             <p>
               Desktop installers are published from GitHub releases for Windows `.exe`, macOS `.dmg`, and Linux package/AppImage-style assets depending on the release.
             </p>
+            <p>
+              For a public server, use the optional Docker HTTPS overlay with Caddy. Caddy terminates TLS on ports 80/443 and proxies to Pixcode's private port 3001; do not expose port 3001 directly to the Internet. `sslip.io` and `nip.io` provide DNS only, so set `PUBLIC_IP` (or `PIXCODE_DOMAIN` for a real domain) and let Caddy obtain the certificate.
+            </p>
           </section>
 
           <section id="security" class="doc-section">
             <h2>Security model</h2>
             <p>
-              Pixcode can control project files, shell sessions, Git state, provider CLIs, API keys, and external notification channels. Treat it like a powerful local admin interface. Use strong account credentials, rotate exposed API keys, and put public server deployments behind trusted network controls such as a reverse proxy, firewall, or VPN.
+              Pixcode can control project files, shell sessions, Git state, provider CLIs, API keys, and external notification channels. Treat it like a powerful local admin interface. Use strong account credentials, rotate exposed API keys, and terminate public HTTPS at Caddy (or another trusted reverse proxy) while keeping Pixcode's port 3001 private.
             </p>
             <ul class="feature-list">
               <li>Local account login protects the web UI.</li>
-              <li>API keys are for automation and should be scoped operationally by where they are stored.</li>
+              <li>API keys are revocable and should use the smallest method/path scope needed for the integration.</li>
+              <li>Browser SSE/WebSocket clients should use a short-lived stream ticket; do not put reusable keys in URLs.</li>
               <li>Provider secrets should not be exposed in logs, screenshots, public pages, or issue reports.</li>
               <li>Remote deployments should be treated as sensitive developer infrastructure.</li>
             </ul>
@@ -282,7 +295,7 @@ pixcode daemon status --mode auto</code></pre></div>
           <section id="development" class="doc-section">
             <h2>Development workflow</h2>
             <p>
-              The frontend is React + Vite. The backend is Express + WebSocket with provider routes, orchestration modules, SQLite-backed auth data, and CLI adapter files. There is no unit test suite configured today; use typecheck, lint, build, and targeted manual smoke checks.
+              The frontend is React + Vite. The backend is Express + WebSocket with provider routes, NanoClaw task modules, a production agent loop, JSON-backed auth data, and CLI adapter files. There is no unit test suite configured today; use typecheck, lint, build, and targeted manual smoke checks.
             </p>
             <div class="code-panel"><pre><code>npm install
 npm run typecheck
@@ -300,7 +313,7 @@ npm run build</code></pre></div>
       <strong>Pixcode documentation</strong> ·
       <a href="landing.html">Home</a> ·
       <a href="features.html">Features</a> ·
-      <a href="orchestration.html">Orchestration</a> ·
+      <a href="orchestration.html">Automation migration</a> ·
       <a href="api-automation.html">API</a> ·
       <a href="llms.txt">llms.txt</a>
     </footer>

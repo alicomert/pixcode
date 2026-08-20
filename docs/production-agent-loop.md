@@ -1,6 +1,6 @@
 # Pixcode Production Agent Loop
 
-v1.44 adds the production loop control plane around the existing agent runtime, git routes, orchestration runs, and release process.
+Introduced in v1.44, the production loop control plane now coordinates the agent runtime, Git routes, NanoClaw task runs, and release process.
 
 ## Issue-to-PR
 

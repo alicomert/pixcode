@@ -93,7 +93,7 @@ export default function MainContentTabSwitcher({
         <select
           value={selectedValue}
           onChange={(event) => setActiveTab(event.target.value as AppTab)}
-          className="h-9 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+          className="h-11 min-h-11 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
           aria-label={t('tabs.selectTab', 'Select section')}
         >
           {tabs.map((tab) => (

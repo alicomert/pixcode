@@ -4,7 +4,7 @@
   <p><strong>Self-hosted control plane for AI coding agents.</strong></p>
   <p>
     Pixcode lets you run AI coding CLIs, inspect files, manage shell and source control,
-    orchestrate agent teams, automate through APIs, and keep long-running work alive from
+    coordinate agent work, automate through APIs, and keep long-running work alive from
     your own computer or server.
   </p>
   <p>
@@ -25,25 +25,33 @@
     <a href="https://alicomert.github.io/pixcode/landing.html">Website</a> ·
     <a href="https://github.com/alicomert/pixcode/releases/latest">Releases</a> ·
     <a href="public/docs.html">Docs</a> ·
-    <a href="public/openapi.yaml">OpenAPI</a> ·
+    <a href="public/api-docs.html">API docs</a> ·
     <a href="CONTRIBUTING.md">Contributing</a>
   </p>
   <p>
-    <a href="README.tr.md">Turkce</a> ·
+    <a href="README.md" aria-current="page">English</a> ·
+    <a href="README.tr.md">Türkçe</a> ·
     <a href="README.de.md">Deutsch</a> ·
     <a href="README.ru.md">Русский</a> ·
     <a href="README.ja.md">日本語</a> ·
     <a href="README.ko.md">한국어</a> ·
-    <a href="README.zh-CN.md">简体中文</a>
+    <a href="README.zh-CN.md">简体中文</a> ·
+    <a href="README.es-ES.md">Español</a>
   </p>
 </div>
 
 ## What Pixcode Does
 
+> **Current API note (1.64.x):** The former `/api/orchestration/*` workflow
+> UI/API was retired in v1.55. Use NanoClaw (`/api/nanoclaw/*` or its
+> `/api/tasks/*` alias) for multi-CLI tasks and schedules, or the maintained
+> production agent loop at `/api/production-agent-loop/*`. The historical
+> orchestration sections below are kept as migration context.
+
 Pixcode is a local web and desktop workspace for AI coding agents. It wraps the
 CLIs developers already use, then adds the missing control layer around them:
 project selection, chat history, file navigation, shell access, Git/local change
-tracking, orchestration, notifications, Telegram control, and API automation.
+tracking, agent automation, notifications, Telegram control, and API automation.
 
 Use it when one terminal is not enough:
 
@@ -62,13 +70,9 @@ machine where Pixcode runs unless you intentionally expose or connect them.
 
 ## Screenshots
 
-| Workspace control room | Mobile chat |
+| Workspace control room | Mobile workspace |
 | --- | --- |
-| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace with chat, project controls, and side panels" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
-
-| CLI selection | Tools and MCP |
-| --- | --- |
-| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools and MCP modal" width="420" /> |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace with chat, project controls, and side panels" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile workspace landing" width="260" /> |
 
 ## Core Features
 
@@ -108,7 +112,7 @@ Pixcode chat is project-aware and designed for long-running coding sessions.
 The side panels are built around the way coding agents change projects.
 
 - Files panel with detailed and compact views.
-- File open/edit flows that preserve the main chat or orchestration surface.
+- File open/edit flows that preserve the main chat or task surface.
 - Shell panel with split/full behavior on desktop and mobile-safe behavior on
   smaller screens.
 - Source Control panel for Git status, diffs, branches, commits, and changed
@@ -123,44 +127,28 @@ highlight changed items, and open the edited file at the relevant location.
 
 This is meant to answer the practical question: "What did the agent just touch?"
 
-### Multi-agent orchestration
+### Agent automation (NanoClaw + production agent loop)
 
-Pixcode can run structured agent workflows instead of sending every prompt to one
-agent.
+Pixcode's maintained automation surfaces are deliberately split by job:
 
-Built-in workflow styles include:
+- **NanoClaw** handles multi-CLI conversations, one-shot runs, and durable
+  `once`/`interval`/`cron` schedules while preserving project context.
+- **Production agent loop** handles administrator workflows such as issue-to-PR
+  planning, CI repair plans, review queues, checkpoints, and scheduler jobs.
 
-- Agent Team: split a job across implementation, review, docs, testing, or
-  custom roles.
-- Sequential Handoff: pass compact context from one stage to the next.
-- Multi-model Review: compare provider/model opinions on the same code or plan.
-- Decision Debate: make multiple agents argue approaches before acting.
+The former `/api/orchestration/*` workflow UI and route family was retired in
+v1.55. Existing orchestration documents are migration history only; new clients
+should use the maintained APIs below.
 
-Orchestration controls include:
+NanoClaw routes Claude Code, Codex, Cursor, Gemini, Qwen, OpenCode, and Grok and
+exposes authenticated task state, bounded logs, events, and artifacts.
 
-- per-agent provider and model selection,
-- custom labels, roles, and instructions,
-- duplicate providers when multiple workers should use the same CLI,
-- fallback CLI selection for failed steps,
-- run preview before execution,
-- streamed step output and final report,
-- resizable setup/output panes.
+Maintained routes are:
 
-### Background orchestration
+- `/api/nanoclaw/*` (or the `/api/tasks/*` alias) for chat, runs, `once`/`interval`/`cron` tasks, providers, and events.
+- `/api/production-agent-loop/*` for issue-to-PR plans, CI repair, review queues, snapshots, and scheduler jobs.
 
-Pixcode includes a project-aware orchestration control plane for background
-agent work. It runs inside the current Pixcode instance, understands the active
-project context, and can route bounded tasks to Claude Code, Codex, Cursor,
-Gemini, Qwen, or OpenCode through terminal-first CLI adapters.
-
-Orchestration controls include:
-
-- project-scoped task context,
-- provider/model routing,
-- streamed task status and artifacts,
-- workflow run coordination,
-- background checks and previews,
-- authenticated local APIs under `/api/orchestration`.
+See [NANOCLAW_API.md](docs/NANOCLAW_API.md) and the [production agent loop guide](docs/production-agent-loop.md) for current contracts.
 
 ### API-first automation
 
@@ -175,40 +163,41 @@ curl http://localhost:3001/api/projects \
   -H "Authorization: Bearer px_your_key_here"
 ```
 
-Run a provider task:
+Run an agent now (without creating a schedule):
 
 ```bash
-curl http://localhost:3001/api/agent \
+curl -X POST http://localhost:3001/api/nanoclaw/run \
   -H "Authorization: Bearer px_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "codex",
-    "projectPath": "/home/me/project",
-    "message": "Review the current diff and list risky changes.",
-    "stream": false
+    "agentType": "codex",
+    "projectId": "my-app",
+    "prompt": "Review the current diff and list risky changes."
   }'
 ```
 
-Preview an orchestration workflow:
+Start a multi-CLI conversation:
 
 ```bash
-curl http://localhost:3001/api/orchestration/workflows/agent_team/preview \
+curl -X POST http://localhost:3001/api/nanoclaw/bot/chat \
   -H "Authorization: Bearer px_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "metadata": {
-      "agents": [
-        { "adapterId": "codex", "label": "Backend", "role": "backend" },
-        { "adapterId": "opencode", "label": "Reviewer", "role": "review" }
-      ]
-    }
+    "message": "Where is authentication configured?",
+    "projectId": "my-app",
+    "agentType": "claude-code"
   }'
 ```
 
 Legacy `ck_` keys remain accepted for older installations, but `px_` is the
 current prefix.
 
-OpenAPI reference: [`public/openapi.yaml`](public/openapi.yaml)
+Interactive API reference: [`public/api-docs.html`](public/api-docs.html). On a
+running Pixcode instance, use `GET /api/public/manifest` for discovery and
+`GET /api/public/openapi` for the machine-readable current API fragment. These
+catalog endpoints use the current Pixcode session; automation calls still
+require a scoped `px_` API key. The bundled
+[`public/openapi.yaml`](public/openapi.yaml) remains a release snapshot.
 
 ### Telegram, notifications, and remote control
 
@@ -283,19 +272,18 @@ Releases: <https://github.com/alicomert/pixcode/releases/latest>
 
 #### macOS Gatekeeper: "Pixcode is damaged"
 
-Current macOS desktop builds can be unsigned. If macOS says `Pixcode is damaged
-and can't be opened. You should move it to the Trash`, first make sure the DMG
-came from the official Pixcode GitHub Releases page, then:
+Current macOS builds may be unsigned or not notarized. That warning alone does
+not prove that a download is safe. Before changing Gatekeeper:
 
-1. Open the DMG and drag `Pixcode.app` into `/Applications`.
-2. Double-click `Fix Gatekeeper.command` inside the mounted DMG.
-3. Pixcode removes the quarantine flag from `/Applications/Pixcode.app` and can
-   open normally.
+1. Download the DMG only from the official [GitHub Releases](https://github.com/alicomert/pixcode/releases/latest) page.
+2. Verify the release SHA-256/checksum when one is published and confirm it matches your file. Do not run a DMG whose origin or integrity you cannot verify.
+3. Open the DMG and drag `Pixcode.app` into `/Applications`. In Finder, right-click the app and choose **Open**; macOS may allow an unsigned app after this explicit confirmation.
+4. Only if the verified app is still blocked, run `Fix Gatekeeper.command` from the mounted official DMG. It changes security attributes and opens the app; never run it on a third-party copy.
 
-Manual fallback:
+Manual fallback (only after verifying the DMG):
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Pixcode.app"
+xattr -d com.apple.quarantine "/Applications/Pixcode.app" 2>/dev/null || true
 open "/Applications/Pixcode.app"
 ```
 
@@ -330,7 +318,8 @@ only for separate Vite frontend development.
 2. Add the project folders you want to manage.
 3. Connect the CLI providers you actually use.
 4. Open Settings and check provider install/auth/model status.
-5. Use orchestration if you want background workflow and review flows.
+5. Use NanoClaw for background runs and schedules, or the production agent loop
+   for administrator review and CI automation.
 6. Generate a `px_` API key for external automation.
 7. Pair Telegram if you want remote prompts and completion notifications.
 8. Pick your theme palette under Appearance.
@@ -359,11 +348,15 @@ Important development notes:
 - `src/` - React + Vite frontend.
 - `server/` - Express, WebSocket, CLI adapters, routes, auth, daemon,
   notifications.
-- `server/modules/orchestration/` - multi-agent workflow engine and CLI adapters.
+- `server/modules/nanoclaw/` - NanoClaw bridge for chat, tasks, and multi-CLI agents.
+- `server/routes/production-agent-loop.js` - maintained production automation, CI, and review API.
 - `server/modules/providers/` - provider auth, MCP, sessions, model and install
   endpoints.
 - `shared/` - contracts shared by frontend and backend.
-- `public/openapi.yaml` - API reference shipped with the app.
+- `public/api-docs.html` - interactive API reference shipped with the app.
+- `GET /api/public/manifest` and `GET /api/public/openapi` - authenticated,
+  canonical discovery and machine-readable API documents on a running instance.
+- `public/openapi.yaml` - bundled release snapshot of the core REST API.
 - `public/screenshots/` - README and product screenshots.
 - `public/llms.txt` and `public/llms-full.txt` - AI-discovery summaries.
 
@@ -385,6 +378,13 @@ Pixcode is prepared for public contribution with the basics contributors expect:
 Good starter work should be labeled `good first issue` on GitHub. The repository
 also includes a good-first-issue template so small, scoped tasks can be filed
 without losing context.
+
+### Contributors
+
+Many thanks to [@webbrain-one](https://github.com/webbrain-one) for the Spanish
+README contribution in [PR #116](https://github.com/alicomert/pixcode/pull/116).
+The translation is shipped as `README.es-ES.md` and is kept in sync with the
+current API and interface.
 
 ## Security Model
 
@@ -416,7 +416,7 @@ coding agent, and let it work in an isolated container that we manage for you.
 - Isolated Docker containers per project
 - Team collaboration and shared workspaces
 - Cost analytics and token usage dashboards
-- Workflow marketplace with pre-built orchestration templates
+- Workflow marketplace with pre-built agent-task templates
 
 Join the discussion or request early access in
 [GitHub Discussions](https://github.com/alicomert/pixcode/discussions).
@@ -427,8 +427,8 @@ Join the discussion or request early access in
 - npm: <https://www.npmjs.com/package/@pixelbyte-software/pixcode>
 - GitHub: <https://github.com/alicomert/pixcode>
 - Releases: <https://github.com/alicomert/pixcode/releases/latest>
-- API docs: [`public/openapi.yaml`](public/openapi.yaml)
-- Static docs: [`public/docs.html`](public/docs.html), [`public/features.html`](public/features.html), [`public/orchestration.html`](public/orchestration.html), [`public/api-automation.html`](public/api-automation.html)
+- API docs: [`public/api-docs.html`](public/api-docs.html), or `GET /api/public/openapi` on a running instance
+- Static docs: [`public/docs.html`](public/docs.html), [`public/features.html`](public/features.html), [`public/orchestration.html` (migration context)](public/orchestration.html), [`public/api-automation.html`](public/api-automation.html)
 - AI discovery: [`public/llms.txt`](public/llms.txt), [`public/llms-full.txt`](public/llms-full.txt)
 
 Pixcode is an independent open-source project and is not affiliated with OpenAI,

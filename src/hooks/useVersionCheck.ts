@@ -18,15 +18,37 @@ import {
  * @param {string} v2
  * @returns positive if v1 > v2, negative if v1 < v2, 0 if equal
  */
-/** positive if v1 > v2, negative if v1 < v2, 0 if equal */
+/** positive if v1 > v2, negative if v1 < v2, 0 if equal (npm semver precedence). */
 export const compareVersions = (v1: string, v2: string) => {
-  const parts1 = String(v1 || '0').replace(/^v/i, '').split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0);
-  const parts2 = String(v2 || '0').replace(/^v/i, '').split(/[.+-]/).map((part) => Number.parseInt(part, 10) || 0);
-
-  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    const p1 = parts1[i] || 0;
-    const p2 = parts2[i] || 0;
-    if (p1 !== p2) return p1 - p2;
+  const parse = (value: string) => {
+    const match = String(value || '').trim().replace(/^v/i, '').match(
+      /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u,
+    );
+    if (!match) return { core: [0, 0, 0], prerelease: [] as string[] };
+    return {
+      core: match.slice(1, 4).map((part) => Number.parseInt(part, 10)),
+      prerelease: match[4] ? match[4].split('.') : [],
+    };
+  };
+  const a = parse(v1);
+  const b = parse(v2);
+  for (let i = 0; i < 3; i += 1) {
+    if (a.core[i] !== b.core[i]) return a.core[i] - b.core[i];
+  }
+  if (a.prerelease.length === 0 || b.prerelease.length === 0) {
+    return a.prerelease.length === b.prerelease.length ? 0 : (a.prerelease.length === 0 ? 1 : -1);
+  }
+  for (let i = 0; i < Math.max(a.prerelease.length, b.prerelease.length); i += 1) {
+    if (i >= a.prerelease.length) return -1;
+    if (i >= b.prerelease.length) return 1;
+    const leftPart = a.prerelease[i];
+    const rightPart = b.prerelease[i];
+    if (leftPart === rightPart) continue;
+    const leftNumeric = /^\d+$/u.test(leftPart);
+    const rightNumeric = /^\d+$/u.test(rightPart);
+    if (leftNumeric && rightNumeric) return Number(leftPart) - Number(rightPart);
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftPart < rightPart ? -1 : 1;
   }
   return 0;
 };
@@ -425,7 +447,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
         window.clearInterval(interval);
       }
     };
-  }, [owner, repo, currentVersion, installMode, updateCheckPreferences]);
+  }, [owner, repo, currentVersion, installMode, nodeVersion, updateCheckPreferences]);
 
   // Expose a manual trigger so the About tab's "Check for Updates" button
   // can fire the same code path used by the interval / focus listeners.

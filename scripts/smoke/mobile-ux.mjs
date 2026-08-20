@@ -33,13 +33,19 @@ const checks = [
     path: 'src/components/shell/view/Shell.tsx',
     assert: (source) =>
       source.includes('pixcode-shell-terminal') &&
-      source.includes("immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0'"),
-    message: 'Shell terminal must fill the desktop surface without card padding.',
+      source.includes("pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0") &&
+      source.includes("'p-0 pb-16 md:pb-0'"),
+    message: 'Shell terminal must reserve the mobile shortcut bar while filling desktop surfaces.',
   },
   {
     path: 'src/components/shell/utils/terminalStyles.ts',
     assert: (source) => source.includes('.pixcode-shell-terminal .xterm') && source.includes('height: 100%'),
     message: 'Shell terminal styles must keep xterm height aligned with its container.',
+  },
+  {
+    path: 'src/components/shell/view/subcomponents/ShellMinimalView.tsx',
+    assert: (source) => source.includes('pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0'),
+    message: 'Minimal terminal mode must reserve the mobile shortcut bar and safe-area inset.',
   },
   {
     path: 'src/components/quick-settings-panel/view/QuickSettingsPanelView.tsx',

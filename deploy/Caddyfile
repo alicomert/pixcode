@@ -1,0 +1,11 @@
+# Stable HTTPS endpoint for a server with a public IPv4 address.
+#
+# Usage:
+#   PUBLIC_IP=203.0.113.10 docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+#
+# sslip.io/nip.io resolve the hostname to PUBLIC_IP; Caddy obtains and renews
+# the Let's Encrypt certificate as long as ports 80 and 443 reach this host.
+{$PIXCODE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy pixcode:3001
+}

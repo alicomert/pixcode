@@ -61,12 +61,21 @@ jobs:
       - name: Decide build vs. reuse
         id: check
         shell: bash
+        env:
+          # Keep workflow inputs out of the shell source. `tag` is a free-form
+          # dispatch input and must be treated as data, not interpolation.
+          CURRENT_TAG: ${{ inputs.tag || github.ref_name }}
+          FORCE_REBUILD: ${{ inputs.force_rebuild }}
         run: |
-          CURRENT_TAG="${{ inputs.tag || github.ref_name }}"
+          set -euo pipefail
+          if [[ ! "$CURRENT_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $CURRENT_TAG" >&2
+            exit 2
+          fi
           echo "current_tag=$CURRENT_TAG" >> "$GITHUB_OUTPUT"
           echo "Current tag: $CURRENT_TAG"
 
-          if [ "${{ inputs.force_rebuild }}" = "true" ]; then
+          if [[ "${FORCE_REBUILD:-false}" == "true" ]]; then
             echo "Force rebuild requested."
             echo "mode=build" >> "$GITHUB_OUTPUT"
             exit 0
@@ -243,8 +252,8 @@ jobs:
       - name: Strip debug artifacts
         shell: bash
         run: |
-          rm -f desktop/dist-installer/builder-debug.yml \
-                desktop/dist-installer/builder-effective-config.yaml
+          rm -f dist-installer/builder-debug.yml \
+                dist-installer/builder-effective-config.yaml
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4

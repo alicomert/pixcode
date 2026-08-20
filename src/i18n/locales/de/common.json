@@ -101,12 +101,12 @@
     "projectFiles": "Projektdateien",
     "landing": {
       "title": "Pixcode-Arbeitsbereich starten",
-      "description": "Wähle ein Projekt, starte einen neuen Chat oder starte die Orchestrierung mit einem Ziel. Die Orchestrierung verwaltet die von dir ausgewählten CLI-Agenten, zeigt jeden Schritt und macht Fehler direkt sichtbar.",
-      "startOrchestration": "Orchestrierung starten",
-      "startOrchestrationDescription": "Erstellt automatisch ein Projekt und öffnet die Orchestrierungsansicht mit Agentensteuerung und Verlauf.",
+      "description": "Wähle ein Projekt, starte einen neuen Chat oder führe die Agentenautomatisierung für ein Ziel aus. NanoClaw koordiniert die ausgewählten CLI-Agenten, zeigt den Aufgabenfortschritt und macht Fehler direkt sichtbar.",
+      "startOrchestration": "Agentenautomatisierung starten",
+      "startOrchestrationDescription": "Erstellt automatisch ein Projekt und öffnet die Agentenautomatisierung mit Aufgabensteuerung und Verlauf.",
       "startChat": "Neuen Chat starten",
       "startChatDescription": "Erstellt automatisch einen Ordner und öffnet den normalen Chat mit einem Agenten.",
-      "sidebarHint": "Wenn du ein vorhandenes Projekt in der Seitenleiste auswählst, bleiben Chatverlauf, Dateien, Git-Status, Tasks und Orchestrierung in derselben Hauptansicht."
+      "sidebarHint": "Wenn du ein vorhandenes Projekt in der Seitenleiste auswählst, bleiben Chatverlauf, Dateien, Git-Status, Tasks und Agentenautomatisierung in derselben Hauptansicht."
     }
   },
   "fileTree": {

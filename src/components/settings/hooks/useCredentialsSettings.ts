@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
+import { useGithubOAuth } from '../../../hooks/useGithubOAuth';
+import { DEFAULT_API_KEY_SCOPES } from '../view/tabs/api-settings/types';
 import type {
   ApiKeyItem,
+  ApiKeyScope,
   ApiKeysResponse,
   CreatedApiKey,
   GithubCredentialItem,
@@ -29,6 +32,7 @@ export function useCredentialsSettings({
 
   const [showNewKeyForm, setShowNewKeyForm] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyScopes, setNewKeyScopes] = useState<ApiKeyScope[]>([...DEFAULT_API_KEY_SCOPES]);
 
   const [showNewGithubForm, setShowNewGithubForm] = useState(false);
   const [newGithubName, setNewGithubName] = useState('');
@@ -38,7 +42,6 @@ export function useCredentialsSettings({
   const [showToken, setShowToken] = useState<Record<string, boolean>>({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [newlyCreatedKey, setNewlyCreatedKey] = useState<CreatedApiKey | null>(null);
-
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -62,6 +65,12 @@ export function useCredentialsSettings({
     }
   }, []);
 
+  // Keep the OAuth popup protocol identical across onboarding and settings.
+  // In particular, the callback may be served from a different origin than
+  // the Vite/Electron UI, so the shared hook validates the returned callback
+  // origin instead of assuming `window.location.origin`.
+  const githubOAuth = useGithubOAuth({ onSuccess: fetchData });
+
   const createApiKey = useCallback(async () => {
     if (!newKeyName.trim()) {
       return;
@@ -70,7 +79,7 @@ export function useCredentialsSettings({
     try {
       const response = await authenticatedFetch('/api/settings/api-keys', {
         method: 'POST',
-        body: JSON.stringify({ keyName: newKeyName.trim() }),
+        body: JSON.stringify({ keyName: newKeyName.trim(), scopes: newKeyScopes }),
       });
 
       const payload = await response.json() as ApiKeysResponse;
@@ -83,12 +92,13 @@ export function useCredentialsSettings({
         setNewlyCreatedKey(payload.apiKey);
       }
       setNewKeyName('');
+      setNewKeyScopes([...DEFAULT_API_KEY_SCOPES]);
       setShowNewKeyForm(false);
       await fetchData();
     } catch (error) {
       console.error('Error creating API key:', error);
     }
-  }, [fetchData, newKeyName]);
+  }, [fetchData, newKeyName, newKeyScopes]);
 
   const deleteApiKey = useCallback(async (keyId: string) => {
     if (!window.confirm(confirmDeleteApiKeyText)) {
@@ -205,6 +215,27 @@ export function useCredentialsSettings({
     }
   }, [fetchData]);
 
+  const updateApiKeyScopes = useCallback(async (keyId: string, scopes: ApiKeyScope[]) => {
+    try {
+      const response = await authenticatedFetch(`/api/settings/api-keys/${keyId}/scopes`, {
+        method: 'PATCH',
+        body: JSON.stringify({ scopes }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json() as ApiKeysResponse;
+        console.error('Error updating API key scopes:', getApiError(payload, 'Failed to update API key scopes'));
+        return false;
+      }
+
+      await fetchData();
+      return true;
+    } catch (error) {
+      console.error('Error updating API key scopes:', error);
+      return false;
+    }
+  }, [fetchData]);
+
   const copyToClipboard = useCallback(async (text: string, id: string) => {
     try {
       await copyTextToClipboard(text);
@@ -222,6 +253,7 @@ export function useCredentialsSettings({
   const cancelNewApiKeyForm = useCallback(() => {
     setShowNewKeyForm(false);
     setNewKeyName('');
+    setNewKeyScopes([...DEFAULT_API_KEY_SCOPES]);
   }, []);
 
   const cancelNewGithubForm = useCallback(() => {
@@ -248,6 +280,8 @@ export function useCredentialsSettings({
     setShowNewKeyForm,
     newKeyName,
     setNewKeyName,
+    newKeyScopes,
+    setNewKeyScopes,
     showNewGithubForm,
     setShowNewGithubForm,
     newGithubName,
@@ -262,9 +296,13 @@ export function useCredentialsSettings({
     createApiKey,
     deleteApiKey,
     toggleApiKey,
+    updateApiKeyScopes,
     createGithubCredential,
     deleteGithubCredential,
     toggleGithubCredential,
+    githubOAuthStatus: githubOAuth.status,
+    githubOAuthError: githubOAuth.error,
+    startGithubOAuth: githubOAuth.start,
     copyToClipboard,
     dismissNewlyCreatedKey,
     cancelNewApiKeyForm,

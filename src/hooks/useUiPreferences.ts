@@ -62,10 +62,6 @@ const AUTO_SHOW_AGENT_DIFF_VALUES: AutoShowAgentDiffMode[] = ['always', 'openOnl
 const isAutoShowAgentDiffMode = (value: unknown): value is AutoShowAgentDiffMode =>
   typeof value === 'string' && (AUTO_SHOW_AGENT_DIFF_VALUES as string[]).includes(value);
 
-const SHELL_MODE_VALUES: ShellMode[] = ['nanoclaw', 'hybrid', 'pixcode'];
-const isShellMode = (value: unknown): value is ShellMode =>
-  typeof value === 'string' && (SHELL_MODE_VALUES as string[]).includes(value);
-
 const PREFERENCE_KEYS = Object.keys(DEFAULTS) as UiPreferenceKey[];
 const VALID_KEYS = new Set<UiPreferenceKey>(PREFERENCE_KEYS); // prevents unknown keys from being written
 const SYNC_EVENT = 'ui-preferences:sync';

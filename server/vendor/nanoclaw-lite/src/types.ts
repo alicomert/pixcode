@@ -5,6 +5,8 @@ export interface RegisteredGroup {
   added_at: string;
   requiresTrigger?: boolean; // Default: true for groups, false for solo chats
   isMain?: boolean; // True for the main control group (no trigger, elevated privileges)
+  /** Optional Pixcode workspace path used by the embedded multi-CLI runner. */
+  projectPath?: string | null;
 }
 
 export interface NewMessage {

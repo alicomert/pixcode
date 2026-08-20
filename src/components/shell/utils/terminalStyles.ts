@@ -34,6 +34,16 @@ const XTERM_FOCUS_STYLES = `
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
+  }
+  /* xterm owns vertical scrollback in the viewport.  Hiding overflow here
+     makes the terminal appear frozen once output exceeds the visible rows,
+     especially on the compact/mobile terminal surface.  Constrain only the
+     horizontal axis and retain xterm's scrollable vertical viewport. */
+  .pixcode-shell-terminal .xterm-viewport {
+    overflow-x: hidden;
+    overflow-y: scroll;
+  }
+  .pixcode-shell-terminal .xterm-screen {
     overflow: hidden;
   }
   .pixcode-shell-terminal .xterm-rows {
@@ -48,6 +58,12 @@ const XTERM_FOCUS_STYLES = `
     max-width: 100% !important;
     height: 100% !important;
     max-height: 100% !important;
+  }
+  .pixcode-shell-terminal--right-cli .xterm-viewport {
+    overflow-x: hidden !important;
+    overflow-y: scroll !important;
+  }
+  .pixcode-shell-terminal--right-cli .xterm-screen {
     overflow: hidden !important;
   }
   .pixcode-shell-terminal--right-cli .xterm-rows {

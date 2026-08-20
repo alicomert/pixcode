@@ -1,4 +1,28 @@
-# Pixcode Orchestration System
+# Pixcode Orchestration System (historical)
+
+> This document describes the pre-1.55 orchestration UI and route family. That
+> implementation is no longer mounted in the current server. For supported
+> automation use NanoClaw (`/api/nanoclaw/*`, `/api/tasks/*`) or the maintained
+> production agent loop (`/api/production-agent-loop/*`). Do not build new
+> clients against `/api/orchestration/*`.
+
+## Current replacement
+
+This file is retained only as an archive for readers of older release notes. The
+current control plane is:
+
+- NanoClaw: `POST /api/nanoclaw/run` for an immediate multi-CLI run,
+  `POST /api/nanoclaw/tasks` for `once`/`interval`/`cron` schedules, and
+  `GET/PATCH/POST /api/nanoclaw/tasks/*` for lifecycle operations.
+- Compatibility task routes: `/api/tasks/*` for clients that still use the UI
+  alias.
+- Production automation: `/api/production-agent-loop/*` for issue-to-PR plans,
+  CI repair, review queues, checkpoints, and scheduler jobs.
+- Public contracts: `/api/public/manifest`, `/api/public/openapi`, and the
+  generated SDK/cookbook endpoints.
+
+The former workflow routes are intentionally not mounted. Do not copy endpoint
+examples from the historical sections below into new integrations.
 
 Bu dokuman Pixcode orchestration sisteminin 1.34.x davranisini ve beklenen kullanici deneyimini aciklar.
 
@@ -97,7 +121,7 @@ Boylece "inceleme hata buldu ama workflow bitti" problemi engellenir.
 - Komut ciktisi gibi gurultulu artifact'ler collapse/dropdown seklinde gosterilir.
 - Rapor tamamlanmadan rapordan yeni ajan takimi hazirlama butonu gosterilmez.
 
-## API Yuzeyi
+## API Yuzeyi (arşivlenmiş v1.34 sözleşmesi)
 
 Onemli endpointler:
 

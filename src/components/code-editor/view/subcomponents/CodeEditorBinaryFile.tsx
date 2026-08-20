@@ -51,8 +51,9 @@ export default function CodeEditorBinaryFile({
           <button
             type="button"
             onClick={onClose}
-            className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
             title="Close"
+            aria-label="Close"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -73,18 +74,24 @@ export default function CodeEditorBinaryFile({
     : 'bg-background shadow-2xl flex flex-col w-full h-full md:rounded-lg md:shadow-2xl md:w-full md:max-w-2xl md:h-auto md:max-h-[60vh]';
 
   return (
-    <div className={containerClassName}>
+    <div
+      className={containerClassName}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pixcode-binary-file-title"
+    >
       <div className={innerClassName}>
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-3 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white">{file.name}</h3>
+            <h3 id="pixcode-binary-file-title" className="truncate text-sm font-medium text-gray-900 dark:text-white">{file.name}</h3>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
               onClick={onToggleFullscreen}
-              className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
             >
               {isFullscreen ? (
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,8 +106,11 @@ export default function CodeEditorBinaryFile({
             <button
               type="button"
               onClick={onClose}
-              className="flex items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+              data-code-editor-close
+              autoFocus
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               title="Close"
+              aria-label="Close"
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

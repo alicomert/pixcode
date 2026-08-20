@@ -21,6 +21,7 @@ type ConfigFileSummary = {
   label: string;
   format: ConfigFormat;
   readonly: boolean;
+  sensitive?: boolean;
   description: string | null;
   relativePath: string;
   absolutePath: string;
@@ -29,7 +30,7 @@ type ConfigFileSummary = {
   updatedAt: string | null;
 };
 
-type ConfigFileDetail = ConfigFileSummary & { contents: string };
+type ConfigFileDetail = ConfigFileSummary & { contents: string; redacted?: boolean };
 
 type ConfigFilesResponse = {
   success: boolean;
@@ -271,6 +272,12 @@ export default function ConfigContent({ agent }: ConfigContentProps) {
             <div className="space-y-1">
               {activeDetail.description && (
                 <p className="text-xs text-muted-foreground">{activeDetail.description}</p>
+              )}
+              {activeDetail.redacted && (
+                <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  <Lock className="h-3.5 w-3.5 flex-shrink-0" />
+                  {t('agents.config.credentialsHidden', { defaultValue: 'Credential values are hidden. Manage them from Settings → API credentials.' })}
+                </div>
               )}
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground/80">
                 <button

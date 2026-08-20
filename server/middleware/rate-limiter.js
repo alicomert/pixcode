@@ -8,6 +8,7 @@ function createRateLimiter(options = {}) {
         message = 'Too many requests from this IP, please try again later.',
         statusCode = 429,
         skip = (_req) => false,
+        maxKeys = 10_000,
     } = options;
 
     const hits = new Map();
@@ -34,6 +35,18 @@ function createRateLimiter(options = {}) {
 
         let entry = hits.get(key);
         if (!entry || entry.resetTime <= now) {
+            // Keep the in-process limiter bounded when an exposed server sees
+            // many distinct client addresses in one window.  Expired entries
+            // are removed first; if the cap is still reached, evict the
+            // oldest key so rate limiting cannot become an OOM vector.
+            if (!entry && hits.size >= maxKeys) {
+                cleanupExpired();
+                while (hits.size >= maxKeys) {
+                    const oldestKey = hits.keys().next().value;
+                    if (oldestKey === undefined) break;
+                    hits.delete(oldestKey);
+                }
+            }
             entry = {
                 count: 0,
                 resetTime: now + windowMs,

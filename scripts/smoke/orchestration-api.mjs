@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
+import {
+  skipIfOrchestrationApiRetired,
+  skipIfOrchestrationRetired,
+} from './_orchestration-retired.mjs';
+
 const baseUrl = process.env.PIXCODE_BASE_URL || 'http://127.0.0.1:3001';
 const apiKey = process.env.PIXCODE_API_KEY;
 
-if (!apiKey) {
-  console.error('PIXCODE_API_KEY is required.');
-  process.exit(1);
-}
+if (skipIfOrchestrationRetired('orchestration API smoke')) process.exit(0);
 
 async function request(path, options = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -89,6 +91,12 @@ const teamMetadata = {
 };
 
 async function main() {
+  if (await skipIfOrchestrationApiRetired({ baseUrl, label: 'orchestration API smoke' })) return;
+  if (!apiKey) {
+    console.error('PIXCODE_API_KEY is required.');
+    process.exit(1);
+  }
+
   const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
   assert(health.status === 'ok', 'Health check did not return ok.');
 

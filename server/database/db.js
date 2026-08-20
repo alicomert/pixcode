@@ -287,9 +287,11 @@ const db = {
         if (/FROM USER_CREDENTIALS\s+WHERE ID = \?\s+AND USER_ID = \?\s+AND CREDENTIAL_TYPE = \?\s+AND IS_ACTIVE = 1/.test(normalized)) {
             return {
                 get: (id, userId, credentialType) =>
-                    store.findWhere('user_credentials',
-                        (r) => r.id === id && r.user_id === userId && r.credential_type === credentialType && r.is_active)
-                    || undefined,
+                    (() => {
+                        const row = store.findWhere('user_credentials',
+                            (r) => r.id === id && r.user_id === userId && r.credential_type === credentialType && r.is_active);
+                        return row ? { ...row, credential_value: decryptCredentialValue(row.credential_value) } : undefined;
+                    })(),
             };
         }
 
@@ -439,10 +441,75 @@ function ensureAdminUser() {
 
 ensureAdminUser();
 
+// Secrets used by the API-key and credential stores are never persisted in
+// clear text for newly-created records.  Existing v1 JSON stores may still
+// contain legacy values; validation transparently upgrades those rows on
+// first use so upgrades do not invalidate a user's integrations.
+const CREDENTIAL_ENCRYPTION_PREFIX = 'enc:v1:';
+
+function secretMaterial() {
+    // A dedicated key is preferred.  Falling back to JWT_SECRET keeps this
+    // backwards-compatible with installs that already persist a per-install
+    // secret in app_config (via appConfigDb below).
+    const configured = process.env.PIXCODE_CREDENTIAL_KEY
+        || process.env.JWT_SECRET
+        || appConfigDb?.getOrCreateJwtSecret?.();
+    return crypto.createHash('sha256').update(String(configured || 'pixcode-local-secret')).digest();
+}
+
+function encryptCredentialValue(value) {
+    const plain = String(value ?? '');
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', secretMaterial(), iv);
+    const encrypted = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+    return `${CREDENTIAL_ENCRYPTION_PREFIX}${iv.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}.${encrypted.toString('base64url')}`;
+}
+
+function decryptCredentialValue(value) {
+    if (typeof value !== 'string' || !value.startsWith(CREDENTIAL_ENCRYPTION_PREFIX)) {
+        return value ?? null;
+    }
+
+    try {
+        const [ivEncoded, tagEncoded, payloadEncoded] = value.slice(CREDENTIAL_ENCRYPTION_PREFIX.length).split('.');
+        if (!ivEncoded || !tagEncoded || !payloadEncoded) return null;
+        const decipher = crypto.createDecipheriv(
+            'aes-256-gcm',
+            secretMaterial(),
+            Buffer.from(ivEncoded, 'base64url'),
+        );
+        decipher.setAuthTag(Buffer.from(tagEncoded, 'base64url'));
+        return Buffer.concat([
+            decipher.update(Buffer.from(payloadEncoded, 'base64url')),
+            decipher.final(),
+        ]).toString('utf8');
+    } catch {
+        // A changed/missing encryption key must not crash the auth middleware;
+        // callers treat an undecryptable credential as unavailable.
+        return null;
+    }
+}
+
+function hashApiKey(value) {
+    return crypto.createHash('sha256').update(String(value ?? '')).digest('hex');
+}
+
+function maskApiKey(value, hash = '') {
+    const raw = typeof value === 'string' ? value : '';
+    if (raw.length >= 10) return `${raw.slice(0, 6)}...${raw.slice(-4)}`;
+    return hash ? `px_...${String(hash).slice(-8)}` : 'px_...';
+}
+
 // ---------------------------------------------------------------------------
 // API key operations
 // ---------------------------------------------------------------------------
 const apiKeysDb = {
+    // These scopes change the caller from a project-scoped API client into a
+    // process/system administrator.  Never honor them for a key belonging to
+    // a member account, even if an older endpoint or hand-edited JSON store
+    // managed to persist them.
+    elevatedScopes: new Set(['*', 'admin', 'system', 'system:update', 'system:restart']),
+
     generateApiKey: () => 'px_' + crypto.randomBytes(32).toString('hex'),
 
     normalizeScopes: (scopes) => {
@@ -454,14 +521,20 @@ const apiKeysDb = {
         )).sort();
     },
 
-    createApiKey: (userId, keyName, scopes = []) => {
+    createApiKey: function createApiKey(userId, keyName, scopes) {
         const apiKey = apiKeysDb.generateApiKey();
         const normalizedScopes = apiKeysDb.normalizeScopes(scopes);
+        // Preserve the distinction between a legacy/full-access key created
+        // without a scopes field and a deliberately empty scoped key.  The
+        // latter must fail closed in central API-key authorization.
+        const hasExplicitScopes = arguments.length >= 3 && Array.isArray(scopes);
         const row = store.insert('api_keys', {
             user_id: userId,
             key_name: keyName,
-            api_key: apiKey,
+            api_key: null,
+            api_key_hash: hashApiKey(apiKey),
             scopes: normalizedScopes,
+            has_explicit_scopes: hasExplicitScopes,
             created_at: nowIso(),
             last_used: null,
             is_active: true,
@@ -478,7 +551,9 @@ const apiKeysDb = {
             .map((r) => ({
                 id: r.id,
                 key_name: r.key_name,
-                api_key: r.api_key,
+                // The full key is returned exactly once by createApiKey.
+                // Lists only expose a stable, non-sensitive fingerprint.
+                api_key: maskApiKey(r.api_key, r.api_key_hash),
                 scopes: apiKeysDb.normalizeScopes(r.scopes),
                 created_at: r.created_at,
                 last_used: r.last_used,
@@ -487,19 +562,43 @@ const apiKeysDb = {
     },
 
     validateApiKey: (apiKey) => {
-        const key = store.findWhere('api_keys', (r) => r.api_key === apiKey && r.is_active);
+        const candidate = typeof apiKey === 'string' ? apiKey.trim() : '';
+        if (!candidate) return undefined;
+        const candidateHash = hashApiKey(candidate);
+        const key = store.findWhere('api_keys', (r) => {
+            if (!r.is_active) return false;
+            // `api_key` is retained only for legacy rows.  New rows use a
+            // one-way hash, which means a JSON backup cannot impersonate a
+            // user by simply reading the token value.
+            return r.api_key_hash === candidateHash || r.api_key === candidate;
+        });
         if (!key) return undefined;
         const user = store.findWhere('users', (r) => r.id === key.user_id && r.is_active);
         if (!user) return undefined;
+        // Upgrade a legacy clear-text key after successful authentication.
+        if (!key.api_key_hash || key.api_key) {
+            store.updateWhere('api_keys', (r) => r.id === key.id, {
+                api_key_hash: candidateHash,
+                api_key: null,
+            });
+        }
         // Mirror the SQL-era side effect: stamp last_used. Only relevant
         // for the "which key was used last" display in the UI.
         store.updateWhere('api_keys', (r) => r.id === key.id, { last_used: nowIso() });
+        const rawScopes = apiKeysDb.normalizeScopes(key.scopes);
+        const effectiveScopes = ['admin', 'owner'].includes(user.role)
+            ? rawScopes
+            : rawScopes.filter((scope) => !apiKeysDb.elevatedScopes.has(scope));
         return {
             id: user.id,
             username: user.username,
             role: user.role || null,
             api_key_id: key.id,
-            api_key_scopes: apiKeysDb.normalizeScopes(key.scopes),
+            api_key_scopes: effectiveScopes,
+            // Keep legacy empty-scope keys distinguishable from a member key
+            // whose persisted elevated scopes were filtered out above.  The
+            // central middleware uses this bit to fail closed for the latter.
+            api_key_has_explicit_scopes: key.has_explicit_scopes === true || rawScopes.length > 0,
         };
     },
 
@@ -512,6 +611,7 @@ const apiKeysDb = {
     updateApiKeyScopes: (userId, apiKeyId, scopes = []) =>
         store.updateWhere('api_keys', (r) => r.id === apiKeyId && r.user_id === userId, {
             scopes: apiKeysDb.normalizeScopes(scopes),
+            has_explicit_scopes: true,
         }) > 0,
 };
 
@@ -524,7 +624,7 @@ const credentialsDb = {
             user_id: userId,
             credential_name: credentialName,
             credential_type: credentialType,
-            credential_value: credentialValue,
+            credential_value: encryptCredentialValue(credentialValue),
             description,
             created_at: nowIso(),
             is_active: true,
@@ -556,7 +656,17 @@ const credentialsDb = {
         if (rows.length === 0) return null;
         // "Most recent active" — mirror ORDER BY created_at DESC LIMIT 1
         rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-        return rows[0].credential_value;
+        const row = rows[0];
+        const value = decryptCredentialValue(row.credential_value);
+        // Legacy SQLite/JSON migrations carried plaintext values forward.
+        // Upgrade them after the first successful read so credentials do not
+        // remain exposed on disk indefinitely.
+        if (value && typeof row.credential_value === 'string' && !row.credential_value.startsWith(CREDENTIAL_ENCRYPTION_PREFIX)) {
+            store.updateWhere('user_credentials', (candidate) => candidate.id === row.id, {
+                credential_value: encryptCredentialValue(value),
+            });
+        }
+        return value;
     },
 
     getCredentialById: (userId, credentialId, credentialType = null) => {
@@ -564,7 +674,14 @@ const credentialsDb = {
             r.id === credentialId && r.user_id === userId && r.is_active
             && (credentialType == null || r.credential_type === credentialType),
         );
-        return row || undefined;
+        if (!row) return undefined;
+        const value = decryptCredentialValue(row.credential_value);
+        if (value && typeof row.credential_value === 'string' && !row.credential_value.startsWith(CREDENTIAL_ENCRYPTION_PREFIX)) {
+            store.updateWhere('user_credentials', (candidate) => candidate.id === row.id, {
+                credential_value: encryptCredentialValue(value),
+            });
+        }
+        return { ...row, credential_value: value };
     },
 
     deleteCredential: (userId, credentialId) =>
@@ -852,12 +969,17 @@ const telegramConfigDb = {
     get: () => {
         const row = store.raw.telegram_config[0];
         if (!row) return null;
-        return { bot_token: row.bot_token, bot_username: row.bot_username, updated_at: row.updated_at };
+        const token = decryptCredentialValue(row.bot_token);
+        if (token && typeof row.bot_token === 'string' && !row.bot_token.startsWith(CREDENTIAL_ENCRYPTION_PREFIX)) {
+            store.raw.telegram_config[0] = { ...row, bot_token: encryptCredentialValue(token) };
+            store.save();
+        }
+        return { bot_token: token, bot_username: row.bot_username, updated_at: row.updated_at };
     },
     set: (botToken, botUsername = null) => {
         store.raw.telegram_config = [{
             id: 1,
-            bot_token: botToken,
+            bot_token: encryptCredentialValue(botToken),
             bot_username: botUsername,
             updated_at: nowIso(),
         }];
@@ -985,4 +1107,6 @@ export {
     telegramConfigDb,
     telegramLinksDb,
     githubTokensDb,
+    encryptCredentialValue,
+    decryptCredentialValue,
 };

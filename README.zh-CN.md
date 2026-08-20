@@ -3,7 +3,7 @@
   <h1>Pixcode</h1>
   <p><strong>面向 AI coding agent 的 self-hosted control room。</strong></p>
   <p>
-    在一个 Web UI 中使用 Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code 和 OpenCode，并集成 chat、shell、files、Git、orchestration、API keys、plugins、notifications、Telegram、desktop/server deployment。
+    在一个 Web UI 中使用 Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code 和 OpenCode，并集成 chat、shell、files、Git、agent automation、API keys、plugins、notifications、Telegram、desktop/server deployment。
   </p>
   <p>
     <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
@@ -14,7 +14,9 @@
     <a href="README.de.md">Deutsch</a> ·
     <a href="README.ru.md">Русский</a> ·
     <a href="README.ja.md">日本語</a> ·
-    <a href="README.ko.md">한국어</a>
+    <a href="README.ko.md">한국어</a> ·
+    <a href="README.zh-CN.md" aria-current="page">简体中文</a> ·
+    <a href="README.es-ES.md">Español</a>
   </p>
 </div>
 
@@ -32,20 +34,16 @@ Pixcode 不是 hosted cloud IDE。Projects、credentials、CLI sessions、local 
 
 ## Screenshots
 
-| Workspace | Mobile chat |
+| Workspace | Mobile workspace |
 | --- | --- |
-| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
-
-| CLI selection | Tools and MCP |
-| --- | --- |
-| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode 移动工作区" width="260" /> |
 
 ## 功能亮点
 
 ### 多个 CLI，一个界面
 
 - Claude Code、Cursor CLI、Codex、Gemini CLI、Qwen Code、OpenCode。
-- Settings 中管理 provider auth、API key credentials、OAuth paste、install status、model list、CLI version status。
+- Settings 中管理 provider auth、API key credentials、provider 专属 OAuth callback/paste flow、install status、model list、CLI version status。GitHub 通过 OAuth 连接。
 - Pixcode 不替代 native CLI，而是在其上增加 session management、WebSocket streaming、notifications、file context、project controls。
 - UI 会显示 CLI 是在 thinking、tool execution、approval waiting 还是 output streaming。
 
@@ -60,29 +58,23 @@ Pixcode 不是 hosted cloud IDE。Projects、credentials、CLI sessions、local 
 
 ### Changed files Command Center
 
-Pixcode 会跟踪 local working tree 的变化。Quick Settings 中的 Command Center 可以即时显示 changed files，高亮新的改动，并跳转到相关 file/line。这样 AI agent 修改文件时，你可以看到它改了什么，同时保持 chat/orchestration view 不被关闭。
+Pixcode 会跟踪 local working tree 的变化。Quick Settings 中的 Command Center 可以即时显示 changed files，高亮新的改动，并跳转到相关 file/line。这样 AI agent 修改文件时，你可以看到它改了什么，同时保持主工作区不被关闭。
 
-### Multi-agent orchestration
+### Agent automation（NanoClaw + production agent loop）
 
-Orchestration 可以让多个 CLI agents 围绕同一个 goal 协作。
+Pixcode 的维护中自动化 API 按用途分开：
 
-- **Agent Team**：按 frontend、backend、review、docs、custom role 拆分任务。
-- **Multi-model Review**：用多个 provider/model 检查同一改动。
-- **Sequential Handoff**：按阶段交接任务。
-- **Decision Debate**：实现前比较不同 approach。
+- **NanoClaw** 保留项目上下文，处理多 CLI 对话、一次性运行以及
+  `once`/`interval`/`cron` 持久计划。
+- **Production agent loop** 处理 issue-to-PR、CI repair、review queue、checkpoint
+  和 scheduler 等管理员流程。
 
-Controls:
-
-- 按 run enable/disable agents，
-- 同一个 provider 可创建多个 worker，
-- agent 级 role、stage、label、instruction，
-- agent 级 model selection，包含 OpenCode model，
-- failed step 的 fallback CLI agent，
-- workflow DAG preview，
-- event streaming 和 cancel，
-- resizable orchestration panes。
+旧的 `/api/orchestration/*` workflow UI 和路由系列已在 v1.55 移除。剩余的
+ orchestration 说明仅用于迁移历史；新客户端应使用下面的维护中 API。
 
 ### API、Telegram、notifications
+
+> **当前 API 说明（1.64.x）：** 旧的 `/api/orchestration/*` workflow API 已在 v1.55 移除。多 CLI 对话、执行和计划任务请使用 NanoClaw（`/api/nanoclaw/*` 或 `/api/tasks/*` alias）；维护中的 production agent loop 使用 `/api/production-agent-loop/*`。旧 orchestration 内容仅作为迁移上下文保留。
 
 Pixcode frontend 本身使用 REST/WebSocket API。External automation 也可以用 Pixcode API key 使用同一个 control plane。新的 API keys 以 `px_` 开头，旧的 `ck_` keys 仍然兼容。
 
@@ -91,12 +83,12 @@ curl http://localhost:3001/api/projects \
   -H "Authorization: Bearer px_your_key_here"
 ```
 
-- `POST /api/agent` for one-shot agent runs.
-- `/api/orchestration/workflows/*` for preview, start, stream, cancel.
+- `POST /api/nanoclaw/run` 用于一次性的 multi-CLI agent run。
+- `/api/nanoclaw/*`（或 `/api/tasks/*`）用于 chat、agent run、schedule、events；`/api/production-agent-loop/*` 用于 issue-to-PR、CI repair、review queue、snapshot。
 - Browser push notifications.
 - Telegram pairing、task notifications、optional prompt bridge。
 
-OpenAPI: [`public/openapi.yaml`](public/openapi.yaml)
+交互式 API 参考：[`public/api-docs.html`](public/api-docs.html)。在运行中的 Pixcode 实例上，`GET /api/public/manifest` 是 discovery 文档，`GET /api/public/openapi` 提供当前 machine-readable API fragment；[`public/openapi.yaml`](public/openapi.yaml) 是随包附带的 release snapshot。
 
 ### Themes、plugins、MCP
 

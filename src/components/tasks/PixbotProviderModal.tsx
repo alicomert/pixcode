@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Loader2, Plus, Search, X } from '@/lib/icons';
-
-import { Dialog, DialogContent, DialogTitle } from '@/shared/view/ui';
-
 import { cn } from '../../lib/utils';
 import { authenticatedFetch } from '../../utils/api';
+
+import { Loader2, Plus, Search, X } from '@/lib/icons';
+import { Dialog, DialogContent, DialogTitle } from '@/shared/view/ui';
+
 
 type CatalogEntry = {
   id: string;
@@ -403,7 +403,7 @@ export function PixbotProviderModal({
                 <input
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-mono"
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 font-mono text-sm"
                   placeholder="https://…"
                 />
               </label>

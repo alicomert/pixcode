@@ -117,11 +117,41 @@ img {
 }
 
 .hero.text-hero {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.46fr);
-  align-items: end;
-  min-height: auto;
+  display: block;
+  position: relative;
+  min-height: calc(100vh - 64px);
   padding-top: clamp(70px, 10vw, 128px);
   padding-bottom: clamp(58px, 8vw, 96px);
+  overflow: hidden;
+}
+
+.hero.text-hero::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(8, 10, 12, 0.98) 0%, rgba(8, 10, 12, 0.91) 38%, rgba(8, 10, 12, 0.48) 70%, rgba(8, 10, 12, 0.28) 100%),
+    url("screenshots/pixcode-banner.png") center right / cover no-repeat;
+  content: "";
+}
+
+.hero.text-hero::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, transparent 56%, var(--bg) 100%);
+  content: "";
+}
+
+.hero.text-hero .hero-copy,
+.hero.text-hero .hero-summary {
+  position: relative;
+  z-index: 1;
+}
+
+.hero.text-hero .hero-summary {
+  width: min(100%, 520px);
+  margin-top: clamp(34px, 6vw, 76px);
 }
 
 .hero-copy {
@@ -437,6 +467,30 @@ h3 {
   max-width: 520px;
 }
 
+.doc-screenshot {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #050607;
+  box-shadow: var(--shadow);
+}
+
+.doc-screenshot img {
+  display: block;
+  width: 100%;
+  max-height: 620px;
+  object-fit: contain;
+  object-position: top center;
+}
+
+.doc-screenshot figcaption {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .image-slot strong {
   display: block;
   margin-bottom: 8px;
@@ -684,6 +738,21 @@ pre {
 
   .hero {
     min-height: auto;
+  }
+
+  .hero.text-hero {
+    min-height: calc(100svh - 112px);
+    padding-bottom: 72px;
+  }
+
+  .hero.text-hero::before {
+    background:
+      linear-gradient(180deg, rgba(8, 10, 12, 0.94) 0%, rgba(8, 10, 12, 0.84) 58%, rgba(8, 10, 12, 0.95) 100%),
+      url("screenshots/pixcode-banner.png") 68% center / auto 100% no-repeat;
+  }
+
+  .hero.text-hero .hero-summary {
+    margin-top: 34px;
   }
 
   h1 {

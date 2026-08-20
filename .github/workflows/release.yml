@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -38,13 +37,19 @@ jobs:
       - run: npm ci
 
       - name: Release
-        run: |
-          ARGS="--ci --increment=${{ inputs.increment }}"
-          if [ -n "${{ inputs.release_name }}" ]; then
-            ARGS="$ARGS --github.releaseName=\"${{ inputs.release_name }}\""
-          fi
-          npx release-it $ARGS
         env:
+          # Keep workflow inputs in the environment rather than interpolating
+          # them into shell source. This prevents a custom release name from
+          # becoming executable shell syntax.
+          RELEASE_INCREMENT: ${{ inputs.increment }}
+          RELEASE_NAME: ${{ inputs.release_name }}
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=(--ci "--increment=${RELEASE_INCREMENT}")
+          if [[ -n "${RELEASE_NAME:-}" ]]; then
+            args+=("--github.releaseName=${RELEASE_NAME}")
+          fi
+          node scripts/release.mjs "${args[@]}"

@@ -1,6 +1,6 @@
 # Pixcode System Overview
 
-Bu dokuman Pixcode **1.60.x** ana mimarisini, NanoClaw motorunu, public HTTP API’yi ve desktop dagitimini ozetler.
+Bu dokuman Pixcode **1.64.x** ana mimarisini, NanoClaw motorunu, public HTTP API’yi ve desktop dagitimini ozetler.
 
 ## Ana Mimari
 
@@ -28,6 +28,14 @@ Kullanici tercihleri (`useUiPreferences`):
 
 Optional **general** workspace: coding project secmeden de NanoClaw gorevleri calisir.
 
+### Terminal-only yüzey
+
+Terminal odaklı kullanım için workbench chrome'undan bağımsız, tam ekran kabuk
+`?terminal=1` ile açılabilir. Sağ üstteki sağlayıcı seçici Claude/Codex/Cursor,
+Gemini, Qwen, OpenCode veya Grok PTY oturumunu aynı proje bağlamında başlatır.
+Bu yüzey masaüstü ve mobilde aynı `StandaloneShell`/WebSocket akışını kullanır;
+`Back to workspace` kontrolü sorgu parametresini kaldırarak normal görünüme döner.
+
 ## Calisma modlari
 
 - `npm run client` — yalnizca Vite frontend (5173).
@@ -42,11 +50,19 @@ Optional **general** workspace: coding project secmeden de NanoClaw gorevleri ca
 - Ana yuzey: `/api/*` (`validateApiKey` + cogu rota `authenticateToken`).
 - Auth public: `/api/auth/*` (register/login/onboarding) API key zorunlulugundan muaf.
 - API key: Settings → API keys, prefix `px_`. Header: `X-API-Key` veya `Authorization: Bearer`.
-- Public katalog:
+- Public katalog (Pixcode oturumu gerektirir; otomasyon için `px_` API anahtarı kullanın):
   - `GET /api/public/manifest`
-  - `GET /api/public/cookbook` — hazir curl ornekleri
+  - `GET /api/public/cookbook` — hazır curl örnekleri
   - `GET /api/public/openapi`
   - `GET /api/public/sdk/typescript`
+
+Browser SSE/WebSocket clients should use a one-shot `streamTicket` from
+`POST /api/auth/stream-ticket`; do not put reusable JWT/API keys in URLs.
+Legacy `?token` / `?apiKey` authentication is disabled by default and requires
+`PIXCODE_ALLOW_QUERY_CREDENTIALS=1` for compatibility. Platform auth bypass is
+enabled only when `VITE_IS_PLATFORM=true`, the frontend is built with
+`VITE_PLATFORM_AUTH_BYPASS=true`, and a trusted external identity proxy is in
+place with `PIXCODE_ALLOW_PLATFORM_AUTH_BYPASS=1`.
 
 ### NanoClaw API (uzaktan agent / schedule)
 
@@ -81,7 +97,7 @@ curl -X POST -H "Content-Type: application/json" -H "X-API-Key: $PIXCODE_API_KEY
 | Git | `/api/git/*` |
 | Providers | `/api/providers` |
 | Shell | `/api/shell/sessions/*` |
-| Orchestration / A2A | `/api/orchestration/*`, `/a2a/*` |
+| Agent automation | `/api/nanoclaw/*`, `/api/tasks/*`, `/api/production-agent-loop/*` (the former `/api/orchestration/*` surface is retired) |
 | Remote / control room | `/api/remote/*` |
 | Webhooks | `/api/webhooks` |
 | Telegram (Pixcode control) | `/api/telegram/*` |
@@ -136,7 +152,9 @@ Unit test suite yok. Kabul:
 ## Operasyon
 
 - `npm run server` her zaman `dist-server` kullanir — source degisikligi sonrasi `npm run build:server`.
-- Auth DB: `~/.pixcode/auth.db` (`DATABASE_PATH` ile override).
+- Auth store: `~/.pixcode/auth.json` (`DATABASE_PATH` ile override). Eski
+  kurulumlardaki `auth.db` dosyası ilk başlatmada salt-okunur olarak içe
+  aktarılır ve kardeş `auth.json` dosyasına dönüştürülür.
 - NanoClaw data: `~/.pixcode/nanoclaw`.
 - Port: `SERVER_PORT` (backend), `VITE_PORT` (frontend). `HOST=0.0.0.0` remote bind.
 
@@ -146,4 +164,4 @@ Unit test suite yok. Kabul:
 |------|--------|
 | PixBot chat heuristics | NanoClaw-lite + multi-runner |
 | Full-screen chrome-kill Tasks | VS Code workbench icinde Tasks tab |
-| Desktop pin `1.53.x` | `desktop/package.json` = current product version + auto-pull |
+| Desktop pin `1.64.x` | `desktop/package.json` = current product version + auto-pull |

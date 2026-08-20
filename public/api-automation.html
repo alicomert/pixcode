@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pixcode API Automation - px_ API Keys, Agent Runs and Workflow Control</title>
+    <title>Pixcode API Automation - px_ API Keys, NanoClaw Tasks and Production Agent Loop</title>
     <meta
       name="description"
-      content="Use Pixcode API automation with px_ API keys to list projects, run Claude Code, Codex, Cursor CLI, Gemini CLI, Qwen Code, and OpenCode tasks, preview orchestration workflows, start runs, stream events, cancel runs, and integrate Telegram or external tools."
+      content="Use Pixcode API automation with px_ API keys to list projects, run and schedule NanoClaw multi-CLI tasks, use the production agent loop, and integrate Telegram or external tools."
     />
     <meta
       name="keywords"
-      content="Pixcode API, px API key, AI coding agent API, Codex API automation, Claude Code automation, OpenCode automation, orchestration REST API, self-hosted developer automation, coding agent webhook"
+      content="Pixcode API, px API key, NanoClaw task API, AI coding agent API, Codex API automation, Claude Code automation, production agent loop, self-hosted developer automation, coding agent webhook"
     />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
     <link rel="canonical" href="https://alicomert.github.io/pixcode/api-automation.html" />
@@ -26,7 +26,7 @@
       <div class="nav-links">
         <a href="docs.html">Documentation</a>
         <a href="features.html">Features</a>
-        <a href="orchestration.html">Orchestration</a>
+        <a href="orchestration.html">Automation migration</a>
         <a href="api-automation.html">API</a>
         <a href="https://github.com/alicomert/pixcode">GitHub</a>
       </div>
@@ -37,19 +37,20 @@
         <div class="eyebrow">API automation</div>
         <h1>Control Pixcode from scripts, dashboards, CI, and remote tools.</h1>
         <p class="lead">
-          Pixcode exposes REST and WebSocket-powered workflows. Generate a `px_` API key, then trigger provider tasks, inspect projects, preview orchestration, start workflow runs, stream output, and cancel work from external clients.
+          Pixcode exposes REST and WebSocket-powered automation. Generate a scoped `px_` API key, then run or schedule NanoClaw tasks, inspect projects, stream task events, and use the admin-only production agent loop from external clients.
         </p>
       </div>
-      <div class="image-slot">
-        <span><strong>API dashboard slot</strong>Recommended: 1400 x 1000. Show API keys, OpenAPI docs, and an automation request/result.</span>
-      </div>
+      <figure class="doc-screenshot">
+        <img src="screenshots/desktop-main.png" alt="Pixcode desktop API and CLI workspace" />
+        <figcaption>Use the same authenticated Pixcode workspace from the browser, or call its documented API from scripts and CI.</figcaption>
+      </figure>
     </header>
 
     <main>
       <section class="section">
         <h2>Authentication</h2>
         <p class="sublead">
-          New Pixcode API keys start with `px_`. Older `ck_` keys remain accepted for compatibility, but new documentation and examples should use `px_`.
+          New Pixcode API keys start with `px_`. Older `ck_` keys remain accepted for compatibility, but new documentation and examples should use `px_`. Keys can carry least-privilege scopes such as `projects:read`, `tasks:write`, or `system:update`. The legacy `orchestration:read`/`orchestration:write` scope names are retained only for the maintained `/api/production-agent-loop/*` admin surface; the former `/api/orchestration/*` routes are retired.
         </p>
         <div class="grid two">
           <div class="code-panel"><pre><code>curl http://localhost:3001/api/projects \
@@ -57,35 +58,38 @@
           <div class="code-panel"><pre><code>curl http://localhost:3001/api/projects \
   -H "X-API-Key: px_your_key_here"</code></pre></div>
         </div>
+        <p class="sublead">
+          Browser EventSource/WebSocket clients should call <code>POST /api/auth/stream-ticket</code> and use the returned one-shot <code>?streamTicket=...</code> value. Raw <code>?token=</code> and <code>?apiKey=</code> query credentials are disabled by default.
+        </p>
       </section>
 
       <section class="section alt">
         <h2>Run a one-shot agent task</h2>
         <p class="sublead">
-          `POST /api/agent` is the external REST entry point for non-interactive automation. It can run a provider against a project path, optionally stream events, and optionally return buffered JSON with `stream: false`.
+          `POST /api/nanoclaw/run` is the maintained non-interactive entry point for a multi-CLI agent run. The legacy `POST /api/agent` route remains available for compatibility with older CI integrations.
         </p>
-        <div class="code-panel"><pre><code>curl http://localhost:3001/api/agent \
+        <div class="code-panel"><pre><code>curl http://localhost:3001/api/nanoclaw/run \
   -H "Authorization: Bearer px_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "codex",
-    "projectPath": "/home/me/project",
-    "message": "Review the current diff and list release risks.",
-    "stream": false
+    "agentType": "codex",
+    "projectId": "my-app",
+    "prompt": "Review the current diff and list release risks."
   }'</code></pre></div>
       </section>
 
       <section class="section warm">
-        <h2>Workflow automation</h2>
+        <h2>Task and production automation</h2>
         <p class="sublead">
-          Orchestration endpoints can list workflow modes, preview expanded DAGs, start runs, read run state, stream events, and cancel active work.
+          NanoClaw exposes immediate runs, schedules, task lifecycle, channels, agents, conversations, and SSE events. The production agent loop is admin-only and covers review queues, CI repair plans, background jobs, workspace checkpoints, and desktop release policy.
         </p>
         <div class="grid two">
-          <div class="card"><strong>Preview</strong><p>Validate agent metadata and inspect the node graph before running child agents.</p></div>
-          <div class="card"><strong>Run</strong><p>Start the workflow and track node runs, agent task IDs, status, events, and output.</p></div>
-          <div class="card"><strong>Stream</strong><p>Use run event endpoints to follow progress in dashboards or CLI scripts.</p></div>
-          <div class="card"><strong>Cancel</strong><p>Stop active orchestration runs when the user changes direction or detects bad output.</p></div>
+          <div class="card"><strong>Run</strong><p><code>POST /api/nanoclaw/run</code> starts one multi-CLI task and returns structured status/log data.</p></div>
+          <div class="card"><strong>Schedule</strong><p><code>POST /api/nanoclaw/tasks</code> supports one-shot, interval, and cron schedules.</p></div>
+          <div class="card"><strong>Lifecycle</strong><p>Pause, resume, update, cancel, or delete a task with the <code>/api/nanoclaw/tasks/:id</code> routes.</p></div>
+          <div class="card"><strong>Production loop</strong><p>Use <code>/api/production-agent-loop/*</code> for admin review and CI automation.</p></div>
         </div>
+        <p class="sublead">The pre-1.55 <code>/api/orchestration/*</code> workflow family is retired. Use NanoClaw or the production agent loop for new integrations.</p>
       </section>
 
       <section class="section">

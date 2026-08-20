@@ -186,6 +186,19 @@ i18n
     // Fallback language when a translation is missing
     fallbackLng: 'en',
 
+    // Treat empty/null catalog entries as missing too.  This keeps an
+    // incomplete locale from rendering a blank label (especially in compact
+    // mobile controls) and lets i18next use the English fallback instead.
+    returnNull: false,
+    returnEmptyString: false,
+
+    // Keep browser-detected values constrained to the catalogs shipped with
+    // Pixcode.  The explicit `lng` above handles the saved preference; this
+    // also protects first-load detection from values such as `en-US` or an
+    // unsupported browser locale.
+    supportedLngs: languages.map((language) => language.value),
+    nonExplicitSupportedLngs: false,
+
     // Enable debug mode in development (logs missing keys to console)
     debug: import.meta.env.DEV,
 
@@ -227,8 +240,17 @@ i18n
     },
   });
 
+// Keep the document language in sync for screen readers and browser chrome.
+if (typeof document !== 'undefined' && i18n.language) {
+  document.documentElement.lang = i18n.language;
+}
+
 // Save language preference when it changes
 i18n.on('languageChanged', (lng) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = lng;
+  }
+
   try {
     localStorage.setItem('userLanguage', lng);
   } catch (error) {

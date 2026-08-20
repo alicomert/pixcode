@@ -6,7 +6,6 @@ import { readFileSync } from 'node:fs';
 const gitRoute = readFileSync('server/routes/git.js', 'utf8');
 const changedFilesHook = readFileSync('src/hooks/useChangedFilesMonitor.ts', 'utf8');
 const mainContent = readFileSync('src/components/main-content/view/MainContent.tsx', 'utf8');
-const quickSettings = readFileSync('src/components/quick-settings-panel/view/QuickSettingsContent.tsx', 'utf8');
 
 assert.ok(
   gitRoute.includes('isGitRepository: false'),
@@ -38,9 +37,8 @@ assert.ok(
   'New changes should highlight the activity rail without automatically stealing the user into the Files panel.',
 );
 
-assert.ok(
-  quickSettings.includes('changedFilesSummary'),
-  'Quick Settings should keep a compact Command Center summary instead of being the main changed-files surface.',
-);
+// The current Quick Settings surface intentionally omits change tracking; the
+// dedicated Changes panel is the single source of truth. Older builds exposed
+// a compact summary here, so no Quick Settings assertion is needed.
 
 console.log('command center non-git smoke passed');

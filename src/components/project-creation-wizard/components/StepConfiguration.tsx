@@ -18,6 +18,8 @@ type StepConfigurationProps = {
   availableTokens: GithubTokenCredential[];
   loadingTokens: boolean;
   tokenLoadError: string | null;
+  githubOAuthStatus: 'idle' | 'starting' | 'waiting' | 'success' | 'error';
+  githubOAuthError: string;
   isCreating: boolean;
   onWorkspacePathChange: (workspacePath: string) => void;
   onGithubUrlChange: (githubUrl: string) => void;
@@ -25,6 +27,7 @@ type StepConfigurationProps = {
   onTokenModeChange: (tokenMode: TokenMode) => void;
   onSelectedGithubTokenChange: (tokenId: string) => void;
   onNewGithubTokenChange: (tokenValue: string) => void;
+  onStartGithubOAuth: () => void;
   onAdvanceToConfirm: () => void;
 };
 
@@ -56,6 +59,8 @@ export default function StepConfiguration({
   availableTokens,
   loadingTokens,
   tokenLoadError,
+  githubOAuthStatus,
+  githubOAuthError,
   isCreating,
   onWorkspacePathChange,
   onGithubUrlChange,
@@ -63,6 +68,7 @@ export default function StepConfiguration({
   onTokenModeChange,
   onSelectedGithubTokenChange,
   onNewGithubTokenChange,
+  onStartGithubOAuth,
   onAdvanceToConfirm,
 }: StepConfigurationProps) {
   const { t } = useTranslation();
@@ -134,9 +140,12 @@ export default function StepConfiguration({
               availableTokens={availableTokens}
               loadingTokens={loadingTokens}
               tokenLoadError={tokenLoadError}
+              githubOAuthStatus={githubOAuthStatus}
+              githubOAuthError={githubOAuthError}
               onTokenModeChange={onTokenModeChange}
               onSelectedGithubTokenChange={onSelectedGithubTokenChange}
               onNewGithubTokenChange={onNewGithubTokenChange}
+              onStartGithubOAuth={onStartGithubOAuth}
             />
           )}
         </>

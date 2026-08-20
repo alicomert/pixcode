@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react';
 
+
+import { cn } from '../../lib/utils';
+
+import type { ScheduledTask } from './types';
+
 import {
   AlertCircle,
   Clock,
@@ -9,10 +14,6 @@ import {
   Trash2,
   X,
 } from '@/lib/icons';
-
-import { cn } from '../../lib/utils';
-
-import type { ScheduledTask } from './types';
 
 type FilterTab = 'active' | 'once' | 'all' | 'done';
 
@@ -133,14 +134,21 @@ export function ScheduledTasksPanel({
             <button
               type="button"
               onClick={onRefresh}
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
               title="Yenile"
             >
               <Loader2 className={cn('h-4 w-4', loading && 'animate-spin')} />
             </button>
           ) : null}
           {onClose ? (
-            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
+            <button
+              type="button"
+              data-scheduled-tasks-close
+              onClick={onClose}
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+              aria-label="Close scheduled tasks"
+              title="Close scheduled tasks"
+            >
               <X className="h-4 w-4" />
             </button>
           ) : null}
@@ -307,7 +315,7 @@ export function ScheduledTasksPanel({
                             type="button"
                             disabled={busy}
                             onClick={() => void runAction(task.id, () => onResume(task.id))}
-                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-500/15 disabled:opacity-50 dark:text-emerald-200"
                           >
                             <Play className="h-3 w-3" />
                             Devam
@@ -318,7 +326,7 @@ export function ScheduledTasksPanel({
                             type="button"
                             disabled={busy}
                             onClick={() => void runAction(task.id, () => onCancel(task.id))}
-                            className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 px-2.5 py-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-200 hover:bg-amber-500/10 disabled:opacity-50"
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 px-2.5 py-1.5 text-[11px] font-medium text-amber-800 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-200"
                           >
                             İptal et
                           </button>

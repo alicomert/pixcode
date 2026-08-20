@@ -74,8 +74,11 @@ export async function applyPixcodeGitIdentity(gitName, gitEmail) {
   const filePath = getPixcodeGitConfigPath();
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, '# Managed by Pixcode — do not use git config --global\n', 'utf8');
+    fs.writeFileSync(filePath, '# Managed by Pixcode — do not use git config --global\n', { encoding: 'utf8', mode: 0o600 });
   }
+  // Existing installs may have created this file with the process umask's
+  // default mode. Keep the Pixcode-managed config private before writing.
+  try { fs.chmodSync(filePath, 0o600); } catch { /* best effort */ }
 
   await spawnAsync('git', ['config', '--file', filePath, 'user.name', String(gitName)]);
   await spawnAsync('git', ['config', '--file', filePath, 'user.email', String(gitEmail)]);
@@ -102,10 +105,60 @@ export function userHasGithubToken(userId) {
 }
 
 /**
+ * Accept only GitHub repository remotes for server-side clone operations.
+ * Local/file URLs and arbitrary hosts could turn a clone endpoint into a
+ * filesystem read or SSRF primitive, while credentials in userinfo/query
+ * strings can leak through git diagnostics. SSH scp syntax and the explicit
+ * `ssh://git@github.com/` form remain supported for deploy-key users.
+ */
+export function isSafeGithubCloneUrl(value) {
+  if (typeof value !== 'string' || !value.trim() || /[\u0000-\u001f\u007f]/.test(value)) {
+    return false;
+  }
+
+  const trimmed = value.trim();
+  if (/^git@github\.com:[^\s/]+\/[^\s/]+(?:\.git)?$/i.test(trimmed)) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'https:') {
+      return parsed.hostname.toLowerCase() === 'github.com'
+        && !parsed.username
+        && !parsed.password
+        && !parsed.port
+        && !parsed.search
+        && !parsed.hash
+        && /^\/[^/\s]+\/[^/\s]+(?:\.git)?\/?$/.test(parsed.pathname);
+    }
+    if (parsed.protocol === 'ssh:') {
+      return parsed.hostname.toLowerCase() === 'github.com'
+        && parsed.username.toLowerCase() === 'git'
+        && !parsed.password
+        && (!parsed.port || parsed.port === '22')
+        && !parsed.search
+        && !parsed.hash
+        && /^\/[^/\s]+\/[^/\s]+(?:\.git)?\/?$/.test(parsed.pathname);
+    }
+  } catch {
+    // Invalid URL syntax is not a clone source.
+  }
+
+  return false;
+}
+
+/**
  * Inject a GitHub PAT into an HTTPS github.com URL for clone/fetch.
  * Leaves SSH URLs unchanged (user must use deploy keys for SSH).
  */
 export function withGithubToken(remoteUrl, token) {
+  // Deprecated: embedding credentials in a remote URL leaks them via argv,
+  // git diagnostics, and .git/config. Keep this compatibility helper inert;
+  // callers should use buildGitSpawnEnv({ githubToken }) instead.
+  void token;
+  return remoteUrl;
+  /*
   if (!remoteUrl || !token) return remoteUrl;
   const raw = String(remoteUrl).trim();
   try {
@@ -124,6 +177,7 @@ export function withGithubToken(remoteUrl, token) {
   } catch {
     return raw;
   }
+  */
 }
 
 /**
@@ -161,18 +215,19 @@ export function buildGitSpawnEnv({ userId, gitName, gitEmail, githubToken, baseE
     env.GIT_COMMITTER_EMAIL = email;
   }
 
-  // Temporary URL rewrite so fetch/pull/push of https://github.com/* use the PAT
-  // without mutating remotes or writing ~/.git-credentials.
+  // Temporary HTTP auth header so fetch/pull/push of github.com use the PAT
+  // without mutating remotes, writing ~/.git-credentials, or placing the token
+  // in argv/.git/config. The header disappears with the child process.
   if (token) {
-    env.GIT_CONFIG_COUNT = '2';
-    env.GIT_CONFIG_KEY_0 = 'url.https://x-access-token:' + token + '@github.com/.insteadOf';
-    env.GIT_CONFIG_VALUE_0 = 'https://github.com/';
-    env.GIT_CONFIG_KEY_1 = 'url.https://x-access-token:' + token + '@github.com/.insteadOf';
-    env.GIT_CONFIG_VALUE_1 = 'https://github.com/';
-    // Also map git protocol host form
+    const basic = Buffer.from(`x-access-token:${token}`, 'utf8').toString('base64');
     env.GIT_CONFIG_COUNT = '3';
-    env.GIT_CONFIG_KEY_2 = 'url.https://x-access-token:' + token + '@github.com/.insteadOf';
-    env.GIT_CONFIG_VALUE_2 = 'git@github.com:';
+    env.GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraHeader';
+    env.GIT_CONFIG_VALUE_0 = `AUTHORIZATION: basic ${basic}`;
+    // Also map SSH remotes to HTTPS while retaining the same header.
+    env.GIT_CONFIG_KEY_1 = 'url.https://github.com/.insteadOf';
+    env.GIT_CONFIG_VALUE_1 = 'git@github.com:';
+    env.GIT_CONFIG_KEY_2 = 'url.https://github.com/.insteadOf';
+    env.GIT_CONFIG_VALUE_2 = 'ssh://git@github.com/';
   }
 
   return env;

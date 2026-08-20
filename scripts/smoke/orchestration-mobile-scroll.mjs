@@ -3,6 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('orchestration mobile scroll smoke')) process.exit(0);
+
 const page = readFileSync('src/components/orchestration/OrchestrationPage.tsx', 'utf8');
 const runPanel = readFileSync('src/components/orchestration/workflows/WorkflowRunPanel.tsx', 'utf8');
 

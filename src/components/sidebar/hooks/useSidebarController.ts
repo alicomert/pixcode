@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 
-import { api } from '../../../utils/api';
+import { api, createStreamAuthUrl } from '../../../utils/api';
 import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type {
   AdditionalSessionsByProject,
@@ -215,63 +215,73 @@ export function useSidebarController({
     searchTimeoutRef.current = setTimeout(() => {
       if (seq !== searchSeqRef.current) return;
 
-      const url = api.searchConversationsUrl(query);
-      const es = new EventSource(url);
-      eventSourceRef.current = es;
+      const baseUrl = api.searchConversationsUrl(query);
+      void createStreamAuthUrl(baseUrl)
+        .then((url) => {
+          if (seq !== searchSeqRef.current) return;
+          const es = new EventSource(url);
+          eventSourceRef.current = es;
 
-      const accumulated: ConversationProjectResult[] = [];
-      let totalMatches = 0;
+          const accumulated: ConversationProjectResult[] = [];
+          let totalMatches = 0;
 
-      es.addEventListener('result', (evt) => {
-        if (seq !== searchSeqRef.current) { es.close(); return; }
-        try {
-          const data = JSON.parse(evt.data) as {
-            projectResult: ConversationProjectResult;
-            totalMatches: number;
-            scannedProjects: number;
-            totalProjects: number;
-          };
-          accumulated.push(data.projectResult);
-          totalMatches = data.totalMatches;
-          setConversationResults({ results: [...accumulated], totalMatches, query });
-          setSearchProgress({ scannedProjects: data.scannedProjects, totalProjects: data.totalProjects });
-        } catch {
-          // Ignore malformed SSE data
-        }
-      });
+          es.addEventListener('result', (evt) => {
+            if (seq !== searchSeqRef.current) { es.close(); return; }
+            try {
+              const data = JSON.parse(evt.data) as {
+                projectResult: ConversationProjectResult;
+                totalMatches: number;
+                scannedProjects: number;
+                totalProjects: number;
+              };
+              accumulated.push(data.projectResult);
+              totalMatches = data.totalMatches;
+              setConversationResults({ results: [...accumulated], totalMatches, query });
+              setSearchProgress({ scannedProjects: data.scannedProjects, totalProjects: data.totalProjects });
+            } catch {
+              // Ignore malformed SSE data
+            }
+          });
 
-      es.addEventListener('progress', (evt) => {
-        if (seq !== searchSeqRef.current) { es.close(); return; }
-        try {
-          const data = JSON.parse(evt.data) as { totalMatches: number; scannedProjects: number; totalProjects: number };
-          totalMatches = data.totalMatches;
-          setSearchProgress({ scannedProjects: data.scannedProjects, totalProjects: data.totalProjects });
-        } catch {
-          // Ignore malformed SSE data
-        }
-      });
+          es.addEventListener('progress', (evt) => {
+            if (seq !== searchSeqRef.current) { es.close(); return; }
+            try {
+              const data = JSON.parse(evt.data) as { totalMatches: number; scannedProjects: number; totalProjects: number };
+              totalMatches = data.totalMatches;
+              setSearchProgress({ scannedProjects: data.scannedProjects, totalProjects: data.totalProjects });
+            } catch {
+              // Ignore malformed SSE data
+            }
+          });
 
-      es.addEventListener('done', () => {
-        if (seq !== searchSeqRef.current) { es.close(); return; }
-        es.close();
-        eventSourceRef.current = null;
-        setIsSearching(false);
-        setSearchProgress(null);
-        if (accumulated.length === 0) {
+          es.addEventListener('done', () => {
+            if (seq !== searchSeqRef.current) { es.close(); return; }
+            es.close();
+            eventSourceRef.current = null;
+            setIsSearching(false);
+            setSearchProgress(null);
+            if (accumulated.length === 0) {
+              setConversationResults({ results: [], totalMatches: 0, query });
+            }
+          });
+
+          es.addEventListener('error', () => {
+            if (seq !== searchSeqRef.current) { es.close(); return; }
+            es.close();
+            eventSourceRef.current = null;
+            setIsSearching(false);
+            setSearchProgress(null);
+            if (accumulated.length === 0) {
+              setConversationResults({ results: [], totalMatches: 0, query });
+            }
+          });
+        })
+        .catch(() => {
+          if (seq !== searchSeqRef.current) return;
+          setIsSearching(false);
+          setSearchProgress(null);
           setConversationResults({ results: [], totalMatches: 0, query });
-        }
-      });
-
-      es.addEventListener('error', () => {
-        if (seq !== searchSeqRef.current) { es.close(); return; }
-        es.close();
-        eventSourceRef.current = null;
-        setIsSearching(false);
-        setSearchProgress(null);
-        if (accumulated.length === 0) {
-          setConversationResults({ results: [], totalMatches: 0, query });
-        }
-      });
+        });
     }, 400);
 
     return () => {

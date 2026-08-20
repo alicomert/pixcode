@@ -16,7 +16,7 @@ File names:
 - **macOS** — `Pixcode-X.Y.Z-arm64.dmg` (Apple Silicon) or `Pixcode-X.Y.Z-x64.dmg` (Intel)
 - **Linux** — `Pixcode-X.Y.Z-x64.AppImage` (universal) or `Pixcode-X.Y.Z-x64.deb` (Debian/Ubuntu)
 
-First launch opens your default browser at `http://localhost:3001` and drops a tray icon. Right-click the tray for: Open Pixcode · Start at Login · Restart server · Quit.
+First launch opens Pixcode in the Electron window at `http://localhost:3001` and drops a tray icon. The embedded server binds to loopback by default, so a fresh install cannot expose the first-run account setup to the LAN. If you intentionally need phone/LAN access, opt in with `PIXCODE_DESKTOP_ALLOW_LAN=1` (binds `0.0.0.0`) or set a validated `PIXCODE_DESKTOP_HOST` (for example `192.168.1.20`). For a thin remote client, launch with `PIXCODE_REMOTE_URL=https://your-pixcode-host.example` (or `PIXCODE_DESKTOP_REMOTE_URL`) to skip the local daemon and connect to an existing HTTPS server; the normal Pixcode login screen handles credentials. Right-click the tray for: Open Pixcode · Start at Login · Restart server · Quit.
 
 ### macOS Gatekeeper fix
 
@@ -35,8 +35,10 @@ open "/Applications/Pixcode.app"
 
 ## How it works
 
-- A thin Electron main process boots the Pixcode server as a child (via `fork(.../pixcode/dist-server/server/cli.js, ['start', '--no-daemon'])`).
-- No `BrowserWindow` — the UI opens in the user's real browser.
+- A thin Electron main process boots the Pixcode server as a child (via `fork(.../pixcode/dist-server/server/cli.js, ['start', '--no-daemon'])`) for local mode.
+- Local mode uses `127.0.0.1` by default. Set `PIXCODE_DESKTOP_ALLOW_LAN=1` or a safe `PIXCODE_DESKTOP_HOST` only when you want the local server reachable from another device.
+- `PIXCODE_REMOTE_URL` enables remote mode without starting a local child process; only HTTPS (or loopback HTTP) URLs are accepted.
+- The UI is rendered in an isolated `BrowserWindow` with context isolation and no Node integration.
 - Tray icon is the only persistent UI surface.
 - "Start at Login" toggles via Electron's `setLoginItemSettings` on Windows/macOS; on Linux it writes `~/.config/autostart/pixcode.desktop` by hand.
 

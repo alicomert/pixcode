@@ -118,17 +118,20 @@ const router = express.Router();
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 function requireProviderAdmin(req: Request, res: Response, next: NextFunction) {
-  const user = (req as Request & { user?: { role?: string; api_key_id?: number; api_key_scopes?: string[] } }).user;
+  const user = (req as Request & { user?: { role?: string; api_key_id?: number; api_key_scopes?: string[]; api_key_has_explicit_scopes?: boolean } }).user;
   if (!user || !ADMIN_ROLES.has(user.role || '')) {
     res.status(403).json({ error: 'Admin access required.' });
     return;
   }
 
+  const scopes = Array.isArray(user.api_key_scopes) ? user.api_key_scopes : [];
+  const hasExplicitScopes = user.api_key_has_explicit_scopes === true || scopes.length > 0;
   if (
     user.api_key_id &&
-    !user.api_key_scopes?.includes('admin') &&
-    !user.api_key_scopes?.includes('system') &&
-    !user.api_key_scopes?.includes('*')
+    hasExplicitScopes &&
+    !scopes.includes('admin') &&
+    !scopes.includes('system') &&
+    !scopes.includes('*')
   ) {
     res.status(403).json({ error: 'API key lacks admin scope.' });
     return;
@@ -369,9 +372,9 @@ router.get(
 
 /**
  * POST /api/providers/:provider/auth/api-key
- * Body: { apiKey: string, baseUrl?: string }. Stores the credentials in
- * ~/.pixcode/provider-credentials.json and applies them to process.env
- * so the next CLI spawn/SDK call picks them up. Empty apiKey clears.
+ * Body: { apiKey: string, baseUrl?: string }. Stores the credentials in the
+ * encrypted Pixcode credential store and applies them to process.env so the
+ * next CLI spawn/SDK call picks them up. Empty apiKey clears.
  */
 router.post(
   '/:provider/auth/api-key',
@@ -548,9 +551,10 @@ router.post(
  * the start, so you never miss output, even if the browser dropped
  * the previous connection while npm was mid-download.
  *
- * EventSource can't set custom headers, so this endpoint also accepts
- * ?token=... as a fallback auth channel (same pattern the search
- * endpoint uses).
+ * EventSource can't set custom headers. Browser clients should request a
+ * short-lived `streamTicket` and pass it in the URL. The legacy `?token=...`
+ * fallback is disabled by default and only works when
+ * PIXCODE_ALLOW_QUERY_CREDENTIALS=1 is explicitly configured.
  */
 router.get(
   '/:provider/install/:jobId/stream',
@@ -567,7 +571,9 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    // The URL may contain a short-lived auth ticket for EventSource clients;
+    // never let an intermediary cache or replay the stream.
+    res.setHeader('Cache-Control', 'no-store, no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
@@ -704,10 +710,65 @@ const resolveConfigFile = (provider: string, fileId: string): { descriptor: Prov
   return { descriptor, absolutePath };
 };
 
+const CONFIG_HOME = path.resolve(os.homedir());
+
+function isPathInsideConfigHome(candidate: string): boolean {
+  const relative = path.relative(CONFIG_HOME, path.resolve(candidate));
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
+ * Registry paths are relative to the home directory, but a user-created
+ * symlink could otherwise make a harmless-looking entry read or overwrite a
+ * file elsewhere on disk. Resolve the existing target (or nearest existing
+ * parent for a new file) and keep it inside the configured home root.
+ */
+async function assertSafeConfigPath(absolutePath: string): Promise<void> {
+  if (!isPathInsideConfigHome(absolutePath)) {
+    throw new AppError('Provider config path is outside the user home directory.', {
+      code: 'PROVIDER_CONFIG_PATH_OUTSIDE_HOME',
+      statusCode: 403,
+    });
+  }
+
+  let candidate = path.resolve(absolutePath);
+  while (true) {
+    try {
+      const linkStat = await fs.lstat(candidate);
+      if (linkStat.isSymbolicLink()) {
+        throw new AppError('Provider config symlinks are not allowed.', {
+          code: 'PROVIDER_CONFIG_SYMLINK',
+          statusCode: 403,
+        });
+      }
+      const realPath = await fs.realpath(candidate);
+      if (!isPathInsideConfigHome(realPath)) {
+        throw new AppError('Provider config path resolves outside the user home directory.', {
+          code: 'PROVIDER_CONFIG_PATH_OUTSIDE_HOME',
+          statusCode: 403,
+        });
+      }
+      return;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      const parent = path.dirname(candidate);
+      if (parent === candidate) return;
+      candidate = parent;
+    }
+  }
+}
+
 const SENSITIVE_CONFIG_PATTERN = /(api[_-]?key|token|secret|password|authorization|bearer)\s*[:=]\s*["']?([^"'\n\r]+)/ig;
+const SENSITIVE_CONFIG_PLACEHOLDER = '[redacted — manage credentials in Settings → API credentials]';
 
 function redactProviderConfigPreview(contents: string): string {
   return contents.replace(SENSITIVE_CONFIG_PATTERN, (_match, key) => `${key}: [redacted]`);
+}
+
+function configPreview(descriptor: ProviderConfigFile, contents: string, maxLength: number): string {
+  if (descriptor.sensitive) return contents ? SENSITIVE_CONFIG_PLACEHOLDER : '';
+  return redactProviderConfigPreview(contents).slice(0, maxLength);
 }
 
 async function validateProviderConfigContents(descriptor: ProviderConfigFile, contents: string) {
@@ -733,7 +794,8 @@ async function validateProviderConfigContents(descriptor: ProviderConfigFile, co
     valid: true,
     format: descriptor.format,
     readonly: Boolean(descriptor.readonly),
-    preview: redactProviderConfigPreview(contents).slice(0, 4000),
+    sensitive: Boolean(descriptor.sensitive),
+    preview: configPreview(descriptor, contents, 4000),
   };
 }
 
@@ -746,12 +808,13 @@ async function buildProviderPluginState(provider: string) {
     let updatedAt: string | null = null;
     let preview = '';
     try {
+      await assertSafeConfigPath(absolutePath);
       const stat = await fs.stat(absolutePath);
       exists = stat.isFile();
       size = stat.size;
       updatedAt = stat.mtime.toISOString();
       if (exists && stat.size <= MAX_CONFIG_FILE_SIZE_BYTES) {
-        preview = redactProviderConfigPreview(await fs.readFile(absolutePath, 'utf8')).slice(0, 1200);
+        preview = configPreview(entry, await fs.readFile(absolutePath, 'utf8'), 1200);
       }
     } catch {
       // Missing config files are normal for CLIs that have not been used yet.
@@ -762,13 +825,15 @@ async function buildProviderPluginState(provider: string) {
       label: entry.label,
       format: entry.format,
       readonly: Boolean(entry.readonly),
+      sensitive: Boolean(entry.sensitive),
       relativePath: entry.relativePath,
       absolutePath,
       exists,
       size,
       updatedAt,
       preview,
-      canBackup: exists,
+      // Do not create additional plaintext copies of credential containers.
+      canBackup: exists && !entry.sensitive,
       canValidate: entry.format === 'json' || entry.format === 'env' || entry.format === 'toml' || entry.format === 'text',
     };
   }));
@@ -821,6 +886,7 @@ router.get(
         let size: number | null = null;
         let updatedAt: string | null = null;
         try {
+          await assertSafeConfigPath(absolutePath);
           const stat = await fs.stat(absolutePath);
           exists = stat.isFile();
           size = stat.size;
@@ -838,6 +904,7 @@ router.get(
           label: entry.label,
           format: entry.format,
           readonly: Boolean(entry.readonly),
+          sensitive: Boolean(entry.sensitive),
           description: entry.description ?? null,
           relativePath: entry.relativePath,
           absolutePath,
@@ -858,6 +925,7 @@ router.get(
     const provider = String(req.params.provider);
     const fileId = String(req.params.fileId);
     const { descriptor, absolutePath } = resolveConfigFile(provider, fileId);
+    await assertSafeConfigPath(absolutePath);
 
     try {
       const stat = await fs.stat(absolutePath);
@@ -879,12 +947,18 @@ router.get(
         label: descriptor.label,
         format: descriptor.format,
         readonly: Boolean(descriptor.readonly),
+        sensitive: Boolean(descriptor.sensitive),
         relativePath: descriptor.relativePath,
         absolutePath,
         exists: true,
         size: stat.size,
         updatedAt: stat.mtime.toISOString(),
-        contents,
+        // Credential-bearing files are intentionally never returned. Even
+        // admin users can use the encrypted credential controls instead;
+        // exposing plaintext here leaks into browser memory, devtools and
+        // proxy logs.
+        contents: descriptor.sensitive ? '' : contents,
+        redacted: Boolean(descriptor.sensitive),
       }));
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -895,12 +969,14 @@ router.get(
           label: descriptor.label,
           format: descriptor.format,
           readonly: Boolean(descriptor.readonly),
+          sensitive: Boolean(descriptor.sensitive),
           relativePath: descriptor.relativePath,
           absolutePath,
           exists: false,
           size: 0,
           updatedAt: null,
           contents: '',
+          redacted: Boolean(descriptor.sensitive),
         }));
         return;
       }
@@ -916,6 +992,7 @@ router.put(
     const provider = String(req.params.provider);
     const fileId = String(req.params.fileId);
     const { descriptor, absolutePath } = resolveConfigFile(provider, fileId);
+    await assertSafeConfigPath(absolutePath);
 
     if (descriptor.readonly) {
       throw new AppError(`${descriptor.label} is read-only`, {
@@ -968,6 +1045,7 @@ router.post(
     const provider = String(req.params.provider);
     const fileId = String(req.params.fileId);
     const { descriptor, absolutePath } = resolveConfigFile(provider, fileId);
+    await assertSafeConfigPath(absolutePath);
     const contents = typeof req.body?.contents === 'string'
       ? req.body.contents
       : await fs.readFile(absolutePath, 'utf8').catch(() => '');
@@ -977,10 +1055,18 @@ router.post(
 
 router.post(
   '/:provider/config-files/:fileId/backup',
+  requireProviderAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = String(req.params.provider);
     const fileId = String(req.params.fileId);
-    const { absolutePath } = resolveConfigFile(provider, fileId);
+    const { descriptor, absolutePath } = resolveConfigFile(provider, fileId);
+    await assertSafeConfigPath(absolutePath);
+    if (descriptor.sensitive) {
+      throw new AppError(`${descriptor.label} contains credentials and cannot be backed up here.`, {
+        code: 'PROVIDER_CONFIG_BACKUP_SENSITIVE',
+        statusCode: 403,
+      });
+    }
     const stat = await fs.stat(absolutePath);
     if (!stat.isFile()) {
       throw new AppError(`${absolutePath} is not a regular file`, {
@@ -990,6 +1076,7 @@ router.post(
     }
     const backupPath = `${absolutePath}.pixcode-backup-${Date.now()}`;
     await fs.copyFile(absolutePath, backupPath);
+    await fs.chmod(backupPath, 0o600).catch(() => {});
     res.json(createApiSuccessResponse({
       provider,
       fileId,

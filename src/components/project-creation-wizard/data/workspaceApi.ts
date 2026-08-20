@@ -1,4 +1,4 @@
-import { api } from '../../../utils/api';
+import { api, authenticatedFetch } from '../../../utils/api';
 import type {
   BrowseFilesystemResponse,
   CloneProgressEvent,
@@ -76,76 +76,173 @@ export const createWorkspaceRequest = async (payload: CreateWorkspacePayload) =>
   return data.project;
 };
 
-const buildCloneProgressQuery = ({
+const buildCloneProgressPayload = ({
   workspacePath,
   githubUrl,
   tokenMode,
   selectedGithubToken,
   newGithubToken,
 }: CloneWorkspaceParams) => {
-  const query = new URLSearchParams({
+  const payload: Record<string, string> = {
     path: workspacePath.trim(),
     githubUrl: githubUrl.trim(),
-  });
+  };
 
   if (tokenMode === 'stored' && selectedGithubToken) {
-    query.set('githubTokenId', selectedGithubToken);
+    payload.githubTokenId = selectedGithubToken;
   }
 
   if (tokenMode === 'new' && newGithubToken.trim()) {
-    query.set('newGithubToken', newGithubToken.trim());
+    payload.newGithubToken = newGithubToken.trim();
   }
 
-  // EventSource cannot send custom headers, so the auth token is passed as query.
-  const authToken = localStorage.getItem('auth-token');
-  if (authToken) {
-    query.set('token', authToken);
-  }
-
-  return query.toString();
+  return payload;
 };
 
-export const cloneWorkspaceWithProgress = (
+/**
+ * Clone a repository while consuming the server-sent progress stream.
+ *
+ * EventSource only supports GET and cannot attach Authorization headers, so
+ * this flow deliberately uses an authenticated POST with a streaming body.
+ * Keeping the credentials in the request body prevents them from appearing in
+ * browser history, proxy access logs, or copied URLs.
+ */
+export const cloneWorkspaceWithProgress = async (
   params: CloneWorkspaceParams,
   handlers: CloneProgressHandlers,
-) =>
-  new Promise<CreateWorkspaceResponse['project']>((resolve, reject) => {
-    const query = buildCloneProgressQuery(params);
-    const eventSource = new EventSource(`/api/projects/clone-progress?${query}`);
-    let settled = false;
+): Promise<CreateWorkspaceResponse['project']> => {
+  const response = await authenticatedFetch('/api/projects/clone-progress', {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify(buildCloneProgressPayload(params)),
+  });
 
-    const settle = (callback: () => void) => {
-      if (settled) {
+  if (!response.ok) {
+    let message = 'Failed to clone repository';
+    try {
+      const payload = (await response.json()) as { error?: string; message?: string; details?: string };
+      message = payload.error || payload.message || payload.details || message;
+    } catch {
+      // Keep the generic message when an auth/proxy error is not JSON.
+    }
+    throw new Error(message);
+  }
+
+  if (!response.body) {
+    throw new Error('Clone progress stream is unavailable');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let settled = false;
+  let completed = false;
+  let failure: Error | null = null;
+  let result: CreateWorkspaceResponse['project'];
+
+  const settle = (callback: () => void) => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    callback();
+    void reader.cancel().catch(() => {
+      // The server may already have closed the stream after complete/error.
+    });
+  };
+
+  const processEvent = (rawEvent: string) => {
+    const data = rawEvent
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trimStart())
+      .join('\n')
+      .trim();
+
+    if (!data) {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(data) as CloneProgressEvent;
+
+      if (payload.type === 'progress' && payload.message) {
+        handlers.onProgress(payload.message);
         return;
       }
-      settled = true;
-      eventSource.close();
-      callback();
-    };
 
-    eventSource.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as CloneProgressEvent;
-
-        if (payload.type === 'progress' && payload.message) {
-          handlers.onProgress(payload.message);
-          return;
-        }
-
-        if (payload.type === 'complete') {
-          settle(() => resolve(payload.project));
-          return;
-        }
-
-        if (payload.type === 'error') {
-          settle(() => reject(new Error(payload.message || 'Failed to clone repository')));
-        }
-      } catch (error) {
-        console.error('Error parsing clone progress event:', error);
+      if (payload.type === 'complete') {
+        settle(() => {
+          completed = true;
+          result = payload.project;
+        });
+        return;
       }
-    };
 
-    eventSource.onerror = () => {
-      settle(() => reject(new Error('Connection lost during clone')));
-    };
-  });
+      if (payload.type === 'error') {
+        settle(() => {
+          failure = new Error(payload.message || 'Failed to clone repository');
+        });
+      }
+    } catch (error) {
+      console.error('Error parsing clone progress event:', error);
+    }
+  };
+
+  const findEventBoundary = (value: string) => {
+    const match = /\r?\n\r?\n/.exec(value);
+    return match && typeof match.index === 'number'
+      ? { index: match.index, length: match[0].length }
+      : null;
+  };
+
+  try {
+    while (!settled) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+      let boundary = findEventBoundary(buffer);
+      while (boundary) {
+        const rawEvent = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary.length);
+        processEvent(rawEvent);
+        if (settled) {
+          break;
+        }
+        boundary = findEventBoundary(buffer);
+      }
+
+      if (done) {
+        break;
+      }
+    }
+
+    if (!settled && buffer.trim()) {
+      processEvent(buffer);
+    }
+  } catch (error) {
+    if (!settled) {
+      throw error instanceof Error ? error : new Error('Connection lost during clone');
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (failure) {
+    throw failure;
+  }
+
+  if (completed) {
+    return result;
+  }
+
+  if (settled) {
+    // Protect against a malformed terminal frame that settled without a
+    // project or an explicit error message.
+    throw new Error('Failed to clone repository');
+  }
+
+  throw new Error('Connection lost during clone');
+};

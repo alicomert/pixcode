@@ -13,10 +13,13 @@ import { requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/config', (req, res) => {
+router.get('/config', requireAdmin, (_req, res) => {
   res.json({ success: true, connection: getPublicRemoteConnectionConfig() });
 });
 
+// This stores an optional outbound health endpoint for this Pixcode server.
+// It deliberately does not proxy browser, terminal, filesystem, or WebSocket
+// traffic to another host; Electron remote-client mode is configured at launch.
 router.put('/config', requireAdmin, (req, res) => {
   try {
     const connection = saveRemoteConnectionConfig(req.body || {});
@@ -26,7 +29,7 @@ router.put('/config', requireAdmin, (req, res) => {
   }
 });
 
-router.post('/check', async (req, res) => {
+router.post('/check', requireAdmin, async (req, res) => {
   try {
     const health = await checkRemoteConnection(req.body && Object.keys(req.body).length ? req.body : undefined);
     res.json({ success: true, health, connection: getPublicRemoteConnectionConfig() });
@@ -35,7 +38,7 @@ router.post('/check', async (req, res) => {
   }
 });
 
-router.get('/control-room', async (_req, res) => {
+router.get('/control-room', requireAdmin, async (_req, res) => {
   try {
     res.json({
       success: true,

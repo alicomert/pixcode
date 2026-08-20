@@ -122,12 +122,12 @@
     "projectFiles": "Project Files",
     "landing": {
       "title": "Start a Pixcode workspace",
-      "description": "Choose a project, start a new chat, or launch Orchestration with one goal. Orchestration manages the CLI agents you select, shows every step, and surfaces errors directly.",
-      "startOrchestration": "Start Orchestration",
-      "startOrchestrationDescription": "Creates an automatic project and opens the Orchestration screen with agent control and run history.",
+      "description": "Choose a project, start a new chat, or run agent automation for one goal. NanoClaw coordinates the selected CLI agents, shows task progress, and surfaces errors directly.",
+      "startOrchestration": "Start agent automation",
+      "startOrchestrationDescription": "Creates an automatic project and opens the agent automation screen with task controls and run history.",
       "startChat": "Start a new chat",
       "startChatDescription": "Creates a folder automatically and opens the normal chat screen with one agent.",
-      "sidebarHint": "When you select an existing project from the sidebar, chat history, files, git status, tasks, and orchestration stay in the same main screen.",
+      "sidebarHint": "When you select an existing project from the sidebar, chat history, files, Git status, tasks, and agent automation stay in the same main screen.",
       "createProject": "Create New Project",
       "createProjectDescription": "Add an existing workspace or create a folder, then open the provider picker for coding."
     }

@@ -49,6 +49,10 @@ Key things to change from the copy:
 
 File: `server/services/provider-credentials.js`
 
+Provider API keys are kept in Pixcode's encrypted credential store. Do not
+read or write provider `.env` files from a new adapter; add only the environment
+variable names that should be injected into the child process.
+
 Add the env-var names Pixcode should propagate from its stored credentials into the provider's subprocess. Example:
 
 ```js
@@ -109,7 +113,9 @@ export const PROVIDER_CONFIG_FILES: Record<string, ProviderConfigFile[]> = {
       label: '.env',
       relativePath: '.new_provider/.env',
       format: 'env',
-      description: 'Environment variables.',
+      readonly: true,
+      sensitive: true,
+      description: 'Credential environment variables are managed in Settings → API credentials.',
     },
   ],
 };

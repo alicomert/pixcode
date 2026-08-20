@@ -36,8 +36,11 @@ export default function ShellHeader({
   return (
     <div className="flex-shrink-0 border-b border-gray-800 bg-gray-900/95 px-2 py-1">
       <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+        <div className="flex min-w-0 items-center gap-2" role="status" aria-live="polite">
+          <div
+            aria-hidden="true"
+            className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+          />
 
           {hasSession && sessionDisplayNameShort && (
             <span className="truncate text-[11px] text-blue-300">({sessionDisplayNameShort}...)</span>

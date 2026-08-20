@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pixcode Orchestration - Multi-agent Coding Workflows</title>
+    <title>Pixcode agent automation - NanoClaw and production loop</title>
     <meta
       name="description"
-      content="Pixcode orchestration coordinates Claude Code, Codex, Cursor CLI, Gemini CLI, Qwen Code, and OpenCode agents with roles, model selection, fallback CLI agents, workflow preview, streaming events, cancellation, review, handoff, and debate flows."
+      content="Current Pixcode agent automation uses NanoClaw for multi-CLI runs and schedules, with a production agent loop for administration, review, and CI workflows."
     />
     <meta
       name="keywords"
-      content="AI agent orchestration, multi agent coding workflow, Pixcode orchestration, Claude Code orchestration, Codex orchestration, OpenCode orchestration, AI code review workflow, multi model review, agent team coding"
+      content="Pixcode NanoClaw, multi-CLI automation, scheduled coding tasks, production agent loop, AI code review, self-hosted coding agents"
     />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
     <link rel="canonical" href="https://alicomert.github.io/pixcode/orchestration.html" />
@@ -26,7 +26,7 @@
       <div class="nav-links">
         <a href="docs.html">Documentation</a>
         <a href="features.html">Features</a>
-        <a href="orchestration.html">Orchestration</a>
+        <a href="orchestration.html">Automation migration</a>
         <a href="api-automation.html">API</a>
         <a href="https://github.com/alicomert/pixcode">GitHub</a>
       </div>
@@ -34,92 +34,100 @@
 
     <header class="hero docs-hero">
       <div>
-        <div class="eyebrow">Multi-agent workflows</div>
-        <h1>Orchestrate coding agents instead of babysitting terminals.</h1>
+        <div class="eyebrow">Current automation surface</div>
+        <h1>Run and schedule coding agents without babysitting terminals.</h1>
         <p class="lead">
-          Pixcode orchestration lets one goal become a structured workflow: multiple providers, separate roles, model choices, fallback agents, previewable graphs, streamed progress, and a final review path.
+          NanoClaw is Pixcode's maintained multi-CLI entry point. Start a one-shot run, create a durable schedule, inspect its output, and keep the same project context across the web UI, desktop wrapper, and terminal clients.
         </p>
       </div>
-      <div class="image-slot">
-        <span><strong>Orchestration hero slot</strong>Recommended: 1600 x 1000. Show left workflow setup, right run output, role rows, model selectors, and fallback agent selector.</span>
-      </div>
+      <figure class="doc-screenshot">
+        <img src="screenshots/desktop-main.png" alt="Pixcode desktop workspace with CLI automation surface" />
+        <figcaption>Agent work runs beside project context, files, and the CLI surface so reconnects do not hide state.</figcaption>
+      </figure>
     </header>
 
     <main>
       <section class="section">
-        <h2>Built-in workflow patterns</h2>
+        <h2>Built-in automation patterns</h2>
         <div class="grid two">
           <div class="card">
-            <strong>Agent Team</strong>
-            <p>Split a task across frontend, backend, review, docs, or custom roles. Each agent can have its own provider, model, label, and instruction.</p>
+            <strong>One-shot run</strong>
+            <p>Send a prompt to Claude Code, Codex, Cursor CLI, Gemini CLI, Qwen Code, OpenCode, or Grok through <code>POST /api/nanoclaw/run</code>. Pass <code>agentType</code> (or prefix the prompt with <code>[agent:codex]</code>) when you need a specific CLI.</p>
           </div>
           <div class="card">
-            <strong>Multi-model Review</strong>
-            <p>Ask different models or providers to inspect the same implementation. Useful for release risk, regressions, security-sensitive changes, and design critique.</p>
+            <strong>Scheduled task</strong>
+            <p>Create a once, interval, or cron task with <code>POST /api/nanoclaw/tasks</code>. The task queue stores status and recent run logs so a disconnected browser can safely reconnect later.</p>
           </div>
           <div class="card">
-            <strong>Sequential Handoff</strong>
-            <p>Run a task in stages where one agent prepares context, another implements, another reviews, and a final step summarizes.</p>
+            <strong>Durable lifecycle</strong>
+            <p>List and inspect tasks, then pause, resume, update, cancel, or delete them with the <code>/api/nanoclaw/tasks/:id</code> endpoints. The UI-compatible <code>/api/tasks</code> alias is available for existing clients.</p>
           </div>
           <div class="card">
-            <strong>Decision Debate</strong>
-            <p>Compare approaches before code changes begin. This is useful when architecture, API shape, or UX direction is uncertain.</p>
+            <strong>Production review loop</strong>
+            <p>Administrators can use <code>/api/production-agent-loop/*</code> for issue-to-PR automation, CI repair plans, review queues, scheduler jobs, snapshots, and desktop-release policy checks.</p>
           </div>
         </div>
       </section>
 
       <section class="section alt">
-        <h2>Run controls</h2>
+        <h2>Run controls that survive reconnects</h2>
         <p class="sublead">
-          Orchestration is not only a prompt box. It gives concrete controls that make multi-agent runs inspectable and recoverable.
+          NanoClaw keeps the control plane small and explicit. Every operation is authenticated, scoped, and safe to repeat from a mobile browser or a plain terminal.
         </p>
         <ul class="feature-list">
-          <li>Enable or disable agents before a run.</li>
-          <li>Duplicate a provider when multiple workers from the same CLI are needed.</li>
-          <li>Choose per-agent role, label, instruction, and stage.</li>
-          <li>Select models per agent, including OpenCode model choices.</li>
-          <li>Choose a fallback CLI agent for failures.</li>
-          <li>Preview the workflow DAG before execution.</li>
-          <li>Stream run events and inspect node state.</li>
-          <li>Cancel active workflow runs.</li>
-          <li>Resize left and right orchestration panes for desktop workflows.</li>
+          <li>Use a scoped <code>px_</code> API key in <code>Authorization: Bearer …</code> or <code>X-API-Key: …</code>.</li>
+          <li>Keep project context explicit with <code>projectId</code> and (for local trusted callers) <code>projectPath</code>.</li>
+          <li>Inspect <code>GET /api/nanoclaw/status</code> and <code>GET /api/nanoclaw/help</code> before automating.</li>
+          <li>List task state with <code>GET /api/nanoclaw/tasks?projectId=…</code>; fetch recent logs from the task detail endpoint.</li>
+          <li>Use a one-shot stream ticket from <code>POST /api/auth/stream-ticket</code> for browser SSE/WebSocket connections. Do not put reusable credentials in URLs.</li>
+          <li>Use production-agent-loop routes only with an administrator-scoped key; they are intentionally separate from end-user task scheduling.</li>
+          <li>For terminal-only users, the same REST calls work with curl, PowerShell, or any small HTTP client.</li>
         </ul>
       </section>
 
       <section class="section warm">
-        <h2>Orchestration API example</h2>
+        <h2>Run an agent from curl</h2>
         <p class="sublead">
-          The same system can be used by external tools through `px_` API keys.
+          This is the smallest current integration. It returns structured status, the selected agent, and bounded logs; no workflow graph or provider token is exposed.
         </p>
-        <div class="code-panel"><pre><code>curl http://localhost:3001/api/orchestration/workflows/agent_team/preview \
+        <div class="code-panel"><pre><code>curl -X POST http://localhost:3001/api/nanoclaw/run \
   -H "Authorization: Bearer px_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "metadata": {
-      "agents": [
-        { "adapterId": "codex", "label": "Backend", "role": "backend" },
-        { "adapterId": "claude", "label": "Frontend", "role": "frontend" },
-        { "adapterId": "opencode", "label": "Reviewer", "role": "review" }
-      ],
-      "settings": {
-        "maxParallelAgents": 3,
-        "isolation": "host"
-      }
-    }
+    "prompt": "summarize git status and list the next safe step",
+    "agentType": "codex",
+    "projectId": "my-app"
   }'</code></pre></div>
       </section>
 
-      <section class="section">
-        <h2>Screenshot slots</h2>
+      <section class="section alt">
+        <h2>Migration note for older workflow clients</h2>
+        <p class="sublead">
+          The pre-1.55 <code>/api/orchestration/*</code> workflow family is retired. Existing clients should move one operation at a time: replace a preview or run with <code>/api/nanoclaw/run</code>, replace scheduled workflows with <code>/api/nanoclaw/tasks</code>, and move administrator review/CI actions to <code>/api/production-agent-loop/*</code>. The public OpenAPI document and cookbook are the source of truth for request and response shapes.
+        </p>
         <div class="grid two">
-          <div class="image-slot wide"><span><strong>Workflow setup slot</strong>1600 x 1000. Show agent list, roles, models, fallback, and run button.</span></div>
-          <div class="image-slot wide"><span><strong>Workflow output slot</strong>1600 x 1000. Show streamed events, agent steps, final report, and review result.</span></div>
+          <div class="card"><strong>End-user automation</strong><p><code>tasks:read</code> and <code>tasks:write</code> scopes are enough for NanoClaw status, runs, schedules, and task lifecycle.</p></div>
+          <div class="card"><strong>Administrator automation</strong><p>Production agent loop endpoints require the corresponding <code>orchestration:read</code>/<code>orchestration:write</code> scopes and an admin account.</p></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Automation in the product</h2>
+        <div class="grid two">
+          <figure class="doc-screenshot">
+            <img src="screenshots/desktop-main.png" alt="Pixcode desktop agent workspace" />
+            <figcaption>Desktop: project navigation, active workbench, and CLI entry point remain visible together.</figcaption>
+          </figure>
+          <figure class="doc-screenshot">
+            <img src="screenshots/mobile-chat.png" alt="Pixcode mobile agent workspace" />
+            <figcaption>Mobile: task and project actions are presented as a focused, touch-friendly flow.</figcaption>
+          </figure>
         </div>
       </section>
     </main>
 
     <footer class="footer">
-      <strong>Pixcode orchestration</strong> · <a href="docs.html">Documentation</a> · <a href="api-automation.html">API automation</a>
+      <strong>Pixcode agent automation</strong> · <a href="docs.html">Documentation</a> · <a href="api-automation.html">API automation</a>
     </footer>
   </body>
 </html>

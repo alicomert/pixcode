@@ -1,5 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+
+import type { LLMProvider } from '../../types/app';
+import { useProviderModels, type ModelEntry } from '../../hooks/useProviderModels';
+import { useTaskMeta } from '../../hooks/useTasks';
+import type { CreateTaskInput } from '../../hooks/useTasks';
+import { cn } from '../../lib/utils';
+
+import type { AgentInfo, AgentType, TaskPriority, TaskRecurrence, TaskRole } from './types';
 
 import {
   AlertCircle,
@@ -12,14 +21,6 @@ import {
   X,
   Zap,
 } from '@/lib/icons';
-
-import type { LLMProvider } from '../../types/app';
-import { useProviderModels, type ModelEntry } from '../../hooks/useProviderModels';
-import { useTaskMeta } from '../../hooks/useTasks';
-import type { CreateTaskInput } from '../../hooks/useTasks';
-import { cn } from '../../lib/utils';
-
-import type { AgentInfo, AgentType, TaskPriority, TaskRecurrence, TaskRole } from './types';
 
 type TaskCreateDialogProps = {
   projectId: string;
@@ -111,6 +112,69 @@ export function TaskCreateDialog({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const creatingRef = useRef(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    creatingRef.current = creating;
+  }, [creating]);
+
+  // This full-screen task flow is a modal bottom sheet on mobile. Lock the
+  // page behind it, keep keyboard focus inside, and restore the trigger on
+  // close/unmount.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+        if (focusable.length > 0) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          const activeElement = document.activeElement;
+          if (event.shiftKey && (activeElement === first || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          } else if (!event.shiftKey && (activeElement === last || !dialogRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+
+      if (event.key !== 'Escape' || creatingRef.current) return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>('[data-task-create-close]')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, []);
 
   const provider = AGENT_PROVIDER[agentType];
   const { models, loading: modelsLoading, error: modelsError, refresh: refreshModels } = useProviderModels(provider, []);
@@ -178,13 +242,27 @@ export function TaskCreateDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-5">
-      <div className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:max-h-[90vh] sm:rounded-2xl">
+    <div
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] backdrop-blur-sm sm:items-center sm:p-5"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !creating) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pixcode-task-create-title"
+        className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-border bg-background shadow-2xl sm:max-h-[90vh] sm:rounded-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <div className="flex items-start justify-between border-b border-border px-5 py-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-base font-semibold text-foreground">
               <Sparkles className="h-4 w-4 text-primary" />
-              {t('taskSystem.create.title', { defaultValue: 'New background task' })}
+              <span id="pixcode-task-create-title">
+                {t('taskSystem.create.title', { defaultValue: 'New background task' })}
+              </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {t('taskSystem.create.flowHint', {
@@ -195,7 +273,7 @@ export function TaskCreateDialog({
               {projectLabel || projectId || t('taskSystem.create.projectRequired', { defaultValue: 'Select a workspace first' })}
             </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label={t('buttons.close')}>
+          <button type="button" data-task-create-close onClick={onClose} disabled={creating} className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50" aria-label={t('buttons.close')}>
             <X className="h-4 w-4" />
           </button>
         </div>

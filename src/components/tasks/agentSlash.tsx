@@ -1,7 +1,9 @@
-import { X } from '@/lib/icons';
 
 import { cn } from '../../lib/utils';
+
 import type { AgentType } from './types';
+
+import { X } from '@/lib/icons';
 
 export type AgentSlashId = 'claude' | 'opencode' | 'codex' | 'gemini' | 'cursor' | 'qwen' | 'grok';
 

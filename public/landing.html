@@ -6,11 +6,11 @@
     <title>Pixcode - Self-hosted AI Coding Agent Control Plane</title>
     <meta
       name="description"
-      content="Pixcode is a self-hosted AI coding control plane for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, VS Code-style workspaces, Monaco editing, terminal panels, Git, orchestration, Telegram, MCP, plugins, and API automation."
+      content="Pixcode is a self-hosted AI coding control plane for Claude Code, Cursor CLI, OpenAI Codex, Gemini CLI, Qwen Code, OpenCode, VS Code-style workspaces, Monaco editing, terminal panels, Git, NanoClaw tasks, production agent automation, Telegram, MCP, plugins, and API access."
     />
     <meta
       name="keywords"
-      content="Pixcode, AI coding agent UI, self hosted coding agent, Claude Code UI, OpenAI Codex UI, Cursor CLI UI, Gemini CLI UI, Qwen Code UI, OpenCode UI, Orchestration, coding agent orchestration, MCP manager, Telegram coding bot, local AI development workspace, AI coding dashboard"
+      content="Pixcode, AI coding agent UI, self hosted coding agent, Claude Code workspace, OpenAI Codex UI, Cursor CLI UI, Gemini CLI UI, Qwen Code UI, OpenCode UI, NanoClaw task automation, production agent loop, MCP manager, Telegram coding bot, local AI development workspace, AI coding dashboard"
     />
     <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
     <meta name="author" content="Pixcode Contributors" />
@@ -21,11 +21,12 @@
     <meta property="og:title" content="Pixcode - Self-hosted AI Coding Agent Control Plane" />
     <meta
       property="og:description"
-      content="Run AI coding CLIs, inspect files, manage terminal sessions and Git, orchestrate agent teams, and automate everything from your own machine or server."
+      content="Run AI coding CLIs, inspect files, manage terminal sessions and Git, coordinate agent work with NanoClaw, and automate from your own machine or server."
     />
     <meta property="og:url" content="https://alicomert.github.io/pixcode/landing.html" />
-    <meta property="og:image" content="https://alicomert.github.io/pixcode/logo.png" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://alicomert.github.io/pixcode/screenshots/pixcode-banner.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://alicomert.github.io/pixcode/screenshots/pixcode-banner.png" />
     <meta name="theme-color" content="#080a0c" />
     <script type="application/ld+json">
       {
@@ -34,8 +35,8 @@
         "name": "Pixcode",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "Windows, macOS, Linux, Web",
-        "description": "Self-hosted control plane for AI coding agents, coding CLIs, files, terminal panels, Git, orchestration, Telegram, MCP, plugins, and API automation.",
-        "softwareVersion": "1.48.0",
+        "description": "Self-hosted control plane for AI coding agents, coding CLIs, files, terminal panels, Git, NanoClaw tasks, production agent automation, Telegram, MCP, plugins, and API access.",
+        "softwareVersion": "1.64.2",
         "codeRepository": "https://github.com/alicomert/pixcode",
         "downloadUrl": "https://www.npmjs.com/package/@pixelbyte-software/pixcode",
         "isAccessibleForFree": true,
@@ -48,7 +49,7 @@
           "Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code, and OpenCode workspace",
           "VS Code-style project workspaces, Monaco editor tabs, terminal sessions, files, and source control",
           "Git and local changed-file command center",
-          "Multi-agent orchestration with roles, models, fallbacks, and handoffs",
+          "NanoClaw multi-CLI runs and production agent review automation",
           "REST and WebSocket API automation with px_ API keys",
           "Telegram bridge, browser notifications, MCP management, plugin support, and themes"
         ],
@@ -68,7 +69,7 @@
       <div class="nav-links">
         <a href="#what">What it does</a>
         <a href="#capabilities">Capabilities</a>
-        <a href="#orchestration">Orchestration</a>
+        <a href="#orchestration">Agent automation</a>
         <a href="#install">Install</a>
         <a href="docs.html">Docs</a>
         <a href="https://github.com/alicomert/pixcode">GitHub</a>
@@ -81,7 +82,7 @@
         <h1>Run every coding agent from one place.</h1>
         <p class="lead">
           Pixcode turns your machine or server into a live workspace for AI coding CLIs.
-          It keeps project workspaces, Monaco editor tabs, terminal panels, Git/local changes, orchestration,
+          It keeps project workspaces, Monaco editor tabs, terminal panels, Git/local changes, agent automation,
           Telegram, notifications, MCP, plugins, and API automation in one browser or desktop app.
         </p>
         <div class="actions">
@@ -106,7 +107,7 @@ open http://localhost:3001</code></pre>
           <span class="chip">Gemini CLI</span>
           <span class="chip">Qwen Code</span>
           <span class="chip">OpenCode</span>
-          <span class="chip">Orchestration</span>
+          <span class="chip">NanoClaw tasks</span>
           <span class="chip">MCP</span>
           <span class="chip">Telegram</span>
           <span class="chip">px_ API keys</span>
@@ -121,7 +122,7 @@ open http://localhost:3001</code></pre>
           <h2>Coding agents are powerful, but terminals alone do not show enough.</h2>
           <p>
             Pixcode adds the missing operating layer around provider-native CLIs: sessions,
-            visible progress, file changes, shell output, source control, orchestration history,
+            visible progress, file changes, shell output, source control, automation history,
             task planning, remote control, and API access.
           </p>
         </div>
@@ -151,13 +152,13 @@ open http://localhost:3001</code></pre>
           </article>
           <article class="capability-card">
             <span>04</span>
-            <h3>Orchestrate teams</h3>
-            <p>Run agent teams, sequential handoffs, multi-model reviews, and decision debates with per-agent roles and models.</p>
+            <h3>Run agent automation</h3>
+            <p>Use NanoClaw for multi-CLI conversations, one-shot runs, and schedules; use the production agent loop for review and CI administration.</p>
           </article>
           <article class="capability-card">
             <span>05</span>
-            <h3>Run Orchestration</h3>
-            <p>Route background review, verification, and workflow tasks through project-aware CLI adapters.</p>
+            <h3>Automate background work</h3>
+            <p>Keep project-aware task state, bounded events, schedules, and production review records in your own Pixcode instance.</p>
           </article>
           <article class="capability-card">
             <span>06</span>
@@ -180,19 +181,19 @@ open http://localhost:3001</code></pre>
       <section class="section">
         <div class="split">
           <div>
-            <div class="eyebrow">Agent orchestration</div>
-            <h2>When one agent is not enough, make the workflow explicit.</h2>
+            <div class="eyebrow">Agent automation</div>
+            <h2>Keep multi-CLI work explicit and observable.</h2>
             <p class="sublead">
-              Pixcode can split work across roles, pass compact context between stages,
-              compare outputs, and preserve the run history so you can understand what
-              each agent did and why.
+              NanoClaw keeps project context across multi-CLI conversations, one-shot runs,
+              and schedules. The production agent loop adds administrator review, CI repair,
+              checkpoints, and scheduler controls with a durable run history.
             </p>
           </div>
           <div class="flow-list">
-            <div><strong>Agent Team</strong><span>Parallel or staged workers for implementation, review, docs, and custom roles.</span></div>
-            <div><strong>Sequential Handoff</strong><span>Each step receives a compact summary of the previous step instead of a blind prompt.</span></div>
-            <div><strong>Multi-model Review</strong><span>Compare provider and model opinions before accepting an implementation.</span></div>
-            <div><strong>Fallback Agent</strong><span>Choose a backup CLI for failed orchestration steps.</span></div>
+            <div><strong>NanoClaw run</strong><span>Start a project-aware multi-CLI task with authenticated status and artifacts.</span></div>
+            <div><strong>Durable schedule</strong><span>Run `once`, `interval`, or `cron` tasks without keeping a browser tab open.</span></div>
+            <div><strong>Production review</strong><span>Track issue-to-PR plans, CI repair, review queues, and checkpoints.</span></div>
+            <div><strong>Bounded events</strong><span>Stream task progress safely through authenticated API and one-shot stream tickets.</span></div>
           </div>
         </div>
       </section>
@@ -200,18 +201,18 @@ open http://localhost:3001</code></pre>
       <section id="orchestration" class="section warm">
         <div class="split">
           <div>
-            <div class="eyebrow">Orchestration APIs</div>
+            <div class="eyebrow">Automation APIs</div>
             <h2>Let Pixcode coordinate background agent work.</h2>
             <p class="sublead">
-              Pixcode runs orchestration inside the current instance, knows the selected project, and exposes
-              authenticated endpoints for agent routing, workflow state, streamed
-              output, and artifacts.
+              Pixcode keeps the agent control plane inside your instance and exposes
+              authenticated endpoints for multi-CLI runs, durable schedules, streamed
+              output, artifacts, and production review automation.
             </p>
           </div>
           <div class="code-panel">
-            <pre><code>GET /api/orchestration/agents
-GET /api/orchestration/tasks
-GET /api/orchestration/workflows/runs/:runId</code></pre>
+            <pre><code>POST /api/nanoclaw/run
+POST /api/nanoclaw/tasks
+GET  /api/production-agent-loop/review-queue</code></pre>
           </div>
         </div>
       </section>
@@ -260,7 +261,7 @@ pixcode daemon status --mode auto</code></pre></div>
       <strong>Pixcode</strong> · self-hosted AI coding agent control plane ·
       <a href="docs.html">Documentation</a> ·
       <a href="features.html">Features</a> ·
-      <a href="orchestration.html">Orchestration</a> ·
+      <a href="orchestration.html">Migration context</a> ·
       <a href="api-automation.html">API</a> ·
       <a href="https://github.com/alicomert/pixcode">GitHub</a>
     </footer>

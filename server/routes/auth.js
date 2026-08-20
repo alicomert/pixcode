@@ -18,12 +18,15 @@ import {
   getQrLoginSettings,
   saveQrLoginSettings,
 } from '../services/qr-login.js';
-import {
-  getPublicRemoteConnectionConfig,
-  saveRemoteConnectionConfig,
-} from '../services/remote-connection.js';
+import { issueStreamAuthTicket, getStreamAuthTicketTtlMs } from '../services/stream-auth-ticket.js';
 
 const router = express.Router();
+
+// JSON-backed auth storage does not provide a database transaction across an
+// `await bcrypt.hash(...)`. Keep first-run registration single-flight inside
+// this process so two simultaneous setup requests cannot both observe an
+// empty store and create competing administrator accounts.
+let initialRegistrationInFlight = false;
 
 function publicUser(user) {
   return {
@@ -44,26 +47,6 @@ router.get('/status', async (req, res) => {
   } catch (error) {
     console.error('Auth status error:', error);
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// First-run connection mode is intentionally public: it is needed before
-// account creation so a fresh desktop install can decide whether it controls
-// this machine or a remote Pixcode server.
-router.get('/connection-mode', (req, res) => {
-  res.json({ success: true, connection: getPublicRemoteConnectionConfig() });
-});
-
-// Connection mode is always public — it is needed during initial setup
-// BEFORE any users exist, and later for reading the current config.
-// Admin-only writes were causing "Access denied. No token provided" on
-// first-run registration. We trust the desktop wrapper / local network
-// to prevent remote abuse.
-router.put('/connection-mode', (req, res) => {
-  try {
-    res.json({ success: true, connection: saveRemoteConnectionConfig(req.body || {}) });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
   }
 });
 
@@ -116,6 +99,50 @@ router.post('/qr-login', authRateLimiter, (req, res) => {
   }
 });
 
+/**
+ * Mint a short-lived, single-use credential for EventSource/WebSocket URLs.
+ * Browsers cannot attach Authorization headers to those handshakes, so the
+ * opaque ticket avoids putting a reusable JWT/API key in history and proxy
+ * logs.  The stream route still enforces its normal role/project middleware.
+ */
+router.post('/stream-ticket', authenticateToken, authRateLimiter, (req, res) => {
+  try {
+    const requestedPath = typeof req.body?.path === 'string' ? req.body.path.trim() : '';
+    const transport = req.body?.transport === 'ws' ? 'ws' : 'sse';
+    const isPluginWebSocketPath = requestedPath.startsWith('/plugin-ws/')
+      && /^\/plugin-ws\/[A-Za-z0-9_-]+$/u.test(requestedPath);
+    if (!requestedPath || (!requestedPath.startsWith('/api/')
+      && requestedPath !== '/ws'
+      && requestedPath !== '/shell'
+      && !isPluginWebSocketPath)) {
+      return res.status(400).json({ success: false, error: 'A valid stream path is required.' });
+    }
+
+    const ticket = issueStreamAuthTicket({
+      userId: req.user.id,
+      path: requestedPath,
+      transport,
+      method: transport === 'ws' ? 'GET' : 'GET',
+      apiKeyId: req.user.api_key_id || null,
+      apiKeyScopes: req.user.api_key_scopes || null,
+      apiKeyHasExplicitScopes: req.user.api_key_has_explicit_scopes === true
+        || (Array.isArray(req.user.api_key_scopes) && req.user.api_key_scopes.length > 0),
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({
+      success: true,
+      ticket: ticket.ticket,
+      expiresAt: ticket.expiresAt,
+      ttlMs: getStreamAuthTicketTtlMs(),
+      path: ticket.path,
+      transport: ticket.transport,
+      method: ticket.method,
+    });
+  } catch (error) {
+    return res.status(400).json({ success: false, error: error.message || 'Unable to issue stream ticket.' });
+  }
+});
+
 // User registration (setup) - only allowed if no users exist
 router.post('/register', authRateLimiter, async (req, res) => {
   try {
@@ -136,6 +163,12 @@ router.post('/register', authRateLimiter, async (req, res) => {
     if (!passwordValidation.valid) {
       return res.status(400).json({ error: passwordValidation.error });
     }
+
+    if (initialRegistrationInFlight) {
+      return res.status(409).json({ error: 'Initial registration is already in progress. Please try again shortly.' });
+    }
+
+    initialRegistrationInFlight = true;
     
     // Use a transaction to prevent race conditions
     db.prepare('BEGIN').run();
@@ -176,6 +209,8 @@ router.post('/register', authRateLimiter, async (req, res) => {
     } catch (error) {
       db.prepare('ROLLBACK').run();
       throw error;
+    } finally {
+      initialRegistrationInFlight = false;
     }
     
   } catch (error) {

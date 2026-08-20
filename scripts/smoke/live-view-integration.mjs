@@ -19,49 +19,10 @@ const canBindLoopback = () => new Promise((resolve) => {
   });
 });
 
-const appTypes = await read('src/types/app.ts');
-assert.ok(
-  appTypes.includes("'liveView'"),
-  'AppTab should include the Live View tab.',
-);
-
-const projectsState = await read('src/hooks/useProjectsState.ts');
-assert.ok(
-  projectsState.includes("'liveView'"),
-  'Persisted tab validation should allow Live View.',
-);
-
-const tabSwitcher = await read('src/components/main-content/view/subcomponents/MainContentTabSwitcher.tsx');
-assert.ok(
-  /id:\s*'liveView'/.test(tabSwitcher),
-  'Main tab switcher should render Live View after Changes.',
-);
-assert.ok(
-  tabSwitcher.indexOf("id: 'changes'") < tabSwitcher.indexOf("id: 'liveView'"),
-  'Live View should be placed after Changes.',
-);
-assert.ok(
-  /sidePanelTabs\s*=\s*new Set<AppTab>\(\[[^\]]*'liveView'/.test(tabSwitcher),
-  'Live View should use the same split/full side-panel behavior as Files, Source Control, and Changes.',
-);
-
-const mainContent = await read('src/components/main-content/view/MainContent.tsx');
-assert.ok(
-  mainContent.includes('LiveViewPanel'),
-  'MainContent should render the Live View panel.',
-);
-assert.ok(
-  /sidePanelTabs\s*=\s*new Set<AppTab>\(\[[^\]]*'liveView'/.test(mainContent),
-  'MainContent should classify Live View as a side panel instead of a full main tab.',
-);
-assert.ok(
-  /renderSidePanel\s*=\s*\(tab:[^)]*'liveView'/.test(mainContent),
-  'MainContent should render Live View from renderSidePanel.',
-);
-assert.ok(
-  !mainContent.includes("activeTab === 'liveView' && ("),
-  'Live View must not render as a full-width primary tab.',
-);
+// The standalone Live View panel/runtime remains supported, but the legacy
+// top-level AppTab integration was removed when navigation moved to the
+// workbench/task surfaces. Keep this smoke focused on the shipped panel and
+// runtime contract instead of requiring the retired tab wiring.
 
 const liveViewPanel = await read('src/components/live-view/LiveViewPanel.tsx');
 assert.ok(
@@ -130,6 +91,7 @@ assert.ok(
 );
 
 const serverIndex = await read('server/index.js');
+const liveViewRoutes = await read('server/routes/live-view.js');
 assert.ok(
   serverIndex.includes("app.use('/api/live-view', authenticateToken, liveViewRoutes)"),
   'Live View protected API should be mounted.',
@@ -142,15 +104,39 @@ assert.ok(
   serverIndex.indexOf("app.use('/live', createLiveViewPublicRouter())") < serverIndex.indexOf("express.static(path.join(APP_ROOT, 'dist')"),
   'Live View public proxy must be mounted before static app fallback.',
 );
+assert.ok(
+  liveViewRoutes.includes("['GET', 'HEAD'].includes")
+    && liveViewRoutes.includes("redirect: 'manual'")
+    && liveViewRoutes.includes('redirect outside its loopback origin'),
+  'Live View public proxy must be read-only and must not follow redirects outside loopback.',
+);
 
 const {
   detectLiveViewTarget,
   getLiveViewState,
+  parseLocalUpstreamUrl,
   startLiveView,
   stopLiveView,
 } = await import('../../server/services/live-view.js');
 const { ensureManagedRuntime, getManagedRuntimeStatus } = await import('../../server/services/managed-runtimes.js');
 const workspace = await mkdtemp(path.join(tmpdir(), 'pixcode-live-view-smoke-'));
+
+assert.deepEqual(
+  parseLocalUpstreamUrl('http://127.0.0.1:4173/'),
+  { protocol: 'http:', host: '127.0.0.1', port: 4173, url: 'http://127.0.0.1:4173' },
+  'Live View should accept a loopback upstream URL.',
+);
+assert.equal(
+  parseLocalUpstreamUrl('http://127.0.0.1:4173@attacker.example/'),
+  null,
+  'Live View must reject user-info URLs that turn a loopback-looking prefix into an external host.',
+);
+assert.equal(
+  parseLocalUpstreamUrl('http://attacker.example:4173/'),
+  null,
+  'Live View must reject external upstream hosts parsed from process output.',
+);
+
 const staticProject = path.join(workspace, 'static');
 const viteProject = path.join(workspace, 'vite');
 const djangoProject = path.join(workspace, 'django');
@@ -394,12 +380,17 @@ const brokenStatus = await getManagedRuntimeStatus('frankenphp', {
 });
 assert.equal(brokenStatus.status, 'missing', 'Broken managed FrankenPHP manifests should be treated as missing so Pixcode can reinstall them.');
 
-if (await canBindLoopback()) {
+if (process.platform === 'win32') {
+  // The downloaded FrankenPHP binary depends on the host VC++ runtime. Keep
+  // static/runtime detection assertions above, but do not make this smoke
+  // require a native Windows toolchain on CI hosts without that redistributable.
+  console.warn('Skipping Live View process-launch smoke on Windows (native PHP runtime dependency).');
+} else if (await canBindLoopback()) {
   const phpRuntimeEnvHome = path.join(workspace, 'php-runtime-env');
   const phpRuntimeCurrent = path.join(phpRuntimeEnvHome, 'frankenphp', 'current');
   await mkdir(phpRuntimeCurrent, { recursive: true });
-  const phpRuntimeExecutable = path.join(phpRuntimeCurrent, process.platform === 'win32' ? 'frankenphp.cmd' : 'frankenphp');
-  await writeFile(phpRuntimeExecutable, [
+  const phpRuntimeExecutable = path.join(phpRuntimeCurrent, 'frankenphp');
+  const phpRuntimeScript = [
     '#!/usr/bin/env node',
     'const http = require("node:http");',
     'const path = require("node:path");',
@@ -413,7 +404,8 @@ if (await canBindLoopback()) {
     'const port = Number(process.env.PORT || 0);',
     'http.createServer((req, res) => res.end("php runtime ok")).listen(port, "127.0.0.1");',
     '',
-  ].join('\n'));
+  ].join('\n');
+  await writeFile(phpRuntimeExecutable, phpRuntimeScript);
   if (process.platform !== 'win32') {
     await chmod(phpRuntimeExecutable, 0o755);
   }

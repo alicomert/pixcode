@@ -30,7 +30,67 @@ const os = require('node:os');
 const path = require('node:path');
 
 const SERVER_PORT = Number(process.env.SERVER_PORT) || 3001;
-const SERVER_URL = `http://localhost:${SERVER_PORT}`;
+const LOOPBACK_HOST = '127.0.0.1';
+
+function normalizeDesktopBindHost(value) {
+  const candidate = String(value || '').trim();
+  if (!candidate || candidate.length > 253 || /[\u0000-\u0020/\\?#]/u.test(candidate)) return null;
+  if (net.isIP(candidate) > 0) return candidate;
+  if (/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/iu.test(candidate)) {
+    return candidate;
+  }
+  return null;
+}
+
+function resolveDesktopBindHost() {
+  const explicit = normalizeDesktopBindHost(process.env.PIXCODE_DESKTOP_HOST);
+  if (explicit) return explicit;
+  if (process.env.PIXCODE_DESKTOP_HOST) {
+    console.warn('[desktop] Ignoring invalid PIXCODE_DESKTOP_HOST; using loopback.');
+  }
+  return process.env.PIXCODE_DESKTOP_ALLOW_LAN === '1' ? '0.0.0.0' : LOOPBACK_HOST;
+}
+
+const DESKTOP_BIND_HOST = resolveDesktopBindHost();
+const DESKTOP_CONNECT_HOST = DESKTOP_BIND_HOST === '0.0.0.0' || DESKTOP_BIND_HOST === '::'
+  ? LOOPBACK_HOST
+  : DESKTOP_BIND_HOST;
+const LOCAL_URL_HOST = net.isIP(DESKTOP_CONNECT_HOST) === 6
+  ? `[${DESKTOP_CONNECT_HOST}]`
+  : DESKTOP_CONNECT_HOST;
+const LOCAL_SERVER_URL = `http://${LOCAL_URL_HOST}:${SERVER_PORT}`;
+
+// Optional remote-client mode for thin desktop clients.  Set
+// `PIXCODE_REMOTE_URL=https://pixcode.example.com` to load an already-running
+// Pixcode server instead of spawning a second local daemon.  Credentials are
+// entered by the normal Pixcode login screen; no API key is persisted by the
+// wrapper.  Reject clear-text remote hosts so an accidental LAN deployment
+// cannot silently expose credentials over the network.
+function resolveRemoteUrl() {
+  const raw = String(process.env.PIXCODE_REMOTE_URL || process.env.PIXCODE_DESKTOP_REMOTE_URL || '').trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const loopback = ['localhost', '127.0.0.1', '::1'].includes(hostname);
+    if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && loopback)) {
+      console.warn('[remote] PIXCODE_REMOTE_URL must use https (http is allowed only for localhost).');
+      return null;
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+      console.warn('[remote] PIXCODE_REMOTE_URL must not contain credentials, query strings, or fragments.');
+      return null;
+    }
+    return parsed.toString().replace(/\/+$/, '');
+  } catch (error) {
+    console.warn('[remote] Invalid PIXCODE_REMOTE_URL:', error?.message || error);
+    return null;
+  }
+}
+
+const REMOTE_SERVER_URL = resolveRemoteUrl();
+const REMOTE_MODE = Boolean(REMOTE_SERVER_URL);
+const SERVER_URL = REMOTE_SERVER_URL || LOCAL_SERVER_URL;
 const APP_ID = 'com.pixelbytesoftware.pixcode';
 const PIXCODE_PKG = '@pixelbyte-software/pixcode';
 const RESTART_FOR_UPDATE_EXIT_CODE = 42;
@@ -78,7 +138,7 @@ const defaultSettings = () => ({
   minimizeToTray: true,
   notificationsEnabled: true,
   // On boot, try npm install @pixelbyte-software/pixcode@latest into the
-  // writable runtime so old EXEs are not stuck on bundled 1.53/1.54.
+  // writable runtime so older EXEs can pick up the current runtime.
   autoPullRuntime: true,
 });
 
@@ -283,15 +343,23 @@ function tryPullLatestRuntimeFromNpm(runtimeDir) {
   }
 
   const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  // `.cmd` shims return EINVAL with shell:false on Windows. Keep npm
+  // arguments fixed and pass the userData path through npm_config_prefix so
+  // it is never interpolated into a shell command line.
   console.log(`[bootstrap] Checking npm for ${PIXCODE_PKG}@latest…`);
   const install = spawnSync(
     npmCmd,
-    ['install', `${PIXCODE_PKG}@latest`, '--prefix', pullRoot, '--no-fund', '--no-audit', '--no-fund'],
+    ['install', `${PIXCODE_PKG}@latest`, '--no-fund', '--no-audit'],
     {
       encoding: 'utf8',
       timeout: 180_000,
       windowsHide: true,
-      env: { ...process.env, npm_config_fund: 'false' },
+      shell: process.platform === 'win32',
+      env: {
+        ...process.env,
+        npm_config_fund: 'false',
+        npm_config_prefix: pullRoot,
+      },
     },
   );
   if (install.status !== 0) {
@@ -366,7 +434,7 @@ function ensureRuntimeDir() {
     );
   }
 
-  // Prefer registry latest over a stale ASAR (old EXE can still get 1.60.x runtime).
+  // Prefer registry latest over a stale ASAR (old EXE can still carry an older runtime).
   try {
     tryPullLatestRuntimeFromNpm(runtimeDir);
   } catch (err) {
@@ -391,7 +459,7 @@ function probePort(port, timeoutMs = 500) {
     socket.once('connect', () => done(true));
     socket.once('timeout', () => done(false));
     socket.once('error', () => done(false));
-    socket.connect(port, '127.0.0.1');
+    socket.connect(port, DESKTOP_CONNECT_HOST);
   });
 }
 
@@ -444,7 +512,7 @@ function startServer(runtimeDir) {
       PIXCODE_NO_DAEMON: '1',
       PIXCODE_RUNTIME_DIR: runtimeDir,
       SERVER_PORT: String(SERVER_PORT),
-      HOST: '0.0.0.0',
+      HOST: DESKTOP_BIND_HOST,
       NODE_ENV: 'production',
       NODE_PATH: nodePath,
     },
@@ -533,6 +601,7 @@ function startServer(runtimeDir) {
 }
 
 function stopServer() {
+  if (REMOTE_MODE) return;
   if (!serverProcess) return;
   intentionalQuit = true;
   try { serverProcess.kill(); } catch (_) {}
@@ -713,8 +782,51 @@ function loadErrorScreen(win, message) {
   win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(errorHtml(message, true))).catch(() => {});
 }
 
+function isPixcodeNavigation(url) {
+  try {
+    const parsed = new URL(url);
+    // Splash/error documents are loaded programmatically via data: URLs, but
+    // user-initiated navigations must never be allowed to turn the main window
+    // into an arbitrary data document.  Keeping this allowlist origin-based
+    // prevents untrusted renderer content from reaching the preload surface.
+    return parsed.origin === new URL(SERVER_URL).origin;
+  } catch {
+    return false;
+  }
+}
+
+function openExternalPopup(url) {
+  let parsed;
+  try { parsed = new URL(url); } catch { return false; }
+  if (parsed.protocol !== 'https:') return false;
+  const popup = new BrowserWindow({
+    width: 1024,
+    height: 768,
+    show: false,
+    autoHideMenuBar: true,
+    title: 'External Link',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  popup.webContents.setWindowOpenHandler(({ url: nestedUrl }) => {
+    openExternalPopup(nestedUrl);
+    return { action: 'deny' };
+  });
+  popup.loadURL(parsed.toString()).catch(() => {});
+  popup.once('ready-to-show', () => popup.show());
+  return true;
+}
+
 // Intercept our own `pixcode://` action links fired from the error HTML.
 app.on('web-contents-created', (_event, contents) => {
+  // The handler below protects the Pixcode shell.  External-link popups are
+  // intentionally independent browsing surfaces and must be allowed to
+  // navigate within their own HTTPS origin without recursively spawning more
+  // windows.
+  if (!mainWindow || contents !== mainWindow.webContents) return;
   contents.on('will-navigate', (event, url) => {
     if (url === 'pixcode://retry') {
       event.preventDefault();
@@ -723,12 +835,23 @@ app.on('web-contents-created', (_event, contents) => {
       event.preventDefault();
       stopServer();
       app.quit();
+    } else if (!isPixcodeNavigation(url)) {
+      event.preventDefault();
+      openExternalPopup(url);
     }
   });
 });
 
 async function retryBoot() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (REMOTE_MODE) {
+    serverReady = true;
+    rebuildTrayMenu();
+    mainWindow.loadURL(SERVER_URL).catch((error) => {
+      loadErrorScreen(mainWindow, `Failed to load ${SERVER_URL}: ${error?.message || error}`);
+    });
+    return;
+  }
   loadSplash(mainWindow);
   try {
     const runtime = ensureRuntimeDir();
@@ -872,7 +995,9 @@ function rebuildTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: serverReady ? `Running on :${SERVER_PORT}` : 'Starting server…',
+      label: REMOTE_MODE
+        ? `Remote server: ${REMOTE_SERVER_URL}`
+        : (serverReady ? `Running on :${SERVER_PORT}` : 'Starting server…'),
       enabled: false,
     },
     {
@@ -881,6 +1006,7 @@ function rebuildTrayMenu() {
     },
     {
       label: 'Update product runtime (npm latest)',
+      enabled: !REMOTE_MODE,
       click: () => {
         try {
           const runtimeDir = path.join(app.getPath('userData'), 'pixcode-runtime');
@@ -920,7 +1046,9 @@ function rebuildTrayMenu() {
     },
   ]);
   tray.setContextMenu(menu);
-  tray.setToolTip(`Pixcode — ${serverReady ? 'running' : 'starting…'} on :${SERVER_PORT}`);
+  tray.setToolTip(REMOTE_MODE
+    ? `Pixcode — remote ${REMOTE_SERVER_URL}`
+    : `Pixcode — ${serverReady ? 'running' : 'starting…'} on :${SERVER_PORT}`);
 }
 
 function createTray() {
@@ -961,6 +1089,26 @@ function createMainWindow() {
 
   loadSplash(mainWindow);
 
+  // `web-contents-created` fires while BrowserWindow is still being
+  // constructed, before the `mainWindow` variable receives its value.  The
+  // global listener above therefore cannot reliably attach to this window.
+  // Attach the navigation policy directly as well so retry/quit links from
+  // the data: splash and accidental cross-origin navigations are always
+  // handled.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url === 'pixcode://retry') {
+      event.preventDefault();
+      retryBoot();
+    } else if (url === 'pixcode://quit') {
+      event.preventDefault();
+      stopServer();
+      app.quit();
+    } else if (!isPixcodeNavigation(url)) {
+      event.preventDefault();
+      openExternalPopup(url);
+    }
+  });
+
   mainWindow.once('ready-to-show', () => {
     if (!process.argv.includes('--hidden')) mainWindow.show();
   });
@@ -979,24 +1127,17 @@ function createMainWindow() {
   // inside a new Electron BrowserWindow instead of launching the user's
   // system browser (Chrome, Firefox, etc.). Keeps everything in one place.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Don't redirect localhost — that's the app itself
-    if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
+    // OAuth starts by opening a synchronous about:blank window in the
+    // renderer (to satisfy mobile/desktop popup blockers), then navigates that
+    // window to the server-provided GitHub authorization URL. Electron must
+    // allow the initial blank child; routing it through openExternalPopup()
+    // would reject the non-HTTPS placeholder before the OAuth URL arrives.
+    if (url === 'about:blank' || url.startsWith('about:blank#')) {
       return { action: 'allow' };
     }
-    // External URLs open in a new Electron window, not Chrome
-    const popup = new BrowserWindow({
-      width: 1024,
-      height: 768,
-      show: false,
-      autoHideMenuBar: true,
-      title: 'External Link',
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-    popup.loadURL(url).catch(() => {});
-    popup.once('ready-to-show', () => popup.show());
+    if (isPixcodeNavigation(url)) return { action: 'allow' };
+    openExternalPopup(url);
+    // Don't redirect localhost — that's the app itself
     return { action: 'deny' };
   });
 }
@@ -1022,6 +1163,15 @@ app.whenReady().then(async () => {
 
   createTray();
   createMainWindow();
+
+  if (REMOTE_MODE) {
+    serverReady = true;
+    rebuildTrayMenu();
+    mainWindow.loadURL(SERVER_URL).catch((err) => {
+      loadErrorScreen(mainWindow, `Failed to load ${SERVER_URL}: ${err?.message || err}`);
+    });
+    return;
+  }
 
   let runtimeDir;
   try {

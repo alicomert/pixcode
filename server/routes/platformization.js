@@ -31,6 +31,13 @@ import {
 
 const router = express.Router();
 
+// Platformization mutates host-wide state (team membership, encrypted
+// secrets, marketplace entries, remote tunnels, audit/evaluation data).  The
+// router is mounted after authenticateToken, but ordinary members must not be
+// able to call these APIs merely because they have a valid login.  Keep the
+// policy centralized so newly added endpoints inherit it by default.
+router.use(requireAdmin);
+
 function userId(req) {
   return req.user?.id ?? req.user?.userId ?? null;
 }

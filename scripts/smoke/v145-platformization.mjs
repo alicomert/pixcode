@@ -35,6 +35,26 @@ const server = read('server/index.js');
 assert.match(server, /platformizationRoutes/, 'Server should import platformization routes.');
 assert.match(server, /\/api\/platformization/, 'Server should mount platformization routes.');
 
+const projects = read('server/routes/projects.js');
+assert.match(projects, /WORKSPACES_USERS_BASE/, 'Member workspaces should use a per-user root.');
+assert.match(projects, /allowedRoot/, 'Workspace validation should enforce an allowed root.');
+assert.match(projects, /requireWorkspaceUser/, 'Workspace routes should accept authenticated members through a scoped guard.');
+assert.match(projects, /userHasWorkspacePathAccess/, 'Shared workspace paths should use collaborator path permissions.');
+
+const gitConfig = read('server/utils/gitConfig.js');
+assert.match(gitConfig, /isSafeGithubCloneUrl/, 'Git clone sources should use a centralized GitHub URL guard.');
+assert.match(gitConfig, /Local\/file URLs/i, 'Clone URL guard should document local/file rejection.');
+
+const agent = read('server/routes/agent.js');
+assert.match(agent, /isSafeGithubCloneUrl/, 'Agent clone API should validate GitHub clone sources.');
+
+const nanoclaw = read('server/modules/nanoclaw/bridge.js');
+assert.match(nanoclaw, /requireTaskScope/, 'NanoClaw API keys should be constrained by task scopes.');
+assert.match(nanoclaw, /resolveRequestProjectPath/, 'NanoClaw runs should resolve an authorized workspace before execution.');
+assert.match(nanoclaw, /privateWorkspaceRootFor/, 'Path-less member NanoClaw runs should use private workspaces.');
+const nanoclawPath = read('server/modules/nanoclaw/project-path.js');
+assert.match(nanoclawPath, /realpathSync/, 'NanoClaw project paths should canonicalize symlinks before execution.');
+
 const docs = read('docs/platformization.md');
 assert.match(docs, /RBAC/i, 'Docs should explain RBAC/team mode.');
 assert.match(docs, /Secret Vault/i, 'Docs should explain the secret vault.');

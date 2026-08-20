@@ -6,11 +6,16 @@ import os from 'os';
 import express from 'express';
 
 import { addProjectManually, extractProjectDirectory } from '../projects.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { credentialsDb } from '../database/db.js';
+import {
+  ensureProjectCollaborator,
+  isAdminUser,
+  userHasWorkspacePathAccess,
+} from '../services/platformization.js';
 import {
   buildGitSpawnEnv,
   getActiveGithubToken,
-  withGithubToken,
+  isSafeGithubCloneUrl,
 } from '../utils/gitConfig.js';
 
 const router = express.Router();
@@ -32,6 +37,7 @@ export const WORKSPACES_ROOT = process.env.WORKSPACES_ROOT || os.homedir();
 export const WORKSPACES_BASE = path.resolve(
   process.env.WORKSPACES_BASE || path.join(WORKSPACES_ROOT, 'pixcode', 'projects')
 );
+export const WORKSPACES_USERS_BASE = path.join(WORKSPACES_BASE, 'users');
 
 // System-critical paths that should never be used as workspace directories.
 // `/root` is conditional — included only when the server is NOT running as
@@ -77,10 +83,40 @@ const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[A-Za-z]:[\\/]/;
 function isPathWithin(basePath, targetPath) {
   const normalizedBase = path.normalize(basePath);
   const normalizedTarget = path.normalize(targetPath);
-  return (
-    normalizedTarget === normalizedBase ||
-    normalizedTarget.startsWith(normalizedBase + path.sep)
-  );
+  const relative = path.relative(normalizedBase, normalizedTarget);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+/**
+ * Return the private workspace root assigned to a non-admin account.
+ * Numeric database ids are deliberately used instead of usernames so a
+ * renamed account cannot escape its existing root and path separators can
+ * never be smuggled into the directory name.
+ */
+export function getUserWorkspaceRoot(user) {
+  const userId = Number(user?.id ?? user?.userId);
+  if (!Number.isSafeInteger(userId) || userId <= 0) {
+    throw new Error('A numeric user id is required for a private workspace root.');
+  }
+  return path.join(WORKSPACES_USERS_BASE, String(userId));
+}
+
+function normalizeWorkspacePathForRoot(requestedPath, rootPath) {
+  const root = path.resolve(rootPath);
+  if (typeof requestedPath !== 'string') return root;
+
+  const trimmedPath = requestedPath.trim();
+  if (!trimmedPath || trimmedPath === '~') return root;
+  if (trimmedPath.startsWith('~/') || trimmedPath.startsWith('~\\')) {
+    return path.join(root, trimmedPath.slice(2));
+  }
+
+  const isWindowsAbsolutePath = WINDOWS_ABSOLUTE_PATH_PATTERN.test(trimmedPath);
+  if (!path.isAbsolute(trimmedPath) && !isWindowsAbsolutePath) {
+    return path.join(root, trimmedPath);
+  }
+
+  return path.resolve(trimmedPath);
 }
 
 async function realpathOrResolved(targetPath) {
@@ -95,29 +131,7 @@ async function realpathOrResolved(targetPath) {
 }
 
 export function normalizeWorkspacePath(requestedPath) {
-  if (typeof requestedPath !== 'string') {
-    return WORKSPACES_BASE;
-  }
-
-  const trimmedPath = requestedPath.trim();
-  if (!trimmedPath) {
-    return WORKSPACES_BASE;
-  }
-
-  if (trimmedPath === '~') {
-    return WORKSPACES_BASE;
-  }
-
-  if (trimmedPath.startsWith('~/') || trimmedPath.startsWith('~\\')) {
-    return path.join(WORKSPACES_BASE, trimmedPath.slice(2));
-  }
-
-  const isWindowsAbsolutePath = WINDOWS_ABSOLUTE_PATH_PATTERN.test(trimmedPath);
-  if (!path.isAbsolute(trimmedPath) && !isWindowsAbsolutePath) {
-    return path.join(WORKSPACES_BASE, trimmedPath);
-  }
-
-  return path.resolve(trimmedPath);
+  return normalizeWorkspacePathForRoot(requestedPath, WORKSPACES_BASE);
 }
 
 /**
@@ -125,7 +139,7 @@ export function normalizeWorkspacePath(requestedPath) {
  * @param {string} requestedPath - The path to validate
  * @returns {Promise<{valid: boolean, resolvedPath?: string, error?: string}>}
  */
-export async function validateWorkspacePath(requestedPath) {
+export async function validateWorkspacePath(requestedPath, { allowedRoot = null } = {}) {
   try {
     if (typeof requestedPath !== 'string' || requestedPath.trim().length === 0) {
       return {
@@ -136,7 +150,12 @@ export async function validateWorkspacePath(requestedPath) {
 
     // Resolve aliases and relative paths into a safe default base.
     // Example: "my-app" -> "<WORKSPACES_BASE>/my-app"
-    const normalizedInputPath = normalizeWorkspacePath(requestedPath);
+    const resolvedAllowedRoot = allowedRoot
+      ? path.normalize(await realpathOrResolved(allowedRoot))
+      : null;
+    const normalizedInputPath = resolvedAllowedRoot
+      ? normalizeWorkspacePathForRoot(requestedPath, resolvedAllowedRoot)
+      : normalizeWorkspacePath(requestedPath);
 
     // Resolve to absolute path
     let absolutePath = path.resolve(normalizedInputPath);
@@ -217,6 +236,16 @@ export async function validateWorkspacePath(requestedPath) {
       }
     }
 
+    // Non-admin callers pass a private root. Check the real path (not only
+    // the textual path) so an existing symlink or a symlinked parent cannot
+    // redirect writes outside that root.
+    if (resolvedAllowedRoot && !isPathWithin(resolvedAllowedRoot, realPath)) {
+      return {
+        valid: false,
+        error: 'Workspace path must stay inside your private workspace root',
+      };
+    }
+
     // Symlink safety: if the chosen path is a symlink, make sure its
     // target doesn't dive into a forbidden system directory. The plain
     // FORBIDDEN_PATHS check above only sees the link path itself.
@@ -227,6 +256,12 @@ export async function validateWorkspacePath(requestedPath) {
       if (stats.isSymbolicLink()) {
         const linkTarget = await fs.readlink(absolutePath);
         const resolvedTarget = path.resolve(path.dirname(absolutePath), linkTarget);
+        if (resolvedAllowedRoot && !isPathWithin(resolvedAllowedRoot, resolvedTarget)) {
+          return {
+            valid: false,
+            error: 'Workspace symlink must stay inside your private workspace root',
+          };
+        }
         const realTarget = path.normalize(await fs.realpath(resolvedTarget));
 
         for (const forbidden of FORBIDDEN_PATHS) {
@@ -302,6 +337,84 @@ async function projectHasAnySessions(workspacePath) {
   return false;
 }
 
+function requireWorkspaceUser(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Access denied. No authenticated user.' });
+  }
+  return next();
+}
+
+function encodedProjectNameForPath(projectPath) {
+  return path.resolve(projectPath).replace(/[\\/:\s~_]/g, '-');
+}
+
+function privateWorkspacePathFor(user, targetPath) {
+  if (isAdminUser(user)) return true;
+  let root;
+  try {
+    root = getUserWorkspaceRoot(user);
+  } catch {
+    return false;
+  }
+  return isPathWithin(root, targetPath);
+}
+
+/**
+ * Existing projects can be shared by an administrator through the
+ * platformization collaborator table. Members may reopen those exact roots,
+ * while all new/clone writes remain in their private root.
+ */
+function memberCanOpenExistingPath(user, targetPath) {
+  if (isAdminUser(user) || privateWorkspacePathFor(user, targetPath)) return true;
+  return userHasWorkspacePathAccess(user, targetPath, 'viewFiles');
+}
+
+/**
+ * Ensure the per-user workspace root exists and still resolves inside the
+ * Pixcode workspace base.  Shell/terminal callers use this for a path-less
+ * request so member accounts never fall back to the daemon's home directory.
+ */
+export async function ensurePrivateWorkspaceRoot(user) {
+  const root = getUserWorkspaceRoot(user);
+  const validation = await validateWorkspacePath(root, { allowedRoot: WORKSPACES_BASE });
+  if (!validation.valid) {
+    throw new Error(validation.error || 'Private workspace root is not safe.');
+  }
+  await fs.mkdir(root, { recursive: true });
+  const resolvedBase = path.normalize(await realpathOrResolved(WORKSPACES_BASE));
+  const resolvedRoot = path.normalize(await fs.realpath(root));
+  if (!isPathWithin(resolvedBase, resolvedRoot)) {
+    throw new Error('Private workspace root resolves outside the Pixcode workspace base.');
+  }
+  return root;
+}
+
+async function grantCreatedProjectAccess(project, user) {
+  if (!project || !user || isAdminUser(user)) return;
+  const projectPath = project.fullPath || project.path;
+  if (!projectPath) return;
+  await ensureProjectCollaborator({
+    projectName: project.name,
+    projectPath,
+    userId: user.id ?? user.userId,
+    userRef: user.username,
+    role: 'partner',
+    allowedRoots: ['.'],
+  }, user.id ?? user.userId);
+}
+
+function projectFromAlreadyConfigured(absolutePath, displayName = null) {
+  return {
+    name: encodedProjectNameForPath(absolutePath),
+    path: absolutePath,
+    fullPath: absolutePath,
+    displayName: displayName || path.basename(absolutePath),
+    isManuallyAdded: true,
+    sessions: [],
+    cursorSessions: [],
+  };
+}
+
 /**
  * GET /api/projects/:projectName/dir-status
  *
@@ -315,12 +428,15 @@ async function projectHasAnySessions(workspacePath) {
  * composer and surface a "directory deleted" warning instead of letting
  * the user fire prompts into a void.
  */
-router.get('/:projectName/dir-status', requireAdmin, async (req, res) => {
+router.get('/:projectName/dir-status', requireWorkspaceUser, async (req, res) => {
   const { projectName } = req.params;
   try {
     const actualPath = await extractProjectDirectory(projectName);
     if (!actualPath) {
       return res.json({ exists: false, path: null, isDirectory: false });
+    }
+    if (!memberCanOpenExistingPath(req.user, actualPath)) {
+      return res.status(403).json({ error: 'Project access denied.' });
     }
     try {
       const stat = await fs.stat(actualPath);
@@ -353,13 +469,16 @@ router.get('/:projectName/dir-status', requireAdmin, async (req, res) => {
  * matches ChatGPT's "New chat" which reuses the empty canvas until the
  * user actually commits a message.
  */
-router.post('/quick-start', requireAdmin, async (req, res) => {
+router.post('/quick-start', requireWorkspaceUser, async (req, res) => {
   try {
-    await fs.mkdir(WORKSPACES_BASE, { recursive: true });
+    const workspaceBase = isAdminUser(req.user)
+      ? WORKSPACES_BASE
+      : await ensurePrivateWorkspaceRoot(req.user);
+    await fs.mkdir(workspaceBase, { recursive: true });
 
     let entries = [];
     try {
-      entries = await fs.readdir(WORKSPACES_BASE, { withFileTypes: true });
+      entries = await fs.readdir(workspaceBase, { withFileTypes: true });
     } catch { /* empty is fine */ }
 
     // Pixcode-owned slots, sorted by numeric index so reuse is deterministic
@@ -374,7 +493,14 @@ router.post('/quick-start', requireAdmin, async (req, res) => {
 
     // 1. First pass: reuse the lowest-indexed slot that has no sessions.
     for (const slot of existingSlots) {
-      const absolutePath = path.join(WORKSPACES_BASE, slot.name);
+      const absolutePath = path.join(workspaceBase, slot.name);
+      const slotValidation = await validateWorkspacePath(
+        absolutePath,
+        isAdminUser(req.user) ? {} : { allowedRoot: workspaceBase },
+      );
+      if (!slotValidation.valid) {
+        continue;
+      }
       const used = await projectHasAnySessions(absolutePath);
       if (!used) {
         let project;
@@ -386,16 +512,9 @@ router.post('/quick-start', requireAdmin, async (req, res) => {
           // instead of creating a duplicate.
           const msg = err?.message || '';
           if (!/already configured/i.test(msg)) throw err;
-          project = {
-            name: absolutePath.replace(/[\\/:]/g, '-').replace(/\./g, '-'),
-            path: absolutePath,
-            fullPath: absolutePath,
-            displayName: slot.name,
-            isManuallyAdded: true,
-            sessions: [],
-            cursorSessions: [],
-          };
+          project = projectFromAlreadyConfigured(absolutePath, slot.name);
         }
+        await grantCreatedProjectAccess(project, req.user);
         return res.json({
           success: true,
           project,
@@ -415,9 +534,17 @@ router.post('/quick-start', requireAdmin, async (req, res) => {
       }
     }
     const name = `pixcode-project-${nextIndex}`;
-    const absolutePath = path.join(WORKSPACES_BASE, name);
+    const absolutePath = path.join(workspaceBase, name);
+    const nextValidation = await validateWorkspacePath(
+      absolutePath,
+      isAdminUser(req.user) ? {} : { allowedRoot: workspaceBase },
+    );
+    if (!nextValidation.valid) {
+      return res.status(400).json({ error: 'Private workspace slot is not safe', details: nextValidation.error });
+    }
     await fs.mkdir(absolutePath, { recursive: true });
     const project = await addProjectManually(absolutePath);
+    await grantCreatedProjectAccess(project, req.user);
 
     res.json({ success: true, project, suggestedName: name, reused: false });
   } catch (error) {
@@ -437,9 +564,19 @@ router.post('/quick-start', requireAdmin, async (req, res) => {
  * - githubTokenId?: number (optional, ID of stored token)
  * - newGithubToken?: string (optional, one-time token)
  */
-router.post('/create-workspace', requireAdmin, async (req, res) => {
+router.post('/create-workspace', requireWorkspaceUser, async (req, res) => {
   try {
     const { workspaceType, path: workspacePath, githubUrl, githubTokenId, newGithubToken, subfolderName } = req.body;
+
+    // Keep one-time GitHub credentials bounded and out of malformed numeric
+    // lookups.  Clone-progress already applies these guards; the wizard's
+    // direct create-workspace path must enforce the same limits.
+    if (newGithubToken !== undefined && (typeof newGithubToken !== 'string' || newGithubToken.length > 512)) {
+      return res.status(400).json({ error: 'GitHub credential must be a short string.' });
+    }
+    if (githubTokenId !== undefined && githubTokenId !== null && !/^\d+$/u.test(String(githubTokenId))) {
+      return res.status(400).json({ error: 'GitHub token id is invalid.' });
+    }
 
     // Validate required fields
     if (!workspaceType || !workspacePath) {
@@ -453,8 +590,25 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'workspaceType must be "existing", "new", or "subfolder"' });
     }
 
-    // Validate path safety before any operations
-    const validation = await validateWorkspacePath(workspacePath);
+    const admin = isAdminUser(req.user);
+    if (githubUrl && !isSafeGithubCloneUrl(githubUrl)) {
+      return res.status(400).json({ error: 'Clone source must be a GitHub HTTPS or SSH repository.' });
+    }
+    const privateRoot = admin ? null : await ensurePrivateWorkspaceRoot(req.user);
+
+    // Members may create/clone only below their private root. Re-opening an
+    // administrator-shared existing project is allowed when the collaborator
+    // table grants view access to that exact project path.
+    let validation = await validateWorkspacePath(
+      workspacePath,
+      privateRoot ? { allowedRoot: privateRoot } : {},
+    );
+    if (!validation.valid && !admin && workspaceType === 'existing') {
+      const sharedValidation = await validateWorkspacePath(workspacePath);
+      if (sharedValidation.valid && memberCanOpenExistingPath(req.user, sharedValidation.resolvedPath)) {
+        validation = sharedValidation;
+      }
+    }
     if (!validation.valid) {
       return res.status(400).json({
         error: 'Invalid workspace path',
@@ -498,15 +652,10 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
         const msg = error?.message || '';
         if (!/already configured/i.test(msg)) throw error;
         alreadyExisted = true;
-        project = {
-          name: absolutePath.replace(/[\\/:]/g, '-').replace(/\./g, '-'),
-          path: absolutePath,
-          fullPath: absolutePath,
-          displayName: path.basename(absolutePath),
-          isManuallyAdded: true,
-          sessions: [],
-          cursorSessions: [],
-        };
+        project = projectFromAlreadyConfigured(absolutePath);
+      }
+      if (privateWorkspacePathFor(req.user, absolutePath)) {
+        await grantCreatedProjectAccess(project, req.user);
       }
 
       return res.json({
@@ -552,7 +701,10 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
       // Validate the resulting path too — don't let "subfolder=foo/../../etc"
       // bypass the parent-only check above. validateWorkspacePath already
       // rejects symlink escapes and FORBIDDEN_PATHS.
-      const childValidation = await validateWorkspacePath(childPath);
+      const childValidation = await validateWorkspacePath(
+        childPath,
+        privateRoot ? { allowedRoot: privateRoot } : {},
+      );
       if (!childValidation.valid) {
         return res.status(400).json({
           error: 'Invalid subfolder path',
@@ -584,16 +736,9 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
         const msg = error?.message || '';
         if (!/already configured/i.test(msg)) throw error;
         subAlreadyExisted = true;
-        subProject = {
-          name: childAbsolute.replace(/[\\/:]/g, '-').replace(/\./g, '-'),
-          path: childAbsolute,
-          fullPath: childAbsolute,
-          displayName: trimmedName,
-          isManuallyAdded: true,
-          sessions: [],
-          cursorSessions: [],
-        };
+        subProject = projectFromAlreadyConfigured(childAbsolute, trimmedName);
       }
+      await grantCreatedProjectAccess(subProject, req.user);
 
       return res.json({
         success: true,
@@ -631,7 +776,18 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
         // Extract repo name from URL for the clone destination
         const normalizedUrl = githubUrl.replace(/\/+$/, '').replace(/\.git$/, '');
         const repoName = normalizedUrl.split('/').pop() || 'repository';
+        if (!repoName || repoName === '.' || repoName === '..' || /[\\/]/.test(repoName)) {
+          return res.status(400).json({ error: 'Invalid repository name in GitHub URL' });
+        }
         const clonePath = path.join(absolutePath, repoName);
+
+        const cloneValidation = await validateWorkspacePath(
+          clonePath,
+          privateRoot ? { allowedRoot: privateRoot } : {},
+        );
+        if (!cloneValidation.valid) {
+          return res.status(400).json({ error: 'Invalid clone destination', details: cloneValidation.error });
+        }
 
         // Check if clone destination already exists to prevent data loss
         try {
@@ -662,6 +818,7 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
 
         // Add the cloned repo path to the project list
         const project = await addProjectManually(clonePath);
+        await grantCreatedProjectAccess(project, req.user);
 
         return res.json({
           success: true,
@@ -672,6 +829,7 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
 
       // Add the new workspace to the project list (no clone)
       const project = await addProjectManually(absolutePath);
+      await grantCreatedProjectAccess(project, req.user);
 
       return res.json({
         success: true,
@@ -693,11 +851,10 @@ router.post('/create-workspace', requireAdmin, async (req, res) => {
  * Helper function to get GitHub token from database
  */
 async function getGithubTokenById(tokenId, userId) {
-  const { db } = await import('../database/db.js');
-
-  const credential = db.prepare(
-    'SELECT * FROM user_credentials WHERE id = ? AND user_id = ? AND credential_type = ? AND is_active = 1'
-  ).get(tokenId, userId, 'github_token');
+  // Use the credential repository so encrypted-at-rest values are decrypted
+  // only for this request. Direct SQL would hand the git process ciphertext.
+  const normalizedId = /^\d+$/.test(String(tokenId)) ? Number(tokenId) : tokenId;
+  const credential = credentialsDb.getCredentialById(userId, normalizedId, 'github_token');
 
   // Return in the expected format (github_token field for compatibility)
   if (credential) {
@@ -712,13 +869,36 @@ async function getGithubTokenById(tokenId, userId) {
 
 /**
  * Clone repository with progress streaming (SSE)
- * GET /api/projects/clone-progress
+ * POST /api/projects/clone-progress
+ *
+ * The request is intentionally POST-based: workspace paths and GitHub
+ * credentials must not be placed in an EventSource URL where browser/history
+ * and reverse-proxy logs can retain them.  A GET handler remains below for
+ * older clients that only use stored credentials.
  */
-router.get('/clone-progress', async (req, res) => {
-  const { path: workspacePath, githubUrl, githubTokenId, newGithubToken } = req.query;
+const cloneProgressHandler = async (req, res) => {
+  const source = req.method === 'POST' ? (req.body || {}) : (req.query || {});
+  const { path: workspacePath, githubUrl, githubTokenId, newGithubToken } = source;
+
+  if (newGithubToken !== undefined && (typeof newGithubToken !== 'string' || newGithubToken.length > 512)) {
+    return res.status(400).json({ error: 'GitHub credential must be a short string.' });
+  }
+  if (githubTokenId !== undefined && githubTokenId !== null && !/^\d+$/u.test(String(githubTokenId))) {
+    return res.status(400).json({ error: 'GitHub token id is invalid.' });
+  }
+
+  // Refuse the old, unsafe transport for pasted tokens instead of allowing a
+  // PAT to appear in access logs. Stored credential IDs remain supported for
+  // compatibility with older frontends.
+  if (req.method === 'GET' && newGithubToken) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(410).json({
+      error: 'This clone flow now requires POST so credentials stay out of URLs.',
+    });
+  }
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-store, no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
@@ -733,7 +913,18 @@ router.get('/clone-progress', async (req, res) => {
       return;
     }
 
-    const validation = await validateWorkspacePath(workspacePath);
+    const privateRoot = isAdminUser(req.user)
+      ? null
+      : await ensurePrivateWorkspaceRoot(req.user);
+    if (!isSafeGithubCloneUrl(githubUrl)) {
+      sendEvent('error', { message: 'Clone source must be a GitHub HTTPS or SSH repository.' });
+      res.end();
+      return;
+    }
+    const validation = await validateWorkspacePath(
+      workspacePath,
+      privateRoot ? { allowedRoot: privateRoot } : {},
+    );
     if (!validation.valid) {
       sendEvent('error', { message: validation.error });
       res.end();
@@ -762,7 +953,21 @@ router.get('/clone-progress', async (req, res) => {
 
     const normalizedUrl = githubUrl.replace(/\/+$/, '').replace(/\.git$/, '');
     const repoName = normalizedUrl.split('/').pop() || 'repository';
+    if (!repoName || repoName === '.' || repoName === '..' || /[\\/]/.test(repoName)) {
+      sendEvent('error', { message: 'Invalid repository name in GitHub URL' });
+      res.end();
+      return;
+    }
     const clonePath = path.join(absolutePath, repoName);
+    const cloneValidation = await validateWorkspacePath(
+      clonePath,
+      privateRoot ? { allowedRoot: privateRoot } : {},
+    );
+    if (!cloneValidation.valid) {
+      sendEvent('error', { message: cloneValidation.error });
+      res.end();
+      return;
+    }
 
     // Check if clone destination already exists to prevent data loss
     try {
@@ -774,7 +979,9 @@ router.get('/clone-progress', async (req, res) => {
       // Directory doesn't exist, which is what we want
     }
 
-    const cloneUrl = withGithubToken(githubUrl, githubToken) || githubUrl;
+    // Keep credentials out of argv and git's diagnostic output.  The token is
+    // injected through a short-lived HTTP extraHeader in buildGitSpawnEnv.
+    const cloneUrl = githubUrl;
     if (!githubToken && /github\.com/i.test(githubUrl)) {
       sendEvent('progress', { message: 'No GitHub token configured — public repos only. Add a PAT in Settings → Git / API keys for private repos.' });
     }
@@ -807,6 +1014,7 @@ router.get('/clone-progress', async (req, res) => {
       if (code === 0) {
         try {
           const project = await addProjectManually(clonePath);
+          await grantCreatedProjectAccess(project, req.user);
           sendEvent('complete', { project, message: 'Repository cloned successfully' });
         } catch (error) {
           sendEvent('error', { message: `Clone succeeded but failed to add project: ${error.message}` });
@@ -850,14 +1058,20 @@ router.get('/clone-progress', async (req, res) => {
     sendEvent('error', { message: error.message });
     res.end();
   }
-});
+};
+
+// Cloning starts a git process. Authenticated members are allowed to use the
+// flow, but cloneProgressHandler constrains their destination to the private
+// per-user workspace root; admins retain the historical full-path behavior.
+router.post('/clone-progress', requireWorkspaceUser, cloneProgressHandler);
+router.get('/clone-progress', requireWorkspaceUser, cloneProgressHandler);
 
 /**
  * Helper function to clone a GitHub repository
  */
 function cloneGitHubRepository(githubUrl, destinationPath, githubToken = null) {
   return new Promise((resolve, reject) => {
-    const cloneUrl = withGithubToken(githubUrl, githubToken) || githubUrl;
+    const cloneUrl = githubUrl;
 
     const gitProcess = spawn('git', ['clone', '--progress', cloneUrl, destinationPath], {
       stdio: ['ignore', 'pipe', 'pipe'],

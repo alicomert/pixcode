@@ -69,6 +69,10 @@ export function securityLog(event, details = {}) {
         ensureLogDir();
         rotateLogIfNeeded();
         fs.appendFileSync(SECURITY_LOG_PATH, line + '\n', { mode: 0o600 });
+        // `mode` is ignored when the file already exists. Re-apply the
+        // private mode after rotation/append so older installations do not
+        // leave authentication telemetry world-readable.
+        try { fs.chmodSync(SECURITY_LOG_PATH, 0o600); } catch { /* best effort */ }
     } catch {
         // Fall back to console if file logging fails
         console.warn('[SECURITY]', line);
@@ -76,8 +80,19 @@ export function securityLog(event, details = {}) {
 }
 
 export function getClientIp(req) {
+    // Express computes `req.ip` using the application's configured trust-proxy
+    // policy. Prefer it over reading X-Forwarded-For directly; doing the
+    // latter lets a directly exposed client spoof a new address for every
+    // login/rate-limit attempt.
+    if (typeof req?.ip === 'string' && req.ip.trim()) {
+        return req.ip.trim();
+    }
+
     const forwarded = req?.headers?.['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim()) {
+    const trustProxy = req?.app?.get?.('trust proxy');
+    const proxyTrusted = trustProxy === true
+        || (Number.isInteger(trustProxy) && trustProxy > 0);
+    if (proxyTrusted && typeof forwarded === 'string' && forwarded.trim()) {
         return forwarded.split(',')[0].trim();
     }
     return req?.socket?.remoteAddress || req?.ip || 'unknown';

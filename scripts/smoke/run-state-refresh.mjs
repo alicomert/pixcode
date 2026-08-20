@@ -11,8 +11,6 @@ const chatRealtime = readFileSync('src/components/chat/hooks/useChatRealtimeHand
 const chatSession = readFileSync('src/components/chat/hooks/useChatSessionState.ts', 'utf8');
 const chatInterface = readFileSync('src/components/chat/view/ChatInterface.tsx', 'utf8');
 const changedFilesHook = readFileSync('src/hooks/useChangedFilesMonitor.ts', 'utf8');
-const orchestrationPage = readFileSync('src/components/orchestration/OrchestrationPage.tsx', 'utf8');
-const runPanel = readFileSync('src/components/orchestration/workflows/WorkflowRunPanel.tsx', 'utf8');
 
 assert.ok(
   refreshUtil.includes('PIXCODE_RUN_STATE_REFRESH_EVENT') && refreshUtil.includes('dispatchRunStateRefresh'),
@@ -39,14 +37,21 @@ assert.ok(
   'Changed-files monitor should refresh on canonical run-state events.',
 );
 
-assert.ok(
-  orchestrationPage.includes('mergeRunSnapshot') && orchestrationPage.includes('dispatchRunStateRefresh'),
-  'Orchestration page should merge run snapshots and dispatch terminal refresh events.',
-);
-
-assert.ok(
-  runPanel.includes('onRunSnapshot') && runPanel.includes('onRunSnapshot?.(nextRun)'),
-  'Workflow run panel should push run snapshots back to the parent list.',
-);
+const orchestrationPagePath = 'src/components/orchestration/OrchestrationPage.tsx';
+const runPanelPath = 'src/components/orchestration/workflows/WorkflowRunPanel.tsx';
+if (existsSync(orchestrationPagePath) && existsSync(runPanelPath)) {
+  const orchestrationPage = readFileSync(orchestrationPagePath, 'utf8');
+  const runPanel = readFileSync(runPanelPath, 'utf8');
+  assert.ok(
+    orchestrationPage.includes('mergeRunSnapshot') && orchestrationPage.includes('dispatchRunStateRefresh'),
+    'Orchestration page should merge run snapshots and dispatch terminal refresh events.',
+  );
+  assert.ok(
+    runPanel.includes('onRunSnapshot') && runPanel.includes('onRunSnapshot?.(nextRun)'),
+    'Workflow run panel should push run snapshots back to the parent list.',
+  );
+} else {
+  console.log('run state refresh smoke: orchestration checks skipped (retired; use task system)');
+}
 
 console.log('run state refresh smoke passed');

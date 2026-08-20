@@ -21,6 +21,14 @@ function existsDir(p) {
   }
 }
 
+function canonicalExistingDir(p) {
+  try {
+    return fs.realpathSync.native(path.resolve(p));
+  } catch {
+    return path.resolve(p);
+  }
+}
+
 function looksLikeAbsolutePath(value) {
   if (!value || typeof value !== 'string') return false;
   if (path.isAbsolute(value)) return true;
@@ -38,7 +46,7 @@ function looksLikeAbsolutePath(value) {
 export async function resolveNanoclawProjectPath({ projectId, projectPath } = {}) {
   const explicit = typeof projectPath === 'string' ? projectPath.trim() : '';
   if (explicit && existsDir(explicit)) {
-    return path.resolve(explicit);
+    return canonicalExistingDir(explicit);
   }
 
   const id = typeof projectId === 'string' ? projectId.trim() : '';
@@ -48,7 +56,7 @@ export async function resolveNanoclawProjectPath({ projectId, projectPath } = {}
 
   // Client sometimes sends the real path as projectId
   if (looksLikeAbsolutePath(id) && existsDir(id)) {
-    return path.resolve(id);
+    return canonicalExistingDir(id);
   }
 
   // Only trusted source for named projects: registry / originalPath
@@ -59,7 +67,7 @@ export async function resolveNanoclawProjectPath({ projectId, projectPath } = {}
       new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
     ]);
     if (fromReg && existsDir(fromReg)) {
-      return path.resolve(fromReg);
+      return canonicalExistingDir(fromReg);
     }
   } catch {
     /* ignore */

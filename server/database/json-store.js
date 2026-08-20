@@ -77,6 +77,15 @@ export class JsonStore {
       return;
     }
 
+    // Existing stores created before the permissions hardening may still be
+    // world-readable. Tighten the mode before parsing password hashes and
+    // encrypted credentials. lstat avoids chmod-following a replaced symlink.
+    try {
+      if (fs.lstatSync(this.filePath).isFile()) {
+        fs.chmodSync(this.filePath, 0o600);
+      }
+    } catch { /* best effort on Windows/read-only filesystems */ }
+
     try {
       const raw = fs.readFileSync(this.filePath, 'utf8');
       const parsed = JSON.parse(raw);
@@ -107,7 +116,13 @@ export class JsonStore {
   _flush() {
     const serialized = JSON.stringify(this.data, null, 2);
     fs.writeFileSync(this.tmpPath, serialized, 'utf8');
+    // The JSON store contains password hashes, API-key fingerprints and
+    // encrypted provider/GitHub credentials. Keep both the temporary file
+    // and the atomically-renamed target private on POSIX hosts. (Windows
+    // ignores Unix mode bits, but this remains harmless there.)
+    try { fs.chmodSync(this.tmpPath, 0o600); } catch { /* best effort */ }
     fs.renameSync(this.tmpPath, this.filePath);
+    try { fs.chmodSync(this.filePath, 0o600); } catch { /* best effort */ }
   }
 
   // ---------- Raw access ----------

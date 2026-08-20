@@ -186,16 +186,33 @@
 
   html, body {
     height: 100%;
+    min-height: 100%;
     margin: 0;
     padding: 0;
+  }
+
+  /* Dynamic viewport units prevent the app from sitting underneath the
+     browser chrome or virtual keyboard on mobile Safari/Chrome. Keep the
+     100vh fallback for older WebViews that do not understand 100dvh. */
+  @supports (height: 100dvh) {
+    html, body {
+      min-height: 100dvh;
+    }
   }
   
   /* Root element with safe area padding for PWA */
   #root {
     min-height: 100vh;
+    height: 100%;
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+  }
+
+  @supports (height: 100dvh) {
+    #root {
+      min-height: 100dvh;
+    }
   }
   
   /* Apply safe area padding in standalone mode */
@@ -213,7 +230,7 @@
   body.pwa-mode #root {
     padding-left: var(--safe-area-inset-left);
     padding-right: var(--safe-area-inset-right);
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
   }
 
@@ -674,7 +691,15 @@
       min-height: 44px;
       min-width: 44px;
     }
-    
+
+    /* iOS zooms focused controls smaller than 16px. Keep the composer at a
+       readable size and avoid the viewport jumping when the keyboard opens. */
+    [data-slot="prompt-input-textarea"] {
+      font-size: 16px !important;
+      line-height: 1.5;
+      overscroll-behavior: contain;
+    }
+
     /* Chat message improvements */
     .chat-message.user {
       justify-content: flex-end;

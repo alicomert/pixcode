@@ -74,6 +74,7 @@ function MainContent({
   onShowSettings,
   externalMessageUpdate,
   onQuickStartSession,
+  onEnterTerminalOnly,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
   const {
@@ -541,6 +542,7 @@ function MainContent({
           canUseSidePanelSplit={canUseSidePanelSplit}
           isMobile={isMobile}
           onMenuClick={onMenuClick}
+          onEnterTerminalOnly={onEnterTerminalOnly}
         />
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -576,6 +578,7 @@ function MainContent({
         isMobile={isMobile}
         onCloseSidePanel={activeSidePanelTab ? closeSidePanel : undefined}
         onMenuClick={onMenuClick}
+        onEnterTerminalOnly={onEnterTerminalOnly}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -603,8 +606,7 @@ function MainContent({
             <div
               ref={splitContainerRef}
               className={cn(
-                'h-full min-h-0',
-                showSidePanelWithChat && 'flex overflow-hidden',
+                'flex h-full min-h-0 overflow-hidden',
                 isDraggingSidePanel && 'select-none',
               )}
             >

@@ -101,12 +101,12 @@
     "projectFiles": "File del progetto",
     "landing": {
       "title": "Avvia uno spazio di lavoro Pixcode",
-      "description": "Scegli un progetto, avvia una nuova chat oppure lancia l’Orchestrazione con un solo obiettivo. L’Orchestrazione gestisce gli agenti CLI selezionati, mostra ogni passaggio e rende visibili gli errori.",
-      "startOrchestration": "Avvia Orchestrazione",
-      "startOrchestrationDescription": "Crea automaticamente un progetto e apre la schermata Orchestrazione con controllo agenti e cronologia.",
+      "description": "Scegli un progetto, avvia una nuova chat oppure esegui l’automazione degli agenti per un obiettivo. NanoClaw coordina gli agenti CLI selezionati, mostra l’avanzamento delle attività e rende visibili gli errori.",
+      "startOrchestration": "Avvia automazione agenti",
+      "startOrchestrationDescription": "Crea automaticamente un progetto e apre la schermata di automazione con controlli delle attività e cronologia.",
       "startChat": "Avvia una nuova chat",
       "startChatDescription": "Crea automaticamente una cartella e apre la chat normale con un agente.",
-      "sidebarHint": "Quando selezioni un progetto esistente dalla barra laterale, cronologia chat, file, stato git, attività e orchestrazione restano nella stessa schermata principale."
+      "sidebarHint": "Quando selezioni un progetto esistente dalla barra laterale, cronologia chat, file, stato Git, attività e automazione degli agenti restano nella stessa schermata principale."
     }
   },
   "fileTree": {

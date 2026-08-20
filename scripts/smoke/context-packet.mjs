@@ -4,6 +4,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('context packet smoke')) process.exit(0);
+
 const root = process.cwd();
 
 function read(relativePath) {

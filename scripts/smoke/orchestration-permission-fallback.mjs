@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('orchestration permission fallback smoke')) process.exit(0);
+
 const runner = readFileSync('server/modules/orchestration/workflows/workflow-runner.ts', 'utf8');
 const workspaceTarget = readFileSync('server/modules/orchestration/workflows/workspace-target.ts', 'utf8');
 

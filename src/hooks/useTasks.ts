@@ -16,7 +16,7 @@ import type {
   TaskRecurrence,
   TaskRole,
 } from '../components/tasks/types';
-import { authenticatedFetch } from '../utils/api';
+import { authenticatedFetch, createStreamAuthUrl } from '../utils/api';
 
 async function readResponse<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({}));
@@ -81,23 +81,37 @@ export function useTasks(projectId?: string) {
   useEffect(() => {
     const token = window.localStorage.getItem('auth-token');
     if (!token) return undefined;
-
-    const stream = new EventSource(`/api/tasks/events?token=${encodeURIComponent(token)}`);
-    eventSourceRef.current = stream;
-    stream.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (typeof payload?.type === 'string' && (payload.type.startsWith('task:') || payload.type.startsWith('bot:'))) {
-          void fetchTasks();
-        }
-      } catch {
-        // Polling remains the fallback.
-      }
-    };
-
+    let active = true;
+    let stream: EventSource | null = null;
+    void createStreamAuthUrl('/api/tasks/events')
+      .then((url) => {
+        if (!active) return;
+        stream = new EventSource(url);
+        eventSourceRef.current = stream;
+        stream.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (typeof payload?.type === 'string' && (payload.type.startsWith('task:') || payload.type.startsWith('bot:'))) {
+              void fetchTasks();
+            }
+          } catch {
+            // Polling remains the fallback.
+          }
+        };
+        stream.onerror = () => {
+          // Tickets are single-use, so do not let EventSource retry the same
+          // URL forever after a network blip. Polling remains the fallback.
+          stream?.close();
+          if (eventSourceRef.current === stream) eventSourceRef.current = null;
+        };
+      })
+      .catch(() => {
+        // Polling remains the fallback when a stream ticket cannot be minted.
+      });
     return () => {
-      stream.close();
-      eventSourceRef.current = null;
+      active = false;
+      stream?.close();
+      if (eventSourceRef.current === stream) eventSourceRef.current = null;
     };
   }, [fetchTasks]);
 
@@ -348,36 +362,52 @@ export function usePixBot(projectId?: string, projectPath?: string | null) {
   useEffect(() => {
     const token = window.localStorage.getItem('auth-token');
     if (!token) return undefined;
-    const stream = new EventSource(`/api/tasks/events?token=${encodeURIComponent(token)}`);
-    eventSourceRef.current = stream;
-    stream.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload?.type === 'bot:message' && payload.message?.conversationId === conversationId) {
-          setMessages((current) => {
-            if (current.some((entry) => entry.id === payload.message.id)) return current;
-            return [...current, payload.message as BotMessage];
-          });
-        }
-        if (typeof payload?.type === 'string' && payload.type.startsWith('bot:')) {
-          void refreshSide();
-        }
-        if (payload?.type === 'bot:message' && payload.conversation) {
-          setConversations((current) => {
-            const exists = current.some((entry) => entry.id === payload.conversation.id);
-            if (exists) {
-              return current.map((entry) => (entry.id === payload.conversation.id ? payload.conversation : entry));
+    let active = true;
+    let stream: EventSource | null = null;
+    void createStreamAuthUrl('/api/tasks/events')
+      .then((url) => {
+        if (!active) return;
+        stream = new EventSource(url);
+        eventSourceRef.current = stream;
+        stream.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload?.type === 'bot:message' && payload.message?.conversationId === conversationId) {
+              setMessages((current) => {
+                if (current.some((entry) => entry.id === payload.message.id)) return current;
+                return [...current, payload.message as BotMessage];
+              });
             }
-            return [payload.conversation as BotConversation, ...current];
-          });
-        }
-      } catch {
-        // ignore
-      }
-    };
+            if (typeof payload?.type === 'string' && payload.type.startsWith('bot:')) {
+              void refreshSide();
+            }
+            if (payload?.type === 'bot:message' && payload.conversation) {
+              setConversations((current) => {
+                const exists = current.some((entry) => entry.id === payload.conversation.id);
+                if (exists) {
+                  return current.map((entry) => (entry.id === payload.conversation.id ? payload.conversation : entry));
+                }
+                return [payload.conversation as BotConversation, ...current];
+              });
+            }
+          } catch {
+            // ignore
+          }
+        };
+        stream.onerror = () => {
+          // Tickets are single-use, so do not let EventSource retry the same
+          // URL forever after a network blip. Polling remains the fallback.
+          stream?.close();
+          if (eventSourceRef.current === stream) eventSourceRef.current = null;
+        };
+      })
+      .catch(() => {
+        // Polling remains the fallback when a stream ticket cannot be minted.
+      });
     return () => {
-      stream.close();
-      eventSourceRef.current = null;
+      active = false;
+      stream?.close();
+      if (eventSourceRef.current === stream) eventSourceRef.current = null;
     };
   }, [conversationId, refreshSide]);
 

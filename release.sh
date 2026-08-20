@@ -1,4 +1,4 @@
-#!/bin/bash
-# Load environment variables from .env
-export $(grep -v '^#' .env | grep '^GITHUB_TOKEN=' | xargs)
-exec npx release-it "$@"
+#!/bin/sh
+# Keep existing POSIX callers working while the npm script uses the same
+# cross-platform launcher on Windows, macOS, and Linux.
+exec node scripts/release.mjs "$@"

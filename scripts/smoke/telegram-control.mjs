@@ -45,7 +45,7 @@ const checks = [
       && source.includes('editTelegramActivity')
       && source.includes('updateTelegramControlState')
       && source.includes('/api/agent')
-      && source.includes('/api/orchestration/workflows')
+      && (source.includes('/api/orchestration/workflows') || source.includes('/api/tasks'))
       && source.includes('TELEGRAM_CONTROL_SCOPES')
       && source.includes('confirm_action')
     ),
@@ -65,7 +65,8 @@ const checks = [
     file: 'server/routes/agent.js',
     test: (source) => (
       source.includes('requestedPermissionMode')
-      && source.includes("permissionMode: permissionMode || 'bypassPermissions'")
+      && source.includes('effectivePermissionMode')
+      && source.includes('permissionMode: effectivePermissionMode')
     ),
   },
   {

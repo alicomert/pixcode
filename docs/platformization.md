@@ -1,10 +1,29 @@
 # Pixcode Platformization
 
-v1.45 adds the platform control plane that turns Pixcode into a self-hosted agent operations surface for teams.
+Historical note: v1.45 introduced the platform control plane that turns Pixcode into a self-hosted agent operations surface for teams.
+
+## External identity proxy requirement
+
+`VITE_IS_PLATFORM=true` does not disable Pixcode authentication by itself.
+Platform authentication bypass is enabled only when the deployment also sets
+`PIXCODE_ALLOW_PLATFORM_AUTH_BYPASS=1`, builds the frontend with
+`VITE_PLATFORM_AUTH_BYPASS=true`, and places Pixcode behind a trusted
+identity/authentication proxy. Without all three settings, normal JWT/API-key
+auth continues to protect HTTP, WebSocket, and agent routes. Never enable the
+bypass on a directly exposed server.
 
 ## RBAC and Team Mode
 
 `/api/platformization/team/members` stores owner, admin, member, and viewer records with explicit permission lists. Each team change is written to the audit log.
+
+### Member workspace isolation
+
+Member-created workspaces live under `WORKSPACES_BASE/users/<user-id>` and are
+automatically granted to their creator through a project collaborator record.
+The folder browser, folder creation, workspace creation, and clone-progress
+endpoints enforce this private root for members. Administrators retain the
+host-wide workspace picker; collaborators can still reopen only the project
+paths and `allowedRoots` explicitly assigned by an administrator.
 
 ## Secret Vault
 

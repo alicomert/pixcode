@@ -122,12 +122,12 @@
     "projectFiles": "Proje Dosyaları",
     "landing": {
       "title": "Pixcode çalışma alanını başlat",
-      "description": "Bir proje seçebilir, yeni sohbet açabilir veya tek hedefle Orkestrasyon sistemini başlatabilirsin. Orkestrasyon; seçtiğin CLI ajanlarını yönetir, adımları gösterir ve çıkan hataları saklamadan ekrana taşır.",
-      "startOrchestration": "Orkestrasyon başlat",
-      "startOrchestrationDescription": "Otomatik proje açılır, ajan seçimi ve çalışma geçmişiyle Orkestrasyon ekranına geçilir.",
+      "description": "Bir proje seçebilir, yeni sohbet açabilir veya tek hedef için agent otomasyonunu başlatabilirsin. NanoClaw seçtiğin CLI ajanlarını yönetir, task ilerlemesini gösterir ve hataları doğrudan ekrana taşır.",
+      "startOrchestration": "Agent otomasyonunu başlat",
+      "startOrchestrationDescription": "Otomatik proje açılır, task kontrolleri ve çalışma geçmişiyle agent otomasyonu ekranına geçilir.",
       "startChat": "Yeni sohbet aç",
       "startChatDescription": "Klasör otomatik oluşturulur ve normal chat ekranında tek ajanla ilerlersin.",
-      "sidebarHint": "Kenar çubuğundan mevcut bir proje seçersen sohbet geçmişi, dosyalar, git durumu, task sistemi ve orkestrasyon aynı ana ekranda kalır.",
+      "sidebarHint": "Kenar çubuğundan mevcut bir proje seçersen sohbet geçmişi, dosyalar, Git durumu, task sistemi ve agent otomasyonu aynı ana ekranda kalır.",
       "createProject": "Yeni Proje Oluştur",
       "createProjectDescription": "Mevcut çalışma alanını ekle veya klasör oluştur; ardından kodlamaya başlamak için CLI seçim ekranına geç."
     }

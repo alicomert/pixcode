@@ -1,5 +1,6 @@
 import express from 'express';
 
+import { requireAdmin } from '../middleware/auth.js';
 import {
   PIXCODE_WEBHOOK_EVENT_TYPES,
   deleteWebhook,
@@ -9,6 +10,11 @@ import {
 } from '../services/webhooks.js';
 
 const router = express.Router();
+
+// Webhooks are stored globally and include destination URLs/secrets.  A
+// project collaborator must not be able to enumerate or redirect events for
+// every user on the installation.
+router.use(requireAdmin);
 
 router.get('/', (_req, res) => {
   res.json({

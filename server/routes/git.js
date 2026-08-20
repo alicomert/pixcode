@@ -8,7 +8,7 @@ import express from 'express';
 import { extractProjectDirectory } from '../projects.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
-import { userHasProjectAccess } from '../services/platformization.js';
+import { userHasProjectPathAccess } from '../services/platformization.js';
 import { buildGitSpawnEnv } from '../utils/gitConfig.js';
 
 const router = express.Router();
@@ -46,18 +46,31 @@ const FILESYSTEM_SCAN_EXCLUDED_DIRS = new Set([
 
 // Attach git identity + active GitHub PAT to every git spawn for this request.
 router.use((req, res, next) => {
-  gitRequestContext.run({ userId: req.user?.id ?? null }, () => {
+  gitRequestContext.run({ userId: req.user?.id ?? null }, async () => {
     const project = req.query.project || req.body?.project;
     if (!project) {
       return next();
     }
 
     const capability = req.method === 'GET' ? 'viewFiles' : 'editFiles';
-    if (!userHasProjectAccess(req.user, { name: String(project), projectName: String(project) }, capability)) {
+    const projectName = String(project);
+    let projectPath;
+    try {
+      projectPath = await getActualProjectPath(projectName);
+    } catch {
+      return res.status(404).json({ error: 'Project not found.' });
+    }
+    if (!userHasProjectPathAccess(req.user, {
+      name: projectName,
+      projectName,
+      fullPath: projectPath,
+      path: projectPath,
+      projectPath,
+    }, projectPath, capability)) {
       return res.status(403).json({ error: 'Project access denied.' });
     }
 
-    next();
+    return next();
   });
 });
 
@@ -209,14 +222,19 @@ async function readFilesystemFileWithDiff(projectPath, filePath) {
     throw error;
   }
 
-  const stats = await fs.stat(resolvedFilePath);
+  // Non-git workspaces use this fallback instead of the repository path
+  // resolver. Apply the same canonical/symlink containment policy here so a
+  // file link inside a workspace cannot disclose an arbitrary host file.
+  await assertSafeRepositoryPath(projectRoot, resolvedFilePath);
+  const canonicalFilePath = await canonicalizeExistingOrParent(resolvedFilePath);
+  const stats = await fs.stat(canonicalFilePath);
   if (stats.isDirectory()) {
     const error = new Error('Cannot show diff for directories');
     error.statusCode = 400;
     throw error;
   }
 
-  const currentContent = await fs.readFile(resolvedFilePath, 'utf-8');
+  const currentContent = await fs.readFile(canonicalFilePath, 'utf-8');
   return {
     currentContent,
     oldContent: currentContent,
@@ -297,12 +315,63 @@ function validateFilePath(file, projectPath) {
   // and ensure the result stays within the project directory
   if (projectPath) {
     const resolved = path.resolve(projectPath, file);
-    const normalizedRoot = path.resolve(projectPath) + path.sep;
-    if (!resolved.startsWith(normalizedRoot) && resolved !== path.resolve(projectPath)) {
+    const relative = path.relative(path.resolve(projectPath), resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
       throw new Error('Invalid file path: path traversal detected');
     }
   }
   return file;
+}
+
+async function canonicalizeExistingOrParent(targetPath) {
+  const resolved = path.resolve(targetPath);
+  const missingParts = [];
+  let cursor = resolved;
+  while (true) {
+    try {
+      const existing = await fs.realpath(cursor);
+      return path.join(existing, ...missingParts.reverse());
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      const parent = path.dirname(cursor);
+      if (parent === cursor) return resolved;
+      missingParts.push(path.basename(cursor));
+      cursor = parent;
+    }
+  }
+}
+
+/**
+ * Reject repository file paths that escape through a symlink. Git pathspecs
+ * are lexical, but the subsequent fs.readFile/rm calls follow links.
+ */
+async function assertSafeRepositoryPath(repositoryRootPath, candidatePath) {
+  const root = await canonicalizeExistingOrParent(repositoryRootPath);
+  const candidate = await canonicalizeExistingOrParent(candidatePath);
+  const relative = path.relative(root, candidate);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('Invalid file path: outside repository');
+  }
+
+  const rawRoot = path.resolve(repositoryRootPath);
+  const rawCandidate = path.resolve(candidatePath);
+  const rawRelative = path.relative(rawRoot, rawCandidate);
+  if (!rawRelative || rawRelative.startsWith('..') || path.isAbsolute(rawRelative)) return;
+
+  let cursor = rawRoot;
+  for (const segment of rawRelative.split(path.sep).filter(Boolean)) {
+    cursor = path.join(cursor, segment);
+    try {
+      const stat = await fs.lstat(cursor);
+      if (stat.isSymbolicLink()) {
+        throw new Error('Invalid file path: symlink traversal is not allowed');
+      }
+    } catch (error) {
+      if (error?.message?.includes('symlink traversal')) throw error;
+      if (error?.code === 'ENOENT') break;
+      throw error;
+    }
+  }
 }
 
 function validateRemoteName(remote) {
@@ -497,10 +566,17 @@ function buildFilePathCandidates(projectPath, repositoryRootPath, filePath) {
 }
 
 async function resolveRepositoryFilePath(projectPath, filePath) {
-  validateFilePath(filePath);
+  validateFilePath(filePath, projectPath);
 
   const repositoryRootPath = await getRepositoryRootPath(projectPath);
   const candidateFilePaths = buildFilePathCandidates(projectPath, repositoryRootPath, filePath);
+
+  // Validate the concrete filesystem candidates before any read/delete path
+  // is returned to callers. This also covers non-git filesystem fallbacks.
+  await Promise.all(candidateFilePaths.map((candidateFilePath) => assertSafeRepositoryPath(
+    repositoryRootPath,
+    path.join(repositoryRootPath, candidateFilePath),
+  )));
 
   for (const candidateFilePath of candidateFilePaths) {
     const { stdout } = await spawnAsync('git', ['status', '--porcelain', '--', candidateFilePath], { cwd: repositoryRootPath });

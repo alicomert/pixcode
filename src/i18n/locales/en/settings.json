@@ -369,7 +369,8 @@
   },
   "git": {
     "title": "Git Configuration",
-    "description": "Configure your git identity for commits. These settings will be applied globally via git config --global",
+    "description": "Configure your Pixcode git identity for UI commits. These settings do not modify system-wide git config.",
+    "identityDescription": "Commit name/email is stored by Pixcode (not system-wide git config) and used for UI git actions.",
     "name": {
       "label": "Git Name",
       "help": "Your name for git commits"
@@ -384,6 +385,18 @@
     },
     "status": {
       "success": "Saved successfully"
+    },
+    "github": {
+      "title": "GitHub access",
+      "oauthDescription": "Connect GitHub securely for private repository clone, fetch, pull, and push.",
+      "connectTitle": "Connect GitHub",
+      "connected": "GitHub connected",
+      "oauthHelp": "Authorize Pixcode in GitHub without copying a personal access token.",
+      "oauthButton": "Connect with GitHub",
+      "oauthWaiting": "Waiting for GitHub...",
+      "oauthSuccess": "GitHub authorization saved.",
+      "legacyTitle": "Use a personal access token instead",
+      "legacyHelp": "Legacy fallback for self-hosted setups where GitHub OAuth is unavailable. The token is encrypted in Pixcode credential storage."
     }
   },
   "apiKeys": {
@@ -397,13 +410,62 @@
     "form": {
       "placeholder": "API Key Name (e.g., Production Server)",
       "createButton": "Create",
-      "cancelButton": "Cancel"
+      "cancelButton": "Cancel",
+      "scopesTitle": "API permissions",
+      "scopesDescription": "Choose only the operations this key needs. Projects/tasks read and write are selected by default; terminal access is opt-in.",
+      "selectAllScopes": "Select all",
+      "elevatedScopes": "Administrator scopes"
     },
     "newButton": "New API Key",
     "empty": "No API keys created yet.",
     "list": {
       "created": "Created:",
-      "lastUsed": "Last used:"
+      "lastUsed": "Last used:",
+      "noScopes": "No scopes — requests may be denied",
+      "editScopes": "Edit scopes",
+      "editScopesTitle": "API permissions",
+      "saveScopes": "Save"
+    },
+    "scopes": {
+      "authRead": "Authentication: read",
+      "authWrite": "Authentication: write",
+      "projectsRead": "Projects: read",
+      "projectsWrite": "Projects: write",
+      "tasksRead": "Tasks: read",
+      "tasksWrite": "Tasks: write",
+      "sessionsRead": "Sessions: read",
+      "sessionsWrite": "Sessions: write",
+      "providersRead": "Providers: read",
+      "providersWrite": "Providers: write",
+      "terminalLaunch": "Terminal: launch",
+      "filesRead": "Files: read",
+      "filesWrite": "Files: write",
+      "gitRead": "Git: read",
+      "gitWrite": "Git: write",
+      "telegramRead": "Telegram: read",
+      "telegramWrite": "Telegram: write",
+      "notificationsRead": "Notifications: read",
+      "notificationsWrite": "Notifications: write",
+      "agentRun": "Agent: run",
+      "settingsRead": "Settings: read",
+      "settingsWrite": "Settings: write",
+      "updatesRead": "Updates: read",
+      "updatesWrite": "Updates: write",
+      "diagnosticsRead": "Diagnostics: read",
+      "diagnosticsWrite": "Diagnostics: write",
+      "remoteRead": "Remote: read",
+      "remoteWrite": "Remote: write",
+      "webhooksRead": "Webhooks: read",
+      "webhooksWrite": "Webhooks: write",
+      "pluginsRead": "Plugins: read",
+      "pluginsWrite": "Plugins: write",
+      "orchestrationRead": "Orchestration: read",
+      "orchestrationWrite": "Orchestration: write",
+      "all": "All access",
+      "admin": "Admin",
+      "system": "System",
+      "systemUpdate": "System: update",
+      "systemRestart": "System: restart"
     },
     "confirmDelete": "Are you sure you want to delete this API key?",
     "status": {
@@ -414,6 +476,13 @@
       "title": "GitHub Tokens",
       "description": "Add GitHub Personal Access Tokens to clone private repositories via the external API.",
       "descriptionAlt": "Add GitHub Personal Access Tokens to clone private repositories. You can also pass tokens directly in API requests without storing them.",
+      "oauthTitle": "Connect GitHub securely",
+      "oauthDescription": "Authorize Pixcode in GitHub without copying a personal access token.",
+      "oauthButton": "Connect with GitHub",
+      "oauthWaiting": "Waiting for GitHub...",
+      "oauthSuccess": "GitHub connected.",
+      "legacyTitle": "Use a personal access token instead",
+      "legacyDescription": "Only use this legacy option when GitHub OAuth is unavailable.",
       "addButton": "Add Token",
       "form": {
         "namePlaceholder": "Token Name (e.g., Personal Repos)",

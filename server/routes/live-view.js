@@ -8,11 +8,12 @@ import { getTunnelState } from '../services/external-access.js';
 import {
   getLiveViewSessionByShareId,
   getLiveViewState,
+  parseLocalUpstreamUrl,
   restartLiveView,
   startLiveView,
   stopLiveView,
 } from '../services/live-view.js';
-import { userHasProjectPathAccess } from '../services/platformization.js';
+import { isAdminUser, userHasProjectPathAccess } from '../services/platformization.js';
 
 const router = express.Router();
 
@@ -259,7 +260,7 @@ router.post('/:projectName/start', requireLiveViewProjectAccess('useShell'), asy
   try {
     const { projectName } = req.params;
     const projectPath = req.projectPath;
-    if (req.body?.customCommand && !['admin', 'owner'].includes(req.user?.role)) {
+    if (req.body?.customCommand && !isAdminUser(req.user)) {
       return res.status(403).json({ error: 'Custom Live View commands require admin access.' });
     }
     const session = await startLiveView(projectName, projectPath, req.body || {});
@@ -283,7 +284,7 @@ router.post('/:projectName/restart', requireLiveViewProjectAccess('useShell'), a
   try {
     const { projectName } = req.params;
     const projectPath = req.projectPath;
-    if (req.body?.customCommand && !['admin', 'owner'].includes(req.user?.role)) {
+    if (req.body?.customCommand && !isAdminUser(req.user)) {
       return res.status(403).json({ error: 'Custom Live View commands require admin access.' });
     }
     const session = await restartLiveView(projectName, projectPath, req.body || {});
@@ -321,7 +322,14 @@ router.post('/:projectName/stop', requireLiveViewProjectAccess('useShell'), asyn
 
 function resolveStaticFile(staticRoot, requestUrl) {
   const parsed = new URL(requestUrl, 'http://pixcode.local');
-  const rawPath = decodeURIComponent(parsed.pathname || '/');
+  let rawPath;
+  try {
+    rawPath = decodeURIComponent(parsed.pathname || '/');
+  } catch {
+    const error = new Error('Malformed Live View path.');
+    error.statusCode = 400;
+    throw error;
+  }
   const relativePath = rawPath.replace(/^\/+/, '') || 'index.html';
   const root = path.resolve(staticRoot);
   const candidate = path.resolve(root, relativePath);
@@ -337,7 +345,17 @@ function resolveStaticFile(staticRoot, requestUrl) {
 }
 
 async function sendStaticLiveView(req, res, session) {
-  const root = session.staticRoot;
+  let root;
+  try {
+    root = await fs.realpath(session.staticRoot);
+  } catch {
+    sendLiveViewDiagnostic(req, res, session, 404, {
+      reason: 'static_root_missing',
+      errorMessage: 'The static preview directory is no longer available.',
+    });
+    return;
+  }
+
   let filePath = resolveStaticFile(root, req.url);
   try {
     const stats = await fs.stat(filePath);
@@ -349,8 +367,29 @@ async function sendStaticLiveView(req, res, session) {
     filePath = path.join(root, 'index.html');
   }
 
+  // Static previews are public by share ID. Resolve symlinks before sending so
+  // a project `public/foo` link cannot expose an arbitrary host file.
+  let canonicalFile;
+  try {
+    canonicalFile = await fs.realpath(filePath);
+  } catch {
+    sendLiveViewDiagnostic(req, res, session, 404, {
+      reason: 'static_file_missing',
+      errorMessage: 'The requested preview file is not available.',
+    });
+    return;
+  }
+  const relative = path.relative(root, canonicalFile);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    sendLiveViewDiagnostic(req, res, session, 403, {
+      reason: 'static_file_outside_root',
+      errorMessage: 'The requested preview file is outside the project preview root.',
+    });
+    return;
+  }
+
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(filePath);
+  res.sendFile(canonicalFile);
 }
 
 async function proxyLiveView(req, res, session) {
@@ -362,28 +401,113 @@ async function proxyLiveView(req, res, session) {
     return;
   }
 
-  const targetUrl = new URL(req.url || '/', session.upstreamUrl);
+  const upstreamBase = parseLocalUpstreamUrl(session.upstreamUrl);
+  if (!upstreamBase) {
+    sendLiveViewDiagnostic(req, res, session, 502, {
+      reason: 'proxy_failed',
+      errorMessage: 'Live View refused an upstream URL that is not loopback-only.',
+    });
+    return;
+  }
+
+  // Public previews are read-only.  Besides matching browser preview
+  // semantics, rejecting writes prevents a share link from becoming a CSRF
+  // bridge into a developer's local app.
+  if (!['GET', 'HEAD'].includes(String(req.method || '').toUpperCase())) {
+    res.status(405).setHeader('Allow', 'GET, HEAD').json({ error: 'Live View previews are read-only.' });
+    return;
+  }
+
+  // Express normally supplies an origin-form path, but reject an absolute-form
+  // request so a client cannot replace the trusted loopback base URL.
+  const requestPath = String(req.url || '/');
+  if (!requestPath.startsWith('/')) {
+    sendLiveViewDiagnostic(req, res, session, 400, {
+      reason: 'proxy_failed',
+      errorMessage: 'Malformed Live View request path.',
+    });
+    return;
+  }
+
+  const targetUrl = new URL(requestPath, upstreamBase.url);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const upstream = await fetch(targetUrl, {
       method: req.method,
+      signal: controller.signal,
+      // Never follow a redirect automatically: the initial upstream is
+      // loopback-only, but an app could redirect to an arbitrary external
+      // host and turn this endpoint into an SSRF proxy.
+      redirect: 'manual',
       headers: {
         accept: req.header('accept') || '*/*',
         'user-agent': req.header('user-agent') || 'pixcode-live-view',
       },
     });
+
+    const maxBytes = 32 * 1024 * 1024;
+    const contentLength = Number(upstream.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw new Error('Live View response exceeds the 32 MiB safety limit.');
+    }
+
     res.status(upstream.status);
+    if (upstream.status >= 300 && upstream.status < 400) {
+      const location = upstream.headers.get('location');
+      if (location) {
+        let redirectTarget;
+        try {
+          redirectTarget = new URL(location, targetUrl);
+        } catch {
+          throw new Error('Live View upstream returned a malformed redirect.');
+        }
+        const redirectBase = parseLocalUpstreamUrl(redirectTarget.toString());
+        if (!redirectBase || redirectBase.url !== upstreamBase.url) {
+          throw new Error('Live View upstream returned a redirect outside its loopback origin.');
+        }
+        // Keep navigation inside the authenticated-by-share-id route instead
+        // of exposing the loopback address to the remote browser.
+        res.setHeader(
+          'Location',
+          `${req.baseUrl || ''}${redirectTarget.pathname}${redirectTarget.search}`,
+        );
+      }
+    }
     upstream.headers.forEach((value, key) => {
       const lower = key.toLowerCase();
-      if (lower === 'content-encoding' || lower === 'content-length') return;
+      if (lower === 'content-encoding' || lower === 'content-length' || lower === 'location') return;
       if (lower === 'x-frame-options' || lower === 'content-security-policy') return;
       res.setHeader(key, value);
     });
-    res.send(Buffer.from(await upstream.arrayBuffer()));
+
+    if (!upstream.body) {
+      res.end();
+      return;
+    }
+
+    const chunks = [];
+    let totalBytes = 0;
+    for await (const chunk of upstream.body) {
+      const buffer = Buffer.from(chunk);
+      totalBytes += buffer.length;
+      if (totalBytes > maxBytes) {
+        throw new Error('Live View response exceeds the 32 MiB safety limit.');
+      }
+      chunks.push(buffer);
+    }
+    res.send(Buffer.concat(chunks));
   } catch (error) {
+    if (res.headersSent) {
+      res.destroy(error);
+      return;
+    }
     sendLiveViewDiagnostic(req, res, session, 502, {
       reason: 'proxy_failed',
       errorMessage: error.message || 'Live View proxy failed',
     });
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

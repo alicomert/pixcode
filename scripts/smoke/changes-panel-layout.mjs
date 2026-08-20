@@ -30,7 +30,7 @@ assert.ok(
 );
 
 assert.ok(
-  mainContent.includes("useChangedFilesMonitor(selectedProject, Boolean(selectedProject), latestMessage, changeTrackingMode)"),
+  /useChangedFilesMonitor\(\s*selectedProject,\s*Boolean\(selectedProject\),\s*latestMessage,\s*changeTrackingMode/.test(mainContent),
   'Changed-file tracking should not depend on the Quick Settings Command Center toggle.',
 );
 

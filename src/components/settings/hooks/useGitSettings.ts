@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useGithubOAuth } from '../../../hooks/useGithubOAuth';
 import { authenticatedFetch } from '../../../utils/api';
 
 type GitConfigResponse = {
@@ -47,6 +48,8 @@ export function useGitSettings() {
       setIsLoading(false);
     }
   }, []);
+
+  const githubOAuth = useGithubOAuth({ onSuccess: loadGitConfig });
 
   const saveGitConfig = useCallback(async () => {
     try {
@@ -109,5 +112,8 @@ export function useGitSettings() {
     saveStatus,
     clearSaveStatus,
     saveGitConfig,
+    githubOAuthStatus: githubOAuth.status,
+    githubOAuthError: githubOAuth.error,
+    startGithubOAuth: githubOAuth.start,
   };
 }

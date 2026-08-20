@@ -6,7 +6,7 @@ import {
   nanoclawRouter,
   nanoclawTaskScheduler,
   startNanoclawBridge,
-} from '../nanoclaw/bridge.js';
+} from '../nanoclaw/index.js';
 
 export function taskRouter() {
   return nanoclawRouter();

@@ -28,17 +28,47 @@ export const authenticatedFetch = (url, options = {}) => {
   });
 };
 
+/**
+ * Build an EventSource/WebSocket URL authenticated with a short-lived,
+ * single-use stream ticket. Browsers do not allow EventSource to attach an
+ * Authorization header, so callers should mint a ticket immediately before
+ * opening a stream instead of putting the reusable JWT/API key in the URL.
+ */
+export const createStreamAuthUrl = async (path, transport = 'sse') => {
+  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) {
+    throw new Error('A stream path must be an absolute same-origin URL.');
+  }
+
+  // A network-path reference such as `//attacker.example/stream` would be
+  // interpreted as a cross-origin URL by EventSource/WebSocket even though it
+  // starts with a slash.  Resolve against the current origin and enforce that
+  // the ticket can only ever be sent back to this Pixcode server.
+  if (typeof window !== 'undefined') {
+    const resolved = new URL(path, window.location.origin);
+    if (resolved.origin !== window.location.origin) {
+      throw new Error('A stream path must stay on the Pixcode origin.');
+    }
+  }
+
+  const response = await authenticatedFetch('/api/auth/stream-ticket', {
+    method: 'POST',
+    body: JSON.stringify({ path, transport }),
+    cache: 'no-store',
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || typeof payload.ticket !== 'string' || !payload.ticket) {
+    throw new Error(payload.error || payload.message || 'Unable to authenticate stream.');
+  }
+
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}streamTicket=${encodeURIComponent(payload.ticket)}`;
+};
+
 // API endpoints
 export const api = {
   // Auth endpoints (no token required)
   auth: {
     status: () => fetch('/api/auth/status'),
-    connectionMode: () => fetch('/api/auth/connection-mode'),
-    updateConnectionMode: (payload) => fetch('/api/auth/connection-mode', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }),
     login: (username, password) => fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -121,9 +151,7 @@ export const api = {
     });
   },
   searchConversationsUrl: (query, limit = 50) => {
-    const token = localStorage.getItem('auth-token');
     const params = new URLSearchParams({ q: query, limit: String(limit) });
-    if (token) params.set('token', token);
     return `/api/search/conversations?${params.toString()}`;
   },
   createWorkspace: (workspaceData) =>

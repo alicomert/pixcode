@@ -213,7 +213,9 @@ export default function Shell({
   const shellProvider = useMemo<LLMProvider>(() => {
     if (provider) return provider;
     if (selectedSession?.__provider) return selectedSession.__provider;
-    const savedProvider = window.localStorage.getItem('selected-provider') as LLMProvider | null;
+    const savedProvider = typeof window !== 'undefined'
+      ? window.localStorage.getItem('selected-provider') as LLMProvider | null
+      : null;
     return savedProvider || 'claude';
   }, [provider, selectedSession?.__provider]);
   const shellProviderName = PROVIDER_DISPLAY_NAMES[shellProvider] ?? 'Claude Code';
@@ -318,7 +320,12 @@ export default function Shell({
         />
       )}
 
-      <div className={cn('relative min-h-0 min-w-0 flex-1 overflow-hidden', immersive ? 'p-0 pb-12 md:pb-0' : 'p-0 pb-16 md:pb-0')}>
+      <div className={cn(
+        'relative min-h-0 min-w-0 flex-1 overflow-hidden',
+        immersive
+          ? 'p-0 pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-0'
+          : 'p-0 pb-16 md:pb-0',
+      )}>
         <div
           ref={terminalContainerRef}
           className={cn(
@@ -344,7 +351,7 @@ export default function Shell({
           <div
             className={cn(
               'absolute inset-x-0 z-10 border-t border-gray-700/80 bg-gray-800/95 px-3 py-2 backdrop-blur-sm',
-              immersive ? 'bottom-12 md:bottom-0' : 'bottom-14 md:bottom-0',
+              'bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0',
             )}
             onMouseDown={(e) => e.preventDefault()}
           >
@@ -357,7 +364,7 @@ export default function Shell({
                     sendInput(`${opt.number}\r`);
                     setCliPromptOptions(null);
                   }}
-                  className="max-w-36 truncate rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+                  className="min-h-11 max-w-36 truncate rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
                   title={`${opt.number}. ${opt.label}`}
                 >
                   {opt.number}. {opt.label}
@@ -369,7 +376,7 @@ export default function Shell({
                   sendInput('\x1b');
                   setCliPromptOptions(null);
                 }}
-                className="rounded bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-200 transition-colors hover:bg-gray-600"
+                className="min-h-11 rounded bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-200 transition-colors hover:bg-gray-600"
               >
                 Esc
               </button>

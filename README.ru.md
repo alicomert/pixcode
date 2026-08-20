@@ -3,7 +3,7 @@
   <h1>Pixcode</h1>
   <p><strong>Self-hosted панель управления для AI coding agents.</strong></p>
   <p>
-    Один веб-интерфейс для Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code и OpenCode: чат, shell, файлы, Git, оркестрация, API keys, плагины, уведомления, Telegram и desktop/server режимы.
+    Один веб-интерфейс для Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code и OpenCode: чат, shell, файлы, Git, автоматизация агентов, API keys, плагины, уведомления, Telegram и desktop/server режимы.
   </p>
   <p>
     <a href="https://buymeacoffee.com/alicomert" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-support%20Pixcode-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=000000" alt="Buy me a coffee" /></a>
@@ -12,9 +12,11 @@
     <a href="README.md">English</a> ·
     <a href="README.tr.md">Türkçe</a> ·
     <a href="README.de.md">Deutsch</a> ·
+    <a href="README.ru.md" aria-current="page">Русский</a> ·
     <a href="README.ja.md">日本語</a> ·
     <a href="README.ko.md">한국어</a> ·
-    <a href="README.zh-CN.md">简体中文</a>
+    <a href="README.zh-CN.md">简体中文</a> ·
+    <a href="README.es-ES.md">Español</a>
   </p>
 </div>
 
@@ -32,20 +34,16 @@ Pixcode подходит для:
 
 ## Скриншоты
 
-| Workspace | Mobile chat |
+| Workspace | Mobile workspace |
 | --- | --- |
-| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Pixcode mobile chat" width="260" /> |
-
-| CLI selection | Tools and MCP |
-| --- | --- |
-| <img src="public/screenshots/cli-selection.png" alt="Pixcode CLI selection" width="420" /> | <img src="public/screenshots/tools-modal.png" alt="Pixcode tools modal" width="420" /> |
+| <img src="public/screenshots/desktop-main.png" alt="Pixcode desktop workspace" width="480" /> | <img src="public/screenshots/mobile-chat.png" alt="Мобильное рабочее пространство Pixcode" width="260" /> |
 
 ## Основные возможности
 
 ### Несколько CLI в одном интерфейсе
 
 - Claude Code, Cursor CLI, Codex, Gemini CLI, Qwen Code и OpenCode.
-- Auth, API key credentials, OAuth paste, install status, model catalogs и CLI version status в Settings.
+- Auth, API key credentials, provider-specific OAuth callback/paste flows, install status, model catalogs и CLI version status в Settings. GitHub подключается через OAuth.
 - Pixcode не заменяет native CLI, а добавляет session management, WebSocket streaming, project context, notifications и UI controls.
 - Видно, когда CLI думает, запускает tools, ждет approval или пишет ответ.
 
@@ -60,29 +58,24 @@ Pixcode подходит для:
 
 ### Command Center для изменений
 
-Pixcode отслеживает локальный working tree. Command Center в Quick Settings показывает измененные файлы сразу, подсвечивает новые изменения и открывает нужный файл/строку. Это помогает видеть, что именно изменил агент, не закрывая chat или orchestration view.
+Pixcode отслеживает локальный working tree. Command Center в Quick Settings показывает измененные файлы сразу, подсвечивает новые изменения и открывает нужный файл/строку. Это помогает видеть, что именно изменил агент, не закрывая основное рабочее пространство.
 
-### Multi-agent orchestration
+### Автоматизация агентов (NanoClaw + production agent loop)
 
-Оркестрация запускает несколько CLI agents для одной цели.
+Поддерживаемые поверхности автоматизации разделены по задачам:
 
-- **Agent Team**: роли frontend, backend, review, docs или кастомные роли.
-- **Multi-model Review**: проверка результата разными providers/models.
-- **Sequential Handoff**: последовательная передача работы между этапами.
-- **Decision Debate**: сравнение подходов до реализации.
+- **NanoClaw** выполняет multi-CLI диалоги, разовые запуски и постоянные
+  расписания `once`/`interval`/`cron`, сохраняя контекст проекта.
+- **Production agent loop** обслуживает административные процессы: issue-to-PR,
+  CI repair, review queue, checkpoints и scheduler jobs.
 
-Доступно:
-
-- включение/выключение agents на run,
-- несколько workers одного provider,
-- role, stage, label и instruction для каждого agent,
-- model selection per agent, включая OpenCode,
-- fallback CLI agent для ошибок,
-- preview workflow DAG,
-- streaming events и cancel active run,
-- resizable orchestration panes.
+Старая UI и семейство маршрутов `/api/orchestration/*` удалены в v1.55.
+Оставшиеся упоминания orchestration — только история миграции; новые клиенты
+должны использовать поддерживаемые API ниже.
 
 ### API, Telegram и notifications
+
+> **Актуальная заметка API (1.64.x):** прежний workflow API `/api/orchestration/*` удалён в v1.55. Для multi-CLI задач, диалогов и расписаний используйте NanoClaw (`/api/nanoclaw/*` или алиас `/api/tasks/*`), а для поддерживаемого production agent loop — `/api/production-agent-loop/*`. Старые упоминания orchestration оставлены только как контекст миграции.
 
 Frontend Pixcode использует REST/WebSocket, и external automation может использовать тот же control plane. Новые API keys начинаются с `px_`; старые `ck_` keys остаются совместимыми.
 
@@ -93,12 +86,12 @@ curl http://localhost:3001/api/projects \
 
 Можно использовать:
 
-- `POST /api/agent` для one-shot agent runs.
-- `/api/orchestration/workflows/*` для preview, start, stream и cancel.
+- `POST /api/nanoclaw/run` для разовых multi-CLI запусков агента.
+- `/api/nanoclaw/*` (или `/api/tasks/*`) для чата, запусков агентов, расписаний и событий; `/api/production-agent-loop/*` для issue-to-PR, CI repair, review queue и snapshots.
 - Browser push notifications.
 - Telegram pairing, task notifications и optional prompt bridge.
 
-OpenAPI: [`public/openapi.yaml`](public/openapi.yaml)
+Интерактивная справка API: [`public/api-docs.html`](public/api-docs.html). В работающем Pixcode `GET /api/public/manifest` является discovery-документом, а `GET /api/public/openapi` отдает актуальный машиночитаемый фрагмент API; [`public/openapi.yaml`](public/openapi.yaml) остается snapshot релиза.
 
 ### Themes, plugins и MCP
 

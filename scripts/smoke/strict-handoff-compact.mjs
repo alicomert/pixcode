@@ -3,6 +3,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+import { skipIfOrchestrationRetired } from './_orchestration-retired.mjs';
+
+if (skipIfOrchestrationRetired('strict handoff compact smoke')) process.exit(0);
+
 const source = readFileSync('server/modules/orchestration/workflows/workflow-runner.ts', 'utf8');
 const types = readFileSync('server/modules/orchestration/workflows/workflow.types.ts', 'utf8');
 const panel = readFileSync('src/components/orchestration/workflows/WorkflowRunPanel.tsx', 'utf8');

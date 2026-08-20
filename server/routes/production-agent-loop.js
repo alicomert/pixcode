@@ -1,5 +1,6 @@
 import express from 'express';
 
+import { requireAdmin } from '../middleware/auth.js';
 import {
   createIssueToPrRun,
   createReviewQueueItem,
@@ -12,6 +13,11 @@ import {
 } from '../services/production-agent-loop.js';
 
 const router = express.Router();
+
+// This loop persists installation-wide queues/schedulers in appConfigDb and
+// is not project-scoped yet.  Restrict both reads and writes until jobs carry
+// an explicit per-project authorization model.
+router.use(requireAdmin);
 
 function userId(req) {
   return req.user?.id ?? req.user?.userId ?? null;

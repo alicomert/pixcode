@@ -14,7 +14,12 @@
     "releaseName": "Pixcode v${version}"
   },
   "hooks": {
-    "before:init": ["npm run build"]
+    "after:npm:bump": ["node scripts/sync-desktop-release.mjs ${version}"],
+    "after:bump": ["npm run build", "node scripts/generate-files-manifest.mjs"],
+    "after:npm:release": [
+      "npm --prefix desktop install --package-lock-only --ignore-scripts --no-audit --no-fund",
+      "git add files-manifest.json desktop/package.json desktop/package-lock.json"
+    ]
   },
   "plugins": {
     "@release-it/conventional-changelog": {

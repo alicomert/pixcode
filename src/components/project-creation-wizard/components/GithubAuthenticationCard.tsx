@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Input } from '../../../shared/view/ui';
 import type { GithubTokenCredential, TokenMode } from '../types';
 
-import { Key, Loader2 } from '@/lib/icons';
+import { Github, Key, Loader2 } from '@/lib/icons';
 
 type GithubAuthenticationCardProps = {
   tokenMode: TokenMode;
@@ -12,9 +12,12 @@ type GithubAuthenticationCardProps = {
   availableTokens: GithubTokenCredential[];
   loadingTokens: boolean;
   tokenLoadError: string | null;
+  githubOAuthStatus: 'idle' | 'starting' | 'waiting' | 'success' | 'error';
+  githubOAuthError: string;
   onTokenModeChange: (tokenMode: TokenMode) => void;
   onSelectedGithubTokenChange: (tokenId: string) => void;
   onNewGithubTokenChange: (tokenValue: string) => void;
+  onStartGithubOAuth: () => void;
 };
 
 const getModeClassName = (mode: TokenMode, selectedMode: TokenMode) =>
@@ -33,9 +36,12 @@ export default function GithubAuthenticationCard({
   availableTokens,
   loadingTokens,
   tokenLoadError,
+  githubOAuthStatus,
+  githubOAuthError,
   onTokenModeChange,
   onSelectedGithubTokenChange,
   onNewGithubTokenChange,
+  onStartGithubOAuth,
 }: GithubAuthenticationCardProps) {
   const { t } = useTranslation();
 
@@ -64,28 +70,57 @@ export default function GithubAuthenticationCard({
         <p className="mb-3 text-sm text-red-600 dark:text-red-400">{tokenLoadError}</p>
       )}
 
+      {!loadingTokens && (
+        <div className="mb-4 flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-800 dark:bg-blue-900/20 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-blue-900 dark:text-blue-100">Connect with GitHub OAuth</p>
+            <p className="mt-1 text-xs text-blue-800/80 dark:text-blue-200/80">
+              Authorize Pixcode without copying a personal access token. The active credential is used for this clone.
+            </p>
+            {githubOAuthStatus === 'success' && (
+              <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300" role="status">GitHub connected.</p>
+            )}
+            {githubOAuthStatus === 'error' && githubOAuthError && (
+              <p className="mt-1 text-xs text-red-700 dark:text-red-300" role="alert">{githubOAuthError}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onStartGithubOAuth}
+            disabled={githubOAuthStatus === 'starting' || githubOAuthStatus === 'waiting'}
+            className="flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm font-medium text-blue-900 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100 dark:hover:bg-blue-900/60"
+          >
+            <Github className="h-4 w-4" />
+            {githubOAuthStatus === 'starting' || githubOAuthStatus === 'waiting' ? 'Waiting for GitHub...' : 'Connect with GitHub'}
+          </button>
+        </div>
+      )}
+
       {!loadingTokens && availableTokens.length > 0 && (
         <>
-          <div className="mb-4 grid grid-cols-3 gap-2">
+          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <button
+              type="button"
               onClick={() => onTokenModeChange('stored')}
-              className={getModeClassName(tokenMode, 'stored')}
+              className={`min-h-11 ${getModeClassName(tokenMode, 'stored')}`}
             >
               {t('projectWizard.step2.storedToken')}
             </button>
             <button
+              type="button"
               onClick={() => onTokenModeChange('new')}
-              className={getModeClassName(tokenMode, 'new')}
+              className={`min-h-11 ${getModeClassName(tokenMode, 'new')}`}
             >
               {t('projectWizard.step2.newToken')}
             </button>
             <button
+              type="button"
               onClick={() => {
                 onTokenModeChange('none');
                 onSelectedGithubTokenChange('');
                 onNewGithubTokenChange('');
               }}
-              className={getModeClassName(tokenMode, 'none')}
+              className={`min-h-11 ${getModeClassName(tokenMode, 'none')}`}
             >
               {t('projectWizard.step2.nonePublic')}
             </button>
@@ -99,7 +134,7 @@ export default function GithubAuthenticationCard({
               <select
                 value={selectedGithubToken}
                 onChange={(event) => onSelectedGithubTokenChange(event.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
+                className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
               >
                 <option value="">{t('projectWizard.step2.selectTokenPlaceholder')}</option>
                 {availableTokens.map((token) => (
@@ -119,7 +154,7 @@ export default function GithubAuthenticationCard({
                 value={newGithubToken}
                 onChange={(event) => onNewGithubTokenChange(event.target.value)}
                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full"
+                className="min-h-11 w-full"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {t('projectWizard.step2.tokenHelp')}
@@ -150,7 +185,7 @@ export default function GithubAuthenticationCard({
                 onTokenModeChange(tokenValue.trim() ? 'new' : 'none');
               }}
               placeholder={t('projectWizard.step2.tokenPublicPlaceholder')}
-              className="w-full"
+              className="min-h-11 w-full"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('projectWizard.step2.noTokensHelp')}

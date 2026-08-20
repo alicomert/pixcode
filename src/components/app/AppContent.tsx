@@ -1,16 +1,27 @@
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import Sidebar from '../sidebar/view/Sidebar';
-import MainContent from '../main-content/view/MainContent';
-import VSCodeWorkbench from '../vscode-workbench/view/VSCodeWorkbench';
 import { QuickSettingsPanel } from '../quick-settings-panel';
 import InAppNotificationCenter from '../notifications/InAppNotificationCenter';
+import ErrorBoundary from '../main-content/view/ErrorBoundary';
 import { useWebSocket } from '../../contexts/WebSocketContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
+
+// Keep the desktop workbench and mobile layout out of the initial bundle when
+// the other surface is not needed. Both areas pull in editors, terminal and
+// task panels; loading them lazily trims first paint cost on phones without
+// sacrificing the full desktop experience.
+const VSCodeWorkbench = lazy(() => import('../vscode-workbench/view/VSCodeWorkbench'));
+const MobileMainContent = lazy(() => import('../main-content/view/MainContent'));
+const TerminalOnlyView = lazy(() => import('../terminal-only/view/TerminalOnlyView'));
+
+function SurfaceFallback() {
+  return <div className="flex min-h-0 flex-1 items-center justify-center bg-background" aria-busy="true" />;
+}
 
 export default function AppContent() {
   const navigate = useNavigate();
@@ -20,6 +31,7 @@ export default function AppContent() {
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { ws, sendMessage, latestMessage, isConnected } = useWebSocket();
   const wasConnectedRef = useRef(false);
+  const mobileSidebarRef = useRef<HTMLDivElement | null>(null);
 
   const {
     activeSessions,
@@ -52,6 +64,37 @@ export default function AppContent() {
     isMobile,
     activeSessions,
   });
+
+  const terminalOnly = new URLSearchParams(location.search).get('terminal') === '1';
+  const enterTerminalOnly = () => {
+    setSidebarOpen(false);
+    const params = new URLSearchParams(location.search);
+    params.set('terminal', '1');
+    navigate({ pathname: location.pathname, search: `?${params.toString()}`, hash: location.hash });
+  };
+  const exitTerminalOnly = () => {
+    setSidebarOpen(false);
+    const params = new URLSearchParams(location.search);
+    params.delete('terminal');
+    const search = params.toString();
+    navigate({ pathname: location.pathname, search: search ? `?${search}` : '', hash: location.hash }, { replace: true });
+  };
+
+  // The shared quick-start action normally navigates to the chat workbench.
+  // In terminal-only mode the user should stay on that focused surface after
+  // the workspace is created; re-apply the mode once the project mutation has
+  // completed instead of briefly leaving the terminal view.
+  const quickStartTerminalWorkspace = async () => {
+    await sidebarSharedProps.onQuickStartSession?.();
+    const params = new URLSearchParams(window.location.search);
+    params.set('terminal', '1');
+    const search = params.toString();
+    navigate({
+      pathname: window.location.pathname,
+      search: search ? `?${search}` : '',
+      hash: window.location.hash,
+    }, { replace: true });
+  };
 
   useEffect(() => {
     if (location.pathname.endsWith('/tasks')) {
@@ -171,16 +214,104 @@ export default function AppContent() {
     const vv = window.visualViewport;
     if (!vv) return;
     const update = () => {
-      // Only resize matters — keyboard open/close changes vv.height.
-      // Do NOT listen to scroll: on iOS Safari, scrolling content changes
-      // vv.offsetTop which would make --keyboard-height fluctuate during
-      // normal scrolling, causing the container to bounce up and down.
-      const kb = Math.max(0, window.innerHeight - vv.height);
-      document.documentElement.style.setProperty('--keyboard-height', `${kb}px`);
+      // Only treat a large visual-viewport reduction while an editable
+      // control is focused as a keyboard.  iOS also resizes the visual
+      // viewport while the browser chrome expands/collapses; treating that
+      // small delta as a keyboard makes the entire fixed app jump during
+      // ordinary scrolling.
+      const activeElement = document.activeElement;
+      const isEditable = activeElement instanceof HTMLInputElement
+        || activeElement instanceof HTMLTextAreaElement
+        || activeElement instanceof HTMLElement && activeElement.isContentEditable;
+      const viewportDelta = Math.max(0, window.innerHeight - vv.height);
+      const keyboardHeight = isEditable && viewportDelta > 120 ? viewportDelta : 0;
+      document.documentElement.style.setProperty('--keyboard-height', `${keyboardHeight}px`);
     };
+    update();
     vv.addEventListener('resize', update);
-    return () => vv.removeEventListener('resize', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      document.documentElement.style.removeProperty('--keyboard-height');
+    };
   }, []);
+
+  // Keep the mobile drawer keyboard-accessible and prevent the page behind it
+  // from scrolling while it is open.  The app itself owns the scroll areas;
+  // allowing the document to scroll here causes a second scrollbar on iOS and
+  // makes a swipe near the drawer edge dismiss/scroll the wrong surface.
+  useEffect(() => {
+    if (!isMobile || !sidebarOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        const focusable = Array.from(
+          mobileSidebarRef.current?.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ) ?? [],
+        ).filter((element) => element.getClientRects().length > 0);
+        if (focusable.length > 0) {
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          const activeElement = document.activeElement;
+          if (event.shiftKey && (activeElement === first || !mobileSidebarRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            last.focus({ preventScroll: true });
+          } else if (!event.shiftKey && (activeElement === last || !mobileSidebarRef.current?.contains(activeElement))) {
+            event.preventDefault();
+            first.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setSidebarOpen(false);
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', closeOnEscape);
+    const focusFrame = window.requestAnimationFrame(() => {
+      mobileSidebarRef.current
+        ?.querySelector<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])')
+        ?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, [isMobile, setSidebarOpen, sidebarOpen]);
+
+  if (terminalOnly) {
+    return (
+      <div className="fixed inset-0 flex bg-gray-950" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
+        <ErrorBoundary
+          showDetails
+          onRetry={() => window.location.reload()}
+        >
+          <Suspense fallback={<SurfaceFallback />}>
+            <TerminalOnlyView
+              selectedProject={selectedProject}
+              selectedSession={selectedSession}
+              isMobile={isMobile}
+              isLoading={isLoadingProjects}
+              onQuickStartWorkspace={quickStartTerminalWorkspace}
+              onExit={exitTerminalOnly}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      </div>
+    );
+  }
 
   // Always hybrid (Both): full workbench + NanoClaw Tasks. No NC/Both/IDE switcher.
   return (
@@ -191,6 +322,8 @@ export default function AppContent() {
             }`}
         >
           <button
+            type="button"
+            data-mobile-sidebar-close
             className="fixed inset-0 bg-background/60 backdrop-blur-sm transition-opacity duration-150 ease-out"
             onClick={(event) => {
               event.stopPropagation();
@@ -201,10 +334,14 @@ export default function AppContent() {
               event.stopPropagation();
               setSidebarOpen(false);
             }}
-            aria-label={t('versionUpdate.ariaLabels.closeSidebar')}
+            aria-label={t('sidebar.close', { defaultValue: 'Close navigation' })}
           />
           <div
-            className={`relative h-full w-[85vw] max-w-sm transform border-r border-border/40 bg-card transition-transform duration-150 ease-out sm:w-80 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            ref={mobileSidebarRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('sidebar.title', { defaultValue: 'Workspace navigation' })}
+            className={`relative h-full w-[90vw] max-w-sm transform border-r border-border/40 bg-card transition-transform duration-150 ease-out sm:w-80 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
               }`}
             onClick={(event) => event.stopPropagation()}
             onTouchStart={(event) => event.stopPropagation()}
@@ -215,58 +352,67 @@ export default function AppContent() {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {!isMobile ? (
-          <VSCodeWorkbench
-            sidebarProps={sidebarSharedProps}
-            selectedProject={selectedProject}
-            selectedSession={selectedSession}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            ws={ws}
-            sendMessage={sendMessage}
-            latestMessage={latestMessage}
-            isMobile={isMobile}
-            onMenuClick={() => setSidebarOpen(true)}
-            isLoading={isLoadingProjects}
-            onInputFocusChange={setIsInputFocused}
-            onSessionActive={markSessionAsActive}
-            onSessionInactive={markSessionAsInactive}
-            onSessionProcessing={markSessionAsProcessing}
-            onSessionNotProcessing={markSessionAsNotProcessing}
-            processingSessions={processingSessions}
-            onReplaceTemporarySession={replaceTemporarySession}
-            onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
-            onShowSettings={() => setShowSettings(true)}
-            externalMessageUpdate={externalMessageUpdate}
-            onQuickStartSession={sidebarSharedProps.onQuickStartSession}
-            hidePixBot={false}
-            showShellModeSwitcher={false}
-          />
-        ) : (
-          <MainContent
-            selectedProject={selectedProject}
-            selectedSession={selectedSession}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            ws={ws}
-            sendMessage={sendMessage}
-            latestMessage={latestMessage}
-            isMobile={isMobile}
-            onMenuClick={() => setSidebarOpen(true)}
-            isLoading={isLoadingProjects}
-            onInputFocusChange={setIsInputFocused}
-            onSessionActive={markSessionAsActive}
-            onSessionInactive={markSessionAsInactive}
-            onSessionProcessing={markSessionAsProcessing}
-            onSessionNotProcessing={markSessionAsNotProcessing}
-            processingSessions={processingSessions}
-            onReplaceTemporarySession={replaceTemporarySession}
-            onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
-            onShowSettings={() => setShowSettings(true)}
-            externalMessageUpdate={externalMessageUpdate}
-            onQuickStartSession={sidebarSharedProps.onQuickStartSession}
-          />
-        )}
+        <ErrorBoundary
+          showDetails
+          onRetry={() => window.location.reload()}
+        >
+          <Suspense fallback={<SurfaceFallback />}>
+            {!isMobile ? (
+              <VSCodeWorkbench
+                sidebarProps={sidebarSharedProps}
+                selectedProject={selectedProject}
+                selectedSession={selectedSession}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                ws={ws}
+                sendMessage={sendMessage}
+                latestMessage={latestMessage}
+                isMobile={isMobile}
+                onMenuClick={() => setSidebarOpen(true)}
+                isLoading={isLoadingProjects}
+                onInputFocusChange={setIsInputFocused}
+                onSessionActive={markSessionAsActive}
+                onSessionInactive={markSessionAsInactive}
+                onSessionProcessing={markSessionAsProcessing}
+                onSessionNotProcessing={markSessionAsNotProcessing}
+                processingSessions={processingSessions}
+                onReplaceTemporarySession={replaceTemporarySession}
+                onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
+                onShowSettings={() => setShowSettings(true)}
+                externalMessageUpdate={externalMessageUpdate}
+                onQuickStartSession={sidebarSharedProps.onQuickStartSession}
+                onEnterTerminalOnly={enterTerminalOnly}
+                hidePixBot={false}
+                showShellModeSwitcher={false}
+              />
+            ) : (
+              <MobileMainContent
+                selectedProject={selectedProject}
+                selectedSession={selectedSession}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                ws={ws}
+                sendMessage={sendMessage}
+                latestMessage={latestMessage}
+                isMobile={isMobile}
+                onMenuClick={() => setSidebarOpen(true)}
+                isLoading={isLoadingProjects}
+                onInputFocusChange={setIsInputFocused}
+                onSessionActive={markSessionAsActive}
+                onSessionInactive={markSessionAsInactive}
+                onSessionProcessing={markSessionAsProcessing}
+                onSessionNotProcessing={markSessionAsNotProcessing}
+                processingSessions={processingSessions}
+                onReplaceTemporarySession={replaceTemporarySession}
+                onNavigateToSession={(targetSessionId: string) => navigate(`/session/${targetSessionId}`)}
+                onShowSettings={() => setShowSettings(true)}
+                externalMessageUpdate={externalMessageUpdate}
+                onQuickStartSession={sidebarSharedProps.onQuickStartSession}
+                onEnterTerminalOnly={enterTerminalOnly}
+              />
+            )}
+          </Suspense>
+        </ErrorBoundary>
       </div>
 
       <QuickSettingsPanel />

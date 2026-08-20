@@ -23,6 +23,7 @@ import {
   getPluginPort,
   isPluginRunning,
 } from '../utils/plugin-process-manager.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 const MARKETPLACE_SOURCES_PATH = path.join(os.homedir(), '.pixcode', 'marketplace-sources.json');
@@ -365,7 +366,7 @@ router.get('/marketplace/search', async (req, res) => {
 });
 
 // POST /marketplace/sources — add a global cross-CLI skill/plugin source.
-router.post('/marketplace/sources', (req, res) => {
+router.post('/marketplace/sources', requireAdmin, (req, res) => {
   try {
     const source = normalizeMarketplaceSource(req.body?.entry || req.body || {});
     const sources = readMarketplaceSources();
@@ -383,7 +384,7 @@ router.post('/marketplace/sources', (req, res) => {
 });
 
 // DELETE /marketplace/sources/:id — remove a global source by id.
-router.delete('/marketplace/sources/:id', (req, res) => {
+router.delete('/marketplace/sources/:id', requireAdmin, (req, res) => {
   try {
     const id = String(req.params.id || '');
     const sources = readMarketplaceSources();
@@ -477,7 +478,7 @@ router.get(/^\/([a-zA-Z0-9_-]+)\/assets\/(.*)$/, (req, res) => {
 });
 
 // PUT /:name/enable — Toggle plugin enabled/disabled (starts/stops server if applicable)
-router.put('/:name/enable', async (req, res) => {
+router.put('/:name/enable', requireAdmin, async (req, res) => {
   try {
     const { enabled } = req.body;
     if (typeof enabled !== 'boolean') {
@@ -517,7 +518,7 @@ router.put('/:name/enable', async (req, res) => {
 });
 
 // POST /install — Install plugin from git URL
-router.post('/install', async (req, res) => {
+router.post('/install', requireAdmin, async (req, res) => {
   try {
     const { url } = req.body;
     if (!url || typeof url !== 'string') {
@@ -550,7 +551,7 @@ router.post('/install', async (req, res) => {
 });
 
 // POST /:name/update — Pull latest from git (restarts server if running)
-router.post('/:name/update', async (req, res) => {
+router.post('/:name/update', requireAdmin, async (req, res) => {
   try {
     const pluginName = req.params.name;
 
@@ -587,7 +588,10 @@ router.post('/:name/update', async (req, res) => {
 // Same path-to-regexp v8 avoidance trick as /:name/assets/* above — we
 // use a RegExp directly so the router can't invoke path-to-regexp on
 // the unnamed wildcard.
-router.all(/^\/([a-zA-Z0-9_-]+)\/rpc\/(.*)$/, async (req, res) => {
+// Plugin RPC handlers execute arbitrary plugin code and receive configured
+// secrets. Keep the proxy administrator-only even though the parent router is
+// authenticated for all signed-in users.
+router.all(/^\/([a-zA-Z0-9_-]+)\/rpc\/(.*)$/, requireAdmin, async (req, res) => {
   const pluginName = req.params[0];
   const rpcPath = req.params[1] || '';
 
@@ -666,7 +670,7 @@ router.all(/^\/([a-zA-Z0-9_-]+)\/rpc\/(.*)$/, async (req, res) => {
 });
 
 // DELETE /:name — Uninstall plugin (stops server first)
-router.delete('/:name', async (req, res) => {
+router.delete('/:name', requireAdmin, async (req, res) => {
   try {
     const pluginName = req.params.name;
 

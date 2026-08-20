@@ -2,22 +2,32 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+    appConfigDb,
+    decryptCredentialValue,
+    encryptCredentialValue,
+} from '../database/db.js';
+
 /**
  * Central credentials store for CLI providers.
  *
- * File: `~/.pixcode/provider-credentials.json`. Lets the UI save an API key
+ * Store: the encrypted `provider_credentials` entry in Pixcode's auth store.
+ * Older releases wrote `~/.pixcode/provider-credentials.json`; that file is
+ * migrated once and retained as a timestamped backup rather than being
+ * silently deleted. Lets the UI save an API key
  * (and optional base URL for OpenAI-compatible providers) once and have it
  * picked up by:
  *   - the spawn adapters (claude-sdk.js, cursor-cli.js, openai-codex.js,
  *     gemini-cli.js, qwen-code-cli.js) when they launch the CLI subprocess
  *   - the provider-auth modules as an additional "authenticated" signal
  *
- * Keeping credentials in one file instead of per-CLI config files means we
- * don't have to learn each CLI's settings schema just to set an API key,
- * and users see one "Logout" button that actually clears everything.
+ * Keeping credentials in one encrypted store instead of per-CLI config files
+ * means we don't have to learn each CLI's settings schema just to set an API
+ * key, and users see one "Logout" button that actually clears everything.
  */
 
-const CONFIG_FILE = path.join(os.homedir(), '.pixcode', 'provider-credentials.json');
+const LEGACY_CONFIG_FILE = path.join(os.homedir(), '.pixcode', 'provider-credentials.json');
+const STORE_KEY = 'provider_credentials';
 
 /**
  * Map provider id → {apiKeyEnv, baseUrlEnv, extraEnv?} so we know which env
@@ -64,19 +74,90 @@ export const PROVIDER_ENV_VARS = Object.freeze({
 /** Credential-store keys that accept API key + optional base URL (not all are CLI agents). */
 export const CREDENTIAL_PROVIDER_IDS = Object.freeze(Object.keys(PROVIDER_ENV_VARS));
 
-async function readStore() {
+function normalizeStore(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const out = {};
+    for (const [provider, rawEntry] of Object.entries(value)) {
+        if (!rawEntry || typeof rawEntry !== 'object' || Array.isArray(rawEntry)) continue;
+        const apiKey = typeof rawEntry.apiKey === 'string' ? rawEntry.apiKey.trim() : '';
+        const baseUrl = typeof rawEntry.baseUrl === 'string' && rawEntry.baseUrl.trim()
+            ? rawEntry.baseUrl.trim()
+            : null;
+        if (!apiKey) continue;
+        out[provider] = {
+            apiKey,
+            baseUrl,
+            updatedAt: typeof rawEntry.updatedAt === 'string' ? rawEntry.updatedAt : null,
+        };
+    }
+    return out;
+}
+
+function parseStorePayload(value) {
+    if (typeof value !== 'string' || !value.trim()) return null;
     try {
-        const raw = await fs.readFile(CONFIG_FILE, 'utf8');
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === 'object' ? parsed : {};
+        return normalizeStore(JSON.parse(value));
+    } catch {
+        return null;
+    }
+}
+
+async function backupLegacyStore() {
+    try {
+        await fs.access(LEGACY_CONFIG_FILE);
+    } catch {
+        return;
+    }
+
+    const backupPath = `${LEGACY_CONFIG_FILE}.migrated-${Date.now()}`;
+    try {
+        await fs.rename(LEGACY_CONFIG_FILE, backupPath);
+        // The backup is deliberately kept for recovery, but remain private
+        // on platforms where rename preserves the old mode.
+        await fs.chmod(backupPath, 0o600).catch(() => {});
+    } catch (error) {
+        // A failed backup must not make credential writes fail. The encrypted
+        // auth-store write has already succeeded by the time this is called.
+        console.warn('[provider-credentials] Could not archive legacy plaintext store:', error?.message || error);
+    }
+}
+
+async function readStore() {
+    // New installs keep provider secrets in the encrypted auth store. The
+    // value itself is an AES-GCM `enc:v1:` payload; app_config is otherwise
+    // still a normal key/value table, so this does not alter its schema.
+    const encrypted = appConfigDb.get(STORE_KEY);
+    const decrypted = decryptCredentialValue(encrypted);
+    const persisted = parseStorePayload(decrypted);
+    if (persisted) {
+        // A short-lived development build may have written plain JSON into
+        // app_config before encrypted storage existed. Upgrade that value on
+        // first read too, so there is only one clear migration path.
+        if (typeof encrypted === 'string' && !encrypted.startsWith('enc:v1:')) {
+            await writeStore(persisted, { archiveLegacy: false });
+        }
+        return persisted;
+    }
+
+    // One-time migration for pre-encryption releases. We intentionally read
+    // the legacy file only when no valid encrypted value exists, then write
+    // the encrypted copy and rename the plaintext file to a recoverable
+    // timestamped backup.
+    try {
+        const raw = await fs.readFile(LEGACY_CONFIG_FILE, 'utf8');
+        const legacy = parseStorePayload(raw);
+        if (!legacy) return {};
+        await writeStore(legacy, { archiveLegacy: true });
+        return legacy;
     } catch {
         return {};
     }
 }
 
-async function writeStore(next) {
-    await fs.mkdir(path.dirname(CONFIG_FILE), { recursive: true });
-    await fs.writeFile(CONFIG_FILE, JSON.stringify(next, null, 2), { mode: 0o600 });
+async function writeStore(next, { archiveLegacy = true } = {}) {
+    const normalized = normalizeStore(next) || {};
+    appConfigDb.set(STORE_KEY, encryptCredentialValue(JSON.stringify(normalized)));
+    if (archiveLegacy) await backupLegacyStore();
 }
 
 /**

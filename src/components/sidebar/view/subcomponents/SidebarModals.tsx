@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import type { TFunction } from 'i18next';
 
-import { Button } from '../../../../shared/view/ui';
+import { Button, Dialog, DialogContent, DialogTitle } from '../../../../shared/view/ui';
 import Settings from '../../../settings/view/Settings';
 import VersionUpgradeModal from '../../../version-upgrade/view';
 import type { Project } from '../../../../types/app';
@@ -109,102 +109,118 @@ export default function SidebarModals({
         )}
 
       {deleteConfirmation &&
-        ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-              <div className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                    <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="mb-2 text-lg font-semibold text-foreground">
-                      {t('deleteConfirmation.deleteProject')}
-                    </h3>
-                    <p className="mb-1 text-sm text-muted-foreground">
-                      {t('deleteConfirmation.confirmDelete')}{' '}
-                      <span className="font-medium text-foreground">
-                        {deleteConfirmation.project.displayName || deleteConfirmation.project.name}
-                      </span>
-                      ?
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) onCancelDeleteProject();
+          }}
+        >
+          <DialogContent
+            aria-labelledby="pixcode-delete-project-title"
+            className="w-[calc(100%-2rem)] max-w-md overflow-hidden p-0 sm:rounded-xl"
+          >
+            <DialogTitle id="pixcode-delete-project-title">
+              {t('deleteConfirmation.deleteProject')}
+            </DialogTitle>
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
+                  <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="mb-2 text-lg font-semibold text-foreground">
+                    {t('deleteConfirmation.deleteProject')}
+                  </h3>
+                  <p className="mb-1 text-sm text-muted-foreground">
+                    {t('deleteConfirmation.confirmDelete')}{' '}
+                    <span className="font-medium text-foreground">
+                      {deleteConfirmation.project.displayName || deleteConfirmation.project.name}
+                    </span>
+                    ?
+                  </p>
+                  {deleteConfirmation.sessionCount > 0 && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {t('deleteConfirmation.sessionCount', { count: deleteConfirmation.sessionCount })}
                     </p>
-                    {deleteConfirmation.sessionCount > 0 && (
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {t('deleteConfirmation.sessionCount', { count: deleteConfirmation.sessionCount })}
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
-              <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => onConfirmDeleteProject(false)}
-                >
-                  <EyeOff className="mr-2 h-4 w-4" />
-                  {t('deleteConfirmation.removeFromSidebar')}
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="w-full justify-start bg-red-600 text-white hover:bg-red-700"
-                  onClick={() => onConfirmDeleteProject(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t('deleteConfirmation.deleteAllData')}
-                </Button>
-                <Button variant="ghost" className="w-full" onClick={onCancelDeleteProject}>
-                  {t('actions.cancel')}
-                </Button>
-              </div>
             </div>
-          </div>,
-          document.body,
-        )}
+            <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
+              <Button
+                variant="outline"
+                className="min-h-11 w-full justify-start"
+                onClick={() => onConfirmDeleteProject(false)}
+              >
+                <EyeOff className="mr-2 h-4 w-4" />
+                {t('deleteConfirmation.removeFromSidebar')}
+              </Button>
+              <Button
+                variant="destructive"
+                className="min-h-11 w-full justify-start bg-red-600 text-white hover:bg-red-700"
+                onClick={() => onConfirmDeleteProject(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('deleteConfirmation.deleteAllData')}
+              </Button>
+              <Button variant="ghost" className="min-h-11 w-full" onClick={onCancelDeleteProject}>
+                {t('actions.cancel')}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>}
 
       {sessionDeleteConfirmation &&
-        ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-              <div className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                    <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="mb-2 text-lg font-semibold text-foreground">
-                      {t('deleteConfirmation.deleteSession')}
-                    </h3>
-                    <p className="mb-1 text-sm text-muted-foreground">
-                      {t('deleteConfirmation.confirmDelete')}{' '}
-                      <span className="font-medium text-foreground">
-                        {sessionDeleteConfirmation.sessionTitle || t('sessions.unnamed')}
-                      </span>
-                      ?
-                    </p>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      {t('deleteConfirmation.cannotUndo')}
-                    </p>
-                  </div>
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) onCancelDeleteSession();
+          }}
+        >
+          <DialogContent
+            aria-labelledby="pixcode-delete-session-title"
+            className="w-[calc(100%-2rem)] max-w-md overflow-hidden p-0 sm:rounded-xl"
+          >
+            <DialogTitle id="pixcode-delete-session-title">
+              {t('deleteConfirmation.deleteSession')}
+            </DialogTitle>
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="mb-2 text-lg font-semibold text-foreground">
+                    {t('deleteConfirmation.deleteSession')}
+                  </h3>
+                  <p className="mb-1 text-sm text-muted-foreground">
+                    {t('deleteConfirmation.confirmDelete')}{' '}
+                    <span className="font-medium text-foreground">
+                      {sessionDeleteConfirmation.sessionTitle || t('sessions.unnamed')}
+                    </span>
+                    ?
+                  </p>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {t('deleteConfirmation.cannotUndo')}
+                  </p>
                 </div>
               </div>
-              <div className="flex gap-3 border-t border-border bg-muted/30 p-4">
-                <Button variant="outline" className="flex-1" onClick={onCancelDeleteSession}>
-                  {t('actions.cancel')}
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="flex-1 bg-red-600 text-white hover:bg-red-700"
-                  onClick={onConfirmDeleteSession}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t('actions.delete')}
-                </Button>
-              </div>
             </div>
-          </div>,
-          document.body,
-        )}
+            <div className="flex gap-3 border-t border-border bg-muted/30 p-4">
+              <Button variant="outline" className="min-h-11 flex-1" onClick={onCancelDeleteSession}>
+                {t('actions.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                className="min-h-11 flex-1 bg-red-600 text-white hover:bg-red-700"
+                onClick={onConfirmDeleteSession}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('actions.delete')}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>}
 
       <VersionUpgradeModal
         isOpen={showVersionModal}

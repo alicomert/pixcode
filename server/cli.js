@@ -67,8 +67,9 @@ const c = {
 const packageJsonPath = path.join(APP_ROOT, 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
-// Match the runtime fallback in load-env.js so "pixcode status" reports the same default
-// database location that the backend will actually use when no DATABASE_PATH is configured.
+// Match the runtime fallback in load-env.js so "pixcode status" reports the same
+// default auth-store location that the backend will actually use when no
+// DATABASE_PATH is configured. db.js maps the historical `.db` input to `.json`.
 const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.pixcode', 'auth.db');
 
 // Load environment variables from .env file if it exists
@@ -93,7 +94,12 @@ function loadEnvFile() {
 // Get the database path (same logic as db.js)
 function getDatabasePath() {
     loadEnvFile();
-    return process.env.DATABASE_PATH || DEFAULT_DATABASE_PATH;
+    const rawPath = process.env.DATABASE_PATH || DEFAULT_DATABASE_PATH;
+    // The auth store is JSON now. Keep accepting historical DATABASE_PATH
+    // values ending in `.db`, but show the path the backend actually opens.
+    if (rawPath.endsWith('.db')) return rawPath.replace(/\.db$/, '.json');
+    if (rawPath.endsWith('.json')) return rawPath;
+    return `${rawPath}.json`;
 }
 
 // Get the installation directory
@@ -114,10 +120,10 @@ function showStatus() {
     console.log(`\n${c.info('[INFO]')} Installation Directory:`);
     console.log(`       ${c.dim(installDir)}`);
 
-    // Database location
+    // Active auth-store location
     const dbPath = getDatabasePath();
     const dbExists = fs.existsSync(dbPath);
-    console.log(`\n${c.info('[INFO]')} Database Location:`);
+    console.log(`\n${c.info('[INFO]')} Auth Store Location:`);
     console.log(`       ${c.dim(dbPath)}`);
     console.log(`       Status: ${dbExists ? c.ok('[OK] Exists') : c.warn('[WARN] Not created yet (will be created on first run)')}`);
 
@@ -181,7 +187,7 @@ Commands:
 
 Options:
   -p, --port <port>           Set server port (default: 3001)
-  --database-path <path>      Set custom database location
+  --database-path <path>      Set custom auth-store location (.json; .db imports legacy SQLite)
   --no-daemon                 Disable automatic daemon startup on Linux
   --no-browser                Do not auto-open browser on startup
   --restart-daemon            Restart daemon automatically after update
@@ -204,7 +210,7 @@ Examples:
 Environment Variables:
   SERVER_PORT         Set server port (default: 3001)
   PORT                Set server port (default: 3001) (LEGACY)
-  DATABASE_PATH       Set custom database location
+  DATABASE_PATH       Set custom auth-store location (.json; .db imports legacy SQLite)
   CLAUDE_CLI_PATH     Set custom Claude CLI path
   CONTEXT_WINDOW      Set context window size (default: 160000)
 
@@ -235,8 +241,13 @@ function isNewerVersion(v1, v2) {
 // Check for updates
 async function checkForUpdates(silent = false) {
     try {
-        const { execSync } = await import('child_process');
-        const latestVersion = execSync('npm show @pixelbyte-software/pixcode version', { encoding: 'utf8' }).trim();
+        const { execFileSync } = await import('child_process');
+        const npmExecutable = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+        const latestVersion = execFileSync(
+            npmExecutable,
+            ['show', '@pixelbyte-software/pixcode', 'version'],
+            { encoding: 'utf8', windowsHide: true },
+        ).trim();
         const currentVersion = packageJson.version;
 
         if (isNewerVersion(latestVersion, currentVersion)) {
@@ -320,7 +331,7 @@ async function updateGitPackage(options = {}) {
 // Update the package
 async function updatePackage(options = {}) {
     try {
-        const { execSync } = await import('child_process');
+        const { execFileSync } = await import('child_process');
         if (installMode === 'git') {
             await updateGitPackage(options);
             return;
@@ -339,11 +350,10 @@ async function updatePackage(options = {}) {
         // Global npm install: never use sudo on Windows (sudo is unavailable / "disabled").
         // On Unix, sudo only when not already root. Prefer install@latest over update so
         // we always land on the registry latest (and rebuild native modules).
-        const npmCmd = buildGlobalNpmUpdateCommand(latestVersion);
-        console.log(`${c.dim('[CMD]')} ${npmCmd}`);
-        execSync(npmCmd, {
+        const npmInvocation = buildGlobalNpmUpdateInvocation(latestVersion);
+        console.log(`${c.dim('[CMD]')} ${npmInvocation.displayCommand}`);
+        execFileSync(npmInvocation.command, npmInvocation.args, {
             stdio: 'inherit',
-            shell: true,
             env: process.env,
             windowsHide: true,
         });
@@ -379,6 +389,33 @@ function buildGlobalNpmUpdateCommand(version = null, opts = {}) {
     // Unix: only elevate when not already root
     const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
     return isRoot ? base : `sudo ${base}`;
+}
+
+function buildGlobalNpmUpdateInvocation(version = null, opts = {}) {
+    const target = version && /^\d+\.\d+\.\d+/.test(String(version))
+        ? `@pixelbyte-software/pixcode@${version}`
+        : '@pixelbyte-software/pixcode@latest';
+    const npmExecutable = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const args = [
+        'install', '-g',
+        '--allow-scripts=@pixelbyte-software/pixcode,better-sqlite3,node-pty',
+        target,
+    ];
+    const shouldUseSudo = process.platform !== 'win32'
+        && !opts.forceNoSudo
+        && !(typeof process.getuid === 'function' && process.getuid() === 0);
+    if (shouldUseSudo) {
+        return {
+            command: 'sudo',
+            args: [npmExecutable, ...args],
+            displayCommand: `sudo ${npmExecutable} ${args.join(' ')}`,
+        };
+    }
+    return {
+        command: npmExecutable,
+        args,
+        displayCommand: `${npmExecutable} ${args.join(' ')}`,
+    };
 }
 
 // ── Sandbox command ─────────────────────────────────────────

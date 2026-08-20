@@ -41,7 +41,7 @@ type HistoryViewToggleProps = {
 // Kept as a segmented control so the active state is obvious at a glance.
 function HistoryViewToggle({ value, onChange, t }: HistoryViewToggleProps) {
   const base =
-    'flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all';
+    'mobile-touch-target flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-all';
   return (
     <div
       role="tablist"
@@ -290,15 +290,21 @@ export default function SidebarHeader({
 
           <div className="flex flex-shrink-0 gap-1.5">
             <button
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 transition-all active:scale-95"
+              type="button"
+              className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50 transition-all active:scale-95"
               onClick={onRefresh}
               disabled={isRefreshing}
+              aria-label={t('tooltips.refresh')}
+              title={t('tooltips.refresh')}
             >
               <RefreshCw className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
             <button
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/90 text-primary-foreground transition-all active:scale-95"
+              type="button"
+              className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-lg bg-primary/90 text-primary-foreground transition-all active:scale-95"
               onClick={onCreateProject}
+              aria-label={t('tooltips.createProject')}
+              title={t('tooltips.createProject')}
             >
               <FolderPlus className="h-4 w-4" />
             </button>
@@ -309,7 +315,7 @@ export default function SidebarHeader({
           <button
             type="button"
             onClick={() => { void onQuickStartSession(); }}
-            className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors active:bg-primary/10"
+            className="mobile-touch-target mt-2 flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors active:bg-primary/10"
           >
             <Sparkles className="h-4 w-4" />
             {t('sidebar.newChat', { defaultValue: 'New chat' })}
@@ -322,10 +328,11 @@ export default function SidebarHeader({
             <HistoryViewToggle value={historyView} onChange={onHistoryViewChange} t={t} />
             <div className="flex rounded-lg bg-muted/50 p-0.5">
               <button
+                type="button"
                 onClick={() => onSearchModeChange('projects')}
                 aria-pressed={searchMode === 'projects'}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
+                  "mobile-touch-target flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
                   searchMode === 'projects'
                     ? "bg-background shadow-sm text-foreground"
                     : "text-muted-foreground hover:text-foreground"
@@ -335,10 +342,11 @@ export default function SidebarHeader({
                 {t('search.modeProjects')}
               </button>
               <button
+                type="button"
                 onClick={() => onSearchModeChange('conversations')}
                 aria-pressed={searchMode === 'conversations'}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
+                  "mobile-touch-target flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
                   searchMode === 'conversations'
                     ? "bg-background shadow-sm text-foreground"
                     : "text-muted-foreground hover:text-foreground"

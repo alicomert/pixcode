@@ -7,8 +7,10 @@ type WebPushState = {
   isSubscribed: boolean;
   isLoading: boolean;
   error: string | null;
-  subscribe: () => Promise<void>;
-  unsubscribe: () => Promise<void>;
+  /** Resolves true only when the browser and server both accepted the change. */
+  subscribe: () => Promise<boolean>;
+  /** Resolves true only when the local subscription and server record were removed. */
+  unsubscribe: () => Promise<boolean>;
 };
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -47,14 +49,14 @@ export function useWebPush(): WebPushState {
   }, [permission]);
 
   const subscribe = useCallback(async () => {
-    if (permission === 'unsupported') return;
+    if (permission === 'unsupported') return false;
     setIsLoading(true);
     setError(null);
 
     try {
       const perm = await Notification.requestPermission();
       setPermission(perm);
-      if (perm !== 'granted') return;
+      if (perm !== 'granted') return false;
 
       const keyRes = await authenticatedFetch('/api/settings/push/vapid-public-key');
       if (!keyRes.ok) throw new Error(`VAPID key request failed (${keyRes.status})`);
@@ -81,9 +83,11 @@ export function useWebPush(): WebPushState {
       }
 
       setIsSubscribed(true);
+      return true;
     } catch (err) {
       console.error('Push subscribe failed:', err);
       setError(err instanceof Error ? err.message : 'Push subscribe failed');
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -97,16 +101,24 @@ export function useWebPush(): WebPushState {
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
         const endpoint = subscription.endpoint;
-        await subscription.unsubscribe();
-        await authenticatedFetch('/api/settings/push/unsubscribe', {
+        const response = await authenticatedFetch('/api/settings/push/unsubscribe', {
           method: 'POST',
           body: JSON.stringify({ endpoint }),
         });
+        if (!response.ok) {
+          throw new Error(`Push subscription removal failed (${response.status})`);
+        }
+        const removed = await subscription.unsubscribe();
+        if (!removed) {
+          throw new Error('Browser refused to remove the push subscription');
+        }
       }
       setIsSubscribed(false);
+      return true;
     } catch (err) {
       console.error('Push unsubscribe failed:', err);
       setError(err instanceof Error ? err.message : 'Push unsubscribe failed');
+      return false;
     } finally {
       setIsLoading(false);
     }

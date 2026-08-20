@@ -7,7 +7,7 @@ import MobileMenuButton from './MobileMenuButton';
 import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
 
-import { Settings2 } from '@/lib/icons';
+import { Settings2, Terminal } from '@/lib/icons';
 
 export default function MainContentHeader({
   activeTab,
@@ -20,6 +20,7 @@ export default function MainContentHeader({
   isMobile,
   onMenuClick,
   onCloseSidePanel,
+  onEnterTerminalOnly,
 }: MainContentHeaderProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -54,15 +55,28 @@ export default function MainContentHeader({
             isMobile={isMobile}
           />
           {isMobile && (
-            <button
-              type="button"
-              onClick={() => window.toggleQuickSettings?.()}
-              className="ml-auto flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-muted/55 text-muted-foreground transition-colors active:bg-muted"
-              aria-label={t('quickSettings.open', { defaultValue: 'Open quick settings' })}
-              title={t('quickSettings.open', { defaultValue: 'Open quick settings' })}
-            >
-              <Settings2 className="h-4 w-4" />
-            </button>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {activeTab === 'shell' && onEnterTerminalOnly && (
+                <button
+                  type="button"
+                  onClick={onEnterTerminalOnly}
+                  className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/15 text-blue-300 transition-colors active:bg-blue-500/25"
+                  aria-label={t('vscodeWorkbench.cli.focusTerminal', { defaultValue: 'Focus terminal' })}
+                  title={t('vscodeWorkbench.cli.focusTerminal', { defaultValue: 'Focus terminal' })}
+                >
+                  <Terminal className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => window.toggleQuickSettings?.()}
+                className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-lg bg-muted/55 text-muted-foreground transition-colors active:bg-muted"
+                aria-label={t('quickSettings.open', { defaultValue: 'Open quick settings' })}
+                title={t('quickSettings.open', { defaultValue: 'Open quick settings' })}
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
+            </div>
           )}
         </div>
 
