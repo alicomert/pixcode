@@ -1,11 +1,49 @@
 import { useEffect, useState } from 'preact/hooks'
-import { ChevronDown, ChevronRight, File, FilePlus2, FolderPlus, Pencil, RefreshCw, Trash2 } from 'lucide-preact'
+import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FilePlus2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, FolderPlus, Gem, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Pencil, RefreshCw, Scroll, Settings, Shield, SquareFunction, Terminal, Trash2, Video, Workflow } from 'lucide-preact'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { openFile } from '../state/app.js'
 
 function joinPath(parent, name) {
   return parent === '.' ? name : parent + '/' + name
+}
+
+const fileIcons = {
+  js: [FileCode, '#e7c15b'], jsx: [FileCode, '#e7c15b'], mjs: [FileCode, '#e7c15b'], cjs: [FileCode, '#e7c15b'],
+  ts: [FileCode2, '#4e9be8'], tsx: [FileCode2, '#4e9be8'], mts: [FileCode2, '#4e9be8'],
+  py: [Code2, '#54c48b'], pyw: [Code2, '#54c48b'], pyi: [Code2, '#54c48b'],
+  ipynb: [NotebookPen, '#f08a3c'], rs: [Cog, '#e27c35'], toml: [Settings, '#9299a5'],
+  go: [Hexagon, '#38bcd3'], rb: [Gem, '#e35c63'], erb: [Gem, '#e35c63'], php: [Box, '#9c77df'],
+  java: [Coffee, '#dd6262'], jar: [Coffee, '#dd6262'], kt: [Hexagon, '#aa72e5'], kts: [Hexagon, '#aa72e5'],
+  c: [Cpu, '#538fd2'], h: [Cpu, '#538fd2'], cpp: [Cpu, '#538fd2'], hpp: [Cpu, '#538fd2'], cc: [Cpu, '#538fd2'],
+  cs: [Hexagon, '#9d74d4'], swift: [Flame, '#ed8748'], lua: [SquareFunction, '#538fd2'], r: [FlaskConical, '#538fd2'],
+  html: [Globe, '#eb8248'], htm: [Globe, '#eb8248'], css: [Hash, '#5e9be7'], scss: [Hash, '#d475a3'], sass: [Hash, '#d475a3'], less: [Hash, '#8d8ce0'],
+  vue: [FileCode2, '#4dbb83'], svelte: [FileCode2, '#ef874f'], json: [Braces, '#dbb84b'], jsonc: [Braces, '#dbb84b'], json5: [Braces, '#dbb84b'],
+  yaml: [Settings, '#a68bd3'], yml: [Settings, '#a68bd3'], xml: [FileCode, '#eb8248'], csv: [FileSpreadsheet, '#54ae72'], tsv: [FileSpreadsheet, '#54ae72'],
+  sql: [Database, '#5e9be7'], graphql: [Workflow, '#dc73bb'], gql: [Workflow, '#dc73bb'], proto: [Box, '#54ae72'],
+  env: [Shield, '#d9b34b'], md: [BookOpen, '#5e9be7'], mdx: [BookOpen, '#5e9be7'], txt: [FileText, '#9299a5'], doc: [FileText, '#538fd2'], docx: [FileText, '#538fd2'],
+  pdf: [FileCheck, '#e35c63'], rtf: [FileText, '#9299a5'], tex: [Scroll, '#53b5ae'], rst: [FileText, '#9299a5'],
+  sh: [Terminal, '#54c48b'], bash: [Terminal, '#54c48b'], zsh: [Terminal, '#54c48b'], fish: [Terminal, '#54c48b'], ps1: [Terminal, '#5e9be7'], bat: [Terminal, '#9299a5'], cmd: [Terminal, '#9299a5'],
+  png: [Image, '#a477df'], jpg: [Image, '#a477df'], jpeg: [Image, '#a477df'], gif: [Image, '#a477df'], webp: [Image, '#a477df'], ico: [Image, '#a477df'], bmp: [Image, '#a477df'], svg: [Palette, '#dbad4d'],
+  mp3: [Music2, '#d675a9'], wav: [Music2, '#d675a9'], ogg: [Music2, '#d675a9'], flac: [Music2, '#d675a9'], mp4: [Video, '#e06b80'], mov: [Video, '#e06b80'], webm: [Video, '#e06b80'],
+  ttf: [FileType, '#df6666'], otf: [FileType, '#df6666'], woff: [FileType, '#df6666'], woff2: [FileType, '#df6666'], zip: [Archive, '#d9a94c'], tar: [Archive, '#d9a94c'], gz: [Archive, '#d9a94c'], rar: [Archive, '#d9a94c'],
+  lock: [Lock, '#9299a5'], exe: [Binary, '#9299a5'], bin: [Binary, '#9299a5'], dll: [Binary, '#9299a5'], so: [Binary, '#9299a5'], wasm: [Binary, '#a477df'], ini: [Settings, '#9299a5'], cfg: [Settings, '#9299a5'], conf: [Settings, '#9299a5'], log: [Scroll, '#9299a5']
+}
+
+const namedFileIcons = {
+  Dockerfile: [Box, '#5e9be7'], 'docker-compose.yml': [Box, '#5e9be7'], 'docker-compose.yaml': [Box, '#5e9be7'],
+  '.gitignore': [Settings, '#9299a5'], '.gitattributes': [Settings, '#9299a5'], '.editorconfig': [Settings, '#9299a5'],
+  '.env': [Shield, '#d9b34b'], '.env.local': [Shield, '#d9b34b'], '.env.example': [Shield, '#d9b34b'],
+  'package.json': [Braces, '#54ae72'], 'package-lock.json': [Lock, '#9299a5'], 'yarn.lock': [Lock, '#5e9be7'], 'pnpm-lock.yaml': [Lock, '#e28a55'],
+  'Cargo.toml': [Cog, '#e27c35'], 'Cargo.lock': [Lock, '#e27c35'], Makefile: [Terminal, '#9299a5'],
+  'README.md': [BookOpen, '#5e9be7'], LICENSE: [FileCheck, '#9299a5'], 'CHANGELOG.md': [Scroll, '#5e9be7']
+}
+
+function getFileIcon(name, type, expanded) {
+  if (type === 'dir') return [expanded ? FolderOpen : Folder, expanded ? '#d6a94e' : '#c9973e']
+  if (namedFileIcons[name]) return namedFileIcons[name]
+  const extension = name.includes('.') ? name.split('.').pop().toLowerCase() : ''
+  return fileIcons[extension] || [File, '#858585']
 }
 
 function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged }) {
@@ -35,11 +73,12 @@ function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged })
   }
 
   const itemClass = ['tree-item', type === 'dir' ? 'dir' : 'file', expanded ? 'open' : ''].filter(Boolean).join(' ')
+  const [FileGlyph, iconColor] = getFileIcon(name, type, expanded)
   return (
     <div class="tree-node">
       <div class="tree-row">
         <button class={itemClass} style={{ paddingLeft: String(6 + depth * 12) + 'px' }} type="button" onClick={activate} title={path}>
-          <span class="tree-file-icon" aria-hidden="true">{type === 'dir' ? (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <File size={14} />}</span>
+          <span class="tree-file-icon" style={{ color: iconColor }} aria-hidden="true">{type === 'dir' ? (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <FileGlyph size={14} strokeWidth={1.7} />}</span>
           <span class="name">{name}</span>
         </button>
         <span class="tree-actions">

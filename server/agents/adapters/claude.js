@@ -4,6 +4,7 @@ export class ClaudeAdapter extends Adapter {
   static id = 'claude'
   static label = 'Claude Code'
   static cli = 'claude'
+  static icon = '/icons/claude-ai-icon.svg'
   static interactive = true
 
   buildArgs({ prompt } = {}) {

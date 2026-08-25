@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Circle, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from 'lucide-preact'
+import { ArrowLeft, ArrowRight, Blocks, Circle, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from 'lucide-preact'
 import { t, setLocale, locale } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
@@ -63,20 +63,37 @@ function ActivityBar() {
 }
 
 function TopBar() {
+  const [installPrompt, setInstallPrompt] = useState(null)
+
+  useEffect(() => {
+    const capturePrompt = (event) => { event.preventDefault(); setInstallPrompt(event) }
+    const clearPrompt = () => setInstallPrompt(null)
+    window.addEventListener('beforeinstallprompt', capturePrompt)
+    window.addEventListener('appinstalled', clearPrompt)
+    return () => { window.removeEventListener('beforeinstallprompt', capturePrompt); window.removeEventListener('appinstalled', clearPrompt) }
+  }, [])
+
   function logout() {
     ws.close()
     setToken('')
     location.reload()
   }
 
+  async function install() {
+    if (!installPrompt) return
+    await installPrompt.prompt()
+    setInstallPrompt(null)
+  }
+
   return (
     <header class="topbar">
-      <div class="window-brand"><span class="brand-mark">PX</span><strong>{t('app.title')}</strong></div>
+      <div class="window-brand"><span class="brand-mark"><img class="brand-logo" src="/logo.svg" alt="" aria-hidden="true" /></span><strong>{t('app.title')}</strong></div>
       <div class="window-nav"><button class="tw-icon-button" type="button" disabled title={t('navigation.back')}><ArrowLeft size={16} /></button><button class="tw-icon-button" type="button" disabled title={t('navigation.forward')}><ArrowRight size={16} /></button></div>
       <button class="command-center tw-command-field" type="button" onClick={() => { activeView.value = 'search'; mobileTab.value = 'files'; if (sidebarWidth.value === 0) setSidebarWidth(276); window.dispatchEvent(new Event('pixcode:focus-search')) }}><Search class="command-icon" size={15} /><span>{t('command.search')}</span><kbd>Ctrl+P</kbd></button>
       <ProjectSwitcher />
       <span class="spacer" />
       <div class="topbar-actions">
+        {installPrompt && <button type="button" class="icon-button tw-icon-button" title={t('pwa.install')} aria-label={t('pwa.install')} onClick={install}><Download size={16} /></button>}
         <button type="button" class="layout-button tw-icon-button" title={t('layout.toggleSidebar')} onClick={() => setSidebarWidth(sidebarWidth.value > 0 ? 0 : 276)}><PanelLeft size={16} /></button>
         <button type="button" class="layout-button tw-icon-button" title={t('layout.togglePanel')} onClick={() => (panelOpen.value = !panelOpen.value)}><PanelBottom size={16} /></button>
         <select aria-label={t('lang.label')} value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>

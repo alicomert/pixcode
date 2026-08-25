@@ -8,6 +8,7 @@ export class Adapter {
   static id = ''
   static label = ''
   static cli = ''
+  static icon = ''
   static interactive = false
 
   buildArgs(_options) { return [] }
@@ -37,6 +38,7 @@ export async function listAgents() {
     id: AdapterClass.id,
     label: AdapterClass.label,
     cli: AdapterClass.cli,
+    icon: AdapterClass.icon,
     interactive: AdapterClass.interactive,
     available: await commandAvailable(AdapterClass.cli)
   })))

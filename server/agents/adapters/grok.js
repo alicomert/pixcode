@@ -4,6 +4,7 @@ export class GrokAdapter extends Adapter {
   static id = 'grok'
   static label = 'Grok CLI'
   static cli = 'grok'
+  static icon = '/icons/grok-build-icon.png'
   static interactive = false
 
   buildArgs({ prompt } = {}) { return prompt ? ['-p', prompt] : [] }

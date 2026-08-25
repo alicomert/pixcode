@@ -4,6 +4,7 @@ export class QwenAdapter extends Adapter {
   static id = 'qwen'
   static label = 'Qwen Code'
   static cli = 'qwen'
+  static icon = '/icons/qwen-logo.svg'
   static interactive = false
 
   buildArgs({ prompt } = {}) { return ['-p', prompt || ''] }

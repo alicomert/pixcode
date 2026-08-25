@@ -4,6 +4,7 @@ export class OpenCodeAdapter extends Adapter {
   static id = 'opencode'
   static label = 'OpenCode'
   static cli = 'opencode'
+  static icon = '/icons/opencode-logo-dark.svg'
   static interactive = false
 
   buildArgs({ prompt } = {}) { return ['run', ...(prompt ? [prompt] : [])] }

@@ -4,6 +4,7 @@ export class CodexAdapter extends Adapter {
   static id = 'codex'
   static label = 'Codex'
   static cli = 'codex'
+  static icon = '/icons/codex-white.svg'
   static interactive = false
 
   buildArgs({ prompt } = {}) { return ['exec', '--json', ...(prompt ? [prompt] : [])] }
