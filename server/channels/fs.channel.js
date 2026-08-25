@@ -3,7 +3,9 @@ import path from 'node:path'
 import { config } from '../config.js'
 import { httpError } from '../util/http.js'
 
-const SKIP = new Set(['node_modules', '.git', 'dist', '.cache', '.DS_Store'])
+// Keep dependency trees out of the explorer/search, but expose project files
+// including dotfiles, build output and the .git directory like a local editor.
+const SKIP = new Set(['.DS_Store'])
 function lexicalPath(rel) {
   const base = path.resolve(config.workspace)
   const value = String(rel || '.')

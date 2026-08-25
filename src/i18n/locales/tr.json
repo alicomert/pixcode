@@ -81,6 +81,9 @@
   "git.messagePlaceholder": "Commit mesajı",
   "git.noChanges": "Değişiklik yok",
   "git.notRepo": "Git deposu bulunamadı",
+  "git.noRepositoryTitle": "Git deposu yok",
+  "git.noRepositoryDescription": "Bu klasör henüz bir Git deposu değil. GitHub veya başka bir uzak depoyu çalışma alanı olarak açabilirsiniz.",
+  "git.openRemote": "Uzak depoyu aç",
   "git.busy": "Çalışıyor",
   "agent.placeholder": "Ajan seçin",
   "agent.list": "CLI ajanları",
@@ -105,4 +108,21 @@
   "terminal.close": "Kapat",
   "lang.label": "Dil",
   "status.ready": "Hazır"
+  ,"project.openFolder": "Klasör aç"
+  ,"project.folderHint": "Bilgisayarınızdaki bir klasörü çalışma alanı olarak açın."
+  ,"project.browse": "Klasörleri göster"
+  ,"project.cloneRepo": "GitHub deposu klonla"
+  ,"project.cloneHint": "GitHub veya başka bir Git uzak adresi girin."
+  ,"welcome.subtitle": "Kodla, çalıştır ve agent’larını tek çalışma alanında yönet."
+  ,"welcome.start": "Başlat"
+  ,"welcome.newFile": "Yeni dosya"
+  ,"welcome.openFolder": "Klasör aç"
+  ,"welcome.cloneRepo": "GitHub deposu klonla"
+  ,"welcome.newProject": "Yeni Pixcode projesi"
+  ,"welcome.tools": "Çalışma araçları"
+  ,"welcome.agentTitle": "Agent terminali"
+  ,"welcome.agentDescription": "Codex, Claude, Gemini ve diğer CLI’ları açın."
+  ,"welcome.terminalTitle": "Terminal"
+  ,"welcome.terminalDescription": "Çalışma alanınızda komut çalıştırın."
+  ,"welcome.hint": "İpucu: Ctrl+P ile dosya veya komut arayın."
 }

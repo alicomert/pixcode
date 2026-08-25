@@ -81,6 +81,9 @@
   "git.messagePlaceholder": "Commit message",
   "git.noChanges": "No changes",
   "git.notRepo": "No Git repository",
+  "git.noRepositoryTitle": "No Git repository",
+  "git.noRepositoryDescription": "This folder is not a Git repository yet. Open a GitHub or another remote repository as your workspace.",
+  "git.openRemote": "Open remote repository",
   "git.busy": "Working",
   "agent.placeholder": "Select an agent",
   "agent.list": "CLI agents",
@@ -105,4 +108,21 @@
   "terminal.close": "Close",
   "lang.label": "Language",
   "status.ready": "Ready"
+  ,"project.openFolder": "Open folder"
+  ,"project.folderHint": "Open any folder on your computer as the workspace."
+  ,"project.browse": "Browse folders"
+  ,"project.cloneRepo": "Clone GitHub repository"
+  ,"project.cloneHint": "Enter a GitHub or other Git remote URL."
+  ,"welcome.subtitle": "Code, run, and manage your agents in one workspace."
+  ,"welcome.start": "Start"
+  ,"welcome.newFile": "New file"
+  ,"welcome.openFolder": "Open folder"
+  ,"welcome.cloneRepo": "Clone GitHub repository"
+  ,"welcome.newProject": "New Pixcode project"
+  ,"welcome.tools": "Workspace tools"
+  ,"welcome.agentTitle": "Agent terminal"
+  ,"welcome.agentDescription": "Open Codex, Claude, Gemini, and other CLIs."
+  ,"welcome.terminalTitle": "Terminal"
+  ,"welcome.terminalDescription": "Run commands in your workspace."
+  ,"welcome.hint": "Tip: press Ctrl+P to search files or commands."
 }

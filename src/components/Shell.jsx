@@ -202,6 +202,10 @@ function StatusBar() {
 export function Shell() {
   useEffect(() => {
     const open = (event) => openFile(event.detail)
+    const openAgent = () => { mobileTab.value = 'agent'; panelOpen.value = true }
+    const openTerminal = () => { mobileTab.value = 'terminal'; panelOpen.value = true }
+    const newFile = () => { activeView.value = 'explorer'; mobileTab.value = 'files'; window.setTimeout(() => window.dispatchEvent(new Event('pixcode:new-file')), 0) }
+    const createFile = () => { activeView.value = 'explorer'; mobileTab.value = 'files'; window.setTimeout(() => window.dispatchEvent(new Event('pixcode:new-file')), 0) }
     const shortcuts = (event) => {
       const modifier = event.ctrlKey || event.metaKey
       if (modifier && event.key.toLowerCase() === 'p') { event.preventDefault(); activeView.value = 'search'; mobileTab.value = 'files' }
@@ -215,6 +219,10 @@ export function Shell() {
       if (modifier && event.code === 'Backquote') { event.preventDefault(); panelOpen.value = !panelOpen.value }
     }
     window.addEventListener('pixcode:open-file', open)
+    window.addEventListener('pixcode:open-agent', openAgent)
+    window.addEventListener('pixcode:open-terminal', openTerminal)
+    window.addEventListener('pixcode:new-file', newFile)
+    window.addEventListener('pixcode:create-file', createFile)
     window.addEventListener('keydown', shortcuts)
     let cancelled = false
     const refreshBranch = async () => {
@@ -227,7 +235,7 @@ export function Shell() {
     }
     refreshBranch()
     const branchTimer = window.setInterval(refreshBranch, 10_000)
-    return () => { cancelled = true; window.clearInterval(branchTimer); window.removeEventListener('pixcode:open-file', open); window.removeEventListener('keydown', shortcuts); ws.close() }
+    return () => { cancelled = true; window.clearInterval(branchTimer); window.removeEventListener('pixcode:open-file', open); window.removeEventListener('pixcode:open-agent', openAgent); window.removeEventListener('pixcode:open-terminal', openTerminal); window.removeEventListener('pixcode:new-file', newFile); window.removeEventListener('pixcode:create-file', createFile); window.removeEventListener('keydown', shortcuts); ws.close() }
   }, [])
   const mobile = mobileTab.value
   const effectiveSidebar = sidebarWidth.value

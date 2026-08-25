@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Save, X } from 'lucide-preact'
+import { Bot, FolderOpen, FolderPlus, GitFork, Plus, Save, Terminal as TerminalIcon, X } from 'lucide-preact'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -17,6 +17,18 @@ import { unifiedMergeView } from '@codemirror/merge'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { activeFile, closeFile, openFiles, theme } from '../state/app.js'
+
+function WelcomeView() {
+  function dispatch(name) { window.dispatchEvent(new Event(name)) }
+  return <div class="welcome-view">
+    <div class="welcome-hero"><img src="/logo.svg" alt="" aria-hidden="true" /><div><h1>Pixcode</h1><p>{t('welcome.subtitle')}</p></div></div>
+    <div class="welcome-columns">
+      <section class="welcome-column"><h2>{t('welcome.start')}</h2><button type="button" onClick={() => dispatch('pixcode:create-file')}><Plus size={15} /> {t('welcome.newFile')}</button><button type="button" onClick={() => dispatch('pixcode:open-folder')}><FolderOpen size={15} /> {t('welcome.openFolder')}</button><button type="button" onClick={() => dispatch('pixcode:clone-repo')}><GitFork size={15} /> {t('welcome.cloneRepo')}</button><button type="button" onClick={() => dispatch('pixcode:new-project')}><FolderPlus size={15} /> {t('welcome.newProject')}</button></section>
+      <section class="welcome-column welcome-cards"><h2>{t('welcome.tools')}</h2><button type="button" onClick={() => dispatch('pixcode:open-agent')}><Bot size={15} /><span><strong>{t('welcome.agentTitle')}</strong><small>{t('welcome.agentDescription')}</small></span></button><button type="button" onClick={() => dispatch('pixcode:open-terminal')}><TerminalIcon size={15} /><span><strong>{t('welcome.terminalTitle')}</strong><small>{t('welcome.terminalDescription')}</small></span></button></section>
+    </div>
+    <p class="welcome-hint">{t('welcome.hint')}</p>
+  </div>
+}
 
 const themeCompartment = new Compartment()
 const lightEditorTheme = EditorView.theme({
@@ -147,7 +159,7 @@ export function EditorPane() {
   const files = openFiles.value
   const active = activeFile.value
   const [dirtyFiles, setDirtyFiles] = useState({})
-  if (!files.length || !active) return <div class="loading-screen muted">{t('editor.untitled')}</div>
+  if (!files.length || !active) return <WelcomeView />
   function setDirty(path, dirty) {
     setDirtyFiles((current) => ({ ...current, [path]: dirty }))
   }

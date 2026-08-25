@@ -108,7 +108,12 @@ export function FileTree() {
     }
   }
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    refresh()
+    const newFile = () => openCreate('file')
+    window.addEventListener('pixcode:new-file', newFile)
+    return () => window.removeEventListener('pixcode:new-file', newFile)
+  }, [])
 
   async function submitAction(event) {
     event.preventDefault()

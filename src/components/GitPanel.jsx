@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { ArrowDownToLine, ArrowUpFromLine, GitCompare, GitCommitHorizontal, RefreshCw } from 'lucide-preact'
+import { ArrowDownToLine, ArrowUpFromLine, FolderGit2, GitCompare, GitCommitHorizontal, GitFork, RefreshCw } from 'lucide-preact'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { gitBranch } from '../state/app.js'
@@ -17,14 +17,16 @@ export function GitPanel() {
   const [error, setError] = useState('')
   const [output, setOutput] = useState('')
   const [diff, setDiff] = useState(null)
+  const [repoMissing, setRepoMissing] = useState(false)
 
   async function refresh() {
     setError('')
     try {
       const next = await ws.request('git', 'status')
       setState(next)
+      setRepoMissing(false)
       gitBranch.value = next?.branch || 'HEAD'
-    } catch (requestError) { setState(null); gitBranch.value = '—'; setError(requestError.message) }
+    } catch (requestError) { setState(null); setRepoMissing(true); gitBranch.value = '—'; setError('') }
   }
 
   useEffect(() => { refresh() }, [])
@@ -68,6 +70,7 @@ export function GitPanel() {
         <button class="tw-icon-button" type="button" onClick={refresh} disabled={!!busy} title={t('git.refresh')} aria-label={t('git.refresh')}><RefreshCw size={14} /></button>
       </div>
       {error && <div class="error-text" style="padding:8px">{error}</div>}
+      {repoMissing && <div class="git-welcome"><FolderGit2 size={27} /><h2>{t('git.noRepositoryTitle')}</h2><p>{t('git.noRepositoryDescription')}</p><button type="button" class="tw-toolbar-button" onClick={() => window.dispatchEvent(new Event('pixcode:clone-repo'))}><GitFork size={13} /> {t('git.openRemote')}</button></div>}
       <div class="git-list">
         {!state && !error && <div class="tree muted">{t('tree.loading')}</div>}
         {state?.files.length === 0 && <div class="tree muted">{t('git.noChanges')}</div>}
