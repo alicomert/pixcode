@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { FilePlus2, FolderPlus, Pencil, RefreshCw, Trash2 } from 'lucide-preact'
+import { ChevronDown, ChevronRight, File, FilePlus2, FolderPlus, Pencil, RefreshCw, Trash2 } from 'lucide-preact'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { openFile } from '../state/app.js'
@@ -39,7 +39,7 @@ function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged })
     <div class="tree-node">
       <div class="tree-row">
         <button class={itemClass} style={{ paddingLeft: String(6 + depth * 12) + 'px' }} type="button" onClick={activate} title={path}>
-          <span class="tree-file-icon" aria-hidden="true">{type === 'dir' ? (expanded ? '▾' : '▸') : '·'}</span>
+          <span class="tree-file-icon" aria-hidden="true">{type === 'dir' ? (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : <File size={14} />}</span>
           <span class="name">{name}</span>
         </button>
         <span class="tree-actions">
