@@ -33,6 +33,7 @@ function TerminalView({ id }) {
       } catch {}
     }
     resize()
+    requestAnimationFrame(() => requestAnimationFrame(resize))
     const dataUnsubscribe = ws.on('pty', 'data', (event) => { if (event.id === id) terminal.write(event.data) })
     const exitUnsubscribe = ws.on('pty', 'exit', (event) => { if (event.id === id) terminal.write(`\r\n[process exited: ${event.exitCode}]\r\n`) })
     const inputDisposable = terminal.onData((data) => ws.request('pty', 'input', { id, data }))

@@ -80,7 +80,13 @@ function AgentTerminalView({ session, onStatus }) {
     })
     const observer = new ResizeObserver(resize)
     observer.observe(host.current)
-    hydrate().then(resize)
+    hydrate().then(() => {
+      // A terminal can be mounted while its split pane is settling. Fitting
+      // on two animation frames prevents the first screen from being clipped
+      // on the right until the user manually resizes the pane.
+      resize()
+      requestAnimationFrame(() => requestAnimationFrame(resize))
+    })
     return () => {
       disposed = true
       observer.disconnect()

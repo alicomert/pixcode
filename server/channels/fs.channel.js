@@ -6,6 +6,7 @@ import { httpError } from '../util/http.js'
 // Keep dependency trees out of the explorer/search, but expose project files
 // including dotfiles, build output and the .git directory like a local editor.
 const SKIP = new Set(['.DS_Store'])
+const SEARCH_SKIP = new Set(['node_modules', '.git', 'dist', '.cache', '.DS_Store'])
 function lexicalPath(rel) {
   const base = path.resolve(config.workspace)
   const value = String(rel || '.')
@@ -71,7 +72,7 @@ export const fsChannel = {
         let entries
         try { entries = await fs.promises.readdir(directory, { withFileTypes: true }) } catch { return }
         for (const entry of entries) {
-          if (SKIP.has(entry.name)) continue
+          if (SEARCH_SKIP.has(entry.name)) continue
           const childRelative = relative ? `${relative}/${entry.name}` : entry.name
           const childPath = path.join(directory, entry.name)
           const nameMatch = entry.name.toLowerCase().includes(needle)

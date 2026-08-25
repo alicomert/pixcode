@@ -108,6 +108,7 @@ button:disabled { cursor: wait; opacity: .55; }
 .terminal-tab > span { display: inline-flex; align-items: center; gap: 5px; }
 .terminal-host { width: 100%; min-width: 0; flex: 1; min-height: 0; overflow: hidden; padding: 5px; }
 .terminal-host .xterm { height: 100%; }
+.terminal-host .xterm, .agent-terminal-host .xterm { width: 100%; min-width: 0; }
 
 .auth { display: grid; place-items: center; height: 100%; padding: 20px; }
 .auth-card { display: flex; width: min(340px, 100%); flex-direction: column; gap: 12px; padding: 24px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel); }
