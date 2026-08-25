@@ -42,14 +42,22 @@ function AgentTerminalView({ session, onStatus }) {
     terminalRef.current = terminal
     let disposed = false
     let lastSeq = 0
+    let hydrated = false
+    const pendingEvents = []
 
     async function hydrate() {
       try {
         const history = await ws.request('agent', 'history', { sessionId: session.sessionId })
         for (const event of history) {
+          if (event.type === 'data') terminal.write(event.data || '')
+          lastSeq = Math.max(lastSeq, event.seq || 0)
+        }
+        hydrated = true
+        for (const event of pendingEvents.splice(0).sort((left, right) => (left.seq || 0) - (right.seq || 0))) {
           if (event.seq && event.seq <= lastSeq) continue
           if (event.type === 'data') terminal.write(event.data || '')
           lastSeq = Math.max(lastSeq, event.seq || 0)
+          if (event.type === 'done') onStatus(session.sessionId, 'stopped')
         }
         if (!disposed) fit.fit()
       } catch (error) {
@@ -67,6 +75,10 @@ function AgentTerminalView({ session, onStatus }) {
     })
     const dataUnsubscribe = ws.on('agent', 'session', (event) => {
       if (event.sessionId !== session.sessionId || (event.seq && event.seq <= lastSeq)) return
+      if (!hydrated) {
+        pendingEvents.push(event)
+        return
+      }
       lastSeq = event.seq || lastSeq
       if (event.type === 'data') terminal.write(event.data || '')
       if (event.type === 'done') onStatus(session.sessionId, 'stopped')
@@ -161,8 +173,11 @@ export function AgentPanel() {
   async function closeSession(event, sessionId) {
     event.stopPropagation()
     await stopSession(sessionId)
-    setSessions((current) => current.filter((session) => session.sessionId !== sessionId))
-    if (activeSessionId === sessionId) setActiveSessionId(sessions.find((session) => session.sessionId !== sessionId)?.sessionId || '')
+    setSessions((current) => {
+      const next = current.filter((session) => session.sessionId !== sessionId)
+      if (activeSessionId === sessionId) setActiveSessionId(next.at(-1)?.sessionId || '')
+      return next
+    })
   }
 
   function updateStatus(sessionId, status) {
