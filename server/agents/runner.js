@@ -70,7 +70,6 @@ export function startRunner(ctx, { agent, prompt = '', cwd, cols = 100, rows = 3
   }
   session.term = term
   sessions.set(sessionId, session)
-  emit(session, { type: 'status', role: 'system', status: 'started', agent })
   term.onData((data) => emit(session, { type: 'data', data }))
   term.onExit(({ exitCode, signal }) => {
     emit(session, { type: 'done', role: 'system', exitCode, signal })
@@ -78,6 +77,9 @@ export function startRunner(ctx, { agent, prompt = '', cwd, cols = 100, rows = 3
     session.closedAt = Date.now()
     setTimeout(() => sessions.delete(sessionId), 24 * 60 * 60 * 1000).unref?.()
   })
+  // Attach PTY listeners before announcing startup so fast CLIs cannot emit
+  // their first screen between spawn and the initial status event.
+  emit(session, { type: 'status', role: 'system', status: 'started', agent })
   if (prompt) setTimeout(() => { if (session.state.status === 'running') term.write(String(prompt) + '\r') }, 80)
   return sessionInfo(session)
 }
