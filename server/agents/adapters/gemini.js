@@ -7,6 +7,7 @@ export class GeminiAdapter extends Adapter {
   static icon = '/icons/gemini-ai-icon.svg'
   static interactive = false
 
+  buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return ['-p', prompt || ''] }
   normalizeLine(line) { return [{ type: 'message', role: 'assistant', text: line, partial: true }] }
 }

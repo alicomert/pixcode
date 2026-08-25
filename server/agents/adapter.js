@@ -12,6 +12,7 @@ export class Adapter {
   static interactive = false
 
   buildArgs(_options) { return [] }
+  buildTerminalArgs(_options) { return [] }
   normalizeLine(_line, _state) { return [] }
   buildUserFrame(text) { return `${text}\n` }
 }

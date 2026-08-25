@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import pty from 'node-pty'
 import path from 'node:path'
 import { config } from '../config.js'
 import { getAdapter } from './adapter.js'
@@ -7,16 +7,24 @@ import { httpError } from '../util/http.js'
 const sessions = new Map()
 let counter = 0
 
-function emit(session, event) {
-  const data = { ...event, sessionId: session.sessionId, ts: Date.now() }
-  session.history.push(data)
-  if (session.history.length > 2_000) session.history.shift()
-  session.emit('agent', 'session', data)
+function ownerKey(ctx) {
+  return `${String(ctx?.principal?.sub || 'owner')}:${String(ctx?.clientId || 'legacy')}`
 }
 
-function spawnErrorMessage(error) {
-  if (error.code === 'ENOENT') return 'agent cli not found'
-  return error.message || 'agent process failed to start'
+function dimensions(cols, rows) {
+  return {
+    cols: Math.min(Math.max(Number(cols) || 100, 20), 500),
+    rows: Math.min(Math.max(Number(rows) || 30, 5), 200)
+  }
+}
+
+function emit(session, event) {
+  const data = { ...event, sessionId: session.sessionId, agent: session.state.agent, seq: ++session.sequence, ts: Date.now() }
+  session.history.push(data)
+  while (session.history.length > 4_000) session.history.shift()
+  for (const subscriber of session.subscribers) {
+    try { subscriber.emit('agent', 'session', data) } catch { session.subscribers.delete(subscriber) }
+  }
 }
 
 function workspaceCwd(cwd) {
@@ -25,110 +33,121 @@ function workspaceCwd(cwd) {
   return resolved
 }
 
-function flushLines(session, chunk, final = false) {
-  session.state.buffer += chunk
-  const lines = session.state.buffer.split(/\r?\n/)
-  session.state.buffer = final ? '' : lines.pop()
-  for (const line of lines) {
-    if (!line) continue
-    session.state.lines.push(line)
-    try {
-      const events = session.adapter.normalizeLine(line, session.state) || []
-      for (const event of events) emit(session, event)
-    } catch (error) {
-      emit(session, { type: 'error', role: 'system', message: error.message })
-    }
-  }
-}
-
-export function startRunner(ctx, { agent, prompt = '', cwd } = {}) {
+export function startRunner(ctx, { agent, prompt = '', cwd, cols = 100, rows = 30 } = {}) {
   const AdapterClass = getAdapter(agent)
   if (!AdapterClass) throw httpError(400, 'unknown agent')
   const sessionId = `s_${++counter}`
+  const size = dimensions(cols, rows)
+  const index = [...sessions.values()].filter((item) => item.owner === ownerKey(ctx) && item.state.agent === agent).length + 1
   const session = {
     sessionId,
     adapter: new AdapterClass(),
-    state: { agent, cwd: workspaceCwd(cwd), buffer: '', lines: [] },
+    state: { agent, cwd: workspaceCwd(cwd), status: 'running' },
     history: [],
-    emit: ctx.emit,
-    owner: ctx,
-    child: null
+    sequence: 0,
+    owner: ownerKey(ctx),
+    subscribers: new Set([ctx]),
+    term: null,
+    startedAt: Date.now(),
+    index
   }
   let args
   try {
-    args = session.adapter.buildArgs({ prompt })
+    args = session.adapter.buildTerminalArgs({ prompt })
   } catch (error) {
     throw httpError(400, error.message || 'invalid agent arguments')
   }
-  const child = spawn(AdapterClass.cli, args, {
-    cwd: session.state.cwd,
-    env: process.env,
-    stdio: ['pipe', 'pipe', 'pipe']
-  })
-  session.child = child
+  let term
+  try {
+    term = pty.spawn(AdapterClass.cli, args, {
+      name: 'xterm-256color',
+      ...size,
+      cwd: session.state.cwd,
+      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+    })
+  } catch (error) {
+    throw httpError(400, error.code === 'ENOENT' ? 'agent cli not found' : (error.message || 'agent process failed to start'))
+  }
+  session.term = term
   sessions.set(sessionId, session)
   emit(session, { type: 'status', role: 'system', status: 'started', agent })
-  if (prompt) emit(session, { type: 'message', role: 'user', text: prompt })
-
-  child.stdout.setEncoding('utf8')
-  child.stderr.setEncoding('utf8')
-  child.stdout.on('data', (chunk) => flushLines(session, chunk))
-  child.stderr.on('data', (chunk) => emit(session, { type: 'message', role: 'system', text: chunk.toString() }))
-  child.once('error', (error) => emit(session, { type: 'error', role: 'system', message: spawnErrorMessage(error) }))
-  child.once('exit', (code, signal) => {
-    if (session.state.buffer) flushLines(session, '', true)
-    emit(session, { type: 'done', role: 'system', exitCode: code, signal })
+  term.onData((data) => emit(session, { type: 'data', data }))
+  term.onExit(({ exitCode, signal }) => {
+    emit(session, { type: 'done', role: 'system', exitCode, signal })
     session.state.status = 'stopped'
     session.closedAt = Date.now()
-    setTimeout(() => sessions.delete(sessionId), 5 * 60 * 1000).unref?.()
+    setTimeout(() => sessions.delete(sessionId), 24 * 60 * 60 * 1000).unref?.()
   })
+  if (prompt) setTimeout(() => { if (session.state.status === 'running') term.write(String(prompt) + '\r') }, 80)
+  return sessionInfo(session)
+}
 
-  if (prompt && AdapterClass.interactive) child.stdin.write(session.adapter.buildUserFrame(prompt))
-  return { sessionId }
+function sessionInfo(session) {
+  return {
+    sessionId: session.sessionId,
+    agent: session.state.agent,
+    status: session.state.status,
+    startedAt: session.startedAt,
+    index: session.index,
+    pid: session.term?.pid || null
+  }
+}
+
+function getOwnedSession(ctx, sessionId) {
+  const session = sessions.get(sessionId)
+  if (!session || session.owner !== ownerKey(ctx)) throw httpError(404, 'session not found')
+  session.subscribers.add(ctx)
+  return session
+}
+
+export function inputRunner(ctx, sessionId, data) {
+  const session = getOwnedSession(ctx, sessionId)
+  if (session.state.status !== 'running' || !session.term) throw httpError(404, 'session not running')
+  if (data == null) return { ok: true }
+  session.term.write(String(data))
+  return { ok: true }
+}
+
+export function resizeRunner(ctx, sessionId, cols, rows) {
+  const session = getOwnedSession(ctx, sessionId)
+  if (session.state.status !== 'running' || !session.term) return { ok: true }
+  const size = dimensions(cols, rows)
+  session.term.resize(size.cols, size.rows)
+  return { ok: true }
 }
 
 export function sendToRunner(ctx, sessionId, text) {
-  const session = sessions.get(sessionId)
-  if (!session || session.owner !== ctx || !session.child || session.child.exitCode !== null) throw httpError(404, 'session not found')
+  const session = getOwnedSession(ctx, sessionId)
+  if (session.state.status !== 'running' || !session.term) throw httpError(404, 'session not running')
   if (!String(text || '').trim()) throw httpError(400, 'text required')
-  if (!session.adapter.constructor.interactive) {
-    return startRunner(ctx, { agent: session.state.agent, prompt: String(text), cwd: session.state.cwd })
-  }
-  session.child.stdin.write(session.adapter.buildUserFrame(String(text)))
-  emit(session, { type: 'message', role: 'user', text: String(text) })
+  session.term.write(String(text) + '\r')
   return { ok: true }
 }
 
-export function stopRunner(_ctx, sessionId) {
-  const session = sessions.get(sessionId)
-  if (session?.owner === _ctx && session.child && session.child.exitCode === null) {
-    try { session.child.kill('SIGTERM') } catch { void 0 }
+export function stopRunner(ctx, sessionId) {
+  const session = getOwnedSession(ctx, sessionId)
+  if (session.state.status === 'running' && session.term) {
+    try { session.term.kill() } catch { void 0 }
     session.state.status = 'stopped'
   }
   return { ok: true }
 }
 
-export function stopOwnedSessions(ctx) {
-  for (const [sessionId, session] of sessions) {
-    if (session.owner !== ctx) continue
-    if (session.child?.exitCode === null) {
-      try { session.child.kill('SIGTERM') } catch { void 0 }
-    }
-    sessions.delete(sessionId)
+export function detachSubscriber(ctx) {
+  for (const session of sessions.values()) {
+    session.subscribers.delete(ctx)
   }
 }
 
 export function listSessions(ctx) {
-  return [...sessions.values()].filter((session) => session.owner === ctx).map((session) => ({
-    sessionId: session.sessionId,
-    agent: session.state.agent,
-    status: session.state.status || 'running',
-    startedAt: session.history[0]?.ts || Date.now()
-  }))
+  const own = [...sessions.values()].filter((session) => session.owner === ownerKey(ctx))
+  return own.map((session) => {
+    session.subscribers.add(ctx)
+    return sessionInfo(session)
+  })
 }
 
 export function getHistory(ctx, sessionId) {
-  const session = sessions.get(sessionId)
-  if (!session || session.owner !== ctx) throw httpError(404, 'session not found')
+  const session = getOwnedSession(ctx, sessionId)
   return session.history
 }

@@ -7,6 +7,7 @@ export class CodexAdapter extends Adapter {
   static icon = '/icons/codex-white.svg'
   static interactive = false
 
+  buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return ['exec', '--json', ...(prompt ? [prompt] : [])] }
 
   normalizeLine(line) {

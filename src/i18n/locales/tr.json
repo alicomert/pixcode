@@ -93,6 +93,8 @@
   "agent.input": "Terminal komutu veya talimat girin",
   "agent.missing": "kurulu değil",
   "agent.none": "Ajan bulunamadı",
+  "agent.chooseCli": "Yeni bir terminal oturumu için CLI seçin",
+  "agent.noSession": "Açık agent terminali yok",
   "remote.localTitle": "Yerel çalışma alanı",
   "remote.localDescription": "Bu Pixcode oturumu yerel olarak çalışıyor.",
   "extensions.agentsDescription": "Terminal tabanlı kod ajanları",

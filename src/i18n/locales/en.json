@@ -93,6 +93,8 @@
   "agent.input": "Enter a terminal command or instruction",
   "agent.missing": "not installed",
   "agent.none": "No agent available",
+  "agent.chooseCli": "Choose a CLI for a new terminal session",
+  "agent.noSession": "No agent terminal is open",
   "remote.localTitle": "Local workspace",
   "remote.localDescription": "This Pixcode session is running locally.",
   "extensions.agentsDescription": "Terminal-first coding agents",

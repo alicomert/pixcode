@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { CircleAlert, CircleCheck, CircleStop, Dot, Hammer, Play, RefreshCw, Send, Terminal as TerminalIcon } from 'lucide-preact'
+import { CircleStop, Maximize2, Plus, RefreshCw, Terminal as TerminalIcon, X } from 'lucide-preact'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { activeAgent } from '../state/app.js'
+import { theme } from '../state/app.js'
 
 const agentIcons = {
   claude: '/icons/claude-ai-icon.svg',
@@ -13,85 +17,100 @@ const agentIcons = {
   grok: '/icons/grok-build-icon.png'
 }
 
-function AgentLogo({ agent, size = 20 }) {
+function AgentLogo({ agent, size = 18 }) {
   const source = agent?.icon || agentIcons[agent?.id]
   if (source) return <img class="agent-logo" style={{ width: `${size}px`, height: `${size}px` }} src={source} alt="" aria-hidden="true" />
-  return <span class="agent-logo-fallback" style={{ width: `${size}px`, height: `${size}px` }} aria-hidden="true"><TerminalIcon size={size - 4} /></span>
+  return <TerminalIcon size={size} aria-hidden="true" />
 }
 
-function eventText(event) {
-  if (event.type === 'tool') {
-    const input = typeof event.tool?.input === 'string' ? event.tool.input : JSON.stringify(event.tool?.input || '')
-    return `${event.tool?.name || 'tool'} ${input}`
-  }
-  if (event.type === 'done') return `process exited (${event.exitCode ?? 0})`
-  return event.text || event.message || event.status || ''
+function terminalTheme() {
+  return theme.value === 'light'
+    ? { background: '#17202b', foreground: '#edf1f7', cursor: '#edf1f7', selectionBackground: '#315d87' }
+    : { background: '#101010', foreground: '#d1d1d1', cursor: '#d1d1d1', selectionBackground: '#26394c' }
 }
 
-function renderEvent(event, index) {
-  if (event.type === 'message') return <div class={`agent-line ${event.role || 'assistant'}`} key={`${event.ts}-${index}`}><span class="line-prefix">{event.role === 'user' ? '>' : <Dot size={14} />}</span><span>{eventText(event)}</span></div>
-  if (event.type === 'tool') return <div class="agent-line tool" key={`${event.ts}-${index}`}><span class="line-prefix"><Hammer size={13} /></span><span>{eventText(event)}</span></div>
-  if (event.type === 'error') return <div class="agent-line error-text" key={`${event.ts}-${index}`}><span class="line-prefix"><CircleAlert size={13} /></span><span>{eventText(event)}</span></div>
-  if (event.type === 'done') return <div class="agent-line system" key={`${event.ts}-${index}`}><span class="line-prefix"><CircleCheck size={13} /></span><span>{eventText(event)}</span></div>
-  if (event.type === 'status') return <div class="agent-line system" key={`${event.ts}-${index}`}><span class="line-prefix"><Dot size={14} /></span><span>{eventText(event)}</span></div>
-  return null
-}
+function AgentTerminalView({ session, onStatus }) {
+  const host = useRef(null)
+  const terminalRef = useRef(null)
 
-function mergeHistory(current, next) {
-  const merged = [...current]
-  for (const event of next) {
-    const duplicate = merged.some((item) => item.ts === event.ts && item.type === event.type && item.text === event.text && item.message === event.message)
-    if (!duplicate) merged.push(event)
-  }
-  return merged.sort((left, right) => (left.ts || 0) - (right.ts || 0))
+  useEffect(() => {
+    if (!host.current || !session) return undefined
+    const terminal = new Terminal({ fontFamily: 'var(--mono)', fontSize: 12, cursorBlink: true, convertEol: true, scrollback: 10_000, theme: terminalTheme() })
+    const fit = new FitAddon()
+    terminal.loadAddon(fit)
+    terminal.open(host.current)
+    terminalRef.current = terminal
+    let disposed = false
+    let lastSeq = 0
+
+    async function hydrate() {
+      try {
+        const history = await ws.request('agent', 'history', { sessionId: session.sessionId })
+        for (const event of history) {
+          if (event.seq && event.seq <= lastSeq) continue
+          if (event.type === 'data') terminal.write(event.data || '')
+          lastSeq = Math.max(lastSeq, event.seq || 0)
+        }
+        if (!disposed) fit.fit()
+      } catch (error) {
+        if (!disposed) terminal.write(`\r\n[history unavailable: ${error.message}]\r\n`)
+      }
+    }
+    const resize = () => {
+      try {
+        fit.fit()
+        ws.request('agent', 'resize', { sessionId: session.sessionId, cols: terminal.cols, rows: terminal.rows }).catch(() => {})
+      } catch { /* terminal can be mid-dispose */ }
+    }
+    const inputDisposable = terminal.onData((data) => {
+      ws.request('agent', 'input', { sessionId: session.sessionId, data }).catch(() => {})
+    })
+    const dataUnsubscribe = ws.on('agent', 'session', (event) => {
+      if (event.sessionId !== session.sessionId || (event.seq && event.seq <= lastSeq)) return
+      lastSeq = event.seq || lastSeq
+      if (event.type === 'data') terminal.write(event.data || '')
+      if (event.type === 'done') onStatus(session.sessionId, 'stopped')
+    })
+    const observer = new ResizeObserver(resize)
+    observer.observe(host.current)
+    hydrate().then(resize)
+    return () => {
+      disposed = true
+      observer.disconnect()
+      dataUnsubscribe()
+      inputDisposable.dispose()
+      terminal.dispose()
+      terminalRef.current = null
+    }
+  }, [session?.sessionId])
+
+  useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalTheme() }, [theme.value])
+  return <div class="agent-terminal-host" ref={host} />
 }
 
 export function AgentPanel() {
   const [agents, setAgents] = useState([])
-  const [eventsBySession, setEventsBySession] = useState({})
-  const [sessionsByAgent, setSessionsByAgent] = useState({})
-  const [input, setInput] = useState('')
+  const [sessions, setSessions] = useState([])
+  const [activeSessionId, setActiveSessionId] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
-  const logRef = useRef(null)
-  const sessionAgentsRef = useRef(new Map())
-  const selectedSessionRef = useRef('')
-  const completedSessionsRef = useRef(new Set())
 
-  const selectedAgent = agents.find((agent) => agent.id === activeAgent.value) || null
-  const selectedSession = selectedAgent ? sessionsByAgent[selectedAgent.id] : null
-  const selectedSessionId = selectedSession?.sessionId || ''
-  const selectedEvents = selectedSessionId ? (eventsBySession[selectedSessionId] || []) : []
-  const selectedRunning = selectedSession?.status === 'running'
+  const activeSession = sessions.find((session) => session.sessionId === activeSessionId) || null
 
-  useEffect(() => { selectedSessionRef.current = selectedSessionId }, [selectedSessionId])
-
-  function setAgentSession(agentId, session) {
-    if (!agentId || !session?.sessionId) return
-    sessionAgentsRef.current.set(session.sessionId, agentId)
-    setSessionsByAgent((current) => ({ ...current, [agentId]: { ...current[agentId], ...session } }))
-  }
-
-  async function loadAgents() {
+  async function load() {
     setRefreshing(true)
     try {
-      const [list, sessions] = await Promise.all([
-        ws.request('agent', 'agents'),
-        ws.request('agent', 'sessions').catch(() => [])
-      ])
+      const [list, currentSessions] = await Promise.all([ws.request('agent', 'agents'), ws.request('agent', 'sessions').catch(() => [])])
       setAgents(list)
-      const nextSessions = {}
-      await Promise.all(sessions.map(async (session) => {
-        sessionAgentsRef.current.set(session.sessionId, session.agent)
-        nextSessions[session.agent] = session
-        const history = await ws.request('agent', 'history', { sessionId: session.sessionId }).catch(() => [])
-        setEventsBySession((current) => ({ ...current, [session.sessionId]: mergeHistory(current[session.sessionId] || [], history) }))
-      }))
-      setSessionsByAgent(nextSessions)
-      const current = list.find((agent) => agent.id === activeAgent.value && agent.available)
-      const firstAvailable = list.find((agent) => agent.available)
-      if (!current) activeAgent.value = firstAvailable?.id || ''
+      setSessions((current) => {
+        const incoming = new Map(currentSessions.map((session) => [session.sessionId, session]))
+        return current.map((session) => incoming.get(session.sessionId) || session).concat(currentSessions.filter((session) => !current.some((item) => item.sessionId === session.sessionId)))
+      })
+      const available = list.filter((agent) => agent.available)
+      if (!activeSessionId && currentSessions[0]) setActiveSessionId(currentSessions[0].sessionId)
+      if (!activeAgent.value && available[0]) activeAgent.value = available[0].id
       setError('')
     } catch (requestError) {
       setError(requestError.message)
@@ -101,42 +120,32 @@ export function AgentPanel() {
   }
 
   useEffect(() => {
-    let cancelled = false
-    loadAgents()
+    load()
     const unsubscribe = ws.on('agent', 'session', (event) => {
-      if (cancelled || !event.sessionId) return
-      if (event.agent) sessionAgentsRef.current.set(event.sessionId, event.agent)
-      setEventsBySession((current) => ({ ...current, [event.sessionId]: mergeHistory(current[event.sessionId] || [], [event]) }))
-      if (event.type === 'done') completedSessionsRef.current.add(event.sessionId)
-      const agentId = sessionAgentsRef.current.get(event.sessionId)
-      if (agentId) {
-        setSessionsByAgent((current) => ({
-          ...current,
-          [agentId]: { ...(current[agentId] || {}), sessionId: event.sessionId, status: event.type === 'done' ? 'stopped' : 'running', agent: agentId }
-        }))
-      }
-      if (event.sessionId === selectedSessionRef.current) setTimeout(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight }, 0)
+      setSessions((current) => {
+        const existing = current.find((session) => session.sessionId === event.sessionId)
+        const next = existing
+          ? current.map((session) => session.sessionId === event.sessionId ? { ...session, status: event.type === 'done' ? 'stopped' : 'running' } : session)
+          : [...current, { sessionId: event.sessionId, agent: event.agent, status: event.type === 'done' ? 'stopped' : 'running', startedAt: event.ts, index: current.filter((item) => item.agent === event.agent).length + 1 }]
+        return next
+      })
+      if (!activeSessionId) setActiveSessionId(event.sessionId)
     })
-    return () => { cancelled = true; unsubscribe() }
+    return unsubscribe
   }, [])
 
-  function selectAgent(agent) {
-    if (!agent.available) return
-    activeAgent.value = agent.id
-    setError('')
-  }
-
-  async function start() {
-    const agentId = activeAgent.value
-    const text = input.trim()
-    if (!agentId || !text || busy) return
+  async function openAgent(agent) {
+    if (!agent.available || busy) return
     setBusy(true)
     setError('')
     try {
-      const response = await ws.request('agent', 'start', { agent: agentId, prompt: text })
-      const status = completedSessionsRef.current.has(response.sessionId) ? 'stopped' : 'running'
-      setAgentSession(agentId, { sessionId: response.sessionId, agent: agentId, status, startedAt: Date.now() })
-      setInput('')
+      const session = await ws.request('agent', 'start', { agent: agent.id, cols: 100, rows: 30 })
+      setSessions((current) => current.some((item) => item.sessionId === session.sessionId)
+        ? current.map((item) => item.sessionId === session.sessionId ? { ...item, ...session } : item)
+        : [...current, session])
+      setActiveSessionId(session.sessionId)
+      activeAgent.value = agent.id
+      setModalOpen(false)
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -144,76 +153,52 @@ export function AgentPanel() {
     }
   }
 
-  async function send() {
-    const text = input.trim()
-    if (!selectedSessionId || !text || busy) return
-    setBusy(true)
-    setError('')
-    try {
-      const response = await ws.request('agent', 'send', { sessionId: selectedSessionId, text })
-      if (response?.sessionId) {
-        const status = completedSessionsRef.current.has(response.sessionId) ? 'stopped' : 'running'
-        setAgentSession(activeAgent.value, { sessionId: response.sessionId, agent: activeAgent.value, status, startedAt: Date.now() })
-      }
-      setInput('')
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setBusy(false)
-    }
+  async function stopSession(sessionId) {
+    await ws.request('agent', 'stop', { sessionId }).catch((requestError) => setError(requestError.message))
+    setSessions((current) => current.map((session) => session.sessionId === sessionId ? { ...session, status: 'stopped' } : session))
   }
 
-  async function stop() {
-    if (!selectedSessionId || busy) return
-    setBusy(true)
-    await ws.request('agent', 'stop', { sessionId: selectedSessionId }).catch((requestError) => setError(requestError.message))
-    setSessionsByAgent((current) => ({ ...current, [activeAgent.value]: { ...current[activeAgent.value], status: 'stopped' } }))
-    setBusy(false)
+  async function closeSession(event, sessionId) {
+    event.stopPropagation()
+    await stopSession(sessionId)
+    setSessions((current) => current.filter((session) => session.sessionId !== sessionId))
+    if (activeSessionId === sessionId) setActiveSessionId(sessions.find((session) => session.sessionId !== sessionId)?.sessionId || '')
   }
 
-  function submit(event) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault()
-      if (selectedRunning) send()
-      else start()
-    }
+  function updateStatus(sessionId, status) {
+    setSessions((current) => current.map((session) => session.sessionId === sessionId ? { ...session, status } : session))
+  }
+
+  function sessionLabel(session) {
+    const agent = agents.find((item) => item.id === session.agent)
+    return `${agent?.label || session.agent} #${session.index || 1}`
   }
 
   return (
     <div class="agent-panel">
-      <div class="agent-picker">
-        <div class="agent-picker-heading"><span>{t('agent.list')}</span><button class="tw-icon-button" type="button" onClick={loadAgents} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}><RefreshCw size={13} class={refreshing ? 'spin' : ''} /></button></div>
-        <div class="agent-picker-list" role="listbox" aria-label={t('agent.list')}>
-          {agents.map((agent) => {
-            const session = sessionsByAgent[agent.id]
-            const active = activeAgent.value === agent.id
-            return <button key={agent.id} class={`agent-picker-item ${active ? 'active' : ''} ${agent.available ? '' : 'unavailable'}`} type="button" role="option" aria-selected={active} disabled={!agent.available} onClick={() => selectAgent(agent)} title={agent.available ? `${agent.label} (${agent.cli})` : `${agent.label}: ${t('agent.missing')}`}>
-              <span class="agent-picker-logo"><AgentLogo agent={agent} size={20} /></span>
-              <span class="agent-picker-copy"><strong>{agent.label}</strong><small>{agent.cli}</small></span>
-              <span class={`agent-state-dot ${agent.available ? 'ready' : ''} ${session?.status === 'running' ? 'running' : ''}`} aria-label={agent.available ? t('agent.ready') : t('agent.missing')} />
+      <div class="agent-session-tabs">
+        <div class="agent-session-tabs-scroll">
+          {sessions.map((session) => {
+            const agent = agents.find((item) => item.id === session.agent)
+            return <button class={`agent-session-tab ${session.sessionId === activeSessionId ? 'active' : ''}`} type="button" key={session.sessionId} onClick={() => { setActiveSessionId(session.sessionId); activeAgent.value = session.agent }} title={sessionLabel(session)}>
+              <AgentLogo agent={agent} size={14} /><span>{sessionLabel(session)}</span>{session.status === 'running' && <i class="agent-session-live" />}<span class="agent-tab-close" onClick={(event) => closeSession(event, session.sessionId)}><X size={12} /></span>
             </button>
           })}
-          {!agents.length && <span class="agent-picker-empty">{error || t('agent.none')}</span>}
         </div>
+        <button class="tw-icon-button agent-add-button" type="button" onClick={() => setModalOpen(true)} title={t('agent.new')} aria-label={t('agent.new')}><Plus size={14} /></button>
       </div>
       <div class="agent-terminal-header">
         <span class="terminal-badge"><TerminalIcon size={13} /> AGENT TERMINAL</span>
-        {selectedAgent && <span class="agent-terminal-provider"><AgentLogo agent={selectedAgent} size={17} /><strong>{selectedAgent.label}</strong><code>{selectedAgent.cli}</code></span>}
+        {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{sessionLabel(activeSession)}</strong><code>{activeSession.status}</code></span>}
         <span class="agent-header-spacer" />
-        <button class="btn-accent tw-toolbar-button" type="button" onClick={start} disabled={busy || !selectedAgent || !input.trim()}><Play size={13} /> {t('agent.run')}</button>
-        <button class="tw-toolbar-button" type="button" onClick={stop} disabled={!selectedRunning || busy}><CircleStop size={13} /> {t('agent.stop')}</button>
+        {activeSession?.status === 'running' && <button class="tw-toolbar-button" type="button" onClick={() => stopSession(activeSession.sessionId)}><CircleStop size={13} /> {t('agent.stop')}</button>}
+        <button class="tw-icon-button" type="button" onClick={load} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}><RefreshCw size={13} class={refreshing ? 'spin' : ''} /></button>
       </div>
-      <div class="agent-console" ref={logRef}>
-        {!selectedAgent && !agents.length && <div class="agent-line system"><span class="line-prefix">#</span><span>{t('agent.none')}</span></div>}
-        {selectedAgent && !selectedEvents.length && <div class="agent-line system"><span class="line-prefix">$</span><span>{selectedAgent.cli}</span></div>}
-        {selectedEvents.map(renderEvent)}
+      <div class="agent-console agent-terminal-console">
+        {activeSession ? <AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} /> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><button class="btn-accent tw-toolbar-button" type="button" onClick={() => setModalOpen(true)}><Plus size={13} /> {t('agent.new')}</button></div>}
         {error && <div class="error-text agent-error">{error}</div>}
       </div>
-      <div class="agent-command-line">
-        <span class="command-prompt">&gt;</span>
-        <textarea value={input} onInput={(event) => setInput(event.currentTarget.value)} onKeyDown={submit} placeholder={t('agent.input')} aria-label={t('agent.input')} />
-        <button class="btn-accent command-run tw-icon-button" type="button" onClick={selectedRunning ? send : start} disabled={busy || !selectedAgent || !input.trim()} title={t('agent.send')} aria-label={t('agent.send')}><Send size={14} /></button>
-      </div>
+      {modalOpen && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}><section class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title"><div class="agent-modal-heading"><strong id="agent-modal-title">{t('agent.new')}</strong><button class="tw-icon-button" type="button" onClick={() => setModalOpen(false)} title={t('common.cancel')} aria-label={t('common.cancel')}><X size={15} /></button></div><p>{t('agent.chooseCli')}</p><div class="agent-modal-list">{agents.map((agent) => <button class={`agent-modal-item ${agent.available ? '' : 'unavailable'}`} type="button" disabled={!agent.available || busy} key={agent.id} onClick={() => openAgent(agent)}><span class="agent-picker-logo"><AgentLogo agent={agent} size={22} /></span><span><strong>{agent.label}</strong><small>{agent.cli}{agent.available ? '' : ` · ${t('agent.missing')}`}</small></span><Maximize2 size={13} /></button>)}</div></section></div>}
     </div>
   )
 }

@@ -34,6 +34,7 @@ export function createHub(server) {
       connections.add(ws)
       const context = {
         principal,
+        clientId: url.searchParams.get('client') || 'legacy',
         ws,
         ch: {},
         send: (frame) => { if (ws.readyState === 1) ws.send(JSON.stringify(frame)) },

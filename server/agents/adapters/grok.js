@@ -7,6 +7,7 @@ export class GrokAdapter extends Adapter {
   static icon = '/icons/grok-build-icon.png'
   static interactive = false
 
+  buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return prompt ? ['-p', prompt] : [] }
   normalizeLine(line) { return [{ type: 'message', role: 'assistant', text: line, partial: true }] }
 }

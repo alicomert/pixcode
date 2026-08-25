@@ -7,6 +7,7 @@ export class ClaudeAdapter extends Adapter {
   static icon = '/icons/claude-ai-icon.svg'
   static interactive = true
 
+  buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) {
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--input-format', 'stream-json']
     if (prompt) args.push(prompt)

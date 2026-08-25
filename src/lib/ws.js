@@ -1,5 +1,18 @@
 import { getToken } from './api.js'
 
+function clientId() {
+  const key = 'pixcode.clientId'
+  try {
+    const existing = localStorage.getItem(key)
+    if (existing) return existing
+    const value = globalThis.crypto?.randomUUID?.() || `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
+    localStorage.setItem(key, value)
+    return value
+  } catch {
+    return 'legacy'
+  }
+}
+
 export class MultiplexWS {
   constructor() {
     this.socket = null
@@ -15,7 +28,7 @@ export class MultiplexWS {
     if (this.closed || this.socket || !getToken()) return
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const token = encodeURIComponent(getToken())
-    this.socket = new WebSocket(`${protocol}//${location.host}/ws?token=${token}`)
+    this.socket = new WebSocket(`${protocol}//${location.host}/ws?token=${token}&client=${encodeURIComponent(clientId())}`)
     this.socket.onopen = () => {
       for (const frame of this.queue.splice(0)) this.socket.send(frame)
     }
