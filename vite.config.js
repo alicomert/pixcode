@@ -1,10 +1,11 @@
 import { defineConfig } from 'vite'
 import preact from '@preact/preset-vite'
+import tailwindcss from '@tailwindcss/vite'
 
 const backend = `http://localhost:${process.env.PORT || 3210}`
 
 export default defineConfig({
-  plugins: [preact()],
+  plugins: [preact(), tailwindcss()],
   server: {
     port: 5199,
     proxy: {

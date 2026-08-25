@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'preact/hooks'
+import { ArrowDownToLine, ArrowUpFromLine, GitCompare, GitCommitHorizontal, RefreshCw } from 'lucide-preact'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
+import { gitBranch } from '../state/app.js'
 
 function badge(file) {
   if (file.untracked) return { label: 'A', className: 'added' }
@@ -18,7 +20,11 @@ export function GitPanel() {
 
   async function refresh() {
     setError('')
-    try { setState(await ws.request('git', 'status')) } catch (requestError) { setState(null); setError(requestError.message) }
+    try {
+      const next = await ws.request('git', 'status')
+      setState(next)
+      gitBranch.value = next?.branch || 'HEAD'
+    } catch (requestError) { setState(null); gitBranch.value = '—'; setError(requestError.message) }
   }
 
   useEffect(() => { refresh() }, [])
@@ -59,7 +65,7 @@ export function GitPanel() {
     <div style="display:flex; flex:1; min-height:0; flex-direction:column">
       <div class="section-title">
         <span>{state?.branch || t('git.title')}</span>
-        <button type="button" onClick={refresh} disabled={!!busy} title={t('git.refresh')}>↻</button>
+        <button class="tw-icon-button" type="button" onClick={refresh} disabled={!!busy} title={t('git.refresh')} aria-label={t('git.refresh')}><RefreshCw size={14} /></button>
       </div>
       {error && <div class="error-text" style="padding:8px">{error}</div>}
       <div class="git-list">
@@ -71,7 +77,7 @@ export function GitPanel() {
             <div class="git-item" key={file.path}>
               <span class={`git-badge ${item.className}`}>{item.label}</span>
               <span class="path">{file.path}</span>
-              <button type="button" onClick={() => showDiff(file.path)} disabled={!!busy}>{t('git.diff')}</button>
+              <button class="tw-toolbar-button" type="button" onClick={() => showDiff(file.path)} disabled={!!busy}><GitCompare size={13} /> {t('git.diff')}</button>
               <button type="button" onClick={() => toggleStage(file)} disabled={!!busy}>{!file.untracked && file.x !== ' ' ? t('git.unstage') : t('git.stage')}</button>
             </div>
           )
@@ -79,11 +85,11 @@ export function GitPanel() {
       </div>
       <div class="commit-row">
         <input value={message} onInput={(event) => setMessage(event.currentTarget.value)} placeholder={t('git.messagePlaceholder')} />
-        <button class="btn-accent" type="button" onClick={commit} disabled={!!busy || !message.trim()}>{t('git.commit')}</button>
+        <button class="btn-accent tw-toolbar-button" type="button" onClick={commit} disabled={!!busy || !message.trim()}><GitCommitHorizontal size={13} /> {t('git.commit')}</button>
       </div>
       <div class="git-actions">
-        <button type="button" onClick={() => run('pull')} disabled={!!busy}>{busy === 'pull' ? t('git.busy') : t('git.pull')}</button>
-        <button class="btn-accent" type="button" onClick={() => run('push')} disabled={!!busy}>{busy === 'push' ? t('git.busy') : t('git.push')}</button>
+        <button class="tw-toolbar-button" type="button" onClick={() => run('pull')} disabled={!!busy}><ArrowDownToLine size={13} /> {busy === 'pull' ? t('git.busy') : t('git.pull')}</button>
+        <button class="btn-accent tw-toolbar-button" type="button" onClick={() => run('push')} disabled={!!busy}><ArrowUpFromLine size={13} /> {busy === 'push' ? t('git.busy') : t('git.push')}</button>
       </div>
       {diff && <div class="git-diff"><strong>{diff.path}</strong><pre>{diff.text || t('git.noChanges')}</pre></div>}
       {output && <pre class="tree muted" style="max-height:90px; overflow:auto; margin:0">{output}</pre>}

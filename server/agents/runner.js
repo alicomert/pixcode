@@ -51,6 +51,7 @@ export function startRunner(ctx, { agent, prompt = '', cwd } = {}) {
     state: { agent, cwd: workspaceCwd(cwd), buffer: '', lines: [] },
     history: [],
     emit: ctx.emit,
+    owner: ctx,
     child: null
   }
   let args
@@ -67,6 +68,7 @@ export function startRunner(ctx, { agent, prompt = '', cwd } = {}) {
   session.child = child
   sessions.set(sessionId, session)
   emit(session, { type: 'status', role: 'system', status: 'started', agent })
+  if (prompt) emit(session, { type: 'message', role: 'user', text: prompt })
 
   child.stdout.setEncoding('utf8')
   child.stderr.setEncoding('utf8')
@@ -87,7 +89,7 @@ export function startRunner(ctx, { agent, prompt = '', cwd } = {}) {
 
 export function sendToRunner(ctx, sessionId, text) {
   const session = sessions.get(sessionId)
-  if (!session || !session.child || session.child.exitCode !== null) throw httpError(404, 'session not found')
+  if (!session || session.owner !== ctx || !session.child || session.child.exitCode !== null) throw httpError(404, 'session not found')
   if (!String(text || '').trim()) throw httpError(400, 'text required')
   if (!session.adapter.constructor.interactive) {
     return startRunner(ctx, { agent: session.state.agent, prompt: String(text), cwd: session.state.cwd })
@@ -99,15 +101,25 @@ export function sendToRunner(ctx, sessionId, text) {
 
 export function stopRunner(_ctx, sessionId) {
   const session = sessions.get(sessionId)
-  if (session?.child && session.child.exitCode === null) {
+  if (session?.owner === _ctx && session.child && session.child.exitCode === null) {
     try { session.child.kill('SIGTERM') } catch { void 0 }
     session.state.status = 'stopped'
   }
   return { ok: true }
 }
 
-export function listSessions() {
-  return [...sessions.values()].map((session) => ({
+export function stopOwnedSessions(ctx) {
+  for (const [sessionId, session] of sessions) {
+    if (session.owner !== ctx) continue
+    if (session.child?.exitCode === null) {
+      try { session.child.kill('SIGTERM') } catch { void 0 }
+    }
+    sessions.delete(sessionId)
+  }
+}
+
+export function listSessions(ctx) {
+  return [...sessions.values()].filter((session) => session.owner === ctx).map((session) => ({
     sessionId: session.sessionId,
     agent: session.state.agent,
     status: session.state.status || 'running',
@@ -115,8 +127,8 @@ export function listSessions() {
   }))
 }
 
-export function getHistory(sessionId) {
+export function getHistory(ctx, sessionId) {
   const session = sessions.get(sessionId)
-  if (!session) throw httpError(404, 'session not found')
+  if (!session || session.owner !== ctx) throw httpError(404, 'session not found')
   return session.history
 }

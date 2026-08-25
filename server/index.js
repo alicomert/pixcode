@@ -14,10 +14,12 @@ import { ptyChannel } from './channels/pty.channel.js'
 import { agentChannel } from './channels/agent.channel.js'
 import { authChannel } from './channels/auth.channel.js'
 import { registerAllAdapters } from './agents/adapters/index.js'
+import { initializeWorkspace } from './projects.js'
+import { projectChannel } from './channels/project.channel.js'
 
 export function createHttpServer() {
   loadAuth()
-  fs.mkdirSync(config.workspace, { recursive: true })
+  initializeWorkspace()
   const router = new Router()
   authRoutes(router)
   const distExists = fs.existsSync(config.distDir)
@@ -35,6 +37,7 @@ export function createHttpServer() {
 
   const hub = createHub(server)
   registerAllAdapters()
+  hub.register('project', projectChannel)
   hub.register('auth', authChannel)
   hub.register('fs', fsChannel)
   hub.register('git', gitChannel)

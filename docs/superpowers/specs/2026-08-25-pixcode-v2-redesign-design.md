@@ -24,7 +24,7 @@ Single npm package (`pixcode`, bin `pixcode`). Node 22+, ESM.
 Preact UI (3-pane desktop / bottom-tabs mobile)
         │ single WebSocket, multiplexed channels
 Node backend (zero framework): http + ws only
-  router · auth(scrypt/JWT/API-key) · fs · git · pty · agent runner
+  router · auth(scrypt/JWT/API-key) · projects · fs · git · pty · agent runner
   agents/ : AgentAdapter base + 6 thin adapters
 ```
 
@@ -36,7 +36,7 @@ frontend build-time dep. Password hashing via `node:crypto scrypt`. JWT is a
 
 One WS endpoint `/ws`. Client sends `{ch, id, op, ...payload}` frames; server
 replies with same `id` plus events pushed as `{ch, ev, data}`. Channels:
-`auth`, `fs`, `git`, `pty`, `agent`.
+`auth`, `project`, `fs`, `git`, `pty`, `agent`.
 
 ### Unified agent event schema
 
@@ -62,7 +62,8 @@ spawn commands and minimal normalization, completed in follow-up passes.
   right agent chat + terminals.
 - Mobile <768px: bottom tab bar switching Files / Editor / Agent / Terminal,
   full-screen panes.
-- Theme: CSS custom properties, dark default, light toggle. No Tailwind.
+- Theme: Tailwind CSS design tokens with custom properties, dark default, light
+  toggle, and Lucide icons for workbench actions.
 - Budget: initial load <400KB gzipped.
 
 ## i18n

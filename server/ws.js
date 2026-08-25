@@ -36,7 +36,6 @@ export function createHub(server) {
         principal,
         ws,
         ch: {},
-        emit: broadcast,
         send: (frame) => { if (ws.readyState === 1) ws.send(JSON.stringify(frame)) },
         request: async (channelName, operationName, data = {}) => {
           const channel = channels.get(channelName)
@@ -45,6 +44,7 @@ export function createHub(server) {
           return operation(context, data)
         }
       }
+      context.emit = (channel, event, data) => context.send({ ch: channel, ev: event, data })
       for (const channel of channels.values()) {
         try { channel.onOpen?.(context) } catch { void 0 }
       }

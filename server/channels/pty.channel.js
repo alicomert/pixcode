@@ -44,27 +44,26 @@ export const ptyChannel = {
       return { id }
     },
 
-    input(_ctx, { id, data } = {}) {
+    input(ctx, { id, data } = {}) {
       const shell = shells.get(id)
-      if (shell && data != null) shell.term.write(String(data))
+      if (!shell || shell.ctx !== ctx) throw httpError(404, 'terminal not found')
+      if (data != null) shell.term.write(String(data))
       return { ok: true }
     },
 
-    resize(_ctx, { id, cols, rows } = {}) {
+    resize(ctx, { id, cols, rows } = {}) {
       const shell = shells.get(id)
-      if (shell) {
-        const size = dimensions(cols, rows)
-        shell.term.resize(size.cols, size.rows)
-      }
+      if (!shell || shell.ctx !== ctx) throw httpError(404, 'terminal not found')
+      const size = dimensions(cols, rows)
+      shell.term.resize(size.cols, size.rows)
       return { ok: true }
     },
 
-    kill(_ctx, { id } = {}) {
+    kill(ctx, { id } = {}) {
       const shell = shells.get(id)
-      if (shell) {
-        try { shell.term.kill() } catch { void 0 }
-        shells.delete(id)
-      }
+      if (!shell || shell.ctx !== ctx) throw httpError(404, 'terminal not found')
+      try { shell.term.kill() } catch { void 0 }
+      shells.delete(id)
       return { ok: true }
     }
   },

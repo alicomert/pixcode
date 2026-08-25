@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --color-px-canvas: #181818;
+  --color-px-title: #1f1f1f;
+  --color-px-rail: #181818;
+  --color-px-panel: #202020;
+  --color-px-panel-raised: #252525;
+  --color-px-border: #2b2b2b;
+  --color-px-text: #d4d4d4;
+  --color-px-muted: #858585;
+  --color-px-blue: #3794ff;
+  --color-px-blue-strong: #0e639c;
+}
+
+@layer components {
+  .tw-icon-button {
+    @apply inline-flex h-7 w-7 items-center justify-center rounded border border-transparent bg-transparent p-0 text-px-muted transition-colors hover:border-px-border hover:bg-px-panel-raised hover:text-px-text disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .tw-toolbar-button {
+    @apply inline-flex h-7 items-center gap-1 rounded border border-px-border bg-transparent px-2 text-[11px] text-px-muted transition-colors hover:bg-px-panel-raised hover:text-px-text disabled:cursor-wait disabled:opacity-50;
+  }
+
+  .tw-rail-button {
+    @apply relative inline-flex h-11 w-11 items-center justify-center rounded-none border-0 bg-transparent p-0 text-px-muted transition-colors hover:bg-[#242424] hover:text-px-text;
+  }
+
+  .tw-rail-button[data-active="true"] {
+    @apply text-px-text;
+  }
+
+  .tw-rail-button[data-active="true"]::before {
+    content: "";
+    @apply absolute left-0 h-6 w-0.5 bg-px-text;
+  }
+
+  .tw-panel-heading {
+    @apply flex h-9 items-center justify-between border-b border-px-border px-3 text-[11px] font-medium uppercase tracking-[0.08em] text-[#c5c5c5];
+  }
+
+  .tw-command-field {
+    @apply flex h-[26px] min-w-0 items-center gap-2 rounded-md border border-[#3c3c3c] bg-[#292929] px-2 text-left text-xs text-px-muted transition-colors hover:border-[#5a5a5a] hover:text-px-text;
+  }
+}
