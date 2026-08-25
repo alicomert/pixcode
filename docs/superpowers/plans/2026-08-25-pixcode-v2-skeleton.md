@@ -6,7 +6,7 @@
 
 **Architecture:** Single npm package. Zero-framework Node backend (`node:http` + `ws` + `node-pty` only) with a multiplexed WebSocket and one `AgentAdapter` interface normalized to a single event schema. Preact + CodeMirror 6 + xterm.js frontend with a VibeVim-style 3-pane desktop layout and bottom-tab mobile layout. Hand-rolled i18n (tr/en).
 
-**Tech Stack:** Node 20+ ESM, Preact 10, Vite 6, CodeMirror 6, @xterm/xterm, node-pty, ws, Tauri 2 (desktop). No TypeScript build — plain JSX + JSDoc where helpful.
+**Tech Stack:** Node 22+ ESM, Preact 10, Vite 6, CodeMirror 6, @xterm/xterm, node-pty, ws, Tauri 2 (desktop). No TypeScript build — plain JSX + JSDoc where helpful.
 
 **Authoritative spec:** `docs/superpowers/specs/2026-08-25-pixcode-v2-redesign-design.md`. All other files under `docs/superpowers/plans/` and `docs/superpowers/specs/` are obsolete v1 artifacts (kept in git history) — ignore them.
 
@@ -60,6 +60,7 @@ pixcode/
 │   │   ├── jwt.js            # HS256 sign/verify on node:crypto
 │   │   └── http.js           # readBody, sendJson, sendError, httpError
 │   ├── channels/
+│   │   ├── auth.channel.js    # authenticated API-key/session operations
 │   │   ├── fs.channel.js     # list/read/write/mkdir/rename/delete (sandboxed)
 │   │   ├── git.channel.js    # status/diff/stage/unstage/commit via execFile
 │   │   ├── pty.channel.js    # create/input/resize/kill, data+exit events
@@ -789,7 +790,7 @@ git commit -m "feat(server): add sandboxed filesystem channel"
 - Modify: `server/index.js` to register.
 
 **Interfaces:**
-- Ops: `status()`, `diff({path, staged?})`, `stage({paths})`, `unstage({paths})`, `commit({message})`. `status()` returns `{ branch, files: [{ path, x, y, untracked }] }` parsed from `git status --porcelain=v2 --branch`.
+- Ops: `status()`, `diff({path, staged?})`, `stage({paths})`, `unstage({paths})`, `commit({message})`, `push({remote?, branch?})`, `pull({remote?, branch?})`. `status()` returns `{ branch, files: [{ path, x, y, untracked }] }` parsed from `git status --porcelain=v2 --branch`. Push/pull default to the repository's configured remote/upstream, disable interactive credential prompts, and enforce a finite timeout.
 
 - [ ] **Step 1: Write `server/channels/git.channel.js`**
 
@@ -800,9 +801,10 @@ import { config } from '../config.js'
 import { httpError } from '../util/http.js'
 
 const exec = promisify(execFile)
+const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' }
 
-function git(args) {
-  return exec('git', ['-C', config.workspace, ...args], { maxBuffer: 20 * 1024 * 1024 })
+function git(args, timeout = 30_000) {
+  return exec('git', ['-C', config.workspace, ...args], { env: gitEnv, maxBuffer: 20 * 1024 * 1024, timeout })
 }
 
 function parseStatus(out) {
@@ -849,6 +851,20 @@ export const gitChannel = {
       if (!message) throw httpError(400, 'message required')
       const { stdout } = await git(['commit', '-m', String(message)])
       return { ok: true, output: stdout }
+    },
+    async push(_ctx, { remote, branch } = {}) {
+      const args = ['push']
+      if (remote) args.push(String(remote))
+      if (branch) args.push(String(branch))
+      const { stdout, stderr } = await git(args, 120_000)
+      return { ok: true, output: `${stdout}${stderr}` }
+    },
+    async pull(_ctx, { remote, branch } = {}) {
+      const args = ['pull']
+      if (remote) args.push(String(remote))
+      if (branch) args.push(String(branch))
+      const { stdout, stderr } = await git(args, 120_000)
+      return { ok: true, output: `${stdout}${stderr}` }
     }
   }
 }
@@ -2250,7 +2266,7 @@ git commit -m "feat(web): add CodeMirror editor pane with save and inline diff"
 - Create: `src/components/GitPanel.jsx`
 
 **Interfaces:**
-- Fetches `git status` on mount and on a manual refresh. Lists files with status badges. Stage/unstage buttons call `git.stage`/`git.unstage`. Commit box calls `git.commit` then refreshes.
+- Fetches `git status` on mount and on a manual refresh. Lists files with status badges and per-file diff output. Stage/unstage buttons call `git.stage`/`git.unstage`. Commit box calls `git.commit` then refreshes. Push/pull buttons call `git.push`/`git.pull` with repository defaults and show command output/errors.
 
 - [ ] **Step 1: Write `src/components/GitPanel.jsx`**
 
@@ -2707,8 +2723,9 @@ Open `http://localhost:3210` in a browser (and on a phone on the same network vi
 4. Terminal tab opens a shell; typing `ls` works.
 5. Agent panel: pick an agent (Claude if installed), send a message → streaming events render.
 6. Git panel: shows changes; stage + commit works.
-7. Toggle language TR/EN from the top bar → all strings switch.
-8. Resize below 768px → bottom tab bar appears; switching panes works.
+7. Git panel: pull and push work against a configured remote; credential prompts remain disabled in the panel.
+8. Toggle language TR/EN from the top bar → all strings switch.
+9. Resize below 768px → bottom tab bar appears; switching panes works.
 
 - [ ] **Step 7: Final commit**
 

@@ -1,35 +1,17 @@
-# Local dependencies and build output
-/node_modules/
-/dist/
-/dist-server/
-/files-manifest.json
-
-# Task files
-tasks.json
-tasks/ 
-!server/modules/tasks/
-!src/components/tasks/
-
-# Translations
-!src/i18n/locales/en/tasks.json
-!src/i18n/locales/ja/tasks.json
-!src/i18n/locales/ru/tasks.json
-!src/i18n/locales/de/tasks.json
-!src/i18n/locales/tr/tasks.json
-!src/i18n/locales/it/tasks.json
-
-# Git worktrees
-.pixcode-worktrees
-
-.npmrc
-
-# Local runtime / secrets (never publish)
-server/database/auth.json
-.pixcode-dev/
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+*.log
+.DS_Store
 .env
-.env.local
-
-# Local audit artifacts, screenshots, and temporary registries (never commit)
-.tmp-opensandbox/
-.tmp-npm-cache/
-
+.env.*
+!.env.example
+.vscode/*
+!.vscode/extensions.json
+.idea/
+src-tauri/target/
+src-tauri/gen/
+.cache/
+tmp/

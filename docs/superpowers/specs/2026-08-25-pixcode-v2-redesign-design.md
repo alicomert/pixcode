@@ -14,7 +14,7 @@ VibeVim: one unified core, one protocol, thin adapters.
 - Plugin system, orchestration, telegram/remote-console/live-view modules
 - Multi-user accounts and roles
 - Daemon/systemd management (CLI `start` only for now)
-- Full git panel (push/pull/branch/log)
+- Full git panel (branch/log remain out of scope; push/pull are included)
 
 ## Architecture (Approach 1 — Unified Core)
 
@@ -81,8 +81,10 @@ setup/login/health.
 
 ## Git scope
 
-`status --porcelain=v2`, per-file `diff`, stage/unstage, commit. Push/pull stay
-in the terminal by design.
+`status --porcelain=v2`, per-file `diff`, stage/unstage, commit, push and pull.
+Push/pull use the current repository defaults (remote/upstream) and run
+non-interactively with a timeout; credential setup remains available through
+the terminal.
 
 ## Desktop (Tauri 2)
 
