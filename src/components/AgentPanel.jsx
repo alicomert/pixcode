@@ -141,7 +141,6 @@ export function AgentPanel() {
           : [...current, { sessionId: event.sessionId, agent: event.agent, status: event.type === 'done' ? 'stopped' : 'running', startedAt: event.ts, index: current.filter((item) => item.agent === event.agent).length + 1 }]
         return next
       })
-      if (!activeSessionId) setActiveSessionId(event.sessionId)
     })
     return unsubscribe
   }, [])
