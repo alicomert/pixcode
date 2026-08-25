@@ -6,6 +6,7 @@ import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { theme } from '../state/app.js'
+import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 
 function TerminalView({ id }) {
   const host = useRef(null)
@@ -14,12 +15,12 @@ function TerminalView({ id }) {
   useEffect(() => {
     if (!host.current) return undefined
     const terminal = new Terminal({
-      fontFamily: 'var(--mono)',
-      fontSize: 13,
+      fontFamily: terminalFont,
+      fontSize: 13.5,
+      lineHeight: 1.25,
+      fontWeight: 450,
       cursorBlink: true,
-      theme: theme.value === 'light'
-        ? { background: '#ffffff', foreground: '#263241', cursor: '#263241' }
-        : { background: '#15171c', foreground: '#edf1f7', cursor: '#edf1f7' }
+      theme: terminalTheme(theme.value)
     })
     terminalRef.current = terminal
     const fit = new FitAddon()
@@ -48,9 +49,7 @@ function TerminalView({ id }) {
   }, [id])
 
   useEffect(() => {
-    if (terminalRef.current) terminalRef.current.options.theme = theme.value === 'light'
-      ? { background: '#ffffff', foreground: '#263241', cursor: '#263241' }
-      : { background: '#15171c', foreground: '#edf1f7', cursor: '#edf1f7' }
+    if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme.value)
   }, [theme.value])
 
   return <div class="terminal-host" ref={host} />

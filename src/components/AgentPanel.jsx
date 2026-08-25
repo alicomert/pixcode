@@ -7,6 +7,7 @@ import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { activeAgent } from '../state/app.js'
 import { theme } from '../state/app.js'
+import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 
 const agentIcons = {
   claude: '/icons/claude-ai-icon.svg',
@@ -23,19 +24,13 @@ function AgentLogo({ agent, size = 18 }) {
   return <TerminalIcon size={size} aria-hidden="true" />
 }
 
-function terminalTheme() {
-  return theme.value === 'light'
-    ? { background: '#17202b', foreground: '#edf1f7', cursor: '#edf1f7', selectionBackground: '#315d87' }
-    : { background: '#101010', foreground: '#d1d1d1', cursor: '#d1d1d1', selectionBackground: '#26394c' }
-}
-
 function AgentTerminalView({ session, onStatus }) {
   const host = useRef(null)
   const terminalRef = useRef(null)
 
   useEffect(() => {
     if (!host.current || !session) return undefined
-    const terminal = new Terminal({ fontFamily: 'var(--mono)', fontSize: 12, cursorBlink: true, convertEol: true, scrollback: 10_000, theme: terminalTheme() })
+    const terminal = new Terminal({ fontFamily: terminalFont, fontSize: 13.5, lineHeight: 1.25, fontWeight: 450, cursorBlink: true, convertEol: true, scrollback: 10_000, theme: terminalTheme(theme.value) })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
     terminal.open(host.current)
@@ -96,7 +91,7 @@ function AgentTerminalView({ session, onStatus }) {
     }
   }, [session?.sessionId])
 
-  useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalTheme() }, [theme.value])
+  useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme.value) }, [theme.value])
   return <div class="agent-terminal-host" ref={host} />
 }
 

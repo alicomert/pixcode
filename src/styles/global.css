@@ -11,7 +11,7 @@
   --green: #75d69b;
   --red: #f08383;
   --yellow: #e8c46b;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "DejaVu Sans Mono", Consolas, monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -242,6 +242,7 @@ button:disabled { cursor: wait; opacity: .55; }
 .agent-terminal-host { min-height: 0; flex: 1; padding: 7px 8px; }
 .agent-terminal-host .xterm { height: 100%; }
 .agent-terminal-host .xterm-viewport { scrollbar-color: #3d3d3d #101010; }
+.agent-terminal-host .xterm, .terminal-host .xterm { font-variant-ligatures: none; }
 .agent-empty-terminal { display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; gap: 9px; flex-direction: column; color: #777; font: 11px var(--mono); }
 .agent-modal-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; background: rgb(0 0 0 / 48%); }
 .agent-modal { width: min(320px, calc(100vw - 32px)); border: 1px solid #454545; border-radius: 6px; background: #252525; box-shadow: 0 18px 50px rgb(0 0 0 / 45%); }
