@@ -51,6 +51,29 @@ jobs:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: Pixcode ${{ inputs.tag || github.ref_name }}
           releaseBody: Automated desktop builds
-          releaseDraft: false
+          # Keep the release private until every platform has uploaded its
+          # installer. The publish job below verifies the expected assets.
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  publish:
+    name: Publish verified release
+    needs: desktop
+    if: ${{ needs.desktop.result == 'success' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Verify desktop assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          assets="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.assets[].name')"
+          printf '%s\n' "$assets"
+          grep -Eiq '\.exe$' <<<"$assets"
+          grep -Eiq '\.dmg$' <<<"$assets"
+          grep -Eiq '\.AppImage$' <<<"$assets"
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
