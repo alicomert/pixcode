@@ -2,6 +2,12 @@ name: Release Pixcode
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build'
+        required: true
+        default: 'v2.0.0'
+        type: string
   push:
     tags:
       - 'v*'
@@ -24,6 +30,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -35,8 +43,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Pixcode ${{ github.ref_name }}
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: Pixcode ${{ inputs.tag || github.ref_name }}
           releaseBody: Automated desktop builds
           releaseDraft: false
           prerelease: false
