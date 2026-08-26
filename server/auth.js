@@ -8,6 +8,19 @@ import { httpError, readBody } from './util/http.js'
 const TOKEN_TTL = 24 * 60 * 60 * 1000
 let state = null
 
+const loginAttempts = new Map()
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000
+const RATE_LIMIT_MAX = 10
+
+function checkRateLimit(ip) {
+  const now = Date.now()
+  const entry = loginAttempts.get(ip) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW }
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + RATE_LIMIT_WINDOW }
+  entry.count += 1
+  loginAttempts.set(ip, entry)
+  if (entry.count > RATE_LIMIT_MAX) throw httpError(429, 'too many requests')
+}
+
 function authFile() {
   return path.join(config.dataDir, 'auth.json')
 }
@@ -118,8 +131,8 @@ export function authMiddleware(req) {
 
 export function authRoutes(router) {
   router.get('/api/health', () => ({ ok: true, name: 'pixcode', version: VERSION, setupRequired: setupRequired() }), { auth: false })
-  router.post('/api/auth/setup', async (req) => setup((await readBody(req)).password), { auth: false })
-  router.post('/api/auth/login', async (req) => login((await readBody(req)).password), { auth: false })
+  router.post('/api/auth/setup', async (req) => { checkRateLimit(req.socket?.remoteAddress || 'unknown'); return setup((await readBody(req)).password) }, { auth: false })
+  router.post('/api/auth/login', async (req) => { checkRateLimit(req.socket?.remoteAddress || 'unknown'); return login((await readBody(req)).password) }, { auth: false })
   router.get('/api/auth/me', (req) => ({ principal: req.principal }))
   router.post('/api/auth/keys', async (req) => issueApiKey((await readBody(req)).name))
   router.get('/api/auth/keys', () => listApiKeys())
