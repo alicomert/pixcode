@@ -1,42 +1,93 @@
 # Pixcode
 
-Pixcode v2 is a lightweight, self-hosted coding workbench. It serves a Preact
-web UI from a small Node.js backend and exposes filesystem, Git, terminal, and
-coding-agent operations over one authenticated WebSocket connection.
+<p align="center"><strong>Self-hosted AI coding workbench — gerçek CLI terminalleri, dosyalar ve Git tek ekranda.</strong></p>
 
-## Development
+<p align="center"><a href="https://www.npmjs.com/package/@pixelbyte-software/pixcode"><img src="https://img.shields.io/npm/v/@pixelbyte-software/pixcode?style=flat-square&color=cb3837" alt="npm"></a> <a href="https://github.com/alicomert/pixcode/releases/latest"><img src="https://img.shields.io/github/v/release/alicomert/pixcode?style=flat-square&color=3178c6" alt="release"></a> <img src="https://img.shields.io/badge/Node.js-22%2B-339933?style=flat-square" alt="Node.js 22+"></p>
 
-```sh
+Pixcode, bilgisayarında çalışan hafif bir kodlama çalışma alanıdır. Mevcut CLI ajanlarını gerçek terminal olarak açar; dosya ağacı, CodeMirror editörü, Git değişiklikleri ve normal shell terminallerini aynı VS Code tarzı çalışma alanında birleştirir.
+
+## Öne çıkanlar
+
+- **Gerçek agent terminalleri:** Codex, Claude Code, Gemini CLI, Qwen Code, OpenCode ve Grok CLI için aynı anda birden fazla oturum.
+- **Workspace sekmeleri:** Her sekmenin proje yolu, açık dosyaları, Git görünümü ve terminalleri ayrıdır.
+- **Proje seçimi:** Yeni Pixcode projesi, mevcut yerel klasör veya GitHub deposu açılabilir.
+- **Arka planda çalışma:** Sayfa yenilense bile çalışan PTY/agent süreçleri devam eder; terminal geçmişi yeniden yüklenir.
+- **Dosya ve Git araçları:** Dosya düzenleme, arama, status, staged/unstaged/untracked diff, stage, commit, pull ve push.
+- **Responsive VS Code düzeni:** Explorer activity bar, sürüklenebilir paneller, terminal fit/resize ve mobil navigasyon.
+- **PWA ve temalar:** Kurulabilir web uygulaması ile karanlık/aydınlık görünüm.
+
+## Hızlı başlangıç
+
+### npm ile
+
+```bash
+npx @pixelbyte-software/pixcode
+```
+
+veya global kurulum:
+
+```bash
+npm install -g @pixelbyte-software/pixcode
+pixcode
+```
+
+Ardından <http://localhost:3001> adresini açın. İlk çalıştırmada yerel hesap şifresi oluşturulur. Sabit yayın portu **3001**’dir.
+
+### Kaynak koddan
+
+```bash
 npm install
 npm run build
 npm start
 ```
 
-Open `http://localhost:3001`. The first visit asks for a local password. Pixcode
-uses port 3001 as its stable publication port.
-The `npm start` and `npm run server` commands always bind to port 3001; use
-`node server/cli.js start --port N` only for an isolated development instance.
-Without `PIXCODE_WORKSPACE`, Pixcode creates and reuses numbered projects
-under `pixcode-projects/pixcode-project-N`. The title bar uses persistent
-`Workspace #1`, `Workspace #2`, ... tabs; each tab keeps its editor state, file
-tree, Git view, normal terminals, and agent terminal list. A tab can point at a
-managed project, a new numbered project, any local folder, or a cloned GitHub
-repository. Switching tabs changes the active root without reloading the page.
-Running agent PTYs stay alive in the background; completed/stopped sessions are
-not auto-resumed. Folders opened from the picker are remembered as additional
-workspace roots. Set `PIXCODE_WORKSPACE` to pin one external workspace and
-`PIXCODE_PROJECTS` to change the numbered-project directory. Set `PIXCODE_HOME`
-to choose where authentication and workspace state are stored.
+Geliştirme için Vite arayüzü `npm run dev` ile 5199 portunda açılır.
 
-The Git panel supports live status refresh, tracked and untracked diffs,
-diff-backed editor work, stage/unstage, commit, pull, and push. The editor's
-inline diff compares the working file with the Git index (or an empty baseline
-for a new file), matching the VibeVim-style workflow. Remote credentials are
-configured through Git or the terminal; panel pull/push operations do not open
-interactive prompts.
+## Ajan CLI’ları
 
-The desktop workbench uses Tailwind CSS design tokens with Lucide icons and
-includes an Explorer activity bar, content search,
-CodeMirror editor tabs, a resizable agent terminal, resizable xterm terminal
-panels, Git source control, project switching, dark/light themes, and mobile
-bottom tabs.
+Pixcode, PATH üzerinde kurulu CLI binary’lerini kullanır: `claude`, `codex`, `gemini`, `qwen`, `opencode`, `grok`. Ajanı ayrıca kurup giriş yapmanız gerekir.
+
+## Workspace yapılandırması
+
+Varsayılan projeler `./pixcode-projects/pixcode-project-N` altında oluşturulur.
+
+```bash
+PIXCODE_PROJECTS=/srv/pixcode-projects pixcode
+PIXCODE_WORKSPACE=/home/me/project pixcode
+PIXCODE_HOME=/srv/pixcode-data pixcode
+```
+
+## Masaüstü
+
+Tauri 2 kabuğu `src-tauri/` içindedir. GitHub Actions release tag’inde Linux (`.AppImage`, `.deb`), Windows (`.exe`) ve macOS (`.dmg`) paketlerini üretir.
+
+```bash
+npm run desktop:build
+```
+
+## API ve güvenlik
+
+REST için JWT veya `px_` API anahtarı, WebSocket için `/ws?token=...` kullanılır. Pixcode kaynak koduna ve yerel CLI’lara eriştiği için internete açık kurulumları reverse proxy/VPN/firewall arkasında çalıştırın.
+
+## Geliştirici komutları
+
+```bash
+npm run lint
+npm run build
+BASE=http://localhost:3001 node scripts/smoke.mjs
+BASE=http://localhost:3001 node scripts/agent-terminal-smoke.mjs
+```
+
+## Proje yapısı
+
+- `server/` — Node.js backend, auth, WebSocket kanalları ve agent runner.
+- `src/` — Preact/Vite frontend ve Tailwind CSS.
+- `src-tauri/` — Tauri 2 masaüstü kabuğu.
+- `public/` — ikonlar, PWA manifesti ve service worker.
+
+## Bağlantılar
+
+- [GitHub](https://github.com/alicomert/pixcode)
+- [npm](https://www.npmjs.com/package/@pixelbyte-software/pixcode)
+- [Releases](https://github.com/alicomert/pixcode/releases)
+- [Lisans](LICENSE)
