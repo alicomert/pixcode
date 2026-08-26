@@ -29,12 +29,12 @@
     <a href="CONTRIBUTING.md">Contributing</a>
   </p>
   <p>
-    <a href="https://github.com/alicomert/pixcode/blob/main/README.tr.md">Türkçe</a> ·
-    <a href="https://github.com/alicomert/pixcode/blob/main/README.de.md">Deutsch</a> ·
-    <a href="https://github.com/alicomert/pixcode/blob/main/README.ru.md">Русский</a> ·
-    <a href="https://github.com/alicomert/pixcode/blob/main/README.ja.md">日本語</a> ·
-    <a href="https://github.com/alicomert/pixcode/blob/main/README.ko.md">한국어</a> ·
-    <a href="https://github.com/alicomert/pixcode/blob/main/README.zh-CN.md">简体中文</a>
+    <a href="https://github.com/alicomert/pixcode/blob/main/docs/languages/README.tr.md">Türkçe</a> ·
+    <a href="https://github.com/alicomert/pixcode/blob/main/docs/languages/README.de.md">Deutsch</a> ·
+    <a href="https://github.com/alicomert/pixcode/blob/main/docs/languages/README.ru.md">Русский</a> ·
+    <a href="https://github.com/alicomert/pixcode/blob/main/docs/languages/README.ja.md">日本語</a> ·
+    <a href="https://github.com/alicomert/pixcode/blob/main/docs/languages/README.ko.md">한국어</a> ·
+    <a href="https://github.com/alicomert/pixcode/blob/main/docs/languages/README.zh-CN.md">简体中文</a>
   </p>
 </div>
 
