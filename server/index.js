@@ -55,6 +55,9 @@ export function startServer(options = {}) {
     console.log(`pixcode v${VERSION} listening on http://${displayHost}:${port}`)
   })
   const shutdown = () => server.close(() => process.exit(0))
+  // A daemon child is supervised by the platform service/launcher. Keep the
+  // process in the foreground so signals terminate the HTTP server cleanly;
+  // the parent daemon command is the component that detaches from the shell.
   process.once('SIGINT', shutdown)
   process.once('SIGTERM', shutdown)
   return server

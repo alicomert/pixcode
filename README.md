@@ -303,17 +303,24 @@ open "/Applications/Pixcode.app"
 
 For a server or VDS setup:
 
+The lightweight daemon keeps the HTTP/WebSocket server (and any running CLI
+PTYs) alive after the browser or desktop window is closed. It uses systemd on
+Linux when available, a desktop autostart entry as a fallback, LaunchAgent on
+macOS, and the user Startup folder on Windows. No extra runtime dependency is
+installed.
+
 ```bash
-pixcode daemon install --mode auto --port 3001
-pixcode daemon status --mode auto
-pixcode daemon logs --mode auto
-pixcode daemon restart --mode auto
+pixcode daemon install --port 3001   # enable login autostart and start now
+pixcode daemon status                # inspect PID, port and autostart state
+pixcode daemon logs                  # inspect the background server log
+pixcode daemon restart               # restart without changing the port
+pixcode daemon disable               # stop and remove autostart
 ```
 
-Foreground mode:
+Run in the foreground when developing:
 
 ```bash
-pixcode --no-daemon
+pixcode start --port 3001
 ```
 
 ### Ports
