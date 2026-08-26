@@ -84,9 +84,14 @@ pub fn run() {
 
 fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let resource = app.path().resource_dir()?;
-    let bundled_root = resource.join("pixcode");
-    let candidates = [bundled_root.join("server").join("cli.js"), resource.join("server").join("cli.js")];
-    let Some(entry) = candidates.iter().find(|path| path.is_file()) else { return Ok(()); };
+    // Resource layout differs slightly between bundler versions when a
+    // directory is mapped to a target. Accept both possible nesting levels
+    // so an installer can always find the staged server.
+    let roots = [resource.join("pixcode"), resource.join("pixcode").join("pixcode"), resource.clone()];
+    let Some((bundled_root, entry)) = roots.iter().find_map(|root| {
+        let entry = root.join("server").join("cli.js");
+        entry.is_file().then(|| (root.clone(), entry))
+    }) else { return Ok(()); };
     let bundled_node = bundled_root.join(if cfg!(windows) { "node.exe" } else { "node" });
     let node = env::var_os("PIXCODE_NODE")
         .map(PathBuf::from)
