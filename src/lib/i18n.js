@@ -2,10 +2,12 @@ import { signal } from '@preact/signals'
 import tr from '../i18n/locales/tr.json'
 import en from '../i18n/locales/en.json'
 
-const dictionaries = { tr, en }
+// English is the product default. Additional locale files are integrated in
+// phase two without changing the fallback behavior.
+const dictionaries = { en, tr }
 const stored = localStorage.getItem('pixcode.locale')
-const detected = (navigator.language || '').toLowerCase().startsWith('tr') ? 'tr' : 'en'
-export const locale = signal(stored || detected)
+const detected = 'en'
+export const locale = signal(stored && dictionaries[stored] ? stored : detected)
 
 export function setLocale(language) {
   const next = dictionaries[language] ? language : 'en'

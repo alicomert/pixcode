@@ -1,6 +1,6 @@
 [package]
 name = "pixcode"
-version = "2.0.1"
+version = "2.0.2"
 description = "Pixcode desktop shell"
 authors = ["Ali Comert and Pixcode Contributors"]
 edition = "2021"
