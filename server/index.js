@@ -17,6 +17,22 @@ import { registerAllAdapters } from './agents/adapters/index.js'
 import { initializeWorkspace } from './projects.js'
 import { projectChannel } from './channels/project.channel.js'
 
+function allowLocalOrigin(origin) {
+  if (!origin) return false
+  if (origin === 'tauri://localhost' || origin === 'http://tauri.localhost' || origin === 'https://tauri.localhost') return true
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+}
+
+function setCors(req, res) {
+  const origin = req.headers.origin
+  if (!allowLocalOrigin(origin)) return false
+  res.setHeader('access-control-allow-origin', origin)
+  res.setHeader('access-control-allow-headers', 'authorization, content-type')
+  res.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  res.setHeader('vary', 'Origin')
+  return true
+}
+
 export function createHttpServer() {
   loadAuth()
   initializeWorkspace()
@@ -24,6 +40,12 @@ export function createHttpServer() {
   authRoutes(router)
   const distExists = fs.existsSync(config.distDir)
   const server = http.createServer(async (req, res) => {
+    const localOrigin = setCors(req, res)
+    if (req.method === 'OPTIONS' && localOrigin) {
+      res.writeHead(204)
+      res.end()
+      return
+    }
     if (req.url?.startsWith('/api/')) {
       const handled = await router.handle(req, res, { verify: authMiddleware })
       if (handled || res.writableEnded) return

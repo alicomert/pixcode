@@ -1,4 +1,4 @@
-import { getToken } from './api.js'
+import { backendOrigin, getToken } from './api.js'
 
 function clientId() {
   const key = 'pixcode.clientId'
@@ -28,7 +28,8 @@ export class MultiplexWS {
     if (this.closed || this.socket || !getToken()) return
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
     const token = encodeURIComponent(getToken())
-    this.socket = new WebSocket(`${protocol}//${location.host}/ws?token=${token}&client=${encodeURIComponent(clientId())}`)
+    const endpoint = backendOrigin ? backendOrigin.replace(/^http/, 'ws') : `${protocol}//${location.host}`
+    this.socket = new WebSocket(`${endpoint}/ws?token=${token}&client=${encodeURIComponent(clientId())}`)
     this.socket.onopen = () => {
       for (const frame of this.queue.splice(0)) this.socket.send(frame)
       // Let mounted views re-attach long-lived sessions and re-fit terminals
