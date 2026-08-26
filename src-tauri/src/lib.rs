@@ -1,10 +1,23 @@
-use std::env;
+use std::{
+    env,
+    path::PathBuf,
+    process::{Child, Command},
+    sync::Mutex,
+};
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, RunEvent, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt;
+
+struct BackgroundServer(Mutex<Option<Child>>);
+
+impl Default for BackgroundServer {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
+}
 
 /// Build the desktop shell around the web workbench.
 ///
@@ -14,6 +27,7 @@ use tauri_plugin_autostart::ManagerExt;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(BackgroundServer::default())
         .plugin(
             tauri_plugin_autostart::Builder::new()
                 .args(["--hidden"])
@@ -61,6 +75,8 @@ pub fn run() {
             if let RunEvent::ExitRequested { code, api, .. } = event {
                 if code.is_none() {
                     api.prevent_exit();
+                } else {
+                    stop_background_server(_app);
                 }
             }
         });
@@ -68,19 +84,49 @@ pub fn run() {
 
 fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let resource = app.path().resource_dir()?;
-    let candidates = [resource.join("server").join("cli.js"), resource.join("pixcode").join("server").join("cli.js")];
+    let bundled_root = resource.join("pixcode");
+    let candidates = [bundled_root.join("server").join("cli.js"), resource.join("server").join("cli.js")];
     let Some(entry) = candidates.iter().find(|path| path.is_file()) else { return Ok(()); };
-    let node = env::var_os("PIXCODE_NODE").unwrap_or_else(|| "node".into());
-    let child = std::process::Command::new(node)
+    let bundled_node = bundled_root.join(if cfg!(windows) { "node.exe" } else { "node" });
+    let node = env::var_os("PIXCODE_NODE")
+        .map(PathBuf::from)
+        .or_else(|| bundled_node.is_file().then_some(bundled_node))
+        .unwrap_or_else(|| PathBuf::from("node"));
+    let working_dir = entry.parent().and_then(|server| server.parent()).unwrap_or(&resource);
+    let child = Command::new(node)
         .arg(entry)
         .args(["start", "--port", "3001"])
+        .current_dir(working_dir)
         .env("PIXCODE_DAEMON_CHILD", "1")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();
-    if let Err(error) = child { eprintln!("pixcode background server unavailable: {error}"); }
+    match child {
+        Ok(child) => {
+            if let Some(state) = app.try_state::<BackgroundServer>() {
+                if let Ok(mut current) = state.0.lock() {
+                    if let Some(mut previous) = current.take() {
+                        let _ = previous.kill();
+                    }
+                    *current = Some(child);
+                }
+            }
+        }
+        Err(error) => eprintln!("pixcode background server unavailable: {error}"),
+    }
     Ok(())
+}
+
+fn stop_background_server<R: tauri::Runtime>(app: &AppHandle<R>) {
+    if let Some(state) = app.try_state::<BackgroundServer>() {
+        if let Ok(mut current) = state.0.lock() {
+            if let Some(mut child) = current.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
 }
 
 fn create_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -97,10 +143,11 @@ fn create_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit Pixcode", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &autostart, &separator, &quit])?;
 
-    TrayIconBuilder::with_id("pixcode-tray")
-        .icon(app.default_window_icon().cloned().unwrap_or_else(|| {
-            tauri::image::Image::new_owned(vec![0, 120, 212, 255], 1, 1)
-        }))
+    let mut tray = TrayIconBuilder::with_id("pixcode-tray");
+    if let Some(icon) = app.default_window_icon().cloned() {
+        tray = tray.icon(icon);
+    }
+    tray
         .tooltip("Pixcode — background server")
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -119,7 +166,10 @@ fn create_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                     let _ = autostart.set_checked(!enabled);
                 }
             }
-            "quit" => app.exit(0),
+            "quit" => {
+                stop_background_server(app);
+                app.exit(0);
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

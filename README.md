@@ -299,7 +299,7 @@ xattr -dr com.apple.quarantine "/Applications/Pixcode.app"
 open "/Applications/Pixcode.app"
 ```
 
-### Linux daemon
+### Background server and autostart
 
 For a server or VDS setup:
 
@@ -325,8 +325,8 @@ pixcode start --port 3001
 
 ### Ports
 
-- Installed backend and bundled frontend: `SERVER_PORT`, default `3001`.
-- Vite-only frontend development: `VITE_PORT`, default `5173`.
+- Installed backend and bundled frontend: `PORT`/`PIXCODE_PORT`, default `3001`.
+- Vite-only frontend development: `5199` (proxies API/WebSocket requests to the backend).
 
 For normal installed usage, think in terms of one port: `3001`. Port `5173` is
 only for separate Vite frontend development.
@@ -346,26 +346,25 @@ only for separate Vite frontend development.
 
 ```bash
 npm install
-npm run typecheck
 npm run lint
 npm run build
 ```
 
 Important development notes:
 
-- `npm run dev` uses the daemon manager on Linux.
-- For a foreground development loop, run `npm run client` and `npm run server`
-  separately, or run `pixcode --no-daemon`.
-- `npm run server` runs built output from `dist-server/`; rebuild after backend
-  changes.
-- There is no unit test suite configured today. Use smoke scripts, typecheck,
+- `npm run dev` starts the Vite frontend on port `5199`; keep `npm start`
+  running separately for API/WebSocket requests.
+- `npm start` runs the backend in the foreground on the stable port `3001`; use
+  `pixcode daemon install` when it should survive shell/browser closure.
+- `npm run desktop:build` stages the bundled Node runtime and production server
+  dependencies before Tauri creates the Windows, macOS, and Linux installers.
+- There is no unit test or typecheck script configured today. Use smoke scripts,
   lint, build, and manual provider/API checks.
 
 ## Repository Map
 
-- `src/` - React + Vite frontend.
-- `server/` - Express, WebSocket, CLI adapters, routes, auth, daemon,
-  notifications.
+- `src/` - Preact + Vite frontend.
+- `server/` - Node HTTP, WebSocket, CLI adapters, routes, auth, and daemon.
 - `server/modules/orchestration/` - multi-agent workflow engine and CLI adapters.
 - `server/modules/providers/` - provider auth, MCP, sessions, model and install
   endpoints.

@@ -13,6 +13,10 @@ typecheck script — `npm run lint` is the only automated check.
 - `npm start` (a.k.a. `npm run server`) — backend only, always on the stable
   publication port `3001`. For an isolated port use `node server/cli.js start
   --port N`; host is `0.0.0.0`; serves `dist/` if it exists, otherwise 404s on `/`.
+- `pixcode daemon install` — start the backend detached and register login
+  autostart (systemd/desktop entry on Linux, LaunchAgent on macOS, Startup folder
+  on Windows). Use `daemon status`, `daemon logs`, `daemon restart`, or
+  `daemon disable` to manage it.
 - `npm run dev` — Vite frontend only, port 5199. **It proxies `/api` and `/ws` to
   the backend at `PORT||PIXCODE_PORT||3001`, so you must also run `npm start` or API/WS will fail.**
 - `npm run build` — Vite build into `dist/` (what the backend serves in prod).

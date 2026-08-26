@@ -30,6 +30,7 @@
     "server": "node server/cli.js start --port 3001",
     "start": "node server/cli.js start --port 3001",
     "build": "vite build",
+    "desktop:prepare": "node scripts/prepare-desktop-resources.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "desktop": "npx --yes @tauri-apps/cli@2 tauri dev",

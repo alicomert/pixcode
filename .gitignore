@@ -13,6 +13,7 @@ coverage/
 .idea/
 src-tauri/target/
 src-tauri/gen/
+.desktop-resources/
 .cache/
 tmp/
 pixcode-projects/

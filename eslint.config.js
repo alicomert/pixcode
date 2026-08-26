@@ -4,7 +4,7 @@ import globals from 'globals'
 export default [
   js.configs.recommended,
   {
-    ignores: ['dist/**', 'node_modules/**', 'src-tauri/target/**']
+    ignores: ['dist/**', '.desktop-resources/**', 'node_modules/**', 'src-tauri/target/**']
   },
   {
     languageOptions: {

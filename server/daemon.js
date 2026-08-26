@@ -117,12 +117,13 @@ export async function daemonStatus({ port = config.port } = {}) {
   const listening = await probePort(normalizedPort)
   if (!alive && pid) removeState(pid)
   const state = readState()
+  const configuredPort = Number(state.port) || normalizedPort
   return {
     version: VERSION,
     running: alive,
     listening,
     pid: alive ? pid : null,
-    port: normalizedPort,
+    port: configuredPort,
     workspace: state.workspace || null,
     logFile: LOG_FILE,
     service: autostartStatus()
@@ -139,6 +140,16 @@ export function runDaemonForeground({ port = config.port, workspace } = {}) {
   // this handler only removes stale state when a signal arrives.
   process.once('SIGINT', cleanup)
   process.once('SIGTERM', cleanup)
+  if (workspace) process.env.PIXCODE_WORKSPACE = workspace
+  process.env.PORT = String(normalizedPort)
+  return import('./index.js').then(({ startServer }) => startServer({ port: normalizedPort }))
+}
+
+// Starts a server without writing daemon state. Used by desktop shells that
+// supervise this process themselves (Tauri/Electron) and therefore should not
+// be mistaken for a CLI-managed daemon.
+export function runServerForeground({ port = config.port, workspace } = {}) {
+  const normalizedPort = normalizePort(port)
   if (workspace) process.env.PIXCODE_WORKSPACE = workspace
   process.env.PORT = String(normalizedPort)
   return import('./index.js').then(({ startServer }) => startServer({ port: normalizedPort }))
