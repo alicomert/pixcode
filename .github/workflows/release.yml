@@ -43,6 +43,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          projectPath: .
+          tauriScript: npx --yes @tauri-apps/cli@2
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: Pixcode ${{ inputs.tag || github.ref_name }}
           releaseBody: Automated desktop builds
