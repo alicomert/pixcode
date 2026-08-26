@@ -121,7 +121,7 @@ button:disabled { cursor: wait; opacity: .55; }
 }
 
 @media (max-width: 767px) {
-  .shell { grid-template-rows: 44px 1fr 54px; }
+  .shell { grid-template-rows: 44px 1fr auto; }
   .body { display: block; position: relative; }
   .pane { display: none; width: 100%; height: 100%; border-right: 0; }
   .pane.active { display: flex; }
@@ -139,7 +139,7 @@ button:disabled { cursor: wait; opacity: .55; }
 }
 
 /* VS Code-inspired workbench chrome */
-.shell { grid-template-rows: 42px minmax(0, 1fr) 22px; background: #181818; }
+.shell { grid-template-rows: 42px minmax(0, 1fr); background: #181818; }
 .topbar { height: 42px; gap: 8px; padding: 0 10px; background: #1f1f1f; border-bottom-color: #2b2b2b; }
 .window-brand { display: flex; align-items: center; gap: 7px; min-width: 132px; }
 .brand-mark { display: grid; width: 23px; height: 23px; place-items: center; border: 1px solid #4e8aca; border-radius: 5px; background: #2566a6; color: #fff; font-size: 10px; font-weight: 800; }
@@ -205,9 +205,6 @@ button:disabled { cursor: wait; opacity: .55; }
 .bottom-panel { grid-column: 2 / 7; grid-row: 2; display: flex; min-height: 0; flex-direction: column; border-top: 1px solid #2b2b2b; background: #181818; }
 .panel-header { display: flex; align-items: center; justify-content: space-between; height: 34px; padding: 0 11px; border-bottom: 1px solid #2b2b2b; color: #c5c5c5; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .panel-header button { border: 0; padding: 0 5px; background: transparent; color: #999; font-size: 18px; }
-.statusbar { display: flex; align-items: center; gap: 14px; height: 22px; padding: 0 10px; background: #2367a5; color: #fff; font-size: 10px; }
-.status-spacer { flex: 1; }
-.statusbar > span { display: inline-flex; align-items: center; gap: 4px; }
 .is-resizing, .is-resizing * { cursor: col-resize !important; user-select: none !important; }
 .is-resizing .resize-handle.horizontal, .is-resizing .resize-handle.horizontal * { cursor: row-resize !important; }
 .search-view, .info-view { display: flex; min-height: 0; flex: 1; flex-direction: column; }
@@ -351,7 +348,7 @@ button:disabled { cursor: wait; opacity: .55; }
 }
 
 @media (max-width: 767px) {
-  .shell { grid-template-rows: 42px minmax(0, 1fr) 22px 52px; }
+  .shell { grid-template-rows: 42px minmax(0, 1fr) auto; }
   .topbar { padding: 0 7px; }
   .window-brand { min-width: auto; }
   .brand-name, .window-nav, .command-center, .project-label, .topbar .layout-button, .logout-button { display: none; }
@@ -365,8 +362,6 @@ button:disabled { cursor: wait; opacity: .55; }
   .auxiliary.mobile-active { position: absolute; inset: 0; }
   .aux-section { display: none; }
   .aux-section.mobile-view-active { display: flex; }
-  .statusbar { font-size: 9px; gap: 8px; }
-  .status-message, .statusbar span:nth-last-child(-n+2) { display: none; }
   .welcome-view { padding: 28px 18px; justify-content: flex-start; }
   .welcome-hero { margin-bottom: 28px; }
   .welcome-columns { grid-template-columns: 1fr; gap: 26px; }
@@ -374,7 +369,7 @@ button:disabled { cursor: wait; opacity: .55; }
 
 /* Workbench details */
 .shell {
-  grid-template-rows: 36px minmax(0, 1fr) 22px;
+  grid-template-rows: 36px minmax(0, 1fr);
   background: #181818;
 }
 
@@ -419,6 +414,31 @@ button:disabled { cursor: wait; opacity: .55; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Workspace tabs intentionally mirror the agent strip: switching a tab only
+   changes the selected root and view state; long-running PTYs stay alive. */
+.workspace-switcher { display: flex; min-width: 0; max-width: min(52vw, 700px); align-items: stretch; gap: 4px; }
+.workspace-tabs { display: flex; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.workspace-tab { display: inline-flex; min-width: 118px; max-width: 190px; height: 31px; align-items: center; gap: 6px; flex: 0 0 auto; padding: 2px 7px; border: 1px solid transparent; border-bottom-color: #2b2b2b; border-radius: 3px 3px 0 0; background: transparent; color: #858585; text-align: left; }
+.workspace-tab:hover { border-color: #3b4652; background: #292e37; color: #d7d7d7; }
+.workspace-tab.active { border-color: #3d5f82; border-bottom-color: #4da3ff; background: #242c36; color: #f0f4f8; }
+.workspace-tab-index { display: grid; width: 18px; height: 18px; flex: 0 0 18px; place-items: center; border-radius: 3px; background: #303840; color: #aebccc; font: 10px var(--mono); }
+.workspace-tab.active .workspace-tab-index { background: #315b85; color: #fff; }
+.workspace-tab-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; line-height: 1.1; }
+.workspace-tab-copy strong, .workspace-tab-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-tab-copy strong { font-size: 10px; font-weight: 600; }
+.workspace-tab-copy small { margin-top: 2px; color: #818b97; font-size: 9px; }
+.workspace-tab.active .workspace-tab-copy small { color: #9db9d4; }
+.workspace-tab-close { display: inline-flex; width: 18px; height: 18px; flex: 0 0 18px; align-items: center; justify-content: center; border-radius: 3px; color: #777; }
+.workspace-tab-close:hover { background: #3a3f46; color: #eee; }
+.workspace-add-select { width: 30px; height: 27px; flex: 0 0 30px; padding: 0; border-color: #3c3c3c; background: #20242a; color: #aaa; font-size: 0; }
+.workspace-add-select option { font-size: 12px; }
+.workspace-add-button { width: 27px; height: 27px; flex: 0 0 27px; border-color: #3c3c3c; background: #20242a; }
+.workspace-project-picker { display: flex; flex-direction: column; gap: 5px; padding: 10px 14px 0; color: #999; font-size: 11px; }
+.workspace-project-picker > div { display: flex; max-height: 90px; flex-wrap: wrap; gap: 4px; overflow: auto; }
+.workspace-project-picker button { display: inline-flex; max-width: 100%; align-items: center; gap: 5px; padding: 5px 7px; border-color: #3a3a3a; background: #1d1f23; color: #c4cbd4; font-size: 10px; }
+.workspace-project-picker button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-project-picker button:hover { border-color: #4da3ff; background: #26394c; }
 
 .workbench {
   /* Let the center pane shrink on laptop widths instead of pushing terminals
@@ -778,10 +798,6 @@ button:disabled { cursor: wait; opacity: .55; }
   opacity: 1;
 }
 
-.statusbar {
-  height: 22px;
-}
-
 @media (max-width: 1050px) {
   .window-brand {
     min-width: 92px;
@@ -807,7 +823,7 @@ button:disabled { cursor: wait; opacity: .55; }
 
 @media (max-width: 767px) {
   .shell {
-    grid-template-rows: 42px minmax(0, 1fr) 22px 52px;
+    grid-template-rows: 42px minmax(0, 1fr) auto;
   }
 
   .topbar {
@@ -825,6 +841,36 @@ button:disabled { cursor: wait; opacity: .55; }
   .editor-breadcrumb {
     min-height: 29px;
   }
+}
+
+/* Keep every flex/grid ancestor shrinkable so xterm always receives the
+   actual pane dimensions after a sash drag. */
+.workbench,
+.auxiliary,
+.aux-section,
+.agent-panel,
+.agent-console,
+.terminal-section,
+.bottom-panel,
+.bottom-panel > div {
+  min-width: 0;
+  min-height: 0;
+}
+
+.agent-console,
+.terminal-section,
+.bottom-panel > div:last-child {
+  overflow: hidden;
+}
+
+.terminal-host,
+.agent-terminal-host,
+.terminal-host .xterm,
+.agent-terminal-host .xterm {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
 }
 
 [data-theme="light"] .shell,
@@ -995,4 +1041,387 @@ button:disabled { cursor: wait; opacity: .55; }
   border-color: #cbd3de;
   background: #f8f9fb;
   color: #17202b;
+}
+
+
+/* Serious workbench surfaces
+ *
+ * Pixcode uses solid, predictable VS Code-like surfaces so text, terminals and
+ * dialogs remain clear on every browser and GPU.
+ */
+:root {
+  --serious-bg: #111318;
+  --serious-surface: #181b21;
+  --serious-raised: #20242c;
+  --serious-border: #303640;
+  --serious-border-strong: #46505e;
+  --serious-text: #e6eaf0;
+  --serious-muted: #8b95a4;
+  --serious-accent: #4da3ff;
+}
+
+body {
+  background: var(--serious-bg);
+  color: var(--serious-text);
+}
+
+.shell {
+  isolation: auto;
+  grid-template-rows: 36px minmax(0, 1fr);
+  background: var(--serious-bg);
+}
+
+.topbar,
+.activity-bar,
+.sidebar,
+.auxiliary,
+.bottom-panel {
+  border-color: var(--serious-border);
+  background: var(--serious-surface);
+  background-image: none;
+}
+
+.topbar {
+  z-index: 2;
+  box-shadow: none;
+}
+
+.activity-bar {
+  background: #15181d;
+}
+
+.activity-button {
+  margin: 2px 4px;
+  width: 36px;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--serious-muted);
+  box-shadow: none;
+  transform: none;
+}
+
+.activity-button:hover {
+  border-color: var(--serious-border);
+  background: var(--serious-raised);
+  color: var(--serious-text);
+  transform: none;
+}
+
+.activity-button.active {
+  border-color: #36587b;
+  background: #24384f;
+  color: #f4f8ff;
+  box-shadow: none;
+}
+
+.activity-button.active::before {
+  left: -5px;
+  width: 2px;
+  height: 20px;
+  border-radius: 0;
+  background: var(--serious-accent);
+  box-shadow: none;
+}
+
+.command-center,
+.project-switcher select,
+.project-switcher button,
+.topbar-actions button,
+.topbar-actions select {
+  border-color: var(--serious-border);
+  border-radius: 4px;
+  background: #20242a;
+  box-shadow: none;
+}
+
+.command-center:hover,
+.project-switcher select:hover,
+.project-switcher button:hover,
+.topbar-actions button:hover,
+.topbar-actions select:hover {
+  border-color: var(--serious-border-strong);
+  background: #292e37;
+}
+
+.sidebar-heading,
+.panel-header,
+.agent-terminal-header,
+.editor-breadcrumb,
+.tree-toolbar {
+  border-color: var(--serious-border);
+  background: #1b1e24;
+}
+
+.sidebar .tree-item:hover,
+.search-result:hover,
+.tree-toolbar button:hover,
+.tree-actions button:hover {
+  background: #252a32;
+}
+
+.editor-area {
+  background: var(--serious-bg);
+}
+
+.editor-tabs {
+  gap: 0;
+  padding: 0;
+  border-color: var(--serious-border);
+  background: #181b20;
+}
+
+.editor-tab {
+  height: 34px;
+  border: 0;
+  border-right: 1px solid var(--serious-border);
+  border-radius: 0;
+  background: #181b20;
+}
+
+.editor-tab.active {
+  border-top: 1px solid var(--serious-accent);
+  border-bottom: 0;
+  background: var(--serious-bg);
+  box-shadow: none;
+}
+
+.agent-panel,
+.terminal-section {
+  background: var(--serious-surface);
+}
+
+.aux-section-hidden {
+  display: none !important;
+}
+
+.agent-session-tabs,
+.terminal-tabs {
+  gap: 0;
+  padding: 4px 6px;
+  border-color: var(--serious-border);
+  background: #1b1e24;
+}
+
+.agent-session-tabs-scroll {
+  gap: 0;
+}
+
+.agent-session-tab,
+.terminal-tab {
+  min-height: 27px;
+  border: 0;
+  border-right: 1px solid var(--serious-border);
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.agent-session-tab:hover,
+.terminal-tab:hover {
+  border-color: var(--serious-border);
+  background: #252a32;
+}
+
+.agent-session-tab.active,
+.terminal-tab.active {
+  border-color: var(--serious-border);
+  border-top: 1px solid var(--serious-accent);
+  background: #20252d;
+  box-shadow: none;
+}
+
+.agent-terminal-header {
+  min-height: 36px;
+}
+
+.agent-terminal-provider {
+  border-color: var(--serious-border);
+  border-radius: 4px;
+  background: #20242a;
+}
+
+.agent-console,
+.agent-terminal-host,
+.terminal-host {
+  background: #0d1015;
+}
+
+.agent-terminal-host,
+.terminal-host {
+  margin: 6px;
+  padding: 7px;
+  border: 1px solid #242a33;
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+.agent-empty-terminal {
+  margin: 7px;
+  border: 1px dashed var(--serious-border);
+  border-radius: 3px;
+  background: #171a20;
+}
+
+.agent-picker-item,
+.agent-modal-item,
+.extension-card,
+.info-card {
+  border-color: var(--serious-border);
+  border-radius: 4px;
+  background: #1d2128;
+  box-shadow: none;
+}
+
+.agent-picker-item:hover,
+.agent-modal-item:hover,
+.extension-card:hover {
+  border-color: var(--serious-border-strong);
+  background: #273343;
+}
+
+.agent-picker-item.active {
+  border-color: #3e75a8;
+  background: #24394f;
+}
+
+.modal-backdrop,
+.agent-modal-backdrop {
+  z-index: 10000;
+  background: rgb(0 0 0 / 70%);
+}
+
+.project-modal,
+.file-action-modal,
+.agent-modal {
+  z-index: 10001;
+  border-color: var(--serious-border-strong);
+  border-radius: 8px;
+  background: #20242b;
+  box-shadow: 0 18px 42px rgb(0 0 0 / 65%);
+}
+
+.project-modal-header,
+.agent-modal-heading {
+  border-color: var(--serious-border);
+}
+
+.project-modal-tabs button {
+  border-radius: 3px;
+}
+
+.project-modal-tabs button.active {
+  background: #2b3b50;
+}
+
+.project-modal input,
+.file-action-modal input,
+.search-view form input,
+.settings-list select {
+  border-color: var(--serious-border);
+  border-radius: 4px;
+  background: #15181d;
+  box-shadow: none;
+}
+
+.btn-accent {
+  border-color: #3e83c9;
+  border-radius: 4px;
+  background: #2469a8;
+  box-shadow: none;
+}
+
+.btn-accent:hover {
+  background: #2b7ac0;
+}
+
+.tw-toolbar-button,
+.tw-icon-button {
+  border-color: transparent;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tw-toolbar-button:hover,
+.tw-icon-button:hover {
+  border-color: var(--serious-border);
+  background: #272c34;
+}
+
+.welcome-view {
+  background: var(--serious-bg);
+}
+
+.welcome-hero,
+.welcome-column {
+  border-color: var(--serious-border);
+  border-radius: 6px;
+  background: #181c22;
+  box-shadow: none;
+}
+
+.welcome-column > button {
+  border-radius: 4px;
+}
+
+.welcome-column > button:hover {
+  border-color: var(--serious-border);
+  background: #252c35;
+}
+
+.mobile-tabs {
+  margin: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-top: 1px solid var(--serious-border);
+  border-radius: 0;
+  background: #181b21;
+  box-shadow: none;
+}
+
+.mobile-tab {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.mobile-tab:hover {
+  background: #252a32;
+}
+
+.mobile-tab.active {
+  border-color: #36587b;
+  background: #24384f;
+  box-shadow: none;
+  transform: none;
+}
+
+@media (max-width: 767px) {
+  .shell {
+    grid-template-rows: 42px minmax(0, 1fr) auto;
+  }
+
+  .mobile-tabs {
+    margin: 0;
+  }
+}
+
+/* Let flexbox determine the host box instead of forcing a 100% box plus
+   margins. This prevents xterm from retaining/overflowing its old width when
+   an auxiliary pane or bottom panel is resized. */
+.terminal-host,
+.agent-terminal-host {
+  width: auto;
+  height: auto;
+  flex: 1 1 0;
+}
+
+.terminal-host .xterm,
+.agent-terminal-host .xterm {
+  width: 100%;
+  height: 100%;
 }

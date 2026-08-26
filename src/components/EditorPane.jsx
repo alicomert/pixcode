@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Bot, FolderOpen, FolderPlus, GitFork, Plus, Save, Terminal as TerminalIcon, X } from 'lucide-preact'
+import { Bot, FolderOpen, FolderPlus, GitFork, Plus, Save, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -7,16 +7,10 @@ import { bracketMatching, defaultHighlightStyle, syntaxHighlighting } from '@cod
 import { closeBrackets, closeBracketsKeymap, completionKeymap, autocompletion } from '@codemirror/autocomplete'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { javascript } from '@codemirror/lang-javascript'
-import { json } from '@codemirror/lang-json'
-import { html } from '@codemirror/lang-html'
-import { css } from '@codemirror/lang-css'
-import { markdown } from '@codemirror/lang-markdown'
-import { python } from '@codemirror/lang-python'
 import { unifiedMergeView } from '@codemirror/merge'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { activeFile, closeFile, openFiles, theme } from '../state/app.js'
+import { activeFile, closeFile, openFiles, theme, workspace } from '../state/app.js'
 
 function WelcomeView() {
   function dispatch(name) { window.dispatchEvent(new Event(name)) }
@@ -45,17 +39,21 @@ function editorTheme() {
   return theme.value === 'light' ? lightEditorTheme : oneDark
 }
 
-function languageFor(filePath) {
-  if (/\.(jsx?|tsx?|mjs|cjs)$/.test(filePath)) return javascript()
-  if (filePath.endsWith('.json')) return json()
-  if (filePath.endsWith('.html')) return html()
-  if (filePath.endsWith('.css')) return css()
-  if (/\.(md|markdown)$/.test(filePath)) return markdown()
-  if (filePath.endsWith('.py')) return python()
-  return []
+const languageLoaders = [
+  { test: /\.(jsx?|tsx?|mjs|cjs)$/, load: () => import('@codemirror/lang-javascript').then(({ javascript }) => javascript()) },
+  { test: /\.json$/, load: () => import('@codemirror/lang-json').then(({ json }) => json()) },
+  { test: /\.html?$/, load: () => import('@codemirror/lang-html').then(({ html }) => html()) },
+  { test: /\.css$/, load: () => import('@codemirror/lang-css').then(({ css }) => css()) },
+  { test: /\.(md|markdown)$/, load: () => import('@codemirror/lang-markdown').then(({ markdown }) => markdown()) },
+  { test: /\.py$/, load: () => import('@codemirror/lang-python').then(({ python }) => python()) }
+]
+
+async function languageFor(filePath) {
+  const loader = languageLoaders.find((candidate) => candidate.test.test(filePath))
+  return loader ? loader.load() : []
 }
 
-function baseExtensions(filePath, onSave, onDirty) {
+function baseExtensions(onSave, onDirty) {
   return [
     history(),
     bracketMatching(),
@@ -63,7 +61,6 @@ function baseExtensions(filePath, onSave, onDirty) {
     autocompletion(),
     highlightSelectionMatches(),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-    languageFor(filePath),
     EditorView.updateListener.of((update) => { if (update.docChanged) onDirty(true) }),
     keymap.of([
       { key: 'Mod-s', run: () => { onSave(); return true } },
@@ -80,30 +77,39 @@ function Editor({ path, onDirty }) {
   const host = useRef(null)
   const viewRef = useRef(null)
   const currentRef = useRef('')
-  const originalRef = useRef('')
+  const diskRef = useRef('')
+  const baselineRef = useRef('')
+  const viewVersion = useRef(0)
   const [showDiff, setShowDiff] = useState(false)
+  const [diffBusy, setDiffBusy] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
 
-  function createView(content, original, diff) {
+  async function createView(content, original, diff, resetDirty = true) {
     if (!host.current) return
+    const version = ++viewVersion.current
+    const language = await languageFor(path)
+    if (!host.current || version !== viewVersion.current) return
     viewRef.current?.destroy()
-    const extensions = baseExtensions(path, save, onDirty)
+    const extensions = baseExtensions(save, onDirty)
     extensions.push(themeCompartment.of(editorTheme()))
+    if (language.length) extensions.push(language)
     if (diff) extensions.push(unifiedMergeView({ original }))
     const state = EditorState.create({ doc: content, extensions })
     viewRef.current = new EditorView({ parent: host.current, state })
     currentRef.current = content
-    onDirty(false)
+    if (resetDirty) onDirty(false)
   }
 
   async function save() {
     const content = viewRef.current?.state.doc.toString() ?? currentRef.current
     try {
-      await ws.request('fs', 'write', { path, content })
+      const requestWorkspace = workspace.value?.path || ''
+      await ws.request('fs', 'write', { path, content, workspace: requestWorkspace })
       currentRef.current = content
-      originalRef.current = content
+      diskRef.current = content
       onDirty(false)
+      window.dispatchEvent(new Event('pixcode:workspace-data-change'))
       setStatus(t('editor.saved'))
       setError('')
       window.setTimeout(() => setStatus(''), 1_500)
@@ -115,16 +121,19 @@ function Editor({ path, onDirty }) {
   useEffect(() => {
     let cancelled = false
     setError('')
-    ws.request('fs', 'read', { path }).then(({ content }) => {
+    const requestWorkspace = workspace.value?.path || ''
+    ws.request('fs', 'read', { path, workspace: requestWorkspace }).then(async ({ content }) => {
       if (cancelled) return
-      originalRef.current = content
+      diskRef.current = content
+      baselineRef.current = content
       currentRef.current = content
-      createView(content, content, false)
+      await createView(content, content, false)
     }).catch((requestError) => {
       if (!cancelled) setError(requestError.message || t('editor.error'))
     })
     return () => {
       cancelled = true
+      viewVersion.current += 1
       viewRef.current?.destroy()
       viewRef.current = null
     }
@@ -134,19 +143,48 @@ function Editor({ path, onDirty }) {
     if (viewRef.current) viewRef.current.dispatch({ effects: themeCompartment.reconfigure(editorTheme()) })
   }, [theme.value])
 
-  function toggleDiff() {
+  async function toggleDiff() {
     const next = !showDiff
     const content = viewRef.current?.state.doc.toString() ?? currentRef.current
     currentRef.current = content
-    setShowDiff(next)
-    createView(content, originalRef.current, next)
+    if (!next) {
+      setShowDiff(false)
+      await createView(content, diskRef.current, false, false)
+      return
+    }
+    setDiffBusy(true)
+    setError('')
+    try {
+      try {
+        let baselineOptions = { path }
+        const status = await ws.request('git', 'status', { workspace: workspace.value?.path || '' })
+        const file = status?.files?.find((entry) => entry.path === path)
+        if (file && !file.untracked && file.x !== ' ' && file.y !== ' ') baselineOptions = { path, head: true }
+        else if (file && !file.untracked && file.x !== ' ') baselineOptions = { path, staged: true }
+        const result = await ws.request('git', 'baseline', { ...baselineOptions, workspace: workspace.value?.path || '' })
+        baselineRef.current = result?.content ?? ''
+      } catch (requestError) {
+        // A non-Git workspace still gets a useful local diff against the
+        // content that was read from disk. Git-backed workspaces use the index
+        // baseline returned above, including an empty baseline for new files.
+        baselineRef.current = diskRef.current
+        const message = requestError.message || ''
+        if (!/not a git repository|not a git repo|invalid object name|does not exist in/i.test(message)) setError(message || t('editor.diffError'))
+      }
+      const latestContent = viewRef.current?.state.doc.toString() ?? currentRef.current
+      currentRef.current = latestContent
+      setShowDiff(true)
+      await createView(latestContent, baselineRef.current, true, false)
+    } finally {
+      setDiffBusy(false)
+    }
   }
 
   return (
     <div class="editor">
       <div class="editor-toolbar">
         <button class="tw-toolbar-button" type="button" onClick={save}><Save size={13} /> {t('editor.save')}</button>
-        <button class="tw-toolbar-button" type="button" onClick={toggleDiff}>{t(showDiff ? 'editor.diff.hide' : 'editor.diff.show')}</button>
+        <button class="tw-toolbar-button" type="button" onClick={toggleDiff} disabled={diffBusy}>{diffBusy ? t('editor.diff.loading') : t(showDiff ? 'editor.diff.hide' : 'editor.diff.show')}</button>
         {status && <span class="muted">{status}</span>}
         {error && <span class="error-text">{error}</span>}
       </div>
@@ -159,6 +197,8 @@ export function EditorPane() {
   const files = openFiles.value
   const active = activeFile.value
   const [dirtyFiles, setDirtyFiles] = useState({})
+  const workspaceKey = workspace.value?.id || workspace.value?.path || 'default'
+  useEffect(() => { setDirtyFiles({}) }, [workspaceKey])
   if (!files.length || !active) return <WelcomeView />
   function setDirty(path, dirty) {
     setDirtyFiles((current) => ({ ...current, [path]: dirty }))
@@ -179,7 +219,7 @@ export function EditorPane() {
         ))}
       </div>
       <div class="editor-breadcrumb"><span>{active.split('/').slice(0, -1).join(' / ') || t('project.label')}</span><strong>{active.split('/').at(-1)}</strong></div>
-      <Editor key={active} path={active} onDirty={(value) => setDirty(active, value)} />
+      <Editor key={workspaceKey + ':' + active} path={active} onDirty={(value) => setDirty(active, value)} />
     </>
   )
 }

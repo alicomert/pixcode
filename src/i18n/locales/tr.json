@@ -16,6 +16,9 @@
   "project.nameHint": "İsterseniz ad verin; boş bırakırsanız sıradaki pixcode-project-N oluşturulur.",
   "project.namePlaceholder": "ör. landing-page",
   "project.create": "Oluştur ve aç",
+  "project.newWorkspace": "Yeni çalışma alanı",
+  "project.openExisting": "Çalışma alanı aç",
+  "project.closeTab": "Sekmeyi kapat",
   "common.cancel": "İptal",
   "topbar.logout": "Çıkış",
   "topbar.theme.dark": "Açık temaya geç",
@@ -68,6 +71,8 @@
   "editor.save": "Kaydet",
   "editor.diff.show": "Diff göster",
   "editor.diff.hide": "Diff gizle",
+  "editor.diff.loading": "Diff yükleniyor...",
+  "editor.diffError": "Git tabanı alınamadı",
   "editor.error": "Dosya açılamadı",
   "editor.closeDirty": "Kaydedilmemiş değişiklikler var. Dosya kapatılsın mı?",
   "git.title": "Git",
@@ -98,6 +103,11 @@
   "agent.none": "Ajan bulunamadı",
   "agent.chooseCli": "Yeni bir terminal oturumu için CLI seçin",
   "agent.noSession": "Açık agent terminali yok",
+  "agent.close": "Oturumu kapat",
+  "agent.closeTitle": "Agent oturumunu kapat",
+  "agent.closeConfirm": "{name} kapatılsın mı?",
+  "agent.closeYes": "Evet",
+  "agent.closeNo": "Hayır",
   "remote.localTitle": "Yerel çalışma alanı",
   "remote.localDescription": "Bu Pixcode oturumu yerel olarak çalışıyor.",
   "extensions.agentsDescription": "Terminal tabanlı kod ajanları",
@@ -107,8 +117,7 @@
   "terminal.new": "Yeni terminal",
   "terminal.close": "Kapat",
   "lang.label": "Dil",
-  "status.ready": "Hazır"
-  ,"project.openFolder": "Klasör aç"
+  "project.openFolder": "Klasör aç"
   ,"project.folderHint": "Bilgisayarınızdaki bir klasörü çalışma alanı olarak açın."
   ,"project.browse": "Klasörleri göster"
   ,"project.cloneRepo": "GitHub deposu klonla"

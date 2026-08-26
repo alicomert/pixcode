@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Circle, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from 'lucide-preact'
+import { ArrowLeft, ArrowRight, Blocks, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { t, setLocale, locale } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
-import { activeView, agentWidth, gitBranch, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTheme, sidebarWidth, theme } from '../state/app.js'
+import { activeView, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTheme, sidebarWidth, theme, workspace } from '../state/app.js'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -22,17 +22,21 @@ const views = [
 ]
 
 const mobileTabs = [
-  { id: 'files', label: 'tab.files' },
-  { id: 'editor', label: 'tab.editor' },
-  { id: 'agent', label: 'tab.agent' },
-  { id: 'terminal', label: 'tab.terminal' },
-  { id: 'git', label: 'tab.git' }
+  { id: 'files', label: 'tab.files', icon: Files },
+  { id: 'editor', label: 'tab.editor', icon: Code2 },
+  { id: 'agent', label: 'tab.agent', icon: Sparkles },
+  { id: 'terminal', label: 'tab.terminal', icon: TerminalIcon },
+  { id: 'git', label: 'tab.git', icon: GitBranch }
 ]
 
 function Icon({ name }) {
   const icons = { explorer: Files, search: Search, source: GitBranch, run: Play, agent: Sparkles, remote: Globe2, extensions: Blocks }
   const Glyph = icons[name] || Circle
   return <Glyph size={20} strokeWidth={1.65} aria-hidden="true" />
+}
+
+function isCompactViewport() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
 }
 
 function ActivityBar() {
@@ -48,7 +52,7 @@ function ActivityBar() {
             title={t(view.label)}
             aria-label={t(view.label)}
             aria-pressed={activeView.value === view.id}
-            onClick={() => { activeView.value = view.id; mobileTab.value = view.mobile; if (sidebarWidth.value === 0) setSidebarWidth(276); if (view.id === 'run') panelOpen.value = true }}
+            onClick={() => { activeView.value = view.id; if (view.id === 'run') { panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' } else { mobileTab.value = view.mobile; if (view.id === 'agent') panelOpen.value = false } if (sidebarWidth.value === 0) setSidebarWidth(276) }}
           >
             <Icon name={view.icon} />
           </button>
@@ -125,24 +129,28 @@ function SearchView() {
   const [results, setResults] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const workspaceRequest = useRef(0)
   useEffect(() => {
     const focus = () => inputRef.current?.focus()
+    const workspaceChange = () => { workspaceRequest.current += 1; window.clearTimeout(debounceRef.current); setBusy(false); setResults([]); setError(''); setQuery('') }
     window.addEventListener('pixcode:focus-search', focus)
-    return () => { window.removeEventListener('pixcode:focus-search', focus); window.clearTimeout(debounceRef.current) }
+    window.addEventListener('pixcode:workspace-change', workspaceChange)
+    return () => { window.removeEventListener('pixcode:focus-search', focus); window.removeEventListener('pixcode:workspace-change', workspaceChange); window.clearTimeout(debounceRef.current) }
   }, [])
   async function search(eventOrQuery) {
     const nextQuery = typeof eventOrQuery === 'string' ? eventOrQuery : query
     eventOrQuery?.preventDefault?.()
     const requestId = ++searchRequest.current
+    const workspaceId = ++workspaceRequest.current
     if (!nextQuery.trim()) { setResults([]); setError(''); return }
     setBusy(true)
     try {
-      const nextResults = await ws.request('fs', 'search', { query: nextQuery })
-      if (requestId === searchRequest.current) { setResults(nextResults); setError('') }
+      const nextResults = await ws.request('fs', 'search', { query: nextQuery, workspace: workspace.value?.path || '' })
+      if (requestId === searchRequest.current && workspaceId === workspaceRequest.current) { setResults(nextResults); setError('') }
     } catch (requestError) {
-      if (requestId === searchRequest.current) { setResults([]); setError(requestError.message) }
+      if (requestId === searchRequest.current && workspaceId === workspaceRequest.current) { setResults([]); setError(requestError.message) }
     } finally {
-      if (requestId === searchRequest.current) setBusy(false)
+      if (requestId === searchRequest.current && workspaceId === workspaceRequest.current) setBusy(false)
     }
   }
   function changeQuery(event) {
@@ -155,11 +163,11 @@ function SearchView() {
 }
 
 function RunView() {
-  return <div class="info-view"><div class="sidebar-heading">{t('view.run')}</div><div class="info-actions"><button type="button" class="btn-accent" onClick={() => (panelOpen.value = true)}>{t('run.openTerminal')}</button></div></div>
+  return <div class="info-view"><div class="sidebar-heading">{t('view.run')}</div><div class="info-actions"><button type="button" class="btn-accent" onClick={() => { panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' }}>{t('run.openTerminal')}</button></div></div>
 }
 
 function AgentInfo() {
-  return <div class="info-view"><div class="sidebar-heading">{t('view.agent')}</div><div class="info-actions"><button type="button" class="btn-accent" onClick={() => { mobileTab.value = 'agent'; panelOpen.value = true }}>{t('agent.open')}</button></div></div>
+  return <div class="info-view"><div class="sidebar-heading">{t('view.agent')}</div><div class="info-actions"><button type="button" class="btn-accent" onClick={() => { mobileTab.value = 'agent'; panelOpen.value = false; window.dispatchEvent(new Event('pixcode:new-agent')) }}>{t('agent.open')}</button></div></div>
 }
 
 function RemoteView() {
@@ -195,15 +203,11 @@ function ResizeHandle({ direction, className = '', onResize }) {
   return <div class={`resize-handle ${direction} ${className}`} role="separator" aria-orientation={direction === 'vertical' ? 'vertical' : 'horizontal'} onPointerDown={begin} />
 }
 
-function StatusBar() {
-  return <footer class="statusbar"><span class="status-branch"><GitBranch size={12} /> {gitBranch.value}</span><span class="status-message">{t('status.ready')}</span><span class="status-spacer" /><span>Ln 1, Col 1</span><span>Spaces: 2</span><span>UTF-8</span><span>▴ 0 ▾ 0</span></footer>
-}
-
 export function Shell() {
   useEffect(() => {
     const open = (event) => openFile(event.detail)
-    const openAgent = () => { mobileTab.value = 'agent'; panelOpen.value = true }
-    const openTerminal = () => { mobileTab.value = 'terminal'; panelOpen.value = true }
+    const openAgent = () => { mobileTab.value = 'agent'; panelOpen.value = false; window.setTimeout(() => window.dispatchEvent(new Event('pixcode:new-agent')), 0) }
+    const openTerminal = () => { panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' }
     const newFile = () => { activeView.value = 'explorer'; mobileTab.value = 'files'; window.setTimeout(() => window.dispatchEvent(new Event('pixcode:new-file')), 0) }
     const createFile = () => { activeView.value = 'explorer'; mobileTab.value = 'files'; window.setTimeout(() => window.dispatchEvent(new Event('pixcode:new-file')), 0) }
     const shortcuts = (event) => {
@@ -214,7 +218,7 @@ export function Shell() {
       if (modifier && event.shiftKey && event.key.toLowerCase() === 'e') { event.preventDefault(); activeView.value = 'explorer'; mobileTab.value = 'files' }
       if (modifier && event.shiftKey && event.key.toLowerCase() === 'f') { event.preventDefault(); activeView.value = 'search'; mobileTab.value = 'files' }
       if (modifier && event.shiftKey && event.key.toLowerCase() === 'g') { event.preventDefault(); activeView.value = 'source'; mobileTab.value = 'git' }
-      if (modifier && event.shiftKey && event.key.toLowerCase() === 'd') { event.preventDefault(); activeView.value = 'run'; mobileTab.value = 'terminal'; panelOpen.value = true }
+      if (modifier && event.shiftKey && event.key.toLowerCase() === 'd') { event.preventDefault(); activeView.value = 'run'; panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' }
       if (modifier && event.shiftKey && event.key.toLowerCase() === 'x') { event.preventDefault(); activeView.value = 'extensions'; mobileTab.value = 'files' }
       if (modifier && event.code === 'Backquote') { event.preventDefault(); panelOpen.value = !panelOpen.value }
     }
@@ -224,18 +228,7 @@ export function Shell() {
     window.addEventListener('pixcode:new-file', newFile)
     window.addEventListener('pixcode:create-file', createFile)
     window.addEventListener('keydown', shortcuts)
-    let cancelled = false
-    const refreshBranch = async () => {
-      try {
-        const state = await ws.request('git', 'status')
-        if (!cancelled) gitBranch.value = state?.branch || 'HEAD'
-      } catch {
-        if (!cancelled) gitBranch.value = '-'
-      }
-    }
-    refreshBranch()
-    const branchTimer = window.setInterval(refreshBranch, 10_000)
-    return () => { cancelled = true; window.clearInterval(branchTimer); window.removeEventListener('pixcode:open-file', open); window.removeEventListener('pixcode:open-agent', openAgent); window.removeEventListener('pixcode:open-terminal', openTerminal); window.removeEventListener('pixcode:new-file', newFile); window.removeEventListener('pixcode:create-file', createFile); window.removeEventListener('keydown', shortcuts); ws.close() }
+    return () => { window.removeEventListener('pixcode:open-file', open); window.removeEventListener('pixcode:open-agent', openAgent); window.removeEventListener('pixcode:open-terminal', openTerminal); window.removeEventListener('pixcode:new-file', newFile); window.removeEventListener('pixcode:create-file', createFile); window.removeEventListener('keydown', shortcuts); ws.close() }
   }, [])
   const mobile = mobileTab.value
   const effectiveSidebar = sidebarWidth.value
@@ -249,10 +242,9 @@ export function Shell() {
       <ResizeHandle direction="vertical" className="sidebar-resize" onResize={(delta) => setSidebarWidth(sidebarWidth.value + delta)} />
       <main class={`editor-area pane ${mobile === 'editor' ? 'mobile-active' : ''}`}><EditorPane /></main>
       <ResizeHandle direction="vertical" className="agent-resize" onResize={(delta) => setAgentWidth(agentWidth.value - delta)} />
-      <aside class={`auxiliary pane ${mobile === 'agent' || mobile === 'terminal' ? 'mobile-active' : ''}`}><section class={`aux-section agent-section ${mobile === 'agent' || mobile !== 'terminal' ? 'mobile-view-active' : ''}`}><AgentPanel /></section>{mobile === 'terminal' && <section class="aux-section terminal-section mobile-view-active"><Terminals /></section>}</aside>
+      <aside class={`auxiliary pane ${mobile === 'agent' || mobile === 'terminal' ? 'mobile-active' : ''}`}><section class={`aux-section agent-section ${mobile === 'terminal' ? 'aux-section-hidden' : ''} ${mobile === 'agent' || mobile !== 'terminal' ? 'mobile-view-active' : ''}`}><AgentPanel /></section>{mobile === 'terminal' && <section class="aux-section terminal-section mobile-view-active"><Terminals /></section>}</aside>
       {panelOpen.value && <><ResizeHandle direction="horizontal" className="panel-resize" onResize={(delta) => setPanelHeight(panelHeight.value - delta)} /><div class="bottom-panel"><div class="panel-header"><span>{t('panel.terminal')}</span><button class="tw-icon-button" type="button" onClick={() => (panelOpen.value = false)} title={t('panel.close')} aria-label={t('panel.close')}><X size={16} /></button></div><Terminals /></div></>}
     </div>
-    <StatusBar />
-    <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run' }}>{t(item.label)}</button>)}</nav>
+    <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => { const Glyph = item.icon; return <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'terminal') panelOpen.value = true; if (item.id === 'agent') panelOpen.value = false; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run' }}><Glyph size={18} strokeWidth={1.7} aria-hidden="true" /><span>{t(item.label)}</span></button> })}</nav>
   </div>
 }

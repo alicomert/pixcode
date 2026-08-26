@@ -19,16 +19,16 @@
   ],
   "scripts": {
     "dev": "vite",
-    "server": "node server/index.js",
-    "start": "node server/index.js",
+    "server": "node server/cli.js start --port 3001",
+    "start": "node server/cli.js start --port 3001",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "desktop": "tauri dev",
-    "desktop:build": "tauri build"
+    "desktop": "npx --yes @tauri-apps/cli@2 tauri dev",
+    "desktop:build": "npx --yes @tauri-apps/cli@2 tauri build"
   },
   "dependencies": {
-    "node-pty": "^1.0.0",
+    "@homebridge/node-pty-prebuilt-multiarch": "0.14.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -47,15 +47,12 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.34.0",
     "@eslint/js": "^9.12.0",
-    "@preact/preset-vite": "^2.9.1",
     "@preact/signals": "^1.3.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@tauri-apps/cli": "^2.0.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "eslint": "^9.12.0",
     "globals": "^15.11.0",
-    "lucide-preact": "^1.34.0",
     "preact": "^10.24.0",
     "tailwindcss": "^4.3.3",
     "vite": "^6.0.0"

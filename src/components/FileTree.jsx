@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'preact/hooks'
-import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FilePlus2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, FolderPlus, Gem, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Pencil, RefreshCw, Scroll, Settings, Shield, SquareFunction, Terminal, Trash2, Video, Workflow } from 'lucide-preact'
+import { useEffect, useRef, useState } from 'preact/hooks'
+import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FilePlus2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, FolderPlus, Gem, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Pencil, RefreshCw, Scroll, Settings, Shield, SquareFunction, Terminal, Trash2, Video, Workflow } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { openFile } from '../state/app.js'
+import { openFile, workspace } from '../state/app.js'
 
 function joinPath(parent, name) {
   return parent === '.' ? name : parent + '/' + name
@@ -58,7 +58,7 @@ function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged })
   async function loadChildren(force = false) {
     if (!force && children) return
     try {
-      setChildren(await ws.request('fs', 'list', { path }))
+      setChildren(await ws.request('fs', 'list', { path, workspace: workspace.value?.path || '' }))
       onError('')
     } catch (requestError) {
       onError(requestError.message)
@@ -97,22 +97,36 @@ export function FileTree() {
   const [error, setError] = useState('')
   const [refreshToken, setRefreshToken] = useState(0)
   const [dialog, setDialog] = useState(null)
+  const refreshSequence = useRef(0)
 
   async function refresh() {
+    const sequence = ++refreshSequence.current
+    const requestedWorkspace = workspace.value?.path || ''
     try {
       setError('')
-      setRoot(await ws.request('fs', 'list', { path: '.' }))
+      const nextRoot = await ws.request('fs', 'list', { path: '.', workspace: workspace.value?.path || '' })
+      if (sequence !== refreshSequence.current || requestedWorkspace !== (workspace.value?.path || '')) return
+      setRoot(nextRoot)
       setRefreshToken((value) => value + 1)
     } catch (requestError) {
-      setError(requestError.message)
+      if (sequence === refreshSequence.current && requestedWorkspace === (workspace.value?.path || '')) setError(requestError.message)
     }
   }
 
   useEffect(() => {
     refresh()
     const newFile = () => openCreate('file')
+    const workspaceChange = () => {
+      setRoot(null)
+      setError('')
+      refresh()
+    }
     window.addEventListener('pixcode:new-file', newFile)
-    return () => window.removeEventListener('pixcode:new-file', newFile)
+    window.addEventListener('pixcode:workspace-change', workspaceChange)
+    return () => {
+      window.removeEventListener('pixcode:new-file', newFile)
+      window.removeEventListener('pixcode:workspace-change', workspaceChange)
+    }
   }, [])
 
   async function submitAction(event) {
@@ -120,15 +134,16 @@ export function FileTree() {
     if (!dialog) return
     try {
       if (dialog.type === 'delete') {
-        await ws.request('fs', 'delete', { path: dialog.path })
+        await ws.request('fs', 'delete', { path: dialog.path, workspace: workspace.value?.path || '' })
       } else if (dialog.type === 'rename') {
         const parent = dialog.path.includes('/') ? dialog.path.slice(0, dialog.path.lastIndexOf('/')) : '.'
-        await ws.request('fs', 'rename', { from: dialog.path, to: joinPath(parent, dialog.value.trim()) })
+        await ws.request('fs', 'rename', { from: dialog.path, to: joinPath(parent, dialog.value.trim()), workspace: workspace.value?.path || '' })
       } else if (dialog.type === 'file') {
-        await ws.request('fs', 'write', { path: dialog.value.trim(), content: '' })
+        await ws.request('fs', 'write', { path: dialog.value.trim(), content: '', workspace: workspace.value?.path || '' })
       } else {
-        await ws.request('fs', 'mkdir', { path: dialog.value.trim() })
+        await ws.request('fs', 'mkdir', { path: dialog.value.trim(), workspace: workspace.value?.path || '' })
       }
+      window.dispatchEvent(new Event('pixcode:workspace-data-change'))
       setDialog(null)
       await refresh()
     } catch (requestError) {

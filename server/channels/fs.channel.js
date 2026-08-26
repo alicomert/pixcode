@@ -1,31 +1,22 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { config } from '../config.js'
 import { httpError } from '../util/http.js'
+import { workspacePath } from '../workspace.js'
 
 // Keep dependency trees out of the explorer/search, but expose project files
 // including dotfiles, build output and the .git directory like a local editor.
 const SKIP = new Set(['.DS_Store'])
 const SEARCH_SKIP = new Set(['node_modules', '.git', 'dist', '.cache', '.DS_Store'])
-function lexicalPath(rel) {
-  const base = path.resolve(config.workspace)
-  const value = String(rel || '.')
-  const resolved = path.resolve(base, value)
-  if (resolved !== base && !resolved.startsWith(`${base}${path.sep}`)) throw httpError(403, 'path outside workspace')
-  return resolved
-}
-
-async function existingPath(rel) {
-  const resolved = lexicalPath(rel)
-  const base = path.resolve(config.workspace)
+async function existingPath(rel, requestedWorkspace) {
+  const { base, resolved: lexical } = workspacePath(requestedWorkspace, rel)
+  const resolved = lexical
   const real = await fs.promises.realpath(resolved)
   if (real !== base && !real.startsWith(`${base}${path.sep}`)) throw httpError(403, 'path outside workspace')
   return real
 }
 
-async function writablePath(rel) {
-  const resolved = lexicalPath(rel)
-  const base = path.resolve(config.workspace)
+async function writablePath(rel, requestedWorkspace) {
+  const { base, resolved } = workspacePath(requestedWorkspace, rel)
   try {
     const current = await fs.promises.realpath(resolved)
     if (current !== base && !current.startsWith(`${base}${path.sep}`)) throw httpError(403, 'path outside workspace')
@@ -49,12 +40,12 @@ async function writablePath(rel) {
 
 export const fsChannel = {
   ops: {
-    async search(_ctx, { query = '', maxResults = 100 } = {}) {
+    async search(_ctx, { query = '', maxResults = 100, workspace } = {}) {
       const needle = String(query).trim().toLowerCase()
       if (!needle) return []
       const results = []
       const seen = new Map()
-      const root = path.resolve(config.workspace)
+      const root = workspacePath(workspace, '.').base
       const limit = Math.min(Math.max(Number(maxResults) || 100, 1), 500)
       const addResult = (result) => {
         const existing = seen.get(result.path)
@@ -104,8 +95,8 @@ export const fsChannel = {
       await walk(root, '')
       return results
     },
-    async list(_ctx, { path: rel = '.' } = {}) {
-      const directory = await existingPath(rel)
+    async list(_ctx, { path: rel = '.', workspace } = {}) {
+      const directory = await existingPath(rel, workspace)
       const entries = await fs.promises.readdir(directory, { withFileTypes: true })
       return entries
         .filter((entry) => !SKIP.has(entry.name))
@@ -116,9 +107,9 @@ export const fsChannel = {
         .map((entry) => ({ name: entry.name, type: entry.isDirectory() ? 'dir' : 'file' }))
     },
 
-    async read(_ctx, { path: rel } = {}) {
+    async read(_ctx, { path: rel, workspace } = {}) {
       if (!rel) throw httpError(400, 'path required')
-      const file = await existingPath(rel)
+      const file = await existingPath(rel, workspace)
       const stat = await fs.promises.stat(file)
       if (!stat.isFile()) throw httpError(400, 'not a file')
       if (stat.size > 5_000_000) throw httpError(413, 'file too large')
@@ -127,33 +118,33 @@ export const fsChannel = {
       return { content: content.toString('utf8'), size: stat.size }
     },
 
-    async write(_ctx, { path: rel, content } = {}) {
+    async write(_ctx, { path: rel, content, workspace } = {}) {
       if (!rel) throw httpError(400, 'path required')
-      const file = await writablePath(rel)
+      const file = await writablePath(rel, workspace)
       await fs.promises.mkdir(path.dirname(file), { recursive: true })
       await fs.promises.writeFile(file, String(content ?? ''), 'utf8')
       return { ok: true }
     },
 
-    async mkdir(_ctx, { path: rel } = {}) {
+    async mkdir(_ctx, { path: rel, workspace } = {}) {
       if (!rel) throw httpError(400, 'path required')
-      await fs.promises.mkdir(await writablePath(rel), { recursive: true })
+      await fs.promises.mkdir(await writablePath(rel, workspace), { recursive: true })
       return { ok: true }
     },
 
-    async rename(_ctx, { from, to } = {}) {
+    async rename(_ctx, { from, to, workspace } = {}) {
       if (!from || !to) throw httpError(400, 'from and to required')
-      const source = await existingPath(from)
-      if (source === path.resolve(config.workspace)) throw httpError(400, 'cannot rename workspace')
-      const destination = await writablePath(to)
+      const source = await existingPath(from, workspace)
+      if (source === workspacePath(workspace, '.').base) throw httpError(400, 'cannot rename workspace')
+      const destination = await writablePath(to, workspace)
       await fs.promises.rename(source, destination)
       return { ok: true }
     },
 
-    async delete(_ctx, { path: rel } = {}) {
+    async delete(_ctx, { path: rel, workspace } = {}) {
       if (!rel) throw httpError(400, 'path required')
-      const target = await existingPath(rel)
-      if (target === path.resolve(config.workspace)) throw httpError(400, 'cannot delete workspace')
+      const target = await existingPath(rel, workspace)
+      if (target === workspacePath(workspace, '.').base) throw httpError(400, 'cannot delete workspace')
       await fs.promises.rm(target, { recursive: true, force: true })
       return { ok: true }
     }

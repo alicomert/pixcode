@@ -1,11 +1,13 @@
-import pty from 'node-pty'
-import path from 'node:path'
-import { config } from '../config.js'
+import pty from '@homebridge/node-pty-prebuilt-multiarch'
 import { getAdapter } from './adapter.js'
 import { httpError } from '../util/http.js'
+import { workspaceCwd, workspaceRoot } from '../workspace.js'
 
 const sessions = new Map()
 let counter = 0
+const MAX_HISTORY_EVENTS = 2_000
+const MAX_HISTORY_BYTES = 2 * 1024 * 1024
+const STOPPED_SESSION_TTL = 30 * 60 * 1_000
 
 function ownerKey(ctx) {
   return `${String(ctx?.principal?.sub || 'owner')}:${String(ctx?.clientId || 'legacy')}`
@@ -19,31 +21,44 @@ function dimensions(cols, rows) {
 }
 
 function emit(session, event) {
-  const data = { ...event, sessionId: session.sessionId, agent: session.state.agent, seq: ++session.sequence, ts: Date.now() }
+  if (session.closed) return
+  const data = { ...event, sessionId: session.sessionId, agent: session.state.agent, workspace: session.workspace, startedAt: session.startedAt, index: session.index, seq: ++session.sequence, ts: Date.now() }
   session.history.push(data)
-  while (session.history.length > 4_000) session.history.shift()
+  session.historyBytes += Buffer.byteLength(data.data || '')
+  while (session.history.length > MAX_HISTORY_EVENTS || session.historyBytes > MAX_HISTORY_BYTES) {
+    const removed = session.history.shift()
+    session.historyBytes -= Buffer.byteLength(removed?.data || '')
+  }
   for (const subscriber of session.subscribers) {
     try { subscriber.emit('agent', 'session', data) } catch { session.subscribers.delete(subscriber) }
   }
 }
 
-function workspaceCwd(cwd) {
-  const resolved = path.resolve(config.workspace, String(cwd || '.'))
-  if (resolved !== config.workspace && !resolved.startsWith(`${config.workspace}${path.sep}`)) throw httpError(403, 'cwd outside workspace')
-  return resolved
+function nextSessionIndex(ctx, agent, currentWorkspace) {
+  const active = [...sessions.values()]
+    .filter((item) => item.owner === ownerKey(ctx) && item.workspace === currentWorkspace && item.state.agent === agent && item.state.status === 'running' && !item.closed)
+  // Keep labels stable while any live session remains. Closing #1 while #2
+  // is open therefore makes the next session #3; once all live sessions are
+  // gone, numbering starts over at #1.
+  return active.reduce((highest, item) => Math.max(highest, Number(item.index) || 0), 0) + 1
 }
 
-export function startRunner(ctx, { agent, prompt = '', cwd, cols = 100, rows = 30 } = {}) {
+export function startRunner(ctx, { agent, prompt = '', cwd, workspace, cols = 100, rows = 30 } = {}) {
   const AdapterClass = getAdapter(agent)
   if (!AdapterClass) throw httpError(400, 'unknown agent')
   const sessionId = `s_${++counter}`
   const size = dimensions(cols, rows)
-  const index = [...sessions.values()].filter((item) => item.owner === ownerKey(ctx) && item.state.agent === agent).length + 1
+  const requestedWorkspace = workspaceRoot(workspace)
+  const index = nextSessionIndex(ctx, agent, requestedWorkspace)
   const session = {
     sessionId,
     adapter: new AdapterClass(),
-    state: { agent, cwd: workspaceCwd(cwd), status: 'running' },
+    state: { agent, cwd: workspaceCwd(requestedWorkspace, cwd), status: 'running' },
+    // Capture the workspace at spawn time. Selecting another workspace must
+    // never move or terminate an already running agent process.
+    workspace: requestedWorkspace,
     history: [],
+    historyBytes: 0,
     sequence: 0,
     owner: ownerKey(ctx),
     subscribers: new Set([ctx]),
@@ -72,10 +87,14 @@ export function startRunner(ctx, { agent, prompt = '', cwd, cols = 100, rows = 3
   sessions.set(sessionId, session)
   term.onData((data) => emit(session, { type: 'data', data }))
   term.onExit(({ exitCode, signal }) => {
-    emit(session, { type: 'done', role: 'system', exitCode, signal })
+    // A deliberately closed tab should not be resurrected in connected
+    // clients by the asynchronous PTY exit event.
+    if (!session.closed) emit(session, { type: 'done', role: 'system', exitCode, signal })
     session.state.status = 'stopped'
     session.closedAt = Date.now()
-    setTimeout(() => sessions.delete(sessionId), 24 * 60 * 60 * 1000).unref?.()
+    // Keep reconnectable output, but release the native PTY wrapper after exit.
+    session.term = null
+    setTimeout(() => sessions.delete(sessionId), STOPPED_SESSION_TTL).unref?.()
   })
   // Attach PTY listeners before announcing startup so fast CLIs cannot emit
   // their first screen between spawn and the initial status event.
@@ -91,6 +110,8 @@ function sessionInfo(session) {
     status: session.state.status,
     startedAt: session.startedAt,
     index: session.index,
+    workspace: session.workspace,
+    cwd: session.state.cwd,
     pid: session.term?.pid || null
   }
 }
@@ -135,14 +156,28 @@ export function stopRunner(ctx, sessionId) {
   return { ok: true }
 }
 
+// Closing a tab is stronger than stopping a process: remove the reconnectable
+// session and its history so an explicit close cannot reappear after refresh.
+export function closeRunner(ctx, sessionId) {
+  const session = getOwnedSession(ctx, sessionId)
+  session.closed = true
+  if (session.state.status === 'running' && session.term) {
+    try { session.term.kill() } catch { void 0 }
+    session.state.status = 'stopped'
+  }
+  sessions.delete(sessionId)
+  return { ok: true }
+}
+
 export function detachSubscriber(ctx) {
   for (const session of sessions.values()) {
     session.subscribers.delete(ctx)
   }
 }
 
-export function listSessions(ctx) {
-  const own = [...sessions.values()].filter((session) => session.owner === ownerKey(ctx))
+export function listSessions(ctx, requestedWorkspace) {
+  const workspace = requestedWorkspace ? workspaceRoot(requestedWorkspace) : ''
+  const own = [...sessions.values()].filter((session) => session.owner === ownerKey(ctx) && (!workspace || session.workspace === workspace))
   return own.map((session) => {
     session.subscribers.add(ctx)
     return sessionInfo(session)

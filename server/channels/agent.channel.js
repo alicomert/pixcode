@@ -1,5 +1,5 @@
 import { listAgents } from '../agents/adapter.js'
-import { detachSubscriber, getHistory, inputRunner, listSessions, resizeRunner, sendToRunner, startRunner, stopRunner } from '../agents/runner.js'
+import { closeRunner, detachSubscriber, getHistory, inputRunner, listSessions, resizeRunner, sendToRunner, startRunner, stopRunner } from '../agents/runner.js'
 
 export const agentChannel = {
   ops: {
@@ -9,7 +9,8 @@ export const agentChannel = {
     resize: (ctx, { sessionId, cols, rows } = {}) => resizeRunner(ctx, sessionId, cols, rows),
     send: (ctx, { sessionId, text } = {}) => sendToRunner(ctx, sessionId, text),
     stop: (ctx, { sessionId } = {}) => stopRunner(ctx, sessionId),
-    sessions: (ctx) => listSessions(ctx),
+    close: (ctx, { sessionId } = {}) => closeRunner(ctx, sessionId),
+    sessions: (ctx, { workspace } = {}) => listSessions(ctx, workspace),
     history: (ctx, { sessionId } = {}) => getHistory(ctx, sessionId)
   },
   onClose(ctx) { detachSubscriber(ctx) }

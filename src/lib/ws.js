@@ -31,6 +31,9 @@ export class MultiplexWS {
     this.socket = new WebSocket(`${protocol}//${location.host}/ws?token=${token}&client=${encodeURIComponent(clientId())}`)
     this.socket.onopen = () => {
       for (const frame of this.queue.splice(0)) this.socket.send(frame)
+      // Let mounted views re-attach long-lived sessions and re-fit terminals
+      // after a transient connection loss.
+      window.dispatchEvent(new Event('pixcode:ws-open'))
     }
     this.socket.onmessage = (event) => {
       let frame
@@ -48,6 +51,13 @@ export class MultiplexWS {
     }
     this.socket.onclose = () => {
       this.socket = null
+      // A request attached to a socket that has already closed can never be
+      // answered. Reject it so hydration/loading guards are released and the
+      // next reconnect can issue a fresh request instead of leaving the
+      // terminal permanently waiting.
+      for (const pending of this.pending.values()) pending.reject(new Error('websocket disconnected'))
+      this.pending.clear()
+      this.queue = []
       if (!this.closed && getToken()) this.reconnectTimer = setTimeout(() => this.connect(), 1_000)
     }
     this.socket.onerror = () => {}

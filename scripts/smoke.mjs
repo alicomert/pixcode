@@ -1,6 +1,6 @@
 import WebSocket from 'ws'
 
-const BASE = process.env.BASE || 'http://localhost:3210'
+const BASE = process.env.BASE || 'http://localhost:3001'
 const password = process.env.PIXCODE_SMOKE_PASSWORD || 'secret123'
 let failed = false
 

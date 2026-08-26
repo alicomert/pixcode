@@ -16,6 +16,9 @@
   "project.nameHint": "Give it a name, or leave blank to create the next pixcode-project-N.",
   "project.namePlaceholder": "e.g. landing-page",
   "project.create": "Create and open",
+  "project.newWorkspace": "New workspace",
+  "project.openExisting": "Open workspace",
+  "project.closeTab": "Close tab",
   "common.cancel": "Cancel",
   "topbar.logout": "Sign out",
   "topbar.theme.dark": "Switch to light theme",
@@ -68,6 +71,8 @@
   "editor.save": "Save",
   "editor.diff.show": "Show diff",
   "editor.diff.hide": "Hide diff",
+  "editor.diff.loading": "Loading diff...",
+  "editor.diffError": "Could not load Git baseline",
   "editor.error": "Could not open file",
   "editor.closeDirty": "This file has unsaved changes. Close it anyway?",
   "git.title": "Git",
@@ -98,6 +103,11 @@
   "agent.none": "No agent available",
   "agent.chooseCli": "Choose a CLI for a new terminal session",
   "agent.noSession": "No agent terminal is open",
+  "agent.close": "Close session",
+  "agent.closeTitle": "Close agent session",
+  "agent.closeConfirm": "Close {name}?",
+  "agent.closeYes": "Yes",
+  "agent.closeNo": "No",
   "remote.localTitle": "Local workspace",
   "remote.localDescription": "This Pixcode session is running locally.",
   "extensions.agentsDescription": "Terminal-first coding agents",
@@ -107,8 +117,7 @@
   "terminal.new": "New terminal",
   "terminal.close": "Close",
   "lang.label": "Language",
-  "status.ready": "Ready"
-  ,"project.openFolder": "Open folder"
+  "project.openFolder": "Open folder"
   ,"project.folderHint": "Open any folder on your computer as the workspace."
   ,"project.browse": "Browse folders"
   ,"project.cloneRepo": "Clone GitHub repository"

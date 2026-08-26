@@ -1,11 +1,14 @@
 import { defineConfig } from 'vite'
-import preact from '@preact/preset-vite'
 import tailwindcss from '@tailwindcss/vite'
 
-const backend = `http://localhost:${process.env.PORT || 3210}`
+const backend = `http://localhost:${process.env.PORT || process.env.PIXCODE_PORT || 3001}`
 
 export default defineConfig({
-  plugins: [preact(), tailwindcss()],
+  plugins: [tailwindcss()],
+  esbuild: {
+    jsx: 'automatic',
+    jsxImportSource: 'preact'
+  },
   server: {
     port: 5199,
     proxy: {
@@ -27,14 +30,6 @@ export default defineConfig({
             '@codemirror/search',
             '@codemirror/autocomplete',
             '@codemirror/merge'
-          ],
-          langs: [
-            '@codemirror/lang-javascript',
-            '@codemirror/lang-json',
-            '@codemirror/lang-html',
-            '@codemirror/lang-css',
-            '@codemirror/lang-markdown',
-            '@codemirror/lang-python'
           ],
           xterm: ['@xterm/xterm', '@xterm/addon-fit']
         }
