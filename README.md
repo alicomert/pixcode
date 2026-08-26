@@ -91,3 +91,5 @@ BASE=http://localhost:3001 node scripts/agent-terminal-smoke.mjs
 - [npm](https://www.npmjs.com/package/@pixelbyte-software/pixcode)
 - [Releases](https://github.com/alicomert/pixcode/releases)
 - [Lisans](LICENSE)
+
+Pixcode MIT lisanslı, tamamen açık kaynak bir projedir.
