@@ -29,7 +29,7 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../.desktop-resources/pixcode": "pixcode"
+      "../.desktop-resources/pixcode": "pixcode-runtime"
     },
     "icon": [
       "../public/icons/icon-128x128.png",

@@ -87,7 +87,15 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
     // Resource layout differs slightly between bundler versions when a
     // directory is mapped to a target. Accept both possible nesting levels
     // so an installer can always find the staged server.
-    let roots = [resource.join("pixcode"), resource.join("pixcode").join("pixcode"), resource.clone()];
+    let roots = [
+        resource.join("pixcode-runtime"),
+        resource.join("pixcode-runtime").join("pixcode"),
+        // Keep compatibility with installers produced before the resource
+        // directory was renamed to avoid the Linux binary name collision.
+        resource.join("pixcode"),
+        resource.join("pixcode").join("pixcode"),
+        resource.clone(),
+    ];
     let Some((bundled_root, entry)) = roots.iter().find_map(|root| {
         let entry = root.join("server").join("cli.js");
         entry.is_file().then(|| (root.clone(), entry))
