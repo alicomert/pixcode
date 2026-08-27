@@ -1,0 +1,21 @@
+{
+  "auth.setup.eyebrow": "ローカルワークスペースを作成",
+  "auth.setup.title": "Pixcodeを設定",
+  "auth.setup.description": "このコンピューターにプロジェクトとエージェントセッションを保存するアカウントを作成します。",
+  "auth.login.eyebrow": "ローカルコーディングワークスペース",
+  "auth.login.title": "おかえりなさい",
+  "auth.login.description": "プロジェクトとターミナルを続けるにはサインインしてください。",
+  "auth.username": "ユーザー名",
+  "auth.usernamePlaceholder": "ユーザー名を入力",
+  "auth.password": "パスワード",
+  "auth.passwordPlaceholder": "パスワードを入力",
+  "auth.setup.submit": "保存してサインイン",
+  "auth.login.submit": "サインイン",
+  "auth.loading": "サインイン中...",
+  "auth.localOnly": "認証情報はローカルのPixcodeデータフォルダーに保存されます。",
+  "lang.label": "言語",
+  "topbar.logout": "サインアウト",
+  "view.explorer": "エクスプローラー",
+  "view.settings": "設定",
+  "panel.terminal": "ターミナル"
+}

@@ -1,0 +1,21 @@
+{
+  "auth.setup.eyebrow": "로컬 작업 공간 만들기",
+  "auth.setup.title": "Pixcode 설정",
+  "auth.setup.description": "이 컴퓨터에 프로젝트와 에이전트 세션을 보관할 계정을 만드세요.",
+  "auth.login.eyebrow": "로컬 코딩 작업 공간",
+  "auth.login.title": "다시 오신 것을 환영합니다",
+  "auth.login.description": "프로젝트와 터미널을 계속 사용하려면 로그인하세요.",
+  "auth.username": "사용자 이름",
+  "auth.usernamePlaceholder": "사용자 이름 입력",
+  "auth.password": "비밀번호",
+  "auth.passwordPlaceholder": "비밀번호 입력",
+  "auth.setup.submit": "저장하고 로그인",
+  "auth.login.submit": "로그인",
+  "auth.loading": "로그인 중...",
+  "auth.localOnly": "자격 증명은 로컬 Pixcode 데이터 폴더에 보관됩니다.",
+  "lang.label": "언어",
+  "topbar.logout": "로그아웃",
+  "view.explorer": "탐색기",
+  "view.settings": "설정",
+  "panel.terminal": "터미널"
+}

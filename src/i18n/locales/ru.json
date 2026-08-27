@@ -1,0 +1,21 @@
+{
+  "auth.setup.eyebrow": "Создайте локальное рабочее пространство",
+  "auth.setup.title": "Настройте Pixcode",
+  "auth.setup.description": "Создайте аккаунт для хранения проектов и сессий агентов на этом компьютере.",
+  "auth.login.eyebrow": "Ваше локальное рабочее пространство",
+  "auth.login.title": "С возвращением",
+  "auth.login.description": "Войдите, чтобы продолжить работу с проектами и терминалами.",
+  "auth.username": "Имя пользователя",
+  "auth.usernamePlaceholder": "Введите имя пользователя",
+  "auth.password": "Пароль",
+  "auth.passwordPlaceholder": "Введите пароль",
+  "auth.setup.submit": "Сохранить и войти",
+  "auth.login.submit": "Войти",
+  "auth.loading": "Вход...",
+  "auth.localOnly": "Учетные данные остаются в локальной папке данных Pixcode.",
+  "lang.label": "Язык",
+  "topbar.logout": "Выйти",
+  "view.explorer": "Проводник",
+  "view.settings": "Настройки",
+  "panel.terminal": "Терминал"
+}

@@ -19,6 +19,12 @@ export function loadAuth() {
     state = null
   }
   if (!state || typeof state !== 'object') state = null
+  // v2.0.5 stored only a password. Preserve those installations by assigning
+  // the documented default account name on first load.
+  if (state && !state.username && state.passwordHash?.salt && state.passwordHash?.hash && state.secret) {
+    state.username = 'admin'
+    persist()
+  }
 }
 
 export function setupRequired() {
@@ -36,6 +42,14 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
   return { salt, hash }
 }
 
+function normalizeUsername(username) {
+  return String(username || '').trim().toLowerCase()
+}
+
+function validUsername(username) {
+  return /^[a-z0-9][a-z0-9._-]{2,31}$/.test(username)
+}
+
 function verifyPassword(password) {
   if (!state?.passwordHash) return false
   const computed = hashPassword(password, state.passwordHash.salt).hash
@@ -44,23 +58,34 @@ function verifyPassword(password) {
   return actualBytes.length === computedBytes.length && crypto.timingSafeEqual(actualBytes, computedBytes)
 }
 
-export function setup(password) {
+export function setup(username, password) {
   if (!setupRequired()) throw httpError(409, 'already set up')
+  // Keep the old function shape usable for scripts and older clients.
+  if (password === undefined) { password = username; username = 'admin' }
+  if (!username) username = 'admin'
+  username = normalizeUsername(username)
+  if (!validUsername(username)) throw httpError(400, 'username must be 3-32 characters (letters, numbers, ., _, -)')
   if (String(password || '').length < 6) throw httpError(400, 'password too short')
   state = {
+    username,
     passwordHash: hashPassword(password),
     secret: crypto.randomBytes(32).toString('hex'),
     keys: []
   }
   persist()
-  return login(password)
+  return login(username, password)
 }
 
-export function login(password) {
+export function login(username, password) {
   if (setupRequired()) throw httpError(428, 'setup required')
-  if (!verifyPassword(password)) throw httpError(401, 'invalid credentials')
+  // Password-only clients from pre-username releases continue to work.
+  if (password === undefined) { password = username; username = state.username || 'admin' }
+  if (!username) username = state.username || 'admin'
+  username = normalizeUsername(username)
+  if (username !== normalizeUsername(state.username || 'admin') || !verifyPassword(password)) throw httpError(401, 'invalid credentials')
   return {
-    token: sign({ sub: 'owner', role: 'owner' }, state.secret, TOKEN_TTL),
+    token: sign({ sub: 'owner', role: 'owner', username }, state.secret, TOKEN_TTL),
+    username,
     expiresIn: TOKEN_TTL
   }
 }
@@ -118,8 +143,14 @@ export function authMiddleware(req) {
 
 export function authRoutes(router) {
   router.get('/api/health', () => ({ ok: true, name: 'pixcode', version: VERSION, setupRequired: setupRequired() }), { auth: false })
-  router.post('/api/auth/setup', async (req) => setup((await readBody(req)).password), { auth: false })
-  router.post('/api/auth/login', async (req) => login((await readBody(req)).password), { auth: false })
+  router.post('/api/auth/setup', async (req) => {
+    const body = await readBody(req)
+    return setup(body.username || 'admin', body.password)
+  }, { auth: false })
+  router.post('/api/auth/login', async (req) => {
+    const body = await readBody(req)
+    return login(body.username, body.password)
+  }, { auth: false })
   router.get('/api/auth/me', (req) => ({ principal: req.principal }))
   router.post('/api/auth/keys', async (req) => issueApiKey((await readBody(req)).name))
   router.get('/api/auth/keys', () => listApiKeys())

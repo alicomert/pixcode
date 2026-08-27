@@ -1,0 +1,21 @@
+{
+  "auth.setup.eyebrow": "Crea il tuo spazio di lavoro locale",
+  "auth.setup.title": "Configura Pixcode",
+  "auth.setup.description": "Crea un account per conservare progetti e sessioni degli agenti su questo computer.",
+  "auth.login.eyebrow": "Il tuo spazio di lavoro di coding locale",
+  "auth.login.title": "Bentornato",
+  "auth.login.description": "Accedi per continuare con progetti e terminali.",
+  "auth.username": "Nome utente",
+  "auth.usernamePlaceholder": "Inserisci il nome utente",
+  "auth.password": "Password",
+  "auth.passwordPlaceholder": "Inserisci la password",
+  "auth.setup.submit": "Salva e accedi",
+  "auth.login.submit": "Accedi",
+  "auth.loading": "Accesso...",
+  "auth.localOnly": "Le credenziali restano nella cartella dati locale di Pixcode.",
+  "lang.label": "Lingua",
+  "topbar.logout": "Esci",
+  "view.explorer": "Esplora",
+  "view.settings": "Impostazioni",
+  "panel.terminal": "Terminale"
+}

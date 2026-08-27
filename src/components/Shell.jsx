@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { ArrowLeft, ArrowRight, Blocks, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
-import { t, setLocale, locale } from '../lib/i18n.js'
+import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
 import { activeView, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTheme, sidebarWidth, theme, workspace } from '../state/app.js'
@@ -101,7 +101,7 @@ function TopBar() {
         <button type="button" class="layout-button tw-icon-button" title={t('layout.toggleSidebar')} onClick={() => setSidebarWidth(sidebarWidth.value > 0 ? 0 : 276)}><PanelLeft size={16} /></button>
         <button type="button" class="layout-button tw-icon-button" title={t('layout.togglePanel')} onClick={() => (panelOpen.value = !panelOpen.value)}><PanelBottom size={16} /></button>
         <select aria-label={t('lang.label')} value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>
-          <option value="tr">TR</option><option value="en">EN</option>
+          {languages.map((language) => <option key={language.value} value={language.value}>{language.value === 'zh-CN' ? '中文' : language.value.toUpperCase()}</option>)}
         </select>
         <button type="button" class="icon-button tw-icon-button" title={t(theme.value === 'dark' ? 'topbar.theme.light' : 'topbar.theme.dark')} onClick={() => setTheme(theme.value === 'dark' ? 'light' : 'dark')}>{theme.value === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
         <button type="button" class="logout-button" onClick={logout}>{t('topbar.logout')}</button>
@@ -179,7 +179,7 @@ function ExtensionsView() {
 }
 
 function SettingsView() {
-  return <div class="info-view"><div class="sidebar-heading">{t('view.settings')}</div><div class="settings-list"><label><span>{t('settings.theme')}</span><select value={theme.value} onChange={(event) => setTheme(event.currentTarget.value)}><option value="dark">{t('topbar.theme.dark')}</option><option value="light">{t('topbar.theme.light')}</option></select></label><label><span>{t('lang.label')}</span><select value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}><option value="tr">TR</option><option value="en">EN</option></select></label><button type="button" onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</button><button type="button" onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</button></div></div>
+  return <div class="info-view"><div class="sidebar-heading">{t('view.settings')}</div><div class="settings-list"><label><span>{t('settings.theme')}</span><select value={theme.value} onChange={(event) => setTheme(event.currentTarget.value)}><option value="dark">{t('topbar.theme.dark')}</option><option value="light">{t('topbar.theme.light')}</option></select></label><label><span>{t('lang.label')}</span><select value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>{languages.map((language) => <option key={language.value} value={language.value}>{language.nativeName}</option>)}</select></label><button type="button" onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</button><button type="button" onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</button></div></div>
 }
 
 function ResizeHandle({ direction, className = '', onResize }) {

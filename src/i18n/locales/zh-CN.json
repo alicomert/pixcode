@@ -1,0 +1,21 @@
+{
+  "auth.setup.eyebrow": "创建本地工作区",
+  "auth.setup.title": "设置 Pixcode",
+  "auth.setup.description": "创建账户，将项目和代理会话保存在此电脑上。",
+  "auth.login.eyebrow": "你的本地编码工作区",
+  "auth.login.title": "欢迎回来",
+  "auth.login.description": "登录后继续使用项目和终端。",
+  "auth.username": "用户名",
+  "auth.usernamePlaceholder": "输入用户名",
+  "auth.password": "密码",
+  "auth.passwordPlaceholder": "输入密码",
+  "auth.setup.submit": "保存并登录",
+  "auth.login.submit": "登录",
+  "auth.loading": "正在登录...",
+  "auth.localOnly": "你的凭据只保存在本地 Pixcode 数据目录中。",
+  "lang.label": "语言",
+  "topbar.logout": "退出登录",
+  "view.explorer": "资源管理器",
+  "view.settings": "设置",
+  "panel.terminal": "终端"
+}

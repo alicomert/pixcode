@@ -1,6 +1,7 @@
 import WebSocket from 'ws'
 
 const BASE = process.env.BASE || 'http://localhost:3001'
+const username = process.env.PIXCODE_SMOKE_USERNAME || 'admin'
 const password = process.env.PIXCODE_SMOKE_PASSWORD || 'secret123'
 let failed = false
 
@@ -29,13 +30,13 @@ if (health.setupRequired) {
   await check('setup', () => request('/api/auth/setup', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ password })
+    body: JSON.stringify({ username, password })
   }))
 }
 const login = await request('/api/auth/login', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ password })
+  body: JSON.stringify({ username, password })
 })
 if (!login?.token) {
   console.error('FAIL login: no token')

@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag to build'
         required: true
-        default: 'v2.0.0'
+        default: 'v2.0.6'
         type: string
   push:
     tags:
@@ -37,6 +37,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Check release version
+        run: npm run check:version -- --tag "${{ inputs.tag || github.ref_name }}"
       - run: npm run build
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -77,3 +79,28 @@ jobs:
           grep -Eiq '\.dmg$' <<<"$assets"
           grep -Eiq '\.AppImage$' <<<"$assets"
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+  npm:
+    name: Publish npm package
+    needs: [desktop, publish]
+    if: ${{ needs.desktop.result == 'success' && needs.publish.result == 'success' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - name: Check package and release versions
+        run: npm run check:version -- --tag "${{ inputs.tag || github.ref_name }}"
+      - name: Publish package
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
