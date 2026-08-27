@@ -44,6 +44,8 @@ button:disabled { cursor: wait; opacity: .55; }
 .loading-screen img { display: block; width: clamp(96px, 18vw, 180px); height: auto; aspect-ratio: 1; object-fit: contain; }
 .loading-screen span { min-width: 0; text-align: center; }
 .loading-unavailable { gap: 18px; }
+.loading-unavailable small { max-width: 360px; color: var(--muted); text-align: center; }
+.loading-unavailable .btn-accent { min-width: 120px; }
 
 .shell { display: grid; grid-template-rows: 44px 1fr; height: 100%; overflow: hidden; }
 .topbar { display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
@@ -205,6 +207,8 @@ button:disabled { cursor: wait; opacity: .55; }
 .update-checker-detailed { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 7px; }
 .update-checker-detailed .update-button { width: auto; min-width: 150px; justify-content: flex-start; padding: 0 9px; border-color: #3c3c3c; background: #292929; }
 .update-checker-detailed .update-button-available { border-color: rgba(117, 214, 155, .5); background: rgba(117, 214, 155, .1); }
+.update-checker-compact .update-button { width: auto; min-width: 62px; padding: 0 6px; }
+.update-compact-label { font: 10px var(--mono); letter-spacing: .01em; }
 .update-error { width: 100%; color: var(--muted); font-size: 10px; }
 .settings-update { display: flex; flex-direction: column; gap: 5px; margin: 6px 0; padding: 10px; border: 1px solid #303030; border-radius: 5px; background: #202020; }
 .settings-update h3 { margin: 0; color: #ddd; font-size: 12px; font-weight: 600; }
@@ -1457,10 +1461,246 @@ body {
   width: auto;
   height: auto;
   flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: pan-y;
 }
 
 .terminal-host .xterm,
 .agent-terminal-host .xterm {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  touch-action: pan-y;
+}
+
+/* xterm owns scrolling in its viewport. Keep it touch-scrollable even inside
+   the mobile workbench, whose outer panes intentionally clip overflow. */
+.terminal-host .xterm-viewport,
+.agent-terminal-host .xterm-viewport {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 767px) {
+  .terminal-host,
+  .agent-terminal-host,
+  .terminal-host .xterm,
+  .agent-terminal-host .xterm {
+    touch-action: pan-y;
+  }
+
+  .terminal-host .xterm-viewport,
+  .agent-terminal-host .xterm-viewport {
+    overflow-y: scroll !important;
+  }
+
+  .update-checker-compact .update-button {
+    width: 28px;
+    min-width: 28px;
+    padding: 0;
+  }
+
+  .update-compact-label {
+    display: none;
+  }
+}
+
+/* A small token layer keeps the workbench surfaces coherent in both themes.
+   It also makes the older, calmer Pixcode layout readable without changing
+   the existing component structure. */
+:root {
+  color-scheme: dark;
+  --ui-bg: #11161c;
+  --ui-surface: #181e26;
+  --ui-raised: #222a34;
+  --ui-hover: #293542;
+  --ui-border: #303b48;
+  --ui-border-strong: #465668;
+  --ui-text: #edf2f7;
+  --ui-muted: #8f9baa;
+  --ui-accent: #59a9ff;
+  --ui-terminal: #0b1016;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --ui-bg: #f3f6f9;
+  --ui-surface: #ffffff;
+  --ui-raised: #eef2f6;
+  --ui-hover: #e3ebf4;
+  --ui-border: #d3dbe5;
+  --ui-border-strong: #b9c6d5;
+  --ui-text: #1d2936;
+  --ui-muted: #617080;
+  --ui-accent: #1769c2;
+  --ui-terminal: #17202a;
+}
+
+body,
+.shell,
+.workbench {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+
+.topbar,
+.activity-bar,
+.sidebar,
+.auxiliary,
+.bottom-panel,
+.agent-panel,
+.terminal-section,
+.agent-picker {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+.activity-bar {
+  background: var(--ui-bg);
+}
+
+.sidebar-heading,
+.panel-header,
+.agent-terminal-header,
+.editor-breadcrumb,
+.tree-toolbar,
+.agent-session-tabs,
+.terminal-tabs {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+
+.editor-area,
+.welcome-view,
+.editor-tab.active {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+
+.editor-tabs,
+.editor-tab {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+}
+
+.sidebar .tree-item,
+.window-brand strong,
+.sidebar-heading,
+.panel-header,
+.editor-breadcrumb strong,
+.activity-button.active {
+  color: var(--ui-text);
+}
+
+.muted,
+.workspace-tab-copy small,
+.project-label,
+.terminal-badge,
+.agent-picker-copy small {
+  color: var(--ui-muted);
+}
+
+.tree-item:hover,
+.sidebar .tree-item:hover,
+.activity-button:hover,
+.tree-toolbar button:hover,
+.tree-actions button:hover,
+.search-result:hover,
+.agent-session-tab:hover,
+.terminal-tab:hover,
+.agent-picker-item:hover,
+.extension-card:hover {
+  background: var(--ui-hover);
+}
+
+.command-center,
+.project-switcher select,
+.project-switcher button,
+.topbar-actions button,
+.topbar-actions select,
+.agent-terminal-header select,
+.settings-list select,
+.search-view form input,
+.project-modal input,
+.file-action-modal input {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+
+.terminal-host,
+.agent-terminal-host,
+.agent-console {
+  border-color: var(--ui-border);
+  background: var(--ui-terminal);
+}
+
+.agent-session-tab,
+.terminal-tab {
+  border-color: var(--ui-border);
+  color: var(--ui-muted);
+}
+
+.agent-session-tab.active,
+.terminal-tab.active,
+.agent-picker-item.active {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-surface));
+  color: var(--ui-text);
+}
+
+.agent-picker-item,
+.agent-modal-item,
+.extension-card,
+.info-card,
+.settings-update {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+.settings-update h3,
+.info-card strong,
+.extension-card strong {
+  color: var(--ui-text);
+}
+
+.update-checker-compact .update-button {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+
+.update-checker-compact .update-button:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-hover);
+}
+
+.update-checker-compact .update-button-available {
+  border-color: color-mix(in srgb, #75d69b 55%, var(--ui-border));
+  color: #19834a;
+}
+
+[data-theme="dark"] .update-checker-compact .update-button-available {
+  color: #8de3ad;
+}
+
+@media (max-width: 767px) {
+  .update-checker-compact .update-button {
+    width: 28px;
+    min-width: 28px;
+    padding: 0;
+  }
+
+  .update-compact-label {
+    display: none;
+  }
 }

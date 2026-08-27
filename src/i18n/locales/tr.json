@@ -1,6 +1,8 @@
 {
   "app.title": "Pixcode",
   "app.unavailable": "Sunucuya ulaşılamıyor",
+  "app.unavailableHint": "Yerel Pixcode servisi başlatılıyor veya erişilemiyor.",
+  "app.retry": "Tekrar dene",
   "auth.setup.eyebrow": "Yerel çalışma alanını oluştur",
   "auth.setup.title": "Pixcode'u kur",
   "auth.setup.description": "Projelerinizi ve agent oturumlarınızı bu bilgisayarda korumak için hesap oluşturun.",
@@ -11,6 +13,7 @@
   "auth.login.description": "Projelerinize ve terminallerinize devam etmek için giriş yapın.",
   "auth.username": "Kullanıcı adı",
   "auth.usernamePlaceholder": "Kullanıcı adınızı girin",
+  "auth.usernameLoginHint": "admin (genellikle isteğe bağlı)",
   "auth.password": "Şifre",
   "auth.passwordPlaceholder": "Şifrenizi girin",
   "auth.localOnly": "Bilgileriniz yalnızca yerel Pixcode veri klasörünüzde saklanır.",

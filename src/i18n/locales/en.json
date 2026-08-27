@@ -1,6 +1,8 @@
 {
   "app.title": "Pixcode",
   "app.unavailable": "Server unavailable",
+  "app.unavailableHint": "The local Pixcode service is still starting or could not be reached.",
+  "app.retry": "Try again",
   "auth.setup.eyebrow": "Create your local workspace",
   "auth.setup.title": "Set up Pixcode",
   "auth.setup.description": "Create an account to keep your projects and agent sessions on this machine.",
@@ -11,6 +13,7 @@
   "auth.login.description": "Sign in to continue to your projects and terminals.",
   "auth.username": "Username",
   "auth.usernamePlaceholder": "Enter your username",
+  "auth.usernameLoginHint": "admin (usually optional)",
   "auth.password": "Password",
   "auth.passwordPlaceholder": "Enter your password",
   "auth.localOnly": "Your credentials stay in your local Pixcode data directory.",

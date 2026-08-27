@@ -7,6 +7,7 @@ import { Shell } from './components/Shell.jsx'
 
 export function App() {
   const [state, setState] = useState({ loading: true, setupRequired: false, authenticated: false })
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -16,12 +17,12 @@ export function App() {
     // it a brief window to bind its port before treating the backend as down.
     async function healthWithRetry() {
       let lastError
-      for (let attempt = 0; attempt < 12; attempt += 1) {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
         if (cancelled) return null
         try { return await api.health() } catch (error) {
           lastError = error
-          if (attempt < 11) {
-            await wait(Math.min(250 + attempt * 150, 1_000))
+          if (attempt < 19) {
+            await wait(Math.min(300 + attempt * 150, 1_200))
             if (cancelled) return null
           }
         }
@@ -49,10 +50,10 @@ export function App() {
     }
     boot()
     return () => { cancelled = true; ws.close() }
-  }, [])
+  }, [retryKey])
 
   if (state.loading) return <div class="loading-screen"><img src="/logo.png" alt="Pixcode" /><span>Pixcode</span></div>
-  if (state.unavailable) return <div class="loading-screen loading-unavailable"><img src="/logo.png" alt="Pixcode" /><span>{t('app.unavailable')}</span></div>
+  if (state.unavailable) return <div class="loading-screen loading-unavailable"><img src="/logo.png" alt="Pixcode" /><span>{t('app.unavailable')}</span><small>{t('app.unavailableHint')}</small><button type="button" class="btn-accent" onClick={() => { setState({ loading: true, setupRequired: false, authenticated: false }); setRetryKey((value) => value + 1) }}>{t('app.retry')}</button></div>
   if (state.authenticated) return <Shell />
   return <AuthGate setupRequired={state.setupRequired} onAuthenticated={() => setState((current) => ({ ...current, authenticated: true }))} />
 }

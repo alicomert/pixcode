@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { Download, FileCheck, RefreshCw, X } from '../lib/icons.jsx'
 import { t } from '../lib/i18n.js'
-import { checkForUpdate, RELEASE_URL } from '../lib/updater.js'
+import { checkForUpdate, CURRENT_VERSION, RELEASE_URL } from '../lib/updater.js'
 
 function safeReleaseUrl(value) {
   try {
@@ -42,6 +42,9 @@ export function UpdateChecker({ detailed = false }) {
 
   const release = state.release
   const downloadUrl = safeReleaseUrl(release?.assetUrl || release?.releaseUrl)
+  const compactVersion = release?.updateAvailable
+    ? `v${release.version}`
+    : `v${release?.currentVersion || CURRENT_VERSION}`
   const label = state.status === 'checking'
     ? t('update.checking')
     : state.status === 'available'
@@ -61,6 +64,7 @@ export function UpdateChecker({ detailed = false }) {
     >
       {state.status === 'checking' ? <RefreshCw size={15} class="update-spin" /> : state.status === 'current' ? <FileCheck size={15} /> : <Download size={15} />}
       {detailed && <span>{label}</span>}
+      {!detailed && <span class="update-compact-label">{compactVersion}</span>}
       {state.status === 'available' && <span class="update-dot" aria-hidden="true" />}
     </button>
     {detailed && state.status === 'error' && <span class="update-error" title={state.error}>{t('update.unavailable')}</span>}

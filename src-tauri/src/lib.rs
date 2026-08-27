@@ -1,9 +1,13 @@
 use std::{
     env,
+    fs::{self, File, OpenOptions},
+    io::Write,
     path::PathBuf,
     process::{Child, Command},
     sync::Mutex,
 };
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -40,10 +44,17 @@ pub fn run() {
                 window.open_devtools();
             }
 
-            if env::args().any(|argument| argument == "--hidden") {
+            let hidden = env::args().any(|argument| argument == "--hidden");
+            if hidden {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
                 }
+            } else if let Some(window) = app.get_webview_window("main") {
+                // Some Windows shell shortcuts restore the last hidden state.
+                // Explicitly show normal launches so double-clicking the EXE
+                // can never leave Pixcode running only in the tray.
+                let _ = window.show();
+                let _ = window.set_focus();
             }
 
             // Match the legacy desktop behaviour: Pixcode is available from
@@ -90,6 +101,11 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
     // working directory. Preserve an explicit environment override for
     // portable/custom deployments.
     let app_data = app.path().app_data_dir()?;
+    if let Err(error) = fs::create_dir_all(&app_data) {
+        eprintln!("pixcode could not create app data directory {}: {error}", app_data.display());
+    }
+    let log_path = app_data.join("server.log");
+    log_line(&log_path, "starting bundled Pixcode server");
     let projects_dir = env::var_os("PIXCODE_PROJECTS")
         .map(PathBuf::from)
         .unwrap_or_else(|| app_data.join("projects"));
@@ -108,7 +124,10 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
     let Some((bundled_root, entry)) = roots.iter().find_map(|root| {
         let entry = root.join("server").join("cli.js");
         entry.is_file().then(|| (root.clone(), entry))
-    }) else { return Ok(()); };
+    }) else {
+        log_line(&log_path, &format!("bundled server entry was not found under {}", resource.display()));
+        return Ok(());
+    };
     let bundled_node = bundled_root.join(if cfg!(windows) { "node.exe" } else { "node" });
     let node = env::var_os("PIXCODE_NODE")
         .map(PathBuf::from)
@@ -119,18 +138,28 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
     // Deriving it from the root also avoids borrowing `entry` across the
     // consuming `.arg(entry)` call.
     let working_dir = bundled_root.as_path();
-    let child = Command::new(node)
+    let stdout = append_log(&log_path);
+    let stderr = append_log(&log_path);
+    let mut command = Command::new(&node);
+    command
         .arg(entry)
         .args(["start", "--port", "3001"])
         .current_dir(working_dir)
         .env("PIXCODE_DAEMON_CHILD", "1")
+        // The desktop companion is local-only. Avoid firewall prompts and keep
+        // its auth/projects state in the writable application data directory.
+        .env("PIXCODE_HOST", "127.0.0.1")
+        .env("PIXCODE_HOME", app_data.join("data"))
         .env("PIXCODE_PROJECTS", projects_dir)
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn();
+        .stdout(stdout.map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null()))
+        .stderr(stderr.map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null()));
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let child = command.spawn();
     match child {
         Ok(child) => {
+            log_line(&log_path, &format!("bundled server started (pid {})", child.id()));
             if let Some(state) = app.try_state::<BackgroundServer>() {
                 if let Ok(mut current) = state.0.lock() {
                     if let Some(mut previous) = current.take() {
@@ -140,9 +169,22 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
                 }
             }
         }
-        Err(error) => eprintln!("pixcode background server unavailable: {error}"),
+        Err(error) => {
+            log_line(&log_path, &format!("background server unavailable: {error}"));
+            eprintln!("pixcode background server unavailable: {error}");
+        }
     }
     Ok(())
+}
+
+fn append_log(path: &PathBuf) -> std::io::Result<File> {
+    OpenOptions::new().create(true).append(true).open(path)
+}
+
+fn log_line(path: &PathBuf, message: &str) {
+    if let Ok(mut file) = append_log(path) {
+        let _ = writeln!(file, "{message}");
+    }
 }
 
 fn stop_background_server<R: tauri::Runtime>(app: &AppHandle<R>) {
