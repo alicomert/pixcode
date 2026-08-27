@@ -16,6 +16,7 @@ const lockPath = path.join(root, 'package-lock.json')
 const tauriPath = path.join(root, 'src-tauri', 'tauri.conf.json')
 const cargoPath = path.join(root, 'src-tauri', 'Cargo.toml')
 const configPath = path.join(root, 'server', 'config.js')
+const updaterPath = path.join(root, 'src', 'lib', 'updater.js')
 
 const packageJson = JSON.parse(await readFile(packagePath, 'utf8'))
 const version = packageJson.version
@@ -72,6 +73,13 @@ const configVersion = config.match(/export const VERSION\s*=\s*['"]([^'"]+)['"]/
 if (!configVersion) throw new Error('Missing VERSION export in ' + configPath)
 if (configVersion[1] !== version) {
   await writeFile(configPath, config.replace(/(export const VERSION\s*=\s*)['"][^'"]+['"]/, '$1' + JSON.stringify(version)))
+}
+
+const updater = await readFile(updaterPath, 'utf8')
+const updaterVersion = updater.match(/export const CURRENT_VERSION\s*=\s*['"]([^'"]+)['"]/)
+if (!updaterVersion) throw new Error('Missing CURRENT_VERSION export in ' + updaterPath)
+if (updaterVersion[1] !== version) {
+  await writeFile(updaterPath, updater.replace(/(export const CURRENT_VERSION\s*=\s*)['"][^'"]+['"]/, '$1' + JSON.stringify(version)))
 }
 
 console.log('Synchronized release manifests to ' + version)

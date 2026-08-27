@@ -31,7 +31,7 @@ export function AuthGate({ setupRequired, onAuthenticated }) {
       <div class="auth-orb auth-orb-one" aria-hidden="true" />
       <div class="auth-orb auth-orb-two" aria-hidden="true" />
       <form class="auth-card" onSubmit={submit}>
-        <div class="auth-brand"><span class="auth-brand-mark"><img src="/logo.svg" alt="" aria-hidden="true" /></span><span>PIXCODE</span></div>
+        <div class="auth-brand"><img class="auth-brand-logo" src="/logo.png" alt="Pixcode" /><span>PIXCODE</span></div>
         <div class="auth-heading"><p class="auth-eyebrow">{setupRequired ? t('auth.setup.eyebrow') : t('auth.login.eyebrow')}</p><h1>{t(setupRequired ? 'auth.setup.title' : 'auth.login.title')}</h1><p class="auth-description">{t(setupRequired ? 'auth.setup.description' : 'auth.login.description')}</p></div>
         <label class="auth-field"><span>{t('auth.username')}</span><span class="auth-input-wrap"><span class="auth-input-glyph" aria-hidden="true">@</span><input type="text" value={username} placeholder={t('auth.usernamePlaceholder')} onInput={(event) => setUsername(event.currentTarget.value)} autoComplete="username" autoFocus required minLength={3} maxLength={32} /></span></label>
         <label class="auth-field"><span>{t('auth.password')}</span><span class="auth-input-wrap"><Lock size={16} aria-hidden="true" /><input type="password" value={password} placeholder={t('auth.passwordPlaceholder')} onInput={(event) => setPassword(event.currentTarget.value)} autoComplete={setupRequired ? 'new-password' : 'current-password'} required minLength={setupRequired ? 6 : undefined} /></span></label>

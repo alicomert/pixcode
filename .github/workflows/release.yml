@@ -6,7 +6,7 @@ on:
       tag:
         description: 'Release tag to build'
         required: true
-        default: 'v2.0.6'
+        default: 'v2.0.7'
         type: string
   push:
     tags:

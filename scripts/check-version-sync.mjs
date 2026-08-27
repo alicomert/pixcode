@@ -12,6 +12,7 @@ const lockJson = await readJson('package-lock.json')
 const tauriJson = await readJson('src-tauri/tauri.conf.json')
 const cargo = await readFile(path.join(root, 'src-tauri', 'Cargo.toml'), 'utf8')
 const config = await readFile(path.join(root, 'server', 'config.js'), 'utf8')
+const updater = await readFile(path.join(root, 'src', 'lib', 'updater.js'), 'utf8')
 
 const packageVersion = packageJson.version
 const cargoLines = cargo.split('\n')
@@ -21,6 +22,7 @@ const packageEnd = nextSection === -1 ? cargoLines.length : nextSection
 const cargoPackage = packageStart === -1 ? '' : cargoLines.slice(packageStart, packageEnd).join('\n')
 const cargoVersion = cargoPackage.match(/^version\s*=\s*"([^"]+)"/m)?.[1]
 const configVersion = config.match(/export const VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1]
+const updaterVersion = updater.match(/export const CURRENT_VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1]
 
 const expected = [
   ['package.json', packageVersion],
@@ -29,6 +31,7 @@ const expected = [
   ['src-tauri/tauri.conf.json', tauriJson.version],
   ['src-tauri/Cargo.toml', cargoVersion],
   ['server/config.js VERSION', configVersion],
+  ['src/lib/updater.js CURRENT_VERSION', updaterVersion],
 ]
 const mismatches = expected.filter(([, value]) => value !== packageVersion)
 if (mismatches.length) {

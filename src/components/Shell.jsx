@@ -10,6 +10,7 @@ import { EditorPane } from './EditorPane.jsx'
 import { GitPanel } from './GitPanel.jsx'
 import { AgentPanel } from './AgentPanel.jsx'
 import { Terminals } from './Terminals.jsx'
+import { UpdateChecker } from './UpdateChecker.jsx'
 
 const views = [
   { id: 'explorer', label: 'view.explorer', icon: 'explorer', mobile: 'files' },
@@ -91,7 +92,7 @@ function TopBar() {
 
   return (
     <header class="topbar">
-      <div class="window-brand"><span class="brand-mark"><img class="brand-logo" src="/logo.svg" alt="" aria-hidden="true" /></span><strong>{t('app.title')}</strong></div>
+      <div class="window-brand"><img class="brand-logo" src="/logo.png" alt="Pixcode" /><strong>{t('app.title')}</strong></div>
       <div class="window-nav"><button class="tw-icon-button" type="button" disabled title={t('navigation.back')}><ArrowLeft size={16} /></button><button class="tw-icon-button" type="button" disabled title={t('navigation.forward')}><ArrowRight size={16} /></button></div>
       <button class="command-center tw-command-field" type="button" onClick={() => { activeView.value = 'search'; mobileTab.value = 'files'; if (sidebarWidth.value === 0) setSidebarWidth(276); window.dispatchEvent(new Event('pixcode:focus-search')) }}><Search class="command-icon" size={15} /><span>{t('command.search')}</span><kbd>Ctrl+P</kbd></button>
       <ProjectSwitcher />
@@ -100,6 +101,7 @@ function TopBar() {
         {installPrompt && <button type="button" class="icon-button tw-icon-button" title={t('pwa.install')} aria-label={t('pwa.install')} onClick={install}><Download size={16} /></button>}
         <button type="button" class="layout-button tw-icon-button" title={t('layout.toggleSidebar')} onClick={() => setSidebarWidth(sidebarWidth.value > 0 ? 0 : 276)}><PanelLeft size={16} /></button>
         <button type="button" class="layout-button tw-icon-button" title={t('layout.togglePanel')} onClick={() => (panelOpen.value = !panelOpen.value)}><PanelBottom size={16} /></button>
+        <UpdateChecker />
         <select aria-label={t('lang.label')} value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>
           {languages.map((language) => <option key={language.value} value={language.value}>{language.value === 'zh-CN' ? '中文' : language.value.toUpperCase()}</option>)}
         </select>
@@ -179,7 +181,7 @@ function ExtensionsView() {
 }
 
 function SettingsView() {
-  return <div class="info-view"><div class="sidebar-heading">{t('view.settings')}</div><div class="settings-list"><label><span>{t('settings.theme')}</span><select value={theme.value} onChange={(event) => setTheme(event.currentTarget.value)}><option value="dark">{t('topbar.theme.dark')}</option><option value="light">{t('topbar.theme.light')}</option></select></label><label><span>{t('lang.label')}</span><select value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>{languages.map((language) => <option key={language.value} value={language.value}>{language.nativeName}</option>)}</select></label><button type="button" onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</button><button type="button" onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</button></div></div>
+  return <div class="info-view"><div class="sidebar-heading">{t('view.settings')}</div><div class="settings-list"><label><span>{t('settings.theme')}</span><select value={theme.value} onChange={(event) => setTheme(event.currentTarget.value)}><option value="dark">{t('topbar.theme.dark')}</option><option value="light">{t('topbar.theme.light')}</option></select></label><label><span>{t('lang.label')}</span><select value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>{languages.map((language) => <option key={language.value} value={language.value}>{language.nativeName}</option>)}</select></label><section class="settings-update"><h3>{t('update.title')}</h3><p>{t('update.description')}</p><UpdateChecker detailed /></section><button type="button" onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</button><button type="button" onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</button></div></div>
 }
 
 function ResizeHandle({ direction, className = '', onResize }) {

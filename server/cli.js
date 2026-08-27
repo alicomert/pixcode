@@ -21,11 +21,18 @@ function lanIps() {
 function parseStartArgs(args) {
   const options = {}
   for (let i = 0; i < args.length; i += 1) {
-    if (args[i] === '--port') options.port = Number(args[++i])
-    else if (args[i] === '--workspace') options.workspace = args[++i]
+    if (args[i] === '--port') {
+      const value = args[++i]
+      if (!value || value.startsWith('--')) throw new Error('--port requires a value')
+      options.port = Number(value)
+    } else if (args[i] === '--workspace') {
+      const value = args[++i]
+      if (!value || value.startsWith('--')) throw new Error('--workspace requires a value')
+      options.workspace = value
+    }
     else throw new Error(`unknown option: ${args[i]}`)
   }
-  if (options.port && (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535)) throw new Error('invalid port')
+  if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 1 || options.port > 65535)) throw new Error('invalid port')
   return options
 }
 
@@ -33,9 +40,19 @@ function parseDaemonArgs(args) {
   const options = {}
   for (let i = 0; i < args.length; i += 1) {
     const value = args[i]
-    if (value === '--port') options.port = Number(args[++i])
-    else if (value === '--workspace') options.workspace = args[++i]
-    else if (value === '--mode') options.mode = args[++i] || 'auto'
+    if (value === '--port') {
+      const next = args[++i]
+      if (!next || next.startsWith('--')) throw new Error('--port requires a value')
+      options.port = Number(next)
+    } else if (value === '--workspace') {
+      const next = args[++i]
+      if (!next || next.startsWith('--')) throw new Error('--workspace requires a value')
+      options.workspace = next
+    } else if (value === '--mode') {
+      const next = args[++i]
+      if (!next || next.startsWith('--')) throw new Error('--mode requires a value')
+      options.mode = next
+    }
     else if (value === '--json') options.json = true
     else throw new Error(`unknown option: ${value}`)
   }
@@ -142,8 +159,10 @@ async function main() {
   if (options.workspace) process.env.PIXCODE_WORKSPACE = options.workspace
   const { config } = await import('./config.js')
   const { startServer } = await import('./index.js')
-  startServer()
-  for (const ip of lanIps()) console.log(`mobile: http://${ip}:${config.port}`)
+  const server = startServer()
+  server.once('listening', () => {
+    for (const ip of lanIps()) console.log(`mobile: http://${ip}:${config.port}`)
+  })
 }
 
 main().catch((error) => {

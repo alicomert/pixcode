@@ -84,6 +84,15 @@ pub fn run() {
 
 fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let resource = app.path().resource_dir()?;
+    // Installed bundles live under a read-only resource directory. Keep the
+    // managed-project state in a writable app-data directory instead of
+    // letting config.js derive projectsDir from the bundled runtime's current
+    // working directory. Preserve an explicit environment override for
+    // portable/custom deployments.
+    let app_data = app.path().app_data_dir()?;
+    let projects_dir = env::var_os("PIXCODE_PROJECTS")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| app_data.join("projects"));
     // Resource layout differs slightly between bundler versions when a
     // directory is mapped to a target. Accept both possible nesting levels
     // so an installer can always find the staged server.
@@ -115,6 +124,7 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
         .args(["start", "--port", "3001"])
         .current_dir(working_dir)
         .env("PIXCODE_DAEMON_CHILD", "1")
+        .env("PIXCODE_PROJECTS", projects_dir)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

@@ -72,6 +72,13 @@ export function startServer(options = {}) {
   const { server } = createHttpServer()
   const port = Number(options.port || config.port)
   const host = options.host || config.host
+  server.once('error', (error) => {
+    const detail = error?.code === 'EADDRINUSE'
+      ? `port ${port} is already in use`
+      : (error?.message || 'server failed to start')
+    console.error(`pixcode could not start: ${detail}`)
+    process.exitCode = 1
+  })
   server.listen(port, host, () => {
     const displayHost = host === '0.0.0.0' ? 'localhost' : host
     console.log(`pixcode v${VERSION} listening on http://${displayHost}:${port}`)
