@@ -110,6 +110,7 @@ jobs:
       - run: npm ci
       - name: Check package and release versions
         run: npm run check:version -- --tag "${{ inputs.tag || github.ref_name }}"
+      - run: npm run build
       - name: Publish package
         run: npm publish --access public
         env:
