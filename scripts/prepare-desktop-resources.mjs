@@ -38,6 +38,24 @@ for (const packagePath of packagePaths) {
   copy(packagePath, path.join(stageRoot, relative))
 }
 
+// node-pty publishes binaries for every OS, architecture, Node ABI, and
+// libc variant in one package. Shipping all of them makes linuxdeploy scan
+// the musl binaries too; a glibc AppImage then fails because libc.musl is not
+// present on the runner. Keep only the host tuple (the bundle cannot execute
+// another architecture anyway) and remove musl variants from Linux bundles.
+const prebuildRoot = path.join(stageRoot, 'node_modules', '@homebridge', 'node-pty-prebuilt-multiarch', 'prebuilds')
+if (fs.existsSync(prebuildRoot)) {
+  const hostPrebuild = `${process.platform}-${process.arch}`
+  for (const entry of fs.readdirSync(prebuildRoot)) {
+    if (entry !== hostPrebuild) fs.rmSync(path.join(prebuildRoot, entry), { recursive: true, force: true })
+  }
+  if (process.platform === 'linux') {
+    for (const entry of fs.readdirSync(path.join(prebuildRoot, hostPrebuild), { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith('.musl.node')) fs.rmSync(path.join(prebuildRoot, hostPrebuild, entry.name), { force: true })
+    }
+  }
+}
+
 const bytes = (filePath) => {
   try {
     const stat = fs.statSync(filePath)
