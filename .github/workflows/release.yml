@@ -94,6 +94,8 @@ jobs:
     name: Publish npm package
     needs: [desktop, publish]
     if: ${{ needs.desktop.result == 'success' && needs.publish.result == 'success' }}
+    env:
+      NPM_RELEASE_TOKEN: ${{ secrets.NPM_TOKEN }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -112,6 +114,12 @@ jobs:
         run: npm run check:version -- --tag "${{ inputs.tag || github.ref_name }}"
       - run: npm run build
       - name: Publish package
+        # Desktop releases must remain publishable when this optional secret
+        # is not configured. The package can be published later independently.
+        if: ${{ env.NPM_RELEASE_TOKEN != '' }}
         run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ env.NPM_RELEASE_TOKEN }}
+      - name: Skip npm publish when no token is configured
+        if: ${{ env.NPM_RELEASE_TOKEN == '' }}
+        run: echo "NPM_TOKEN is not configured; desktop release remains published."
