@@ -97,7 +97,11 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
         .map(PathBuf::from)
         .or_else(|| bundled_node.is_file().then_some(bundled_node))
         .unwrap_or_else(|| PathBuf::from("node"));
-    let working_dir = entry.parent().and_then(|server| server.parent()).unwrap_or(&resource);
+    // Keep all paths owned: `Command::arg` consumes its `PathBuf`, while the
+    // working directory must remain borrowed until the command is spawned.
+    // Deriving it from the root also avoids borrowing `entry` across the
+    // consuming `.arg(entry)` call.
+    let working_dir = bundled_root.as_path();
     let child = Command::new(node)
         .arg(entry)
         .args(["start", "--port", "3001"])
