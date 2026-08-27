@@ -121,6 +121,8 @@
   "agent.closeConfirm": "Close {name}?",
   "agent.closeYes": "Yes",
   "agent.closeNo": "No",
+  "agent.history": "Session history",
+  "agent.historyEmpty": "No recent sessions",
   "remote.localTitle": "Local workspace",
   "remote.localDescription": "This Pixcode session is running locally.",
   "extensions.agentsDescription": "Terminal-first coding agents",

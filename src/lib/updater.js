@@ -3,7 +3,7 @@
 // executed by the app. Users can review the GitHub release before installing
 // an update, which also keeps the checker safe when a network is intercepted.
 
-export const CURRENT_VERSION = "2.0.8"
+export const CURRENT_VERSION = "2.0.9"
 export const RELEASE_URL = 'https://github.com/alicomert/pixcode/releases/latest'
 const RELEASE_API_URL = 'https://api.github.com/repos/alicomert/pixcode/releases/latest'
 

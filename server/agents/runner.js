@@ -7,7 +7,7 @@ const sessions = new Map()
 let counter = 0
 const MAX_HISTORY_EVENTS = 2_000
 const MAX_HISTORY_BYTES = 2 * 1024 * 1024
-const STOPPED_SESSION_TTL = 30 * 60 * 1_000
+const STOPPED_SESSION_TTL = 6 * 60 * 60 * 1_000
 
 function ownerKey(ctx) {
   return `${String(ctx?.principal?.sub || 'owner')}:${String(ctx?.clientId || 'legacy')}`

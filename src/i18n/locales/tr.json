@@ -121,6 +121,8 @@
   "agent.closeConfirm": "{name} kapatılsın mı?",
   "agent.closeYes": "Evet",
   "agent.closeNo": "Hayır",
+  "agent.history": "Oturum geçmişi",
+  "agent.historyEmpty": "Yakın zamanda oturum yok",
   "remote.localTitle": "Yerel çalışma alanı",
   "remote.localDescription": "Bu Pixcode oturumu yerel olarak çalışıyor.",
   "extensions.agentsDescription": "Terminal tabanlı kod ajanları",

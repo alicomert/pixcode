@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { CircleStop, Maximize2, Plus, RefreshCw, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { Archive, CircleStop, Maximize2, Plus, RefreshCw, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -72,7 +72,7 @@ function AgentTerminalView({ session, onStatus }) {
 
   useEffect(() => {
     if (!host.current || !session) return undefined
-    const terminal = new Terminal({ fontFamily: terminalFont, fontSize: 13.5, lineHeight: 1.25, fontWeight: 450, cursorBlink: true, disableStdin: false, scrollOnUserInput: true, convertEol: true, scrollback: 5_000, theme: terminalTheme(theme.value) })
+    const terminal = new Terminal({ fontFamily: terminalFont, fontSize: 13.5, lineHeight: 1.25, fontWeight: 450, cursorBlink: session.status === 'running', disableStdin: session.status !== 'running', scrollOnUserInput: true, convertEol: true, scrollback: 5_000, theme: terminalTheme(theme.value) })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
     terminal.open(host.current)
@@ -175,6 +175,11 @@ function AgentTerminalView({ session, onStatus }) {
   }, [session?.sessionId])
 
   useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme.value) }, [theme.value])
+  useEffect(() => {
+    if (!terminalRef.current) return
+    terminalRef.current.options.disableStdin = session?.status !== 'running'
+    terminalRef.current.options.cursorBlink = session?.status === 'running'
+  }, [session?.status])
   return <div class="agent-terminal-host" ref={host} />
 }
 
@@ -183,6 +188,7 @@ export function AgentPanel() {
   const [sessions, setSessions] = useState([])
   const [activeSessionId, setActiveSessionId] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [closeConfirmSessionId, setCloseConfirmSessionId] = useState('')
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -216,13 +222,16 @@ export function AgentPanel() {
       const [list, currentSessions] = await Promise.all([ws.request('agent', 'agents'), ws.request('agent', 'sessions', { workspace: requestedWorkspace })])
       if (sequence !== loadSequence.current || requestedWorkspace !== (workspace.value?.path || '')) return
       setAgents(list)
-      // Stopped sessions are history records, not writable terminals. Do not
-      // restore them as tabs after refresh; only a live PTY can accept input.
-      const visibleSessions = currentSessions.filter((session) => session.status === 'running' && !isClosedSession(closedSessions.current, session))
+      // Keep recent stopped sessions as read-only history. The runner retains
+      // their terminal output for a short TTL, so reopening one is instant and
+      // does not require another persistence dependency.
+      const visibleSessions = currentSessions
+        .filter((session) => !isClosedSession(closedSessions.current, session))
+        .sort((left, right) => Number(right.startedAt || 0) - Number(left.startedAt || 0))
       setSessions(visibleSessions)
       if (visibleSessions.length && !activeSessionRef.current) activeAgent.value = visibleSessions.at(-1).agent
       const available = list.filter((agent) => agent.available)
-      if (activeSessionRef.current && !visibleSessions.some((session) => session.sessionId === activeSessionRef.current)) selectSession(visibleSessions.at(-1)?.sessionId || '')
+      if (activeSessionRef.current && !visibleSessions.some((session) => session.sessionId === activeSessionRef.current)) selectSession(visibleSessions[0]?.sessionId || '')
       if (!activeSessionRef.current && visibleSessions[0]) selectSession(visibleSessions[0].sessionId)
       if (!activeAgent.value && available[0]) activeAgent.value = available[0].id
       setError('')
@@ -256,11 +265,7 @@ export function AgentPanel() {
       // after the authoritative session list and must not resurrect a PTY
       // that has already exited.
       if (event.type === 'done') {
-        setSessions((current) => {
-          const next = current.filter((session) => session.sessionId !== event.sessionId)
-          if (activeSessionRef.current === event.sessionId) selectSession(next.at(-1)?.sessionId || '')
-          return next
-        })
+        setSessions((current) => current.map((session) => session.sessionId === event.sessionId ? { ...session, status: 'stopped', closedAt: event.ts } : session))
         return
       }
       setSessions((current) => {
@@ -306,11 +311,7 @@ export function AgentPanel() {
   async function stopSession(sessionId) {
     try {
       await ws.request('agent', 'stop', { sessionId })
-      setSessions((current) => {
-        const next = current.filter((session) => session.sessionId !== sessionId)
-        if (activeSessionRef.current === sessionId) selectSession(next.at(-1)?.sessionId || '')
-        return next
-      })
+      setSessions((current) => current.map((session) => session.sessionId === sessionId ? { ...session, status: 'stopped', closedAt: Date.now() } : session))
     } catch (requestError) {
       setError(requestError.message)
     }
@@ -356,11 +357,7 @@ export function AgentPanel() {
 
   function updateStatus(sessionId, status) {
     if (status === 'stopped') {
-      setSessions((current) => {
-        const next = current.filter((session) => session.sessionId !== sessionId)
-        if (activeSessionRef.current === sessionId) selectSession(next.at(-1)?.sessionId || '')
-        return next
-      })
+      setSessions((current) => current.map((session) => session.sessionId === sessionId ? { ...session, status: 'stopped', closedAt: Date.now() } : session))
       return
     }
     setSessions((current) => current.map((session) => session.sessionId === sessionId ? { ...session, status } : session))
@@ -372,12 +369,14 @@ export function AgentPanel() {
   }
 
   const closeConfirmSession = sessions.find((session) => session.sessionId === closeConfirmSessionId) || null
+  const liveSessions = sessions.filter((session) => session.status === 'running')
+  const historySessions = sessions.filter((session) => session.status !== 'running')
 
   return (
     <div class="agent-panel">
       <div class="agent-session-tabs">
         <div class="agent-session-tabs-scroll">
-          {sessions.map((session) => {
+          {liveSessions.map((session) => {
             const agent = agents.find((item) => item.id === session.agent)
             return <button class={`agent-session-tab ${session.sessionId === activeSessionId ? 'active' : ''}`} type="button" key={session.sessionId} onClick={() => { selectSession(session.sessionId); activeAgent.value = session.agent }} title={sessionLabel(session)}>
               <AgentLogo agent={agent} size={14} /><span>{sessionLabel(session)}</span>{session.status === 'running' && <i class="agent-session-live" />}<span class="agent-tab-close" role="button" tabIndex="0" onClick={(event) => requestCloseSession(event, session.sessionId)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') requestCloseSession(event, session.sessionId) }} title={t('agent.close')} aria-label={t('agent.close')}><X size={12} /></span>
@@ -385,7 +384,12 @@ export function AgentPanel() {
           })}
         </div>
         <button class="tw-icon-button agent-add-button" type="button" onClick={() => setModalOpen(true)} title={t('agent.new')} aria-label={t('agent.new')}><Plus size={14} /></button>
+        <button class={`tw-icon-button agent-history-button ${historyOpen ? 'active' : ''}`} type="button" onClick={() => setHistoryOpen((value) => !value)} title={t('agent.history')} aria-label={t('agent.history')}><Archive size={14} />{historySessions.length > 0 && <span>{historySessions.length}</span>}</button>
       </div>
+      {historyOpen && <div class="agent-history-list">{historySessions.length ? historySessions.map((session) => {
+        const agent = agents.find((item) => item.id === session.agent)
+        return <button class={`agent-history-item ${session.sessionId === activeSessionId ? 'active' : ''}`} type="button" key={session.sessionId} onClick={() => { selectSession(session.sessionId); activeAgent.value = session.agent }}><AgentLogo agent={agent} size={15} /><span><strong>{sessionLabel(session)}</strong><small>{new Date(session.startedAt || Date.now()).toLocaleString()}</small></span></button>
+      }) : <span class="agent-history-empty">{t('agent.historyEmpty')}</span>}</div>}
       <div class="agent-terminal-header">
         <span class="terminal-badge"><TerminalIcon size={13} /> AGENT TERMINAL</span>
         {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{sessionLabel(activeSession)}</strong><code>{activeSession.status}</code></span>}
