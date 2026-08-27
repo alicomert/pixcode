@@ -78,12 +78,17 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          assets="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.assets[].name')"
+          # GitHub's /releases/tags endpoint intentionally omits draft
+          # releases. Resolve the draft from the collection endpoint first.
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100")"
+          release_id="$(jq -r --arg tag "$RELEASE_TAG" '.[] | select(.tag_name == $tag) | .id' <<<"$release_json" | head -n1)"
+          test -n "$release_id" && test "$release_id" != "null"
+          assets="$(jq -r '.assets[].name' <<<"$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}")")"
           printf '%s\n' "$assets"
           grep -Eiq '\.exe$' <<<"$assets"
           grep -Eiq '\.dmg$' <<<"$assets"
           grep -Eiq '\.AppImage$' <<<"$assets"
-          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" -f draft=false -f make_latest=true >/dev/null
 
   npm:
     name: Publish npm package
