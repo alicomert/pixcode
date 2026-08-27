@@ -22,7 +22,9 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            args: ''
+            # Keep linuxdeploy diagnostics visible in CI; AppImage failures
+            # otherwise collapse into an unhelpful generic bundler error.
+            args: '-v'
           - os: windows-latest
             args: ''
           - os: macos-latest
