@@ -1,3 +1,5 @@
+import { CURRENT_VERSION, compareVersions } from './updater.js'
+
 const TOKEN_KEY = 'pixcode.token'
 
 // Tauri serves the built UI from its own origin. Point desktop requests at
@@ -50,7 +52,11 @@ async function desktopHealth() {
   for (const origin of desktopOrigins()) {
     try {
       const data = await request('GET', '/api/health', undefined, origin)
-      if (data?.name !== 'pixcode') throw new Error('not a Pixcode server')
+      // A previous Pixcode daemon may still own port 3001 while the bundled
+      // desktop server has moved to 3002. Never attach the UI to an older
+      // protocol instance; continue scanning until the current server is
+      // found instead.
+      if (data?.name !== 'pixcode' || compareVersions(data.version, CURRENT_VERSION) < 0) throw new Error('outdated Pixcode server')
       backendOrigin = origin
       return data
     } catch (error) {
