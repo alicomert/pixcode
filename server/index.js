@@ -72,17 +72,37 @@ export function startServer(options = {}) {
   const { server } = createHttpServer()
   const port = Number(options.port || config.port)
   const host = options.host || config.host
-  server.once('error', (error) => {
-    const detail = error?.code === 'EADDRINUSE'
-      ? `port ${port} is already in use`
-      : (error?.message || 'server failed to start')
-    console.error(`pixcode could not start: ${detail}`)
-    process.exitCode = 1
-  })
-  server.listen(port, host, () => {
-    const displayHost = host === '0.0.0.0' ? 'localhost' : host
-    console.log(`pixcode v${VERSION} listening on http://${displayHost}:${port}`)
-  })
+  // A desktop install can coexist with an older daemon or another local
+  // service. Keep the normal CLI port stable, but let the bundled companion
+  // move to the next free port instead of exiting before the UI can connect.
+  const allowPortFallback = process.env.PIXCODE_DESKTOP === '1'
+  const lastPort = Math.min(port + 20, 65535)
+  let activePort = port
+  const listen = () => {
+    const onListening = () => {
+      const displayHost = host === '0.0.0.0' ? 'localhost' : host
+      console.log(`pixcode v${VERSION} listening on http://${displayHost}:${activePort}`)
+    }
+    const onError = (error) => {
+      if (allowPortFallback && error?.code === 'EADDRINUSE' && activePort < lastPort) {
+        // Node keeps a listen callback queued when the first bind fails.
+        // Remove it before retrying so a successful fallback emits once.
+        server.removeListener('listening', onListening)
+        activePort += 1
+        listen()
+        return
+      }
+      const detail = error?.code === 'EADDRINUSE'
+        ? `port ${activePort} is already in use`
+        : (error?.message || 'server failed to start')
+      console.error(`pixcode could not start: ${detail}`)
+      process.exitCode = 1
+    }
+    server.once('error', onError)
+    server.once('listening', onListening)
+    server.listen(activePort, host)
+  }
+  listen()
   const shutdown = () => server.close(() => process.exit(0))
   // A daemon child is supervised by the platform service/launcher. Keep the
   // process in the foreground so signals terminate the HTTP server cleanly;

@@ -161,7 +161,8 @@ async function main() {
   const { startServer } = await import('./index.js')
   const server = startServer()
   server.once('listening', () => {
-    for (const ip of lanIps()) console.log(`mobile: http://${ip}:${config.port}`)
+    const port = Number(server.address()?.port || config.port)
+    for (const ip of lanIps()) console.log(`mobile: http://${ip}:${port}`)
   })
 }
 

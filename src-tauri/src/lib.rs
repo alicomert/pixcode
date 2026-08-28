@@ -146,6 +146,9 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
         .args(["start", "--port", "3001"])
         .current_dir(working_dir)
         .env("PIXCODE_DAEMON_CHILD", "1")
+        // Allow the bundled server to move off 3001 when an older Pixcode
+        // daemon or another local service already owns the stable port.
+        .env("PIXCODE_DESKTOP", "1")
         // The desktop companion is local-only. Avoid firewall prompts and keep
         // its auth/projects state in the writable application data directory.
         .env("PIXCODE_HOST", "127.0.0.1")

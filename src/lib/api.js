@@ -3,10 +3,22 @@ const TOKEN_KEY = 'pixcode.token'
 // Tauri serves the built UI from its own origin. Point desktop requests at
 // the bundled local server; browser/Vite builds keep using relative URLs so
 // the development proxy and same-origin production server remain unchanged.
-export const backendOrigin = typeof location !== 'undefined' &&
+export const desktopRuntime = typeof location !== 'undefined' &&
   (location.hostname === 'tauri.localhost' || location.protocol === 'tauri:')
-  ? 'http://127.0.0.1:3001'
-  : ''
+export let backendOrigin = desktopRuntime ? 'http://127.0.0.1:3001' : ''
+
+const DESKTOP_PORT_START = 3001
+const DESKTOP_PORT_END = 3021
+
+function desktopOrigins() {
+  if (!desktopRuntime) return ['']
+  const origins = [backendOrigin]
+  for (let port = DESKTOP_PORT_START; port <= DESKTOP_PORT_END; port += 1) {
+    const origin = `http://127.0.0.1:${port}`
+    if (!origins.includes(origin)) origins.push(origin)
+  }
+  return origins
+}
 
 export function resolveApiUrl(path) {
   return `${backendOrigin}${path}`
@@ -21,11 +33,11 @@ export function setToken(token) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
-async function request(method, path, body) {
+async function request(method, path, body, origin = backendOrigin) {
   const headers = {}
   if (body !== undefined) headers['content-type'] = 'application/json'
   if (getToken()) headers.authorization = `Bearer ${getToken()}`
-  const response = await fetch(resolveApiUrl(path), { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+  const response = await fetch(`${origin}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
   const text = await response.text()
   let data = null
   try { data = text ? JSON.parse(text) : null } catch { data = { error: text || response.statusText } }
@@ -33,10 +45,25 @@ async function request(method, path, body) {
   return data
 }
 
+async function desktopHealth() {
+  let lastError
+  for (const origin of desktopOrigins()) {
+    try {
+      const data = await request('GET', '/api/health', undefined, origin)
+      if (data?.name !== 'pixcode') throw new Error('not a Pixcode server')
+      backendOrigin = origin
+      return data
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError || new Error('server unavailable')
+}
+
 export const api = {
   get: (path) => request('GET', path),
   post: (path, body) => request('POST', path, body),
   put: (path, body) => request('PUT', path, body),
   del: (path) => request('DELETE', path),
-  health: () => request('GET', '/api/health')
+  health: () => desktopRuntime ? desktopHealth() : request('GET', '/api/health')
 }
