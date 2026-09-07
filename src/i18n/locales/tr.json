@@ -131,6 +131,12 @@
   "extensions.builtIn": "Yerleşik",
   "terminal.new": "Yeni terminal",
   "terminal.close": "Kapat",
+  "terminal.keyboardToolbar": "Terminal klavye araç çubuğu",
+  "terminal.extraKeys": "Diğer terminal tuşları",
+  "terminal.arrowLeft": "Sol ok",
+  "terminal.arrowDown": "Aşağı ok",
+  "terminal.arrowUp": "Yukarı ok",
+  "terminal.arrowRight": "Sağ ok",
   "lang.label": "Dil",
   "project.openFolder": "Klasör aç"
   ,"project.folderHint": "Bilgisayarınızdaki bir klasörü çalışma alanı olarak açın."

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
-import { Plus, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
+import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, ChevronDown, Plus, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -9,7 +9,7 @@ import { theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 
-function TerminalView({ id }) {
+function TerminalView({ id, onReady, modifiersRef }) {
   const host = useRef(null)
   const terminalRef = useRef(null)
 
@@ -26,6 +26,11 @@ function TerminalView({ id }) {
       theme: terminalTheme(theme.value)
     })
     terminalRef.current = terminal
+    onReady?.({
+      focus: () => terminal.focus(),
+      blur: () => terminal.blur(),
+      input: (data) => terminal.input(data, true)
+    })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
     terminal.open(host.current)
@@ -50,7 +55,14 @@ function TerminalView({ id }) {
       lastSeq = Math.max(lastSeq, event.seq || lastSeq)
     })
     const exitUnsubscribe = ws.on('pty', 'exit', (event) => { if (event.id === id) terminal.write(`\r\n[process exited: ${event.exitCode}]\r\n`) })
-    const inputDisposable = terminal.onData((data) => ws.request('pty', 'input', { id, data }).catch(() => {}))
+    const inputDisposable = terminal.onData((data) => {
+      let nextData = data
+      if (modifiersRef?.current && data.length === 1 && /[a-z]/i.test(data)) {
+        nextData = String.fromCharCode(data.toUpperCase().charCodeAt(0) - 64)
+        modifiersRef.current = false
+      }
+      ws.request('pty', 'input', { id, data: nextData }).catch(() => {})
+    })
     async function hydrate() {
       try {
         const history = await ws.request('pty', 'history', { id })
@@ -85,14 +97,84 @@ function TerminalView({ id }) {
       window.removeEventListener('pixcode:ws-open', reconnect)
       terminal.dispose()
       terminalRef.current = null
+      onReady?.(null)
     }
-  }, [id])
+  }, [id, onReady])
 
   useEffect(() => {
     if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme.value)
   }, [theme.value])
 
   return <div class="terminal-host" ref={host} />
+}
+
+const functionKeys = [
+  ['F1', '\u001bOP'], ['F2', '\u001bOQ'], ['F3', '\u001bOR'], ['F4', '\u001bOS'],
+  ['F5', '\u001b[15~'], ['F6', '\u001b[17~'], ['F7', '\u001b[18~'], ['F8', '\u001b[19~'],
+  ['F9', '\u001b[20~'], ['F10', '\u001b[21~'], ['F11', '\u001b[23~'], ['F12', '\u001b[24~']
+]
+
+export function TerminalAccessory({ actionsRef, modifiersRef, terminalId }) {
+  const [expanded, setExpanded] = useState(false)
+  const [ctrl, setCtrl] = useState(false)
+
+  useEffect(() => {
+    setCtrl(false)
+    modifiersRef.current = false
+  }, [terminalId, modifiersRef])
+
+  function toggleCtrl() {
+    const next = !ctrl
+    setCtrl(next)
+    modifiersRef.current = next
+  }
+
+  function send(data, refocus = !expanded) {
+    const actions = actionsRef.current
+    if (!actions) return
+    actions.input(data)
+    if (refocus) actions.focus()
+  }
+
+  function sendControl(letter) {
+    send(String.fromCharCode(letter.toUpperCase().charCodeAt(0) - 64))
+    setCtrl(false)
+    modifiersRef.current = false
+  }
+
+  function toggleExpanded() {
+    const next = !expanded
+    setExpanded(next)
+    if (next) actionsRef.current?.blur()
+    else actionsRef.current?.focus()
+  }
+
+  return <>
+    {expanded && <div class="terminal-mobile-tray" role="group" aria-label={t('terminal.extraKeys')}>
+      <div class="terminal-mobile-tray-grid">
+        {functionKeys.map(([label, value]) => <button key={label} type="button" class="terminal-key terminal-key-function" onClick={() => send(value)}>{label}</button>)}
+        <button type="button" class="terminal-key" onClick={() => send('\u001b[H')}>Home</button>
+        <button type="button" class="terminal-key" onClick={() => send('\u001b[F')}>End</button>
+        <button type="button" class="terminal-key" onClick={() => send('\u001b[5~')}>PgUp</button>
+        <button type="button" class="terminal-key" onClick={() => send('\u001b[6~')}>PgDn</button>
+        <button type="button" class={`terminal-key ${ctrl ? 'active' : ''}`} aria-pressed={ctrl} onClick={toggleCtrl}>Ctrl</button>
+        <button type="button" class="terminal-key" onClick={() => send('\u001b')}>Esc</button>
+        <button type="button" class="terminal-key" onClick={() => send('\t')}>Tab</button>
+        <button type="button" class="terminal-key" onClick={() => send('\u001b[3~')}>Del</button>
+      </div>
+    </div>}
+    <div class="terminal-mobile-accessory" role="toolbar" aria-label={t('terminal.keyboardToolbar')}>
+      <button type="button" class={`terminal-key terminal-key-modifier ${ctrl ? 'active' : ''}`} aria-pressed={ctrl} onClick={toggleCtrl}>Ctrl</button>
+      <button type="button" class="terminal-key" onClick={() => sendControl('c')}>^C</button>
+      <button type="button" class="terminal-key" onClick={() => sendControl('x')}>^X</button>
+      <button type="button" class="terminal-key" onClick={() => sendControl('v')}>^V</button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowLeft')} onClick={() => send('\u001b[D')}><ArrowLeft size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowDown')} onClick={() => send('\u001b[B')}><ArrowDownToLine size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowUp')} onClick={() => send('\u001b[A')}><ArrowUpFromLine size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowRight')} onClick={() => send('\u001b[C')}><ArrowRight size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-more" aria-expanded={expanded} aria-label={t('terminal.extraKeys')} onClick={toggleExpanded}><span>•••</span><ChevronDown size={13} /></button>
+    </div>
+  </>
 }
 
 // Keep normal shell ids grouped by workspace. Unmounting the panel must not
@@ -115,6 +197,9 @@ export function Terminals() {
   const [tabs, setTabs] = useState(initialStore.tabs)
   const [active, setActive] = useState(initialStore.active)
   const [error, setError] = useState('')
+  const terminalActionsRef = useRef(null)
+  const terminalModifiersRef = useRef(false)
+  const handleTerminalReady = useCallback((actions) => { terminalActionsRef.current = actions }, [])
   const tabsRef = useRef(initialStore.tabs)
   const activeRef = useRef(initialStore.active)
   const mountedRef = useRef(true)
@@ -233,7 +318,7 @@ export function Terminals() {
         <button class="tw-icon-button" type="button" onClick={newTab} title={t('terminal.new')} aria-label={t('terminal.new')}><Plus size={14} /></button>
       </div>
       {error && <div class="error-text" style="padding:8px">{error}</div>}
-      {active && <TerminalView key={active} id={active} />}
+      {active && <div class="terminal-mobile-stage"><TerminalView key={active} id={active} onReady={handleTerminalReady} modifiersRef={terminalModifiersRef} /><TerminalAccessory terminalId={active} actionsRef={terminalActionsRef} modifiersRef={terminalModifiersRef} /></div>}
       {!active && !error && <div class="tree muted">{t('terminal.new')}</div>}
     </div>
   )

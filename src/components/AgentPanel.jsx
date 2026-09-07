@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { Archive, CircleStop, Maximize2, Plus, RefreshCw, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -8,6 +8,7 @@ import { t } from '../lib/i18n.js'
 import { activeAgent, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
+import { TerminalAccessory } from './Terminals.jsx'
 
 const agentIcons = {
   claude: '/icons/claude-ai-icon.svg',
@@ -52,9 +53,10 @@ function isClosedSession(tombstones, session) {
   const tombstone = tombstones[session.sessionId]
   if (!tombstone) return false
   const startedAt = Number(session.startedAt) || 0
-  // A missing start time is treated conservatively: hide it while the
-  // tombstone is fresh. New sessions expose startedAt from the runner.
-  if (!startedAt || !tombstone.startedAt || startedAt <= tombstone.closedAt) return true
+  // Older servers may not have included startedAt in the list response. If a
+  // new process was created after the tombstone, treat a reused id as new
+  // instead of hiding it for the full tombstone TTL.
+  if (!startedAt || startedAt <= tombstone.closedAt) return true
   delete tombstones[session.sessionId]
   writeClosedSessions(tombstones)
   return false
@@ -66,7 +68,7 @@ function AgentLogo({ agent, size = 18 }) {
   return <TerminalIcon size={size} aria-hidden="true" />
 }
 
-function AgentTerminalView({ session, onStatus }) {
+function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
   const host = useRef(null)
   const terminalRef = useRef(null)
 
@@ -80,17 +82,27 @@ function AgentTerminalView({ session, onStatus }) {
     // restored; xterm otherwise waits for the first explicit click.
     terminal.focus()
     terminalRef.current = terminal
+    onReady?.({
+      focus: () => terminal.focus(),
+      blur: () => terminal.blur(),
+      input: (data) => terminal.input(data, true)
+    })
     let disposed = false
     let lastSeq = 0
     let hydrated = false
     let hydrating = false
+    let hydrationGeneration = 0
+    let rehydrateRequested = false
     const pendingEvents = []
 
     async function hydrate() {
-      if (hydrating || disposed) return
+      if (disposed) return
+      if (hydrating) { rehydrateRequested = true; return }
       hydrating = true
+      const generation = hydrationGeneration
       try {
         const history = await ws.request('agent', 'history', { sessionId: session.sessionId })
+        if (generation !== hydrationGeneration) return
         for (const event of history) {
           if (event.seq && event.seq <= lastSeq) continue
           if (event.type === 'data') terminal.write(event.data || '')
@@ -107,7 +119,7 @@ function AgentTerminalView({ session, onStatus }) {
           }
         }
       } catch (error) {
-        if (!disposed) {
+        if (!disposed && generation === hydrationGeneration) {
           terminal.write(`\r\n[history unavailable: ${error.message}]\r\n`)
           // A temporary history failure must not trap subsequent live output
           // in the pending queue. The next reconnect will hydrate again and
@@ -122,6 +134,10 @@ function AgentTerminalView({ session, onStatus }) {
         }
       } finally {
         hydrating = false
+        if (!disposed && rehydrateRequested) {
+          rehydrateRequested = false
+          hydrate()
+        }
       }
     }
     const stopResizeWatcher = watchTerminalResize(host.current, fit, terminal, (cols, rows) => {
@@ -131,14 +147,21 @@ function AgentTerminalView({ session, onStatus }) {
     host.current.addEventListener('pointerdown', focusTerminal)
     host.current.addEventListener('click', focusTerminal)
     const reconnect = () => {
+      hydrationGeneration += 1
       hydrated = false
       pendingEvents.length = 0
+      rehydrateRequested = hydrating
       hydrate()
     }
     window.addEventListener('pixcode:ws-open', reconnect)
     let inputErrorShown = false
     const inputDisposable = terminal.onData((data) => {
-      ws.request('agent', 'input', { sessionId: session.sessionId, data }).catch((error) => {
+      let nextData = data
+      if (modifiersRef?.current && data.length === 1 && /[a-z]/i.test(data)) {
+        nextData = String.fromCharCode(data.toUpperCase().charCodeAt(0) - 64)
+        modifiersRef.current = false
+      }
+      ws.request('agent', 'input', { sessionId: session.sessionId, data: nextData }).catch((error) => {
         // Do not silently swallow a dead/reconnected PTY. Showing one concise
         // diagnostic keeps the terminal usable and makes the stopped state
         // obvious instead of accepting keystrokes that disappear.
@@ -171,8 +194,10 @@ function AgentTerminalView({ session, onStatus }) {
       inputDisposable.dispose()
       terminal.dispose()
       terminalRef.current = null
+      modifiersRef.current = false
+      onReady?.(null)
     }
-  }, [session?.sessionId])
+  }, [session?.sessionId, onReady, modifiersRef])
 
   useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme.value) }, [theme.value])
   useEffect(() => {
@@ -198,6 +223,9 @@ export function AgentPanel() {
   const reloadRequestedRef = useRef(false)
   const loadSequence = useRef(0)
   const activeSessionRef = useRef('')
+  const agentActionsRef = useRef(null)
+  const agentModifiersRef = useRef(false)
+  const handleAgentReady = useCallback((actions) => { agentActionsRef.current = actions }, [])
 
   const activeSession = sessions.find((session) => session.sessionId === activeSessionId) || null
 
@@ -271,9 +299,14 @@ export function AgentPanel() {
       setSessions((current) => {
         const existing = current.find((session) => session.sessionId === event.sessionId)
         const nextIndex = Math.max(0, ...current.filter((item) => item.agent === event.agent).map((item) => Number(item.index) || 0)) + 1
+        // Adapter status messages such as Claude's "ready" describe the
+        // provider, not the PTY lifecycle. Keep the tab live until `done`.
+        const nextStatus = event.type === 'status' ? 'running' : (event.status || 'running')
         const next = existing
-          ? current.map((session) => session.sessionId === event.sessionId ? { ...session, status: 'running' } : session)
-          : [...current, { sessionId: event.sessionId, agent: event.agent, status: 'running', startedAt: event.startedAt || event.ts, index: event.index || nextIndex }]
+          ? current.map((session) => session.sessionId === event.sessionId
+            ? { ...session, status: session.status === 'stopped' && nextStatus === 'running' ? 'stopped' : nextStatus }
+            : session)
+          : [...current, { sessionId: event.sessionId, agent: event.agent, status: nextStatus, startedAt: event.startedAt || event.ts, index: event.index || nextIndex }]
         return next
       })
     })
@@ -398,7 +431,7 @@ export function AgentPanel() {
         <button class="tw-icon-button" type="button" onClick={load} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}><RefreshCw size={13} class={refreshing ? 'spin' : ''} /></button>
       </div>
       <div class="agent-console agent-terminal-console">
-        {activeSession ? <AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} /> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><button class="btn-accent tw-toolbar-button" type="button" onClick={() => setModalOpen(true)}><Plus size={13} /> {t('agent.new')}</button></div>}
+        {activeSession ? <div class="terminal-mobile-stage"><AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} onReady={handleAgentReady} modifiersRef={agentModifiersRef} /><TerminalAccessory terminalId={activeSession.sessionId} actionsRef={agentActionsRef} modifiersRef={agentModifiersRef} /></div> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><button class="btn-accent tw-toolbar-button" type="button" onClick={() => setModalOpen(true)}><Plus size={13} /> {t('agent.new')}</button></div>}
         {error && <div class="error-text agent-error">{error}</div>}
       </div>
       {modalOpen && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}><section class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title"><div class="agent-modal-heading"><strong id="agent-modal-title">{t('agent.new')}</strong><button class="tw-icon-button" type="button" onClick={() => setModalOpen(false)} title={t('common.cancel')} aria-label={t('common.cancel')}><X size={15} /></button></div><p>{t('agent.chooseCli')}</p><div class="agent-modal-list">{agents.map((agent) => <button class={`agent-modal-item ${agent.available ? '' : 'unavailable'}`} type="button" disabled={!agent.available || busy} key={agent.id} onClick={() => openAgent(agent)}><span class="agent-picker-logo"><AgentLogo agent={agent} size={22} /></span><span><strong>{agent.label}</strong><small>{agent.cli}{agent.available ? '' : ` · ${t('agent.missing')}`}</small></span><Maximize2 size={13} /></button>)}</div></section></div>}

@@ -1773,3 +1773,251 @@ body,
     max-height: 30vh;
   }
 }
+
+/* Mobile terminal accessory controls. The accessory is part of the terminal
+   pane rather than the page chrome, so opening the OS keyboard only changes
+   the xterm viewport. The expanded key tray is an overlay and never causes a
+   second layout pass or moves the bottom navigation. */
+.terminal-mobile-stage {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.terminal-mobile-stage > .terminal-host,
+.terminal-mobile-stage > .agent-terminal-host {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.terminal-mobile-accessory,
+.terminal-mobile-tray {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .shell {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .topbar {
+    background: #141a22;
+    border-bottom-color: #2b3643;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 3%);
+  }
+
+  .window-brand {
+    padding-left: 2px;
+  }
+
+  .window-brand strong {
+    display: none;
+  }
+
+  .brand-logo {
+    width: 22px;
+    height: 22px;
+  }
+
+  .project-switcher select {
+    border-color: #344355;
+    border-radius: 6px;
+    background: #202a35;
+    color: #cbd8e7;
+  }
+
+  .terminal-mobile-accessory {
+    display: flex;
+    z-index: 3;
+    min-height: 46px;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 5px 7px max(5px, env(safe-area-inset-bottom));
+    border-top: 1px solid #2f3a47;
+    background: #171d25;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 18%);
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .terminal-mobile-accessory::-webkit-scrollbar {
+    display: none;
+  }
+
+  .terminal-key {
+    display: inline-flex;
+    width: auto;
+    min-width: 35px;
+    height: 34px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    padding: 0 9px;
+    border: 1px solid #334152;
+    border-radius: 6px;
+    background: #222b36;
+    color: #dce7f4;
+    font: 600 11px/1 var(--mono);
+    letter-spacing: .01em;
+    box-shadow: inset 0 1px rgb(255 255 255 / 6%);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .terminal-key:hover,
+  .terminal-key:focus-visible {
+    border-color: #5a8fc2;
+    background: #2d4054;
+    outline: 0;
+  }
+
+  .terminal-key:active,
+  .terminal-key.active {
+    border-color: #63adf1;
+    background: #28577e;
+    color: #fff;
+  }
+
+  .terminal-key-icon {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+  }
+
+  .terminal-key-more {
+    min-width: 54px;
+    margin-left: auto;
+    gap: 3px;
+    color: #a9bad0;
+  }
+
+  .terminal-key-more span {
+    margin-top: -5px;
+    font-size: 14px;
+    letter-spacing: 1px;
+  }
+
+  .terminal-mobile-tray {
+    position: absolute;
+    right: 7px;
+    bottom: 7px;
+    left: 7px;
+    display: block;
+    z-index: 5;
+    padding: 9px;
+    border: 1px solid #405166;
+    border-radius: 9px;
+    background: rgb(24 31 40 / 97%);
+    box-shadow: 0 14px 40px rgb(0 0 0 / 42%), inset 0 1px rgb(255 255 255 / 6%);
+    backdrop-filter: blur(14px);
+  }
+
+  .mobile-tabs {
+    padding: 5px 7px max(5px, env(safe-area-inset-bottom));
+    gap: 4px;
+    border-top-color: #2f3a47;
+    background: #171d25;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 20%);
+  }
+
+  .mobile-tab {
+    min-height: 43px;
+    gap: 3px;
+    border-color: transparent;
+    border-radius: 7px;
+    color: #8190a1;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .01em;
+  }
+
+  .mobile-tab.active {
+    border-color: #355778;
+    background: #223549;
+    color: #a9d4fb;
+    box-shadow: inset 0 1px rgb(255 255 255 / 7%);
+  }
+
+  [data-theme="light"] .topbar {
+    background: #f7f9fc;
+    border-bottom-color: #d7e0ea;
+    box-shadow: 0 1px 0 rgb(45 71 100 / 7%);
+  }
+
+  [data-theme="light"] .window-brand strong {
+    color: #25364a;
+  }
+
+  [data-theme="light"] .mobile-tabs {
+    border-top-color: #d4dce6;
+    background: #f8fafc;
+    box-shadow: 0 -8px 24px rgb(45 71 100 / 10%);
+  }
+
+  [data-theme="light"] .mobile-tab {
+    color: #718196;
+  }
+
+  [data-theme="light"] .mobile-tab.active {
+    border-color: #a8c7e5;
+    background: #e5f0fb;
+    color: #24619a;
+  }
+
+  .terminal-mobile-tray-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 5px;
+    max-height: min(230px, 34dvh);
+    overflow-y: auto;
+  }
+
+  .terminal-mobile-tray .terminal-key {
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+
+  .terminal-key-function {
+    color: #9ed0ff;
+  }
+
+  [data-theme="light"] .terminal-mobile-accessory {
+    border-top-color: #cbd5e1;
+    background: #eef2f7;
+    box-shadow: 0 -8px 24px rgb(35 53 75 / 12%);
+  }
+
+  [data-theme="light"] .terminal-key {
+    border-color: #c4cfdd;
+    background: #fff;
+    color: #2c4055;
+    box-shadow: 0 1px 2px rgb(35 53 75 / 8%);
+  }
+
+  [data-theme="light"] .terminal-key:hover,
+  [data-theme="light"] .terminal-key:focus-visible {
+    border-color: #6698ca;
+    background: #e4effa;
+  }
+
+  [data-theme="light"] .terminal-key.active,
+  [data-theme="light"] .terminal-key:active {
+    border-color: #3e83c9;
+    background: #d3e8fb;
+    color: #174f82;
+  }
+
+  [data-theme="light"] .terminal-mobile-tray {
+    border-color: #c0cedd;
+    background: rgb(248 250 253 / 97%);
+    box-shadow: 0 14px 40px rgb(35 53 75 / 20%);
+  }
+}

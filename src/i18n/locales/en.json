@@ -131,6 +131,12 @@
   "extensions.builtIn": "Built-in",
   "terminal.new": "New terminal",
   "terminal.close": "Close",
+  "terminal.keyboardToolbar": "Terminal keyboard toolbar",
+  "terminal.extraKeys": "More terminal keys",
+  "terminal.arrowLeft": "Left arrow",
+  "terminal.arrowDown": "Down arrow",
+  "terminal.arrowUp": "Up arrow",
+  "terminal.arrowRight": "Right arrow",
   "lang.label": "Language",
   "project.openFolder": "Open folder"
   ,"project.folderHint": "Open any folder on your computer as the workspace."
