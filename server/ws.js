@@ -13,6 +13,12 @@ export function createHub(server) {
     return token ? verifyToken(token) : null
   }
 
+  function isAllowedOrigin(origin) {
+    if (!origin) return true
+    if (origin === 'tauri://localhost' || origin === 'http://tauri.localhost' || origin === 'https://tauri.localhost') return true
+    return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+  }
+
   function broadcast(channel, event, data) {
     const frame = JSON.stringify({ ch: channel, ev: event, data })
     for (const connection of connections) {
@@ -24,6 +30,7 @@ export function createHub(server) {
     let url
     try { url = new URL(req.url, 'http://localhost') } catch { socket.destroy(); return }
     if (url.pathname !== '/ws') { socket.destroy(); return }
+    if (!isAllowedOrigin(req.headers.origin)) { socket.destroy(); return }
     const principal = authenticate(url)
     if (!principal) {
       socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
