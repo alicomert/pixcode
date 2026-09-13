@@ -337,7 +337,13 @@ button:disabled { cursor: wait; opacity: .55; }
 .agent-modal-list { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px 10px; }
 .agent-modal-item { display: flex; min-height: 42px; align-items: center; gap: 9px; padding: 6px 8px; border: 1px solid transparent; border-radius: 4px; background: #1e1e1e; color: #d1d1d1; text-align: left; }
 .agent-modal-item:hover { border-color: #3794ff; background: #293e55; }
-.agent-modal-item.unavailable { cursor: not-allowed; opacity: .45; }
+.agent-modal-item.unavailable { opacity: .55; }
+.agent-install-body { padding: 4px 12px 6px; }
+.agent-install-command { display: block; padding: 9px 10px; border: 1px solid var(--ui-border, #3a3a3a); border-radius: 6px; background: var(--ui-raised, #1e1e1e); color: var(--ui-text, #d1d1d1); font: 11px/1.5 var(--mono); word-break: break-all; user-select: text; }
+.agent-install-missing { color: var(--ui-muted, #929292); font-size: 11px; }
+.agent-modal .modal-actions { padding: 2px 12px 12px; }
+.agent-modal-heading-actions { display: flex; align-items: center; gap: 4px; }
+.agent-modal-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 8px; color: var(--ui-muted, #858585); font-size: 11px; text-align: center; }
 .agent-modal-item > span:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; }
 .agent-modal-item strong { font-size: 11px; font-weight: 500; }
 .agent-modal-item small { color: #858585; font: 10px var(--mono); }

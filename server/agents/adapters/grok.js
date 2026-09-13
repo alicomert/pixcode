@@ -6,6 +6,7 @@ export class GrokAdapter extends Adapter {
   static cli = 'grok'
   static icon = '/icons/grok-build-icon.png'
   static interactive = false
+  static install = { command: 'npm install -g @xai-official/grok' }
 
   buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return prompt ? ['-p', prompt] : [] }

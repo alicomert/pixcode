@@ -15,6 +15,7 @@ const STATE_FILE = path.join(DAEMON_DIR, 'state.json')
 const LOG_FILE = path.join(DAEMON_DIR, 'pixcode.log')
 const SERVICE_NAME = 'pixcode.service'
 const LINUX_UNIT = path.join(os.homedir(), '.config', 'systemd', 'user', SERVICE_NAME)
+const LINUX_SYSTEM_UNIT = `/etc/systemd/system/${SERVICE_NAME}`
 const LINUX_AUTOSTART = path.join(os.homedir(), '.config', 'autostart', 'pixcode.desktop')
 const MAC_LAUNCH_AGENT = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.pixcode.server.plist')
 const WINDOWS_STARTUP = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'Pixcode.cmd')
@@ -227,7 +228,13 @@ function windowsStartup({ port, workspace }) {
 }
 
 export function autostartStatus() {
-  if (process.platform === 'linux') return { enabled: fs.existsSync(LINUX_UNIT) || fs.existsSync(LINUX_AUTOSTART), mode: fs.existsSync(LINUX_UNIT) ? 'systemd' : 'desktop', path: fs.existsSync(LINUX_UNIT) ? LINUX_UNIT : LINUX_AUTOSTART }
+  if (process.platform === 'linux') {
+    // A system-level unit (e.g. /etc/systemd/system/pixcode.service) manages
+    // the server too; report it so status does not claim autostart is off.
+    if (fs.existsSync(LINUX_UNIT)) return { enabled: true, mode: 'systemd', path: LINUX_UNIT }
+    if (fs.existsSync(LINUX_SYSTEM_UNIT)) return { enabled: true, mode: 'systemd-system', path: LINUX_SYSTEM_UNIT }
+    return { enabled: fs.existsSync(LINUX_AUTOSTART), mode: 'desktop', path: LINUX_AUTOSTART }
+  }
   if (process.platform === 'darwin') return { enabled: fs.existsSync(MAC_LAUNCH_AGENT), mode: 'launchagent', path: MAC_LAUNCH_AGENT }
   if (process.platform === 'win32') return { enabled: fs.existsSync(WINDOWS_STARTUP), mode: 'startup-folder', path: WINDOWS_STARTUP }
   return { enabled: false, mode: 'unsupported', path: null }

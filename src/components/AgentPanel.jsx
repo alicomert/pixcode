@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import { Archive, CircleStop, Maximize2, Plus, RefreshCw, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { Archive, CircleStop, Download, Maximize2, Plus, RefreshCw, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { activeAgent, terminalFontSize, theme, workspace } from '../state/app.js'
+import { activeAgent, panelOpen, terminalFontSize, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { TerminalAccessory } from './Terminals.jsx'
@@ -251,6 +251,8 @@ export function AgentPanel() {
   const [modalOpen, setModalOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [closeConfirmSessionId, setCloseConfirmSessionId] = useState('')
+  const [installTarget, setInstallTarget] = useState(null)
+  const [installing, setInstalling] = useState(false)
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -270,7 +272,7 @@ export function AgentPanel() {
     setActiveSessionId(sessionId)
   }
 
-  async function load() {
+  async function load(forceRefresh = false) {
     if (loadingRef.current) {
       // A workspace switch can arrive while the previous session list is
       // still in flight. Queue one fresh read instead of leaving the new
@@ -283,7 +285,7 @@ export function AgentPanel() {
     const sequence = ++loadSequence.current
     const requestedWorkspace = workspace.value?.path || ''
     try {
-      const [list, currentSessions] = await Promise.all([ws.request('agent', 'agents'), ws.request('agent', 'sessions', { workspace: requestedWorkspace })])
+      const [list, currentSessions] = await Promise.all([ws.request('agent', 'agents', forceRefresh ? { refresh: true } : {}), ws.request('agent', 'sessions', { workspace: requestedWorkspace })])
       if (sequence !== loadSequence.current || requestedWorkspace !== (workspace.value?.path || '')) return
       setAgents(list)
       // Keep recent stopped sessions as read-only history. The runner retains
@@ -315,12 +317,14 @@ export function AgentPanel() {
     const openNewSession = () => {
       setError('')
       setModalOpen(true)
+      load(true)
     }
     const reconnect = () => load()
     const workspaceChange = () => {
       selectSession('')
       load()
     }
+    const agentsPush = ws.on('agent', 'agents', (list) => { if (Array.isArray(list)) setAgents(list) })
     const unsubscribe = ws.on('agent', 'session', (event) => {
       const currentWorkspace = workspace.value?.path || ''
       if (event.workspace && currentWorkspace && event.workspace !== currentWorkspace) return
@@ -356,6 +360,7 @@ export function AgentPanel() {
       window.removeEventListener('pixcode:ws-open', reconnect)
       window.removeEventListener('pixcode:workspace-change', workspaceChange)
       window.removeEventListener('pixcode:new-agent', openNewSession)
+      agentsPush()
       unsubscribe()
     }
   }, [])
@@ -376,6 +381,33 @@ export function AgentPanel() {
       setError(requestError.message)
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function runInstall(agent) {
+    const command = agent?.install?.command
+    if (!command || installing) return
+    setInstalling(true)
+    setError('')
+    try {
+      const { id } = await ws.request('pty', 'create', { cols: 100, rows: 30, workspace: workspace.value?.path || '', command: `${command}; echo "[pixcode] install finished"` })
+      setInstallTarget(null)
+      setModalOpen(false)
+      panelOpen.value = true
+      // The shell stays alive after the installer, so watch the output for
+      // the finish marker instead of the process exit, then re-detect CLIs.
+      let tail = ''
+      const unsubscribe = ws.on('pty', 'data', (event) => {
+        if (event.id !== id) return
+        tail = (tail + String(event.data || '')).slice(-500)
+        if (!tail.includes('install finished')) return
+        unsubscribe()
+        load(true)
+      })
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setInstalling(false)
     }
   }
 
@@ -454,7 +486,7 @@ export function AgentPanel() {
             </button>
           })}
         </div>
-        <button class="tw-icon-button agent-add-button" type="button" onClick={() => setModalOpen(true)} title={t('agent.new')} aria-label={t('agent.new')}><Plus size={14} /></button>
+        <button class="tw-icon-button agent-add-button" type="button" onClick={() => { setModalOpen(true); load(true) }} title={t('agent.new')} aria-label={t('agent.new')}><Plus size={14} /></button>
         <button class={`tw-icon-button agent-history-button ${historyOpen ? 'active' : ''}`} type="button" onClick={() => setHistoryOpen((value) => !value)} title={t('agent.history')} aria-label={t('agent.history')}><Archive size={14} />{historySessions.length > 0 && <span>{historySessions.length}</span>}</button>
       </div>
       {historyOpen && <div class="agent-history-list">{historySessions.length ? historySessions.map((session) => {
@@ -466,13 +498,14 @@ export function AgentPanel() {
         {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{sessionLabel(activeSession)}</strong><code>{activeSession.status}</code></span>}
         <span class="agent-header-spacer" />
         {activeSession?.status === 'running' && <button class="tw-toolbar-button" type="button" onClick={() => stopSession(activeSession.sessionId)}><CircleStop size={13} /> {t('agent.stop')}</button>}
-        <button class="tw-icon-button" type="button" onClick={load} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}><RefreshCw size={13} class={refreshing ? 'spin' : ''} /></button>
+        <button class="tw-icon-button" type="button" onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}><RefreshCw size={13} class={refreshing ? 'spin' : ''} /></button>
       </div>
       <div class="agent-console agent-terminal-console">
-        {activeSession ? <div class="terminal-mobile-stage"><AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} onReady={handleAgentReady} modifiersRef={agentModifiersRef} /><TerminalAccessory terminalId={activeSession.sessionId} actionsRef={agentActionsRef} modifiersRef={agentModifiersRef} /></div> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><button class="btn-accent tw-toolbar-button" type="button" onClick={() => setModalOpen(true)}><Plus size={13} /> {t('agent.new')}</button></div>}
+        {activeSession ? <div class="terminal-mobile-stage"><AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} onReady={handleAgentReady} modifiersRef={agentModifiersRef} /><TerminalAccessory terminalId={activeSession.sessionId} actionsRef={agentActionsRef} modifiersRef={agentModifiersRef} /></div> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><button class="btn-accent tw-toolbar-button" type="button" onClick={() => { setModalOpen(true); load(true) }}><Plus size={13} /> {t('agent.new')}</button></div>}
         {error && <div class="error-text agent-error">{error}</div>}
       </div>
-      {modalOpen && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}><section class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title"><div class="agent-modal-heading"><strong id="agent-modal-title">{t('agent.new')}</strong><button class="tw-icon-button" type="button" onClick={() => setModalOpen(false)} title={t('common.cancel')} aria-label={t('common.cancel')}><X size={15} /></button></div><p>{t('agent.chooseCli')}</p><div class="agent-modal-list">{agents.map((agent) => <button class={`agent-modal-item ${agent.available ? '' : 'unavailable'}`} type="button" disabled={!agent.available || busy} key={agent.id} onClick={() => openAgent(agent)}><span class="agent-picker-logo"><AgentLogo agent={agent} size={22} /></span><span><strong>{agent.label}</strong><small>{agent.cli}{agent.available ? '' : ` · ${t('agent.missing')}`}</small></span><Maximize2 size={13} /></button>)}</div></section></div>}
+      {modalOpen && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}><section class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title"><div class="agent-modal-heading"><strong id="agent-modal-title">{t('agent.new')}</strong><span class="agent-modal-heading-actions"><button class="tw-icon-button" type="button" onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}><RefreshCw size={13} class={refreshing ? 'spin' : ''} /></button><button class="tw-icon-button" type="button" onClick={() => setModalOpen(false)} title={t('common.cancel')} aria-label={t('common.cancel')}><X size={15} /></button></span></div><p>{t('agent.chooseCli')}</p><div class="agent-modal-list">{!agents.length && <div class="agent-modal-empty"><span>{error || t('agent.none')}</span><button class="tw-toolbar-button" type="button" onClick={() => load(true)} disabled={refreshing}><RefreshCw size={12} class={refreshing ? 'spin' : ''} /> {t('agent.refresh')}</button></div>}{agents.map((agent) => <button class={`agent-modal-item ${agent.available ? '' : 'unavailable'}`} type="button" disabled={busy} key={agent.id} onClick={() => (agent.available ? openAgent(agent) : setInstallTarget(agent))}><span class="agent-picker-logo"><AgentLogo agent={agent} size={22} /></span><span><strong>{agent.label}</strong><small>{agent.cli}{agent.available ? '' : ` · ${t('agent.missing')}`}</small></span>{agent.available ? <Maximize2 size={13} /> : <Download size={13} />}</button>)}</div></section></div>}
+      {installTarget && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setInstallTarget(null) }}><section class="agent-modal agent-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="agent-install-title"><div class="agent-modal-heading"><strong id="agent-install-title">{t('agent.installTitle', { name: installTarget.label })}</strong><button class="tw-icon-button" type="button" onClick={() => setInstallTarget(null)} title={t('common.cancel')} aria-label={t('common.cancel')}><X size={15} /></button></div><p>{t('agent.installHint')}</p><div class="agent-install-body">{installTarget.install?.command ? <code class="agent-install-command">{installTarget.install.command}</code> : <span class="agent-install-missing">{t('agent.installNoCommand', { name: installTarget.label })}</span>}</div><div class="modal-actions"><button type="button" onClick={() => setInstallTarget(null)}>{t('common.cancel')}</button><button class="btn-accent" type="button" disabled={!installTarget.install?.command || installing} onClick={() => runInstall(installTarget)}><Download size={13} /> {installing ? t('agent.installing') : t('agent.installRun')}</button></div></section></div>}
       {closeConfirmSession && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setCloseConfirmSessionId('') }}><section class="agent-modal agent-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="agent-close-title"><div class="agent-modal-heading"><strong id="agent-close-title">{t('agent.closeTitle')}</strong><button class="tw-icon-button" type="button" onClick={() => setCloseConfirmSessionId('')} title={t('common.cancel')} aria-label={t('common.cancel')}><X size={15} /></button></div><p>{t('agent.closeConfirm', { name: sessionLabel(closeConfirmSession) })}</p><div class="modal-actions"><button type="button" onClick={() => setCloseConfirmSessionId('')}>{t('agent.closeNo')}</button><button class="btn-accent" type="button" onClick={confirmCloseSession}>{t('agent.closeYes')}</button></div></section></div>}
     </div>
   )

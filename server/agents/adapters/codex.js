@@ -6,6 +6,7 @@ export class CodexAdapter extends Adapter {
   static cli = 'codex'
   static icon = '/icons/codex-white.svg'
   static interactive = false
+  static install = { command: 'npm install -g @openai/codex' }
 
   buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return ['exec', '--json', ...(prompt ? [prompt] : [])] }

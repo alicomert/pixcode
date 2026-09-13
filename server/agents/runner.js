@@ -1,6 +1,7 @@
 import pty from '@homebridge/node-pty-prebuilt-multiarch'
 import { getAdapter } from './adapter.js'
 import { httpError } from '../util/http.js'
+import { enhancedEnv } from '../util/env.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 
 const sessions = new Map()
@@ -43,7 +44,7 @@ function nextSessionIndex(ctx, agent, currentWorkspace) {
   return active.reduce((highest, item) => Math.max(highest, Number(item.index) || 0), 0) + 1
 }
 
-export function startRunner(ctx, { agent, prompt = '', cwd, workspace, cols = 100, rows = 30 } = {}) {
+export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, cols = 100, rows = 30 } = {}) {
   const AdapterClass = getAdapter(agent)
   if (!AdapterClass) throw httpError(400, 'unknown agent')
   const sessionId = `s_${++counter}`
@@ -78,7 +79,7 @@ export function startRunner(ctx, { agent, prompt = '', cwd, workspace, cols = 10
       name: 'xterm-256color',
       ...size,
       cwd: session.state.cwd,
-      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+      env: await enhancedEnv({ TERM: 'xterm-256color', COLORTERM: 'truecolor' })
     })
   } catch (error) {
     throw httpError(400, error.code === 'ENOENT' ? 'agent cli not found' : (error.message || 'agent process failed to start'))

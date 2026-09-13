@@ -6,6 +6,7 @@ export class GeminiAdapter extends Adapter {
   static cli = 'gemini'
   static icon = '/icons/gemini-ai-icon.svg'
   static interactive = false
+  static install = { command: 'npm install -g @google/gemini-cli' }
 
   buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return ['-p', prompt || ''] }

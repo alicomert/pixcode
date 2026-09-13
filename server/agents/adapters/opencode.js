@@ -6,6 +6,7 @@ export class OpenCodeAdapter extends Adapter {
   static cli = 'opencode'
   static icon = '/icons/opencode-logo-dark.svg'
   static interactive = false
+  static install = { command: 'npm install -g opencode-ai' }
 
   buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return ['run', ...(prompt ? [prompt] : [])] }

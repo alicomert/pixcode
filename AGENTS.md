@@ -59,11 +59,20 @@ backend first, then `node scripts/smoke.mjs`.
 ## Agent adapters
 
 Seven adapters live in `server/agents/adapters/`: `claude`, `codex`, `devin`,
-`gemini`, `qwen`, `opencode`, `grok`. Each wraps an external CLI discovered via
-`which`; `available` is false if the binary is missing. Only `claude` and
-`devin` set `interactive: true`. Adding an 8th requires updating
-`registerAllAdapters` **and** the `agents.length !== 7` assertion in
-`scripts/smoke.mjs`.
+`gemini`, `qwen`, `opencode`, `grok`. Each wraps an external CLI detected via
+a PATH scan (`server/util/env.js` builds a service-friendly PATH from the
+login shell plus well-known dirs, also used for agent/pty spawn env);
+`available` is false if the binary is missing. Only `claude` and
+`devin` set `interactive: true`. Each adapter may also declare `static
+install` (`{ command, windows? }`) — the CLI's one-line installer, shown in
+the new-session modal so an unavailable agent can be installed in a visible
+terminal. Detection results are cached in `$PIXCODE_HOME/agent-availability.json`
+for 24h (probing scans the login-shell/known-dir PATH, not just the service
+PATH); `agent.agents` with `{ refresh: true }` forces a re-check, the server
+re-probes hourly and broadcasts `agent.agents` when availability changes,
+and opening the new-session modal triggers a fresh check. Adding an
+8th requires updating `registerAllAdapters` **and** the `agents.length !== 7`
+assertion in `scripts/smoke.mjs`.
 
 ## Auth & config
 

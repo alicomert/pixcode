@@ -3,7 +3,7 @@ import { closeRunner, detachSubscriber, getHistory, inputRunner, listSessions, r
 
 export const agentChannel = {
   ops: {
-    agents: () => listAgents(),
+    agents: (ctx, { refresh } = {}) => listAgents({ refresh: !!refresh }),
     start: (ctx, data) => startRunner(ctx, data),
     input: (ctx, { sessionId, data } = {}) => inputRunner(ctx, sessionId, data),
     resize: (ctx, { sessionId, cols, rows } = {}) => resizeRunner(ctx, sessionId, cols, rows),

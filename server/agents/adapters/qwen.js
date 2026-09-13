@@ -6,6 +6,7 @@ export class QwenAdapter extends Adapter {
   static cli = 'qwen'
   static icon = '/icons/qwen-logo.svg'
   static interactive = false
+  static install = { command: 'npm install -g @qwen-code/qwen-code' }
 
   buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return ['-p', prompt || ''] }

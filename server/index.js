@@ -14,6 +14,7 @@ import { ptyChannel } from './channels/pty.channel.js'
 import { agentChannel } from './channels/agent.channel.js'
 import { authChannel } from './channels/auth.channel.js'
 import { registerAllAdapters } from './agents/adapters/index.js'
+import { listAgents } from './agents/adapter.js'
 import { initializeWorkspace } from './projects.js'
 import { projectChannel } from './channels/project.channel.js'
 
@@ -65,6 +66,22 @@ export function createHttpServer() {
   hub.register('git', gitChannel)
   hub.register('pty', ptyChannel)
   hub.register('agent', agentChannel)
+
+  // Re-detect agent CLIs in the background so installs and removals surface
+  // without a manual refresh. Only broadcast when availability changed.
+  const AGENT_RECHECK_MS = 60 * 60 * 1_000
+  const fingerprintOf = (agents) => agents.map((agent) => `${agent.id}:${agent.available}`).join(',')
+  let agentFingerprint = null
+  listAgents().then((agents) => { agentFingerprint = fingerprintOf(agents) }).catch(() => {})
+  setInterval(async () => {
+    try {
+      const agents = await listAgents({ refresh: true })
+      const fingerprint = fingerprintOf(agents)
+      if (agentFingerprint !== null && fingerprint !== agentFingerprint) hub.broadcast('agent', 'agents', agents)
+      agentFingerprint = fingerprint
+    } catch { void 0 }
+  }, AGENT_RECHECK_MS).unref?.()
+
   return { server, router, hub }
 }
 
@@ -103,7 +120,13 @@ export function startServer(options = {}) {
     server.listen(activePort, host)
   }
   listen()
-  const shutdown = () => server.close(() => process.exit(0))
+  const shutdown = () => {
+    server.close(() => process.exit(0))
+    // Open WebSockets keep server.close() pending forever; drop every socket
+    // and cap the graceful window so service restarts stay fast.
+    server.closeAllConnections?.()
+    setTimeout(() => process.exit(0), 3_000).unref?.()
+  }
   // A daemon child is supervised by the platform service/launcher. Keep the
   // process in the foreground so signals terminate the HTTP server cleanly;
   // the parent daemon command is the component that detaches from the shell.

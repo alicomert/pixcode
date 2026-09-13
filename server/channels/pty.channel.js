@@ -1,5 +1,6 @@
 import pty from '@homebridge/node-pty-prebuilt-multiarch'
 import { httpError } from '../util/http.js'
+import { enhancedEnv } from '../util/env.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 
 const shells = new Map()
@@ -30,7 +31,7 @@ function getOwnedShell(ctx, id) {
 
 export const ptyChannel = {
   ops: {
-    create(ctx, { cols = 80, rows = 24, cwd, workspace: requestedWorkspace } = {}) {
+    async create(ctx, { cols = 80, rows = 24, cwd, workspace: requestedWorkspace, command } = {}) {
       const id = `pty_${++counter}`
       const size = dimensions(cols, rows)
       const workspacePath = workspaceRoot(requestedWorkspace)
@@ -38,7 +39,7 @@ export const ptyChannel = {
         name: 'xterm-256color',
         ...size,
         cwd: workspaceCwd(workspacePath, cwd),
-        env: { ...process.env, TERM: 'xterm-256color' }
+        env: await enhancedEnv({ TERM: 'xterm-256color' })
       })
       const shell = { term, owner: ownerKey(ctx), subscribers: new Set([ctx]), workspace: workspacePath, history: [], historyBytes: 0, sequence: 0 }
       shells.set(id, shell)
@@ -57,6 +58,7 @@ export const ptyChannel = {
           try { subscriber.emit('pty', 'exit', { id, exitCode }) } catch { shell.subscribers.delete(subscriber) }
         }
       })
+      if (command) setTimeout(() => { try { term.write(`${String(command)}\r`) } catch { void 0 } }, 80)
       return { id }
     },
 

@@ -6,6 +6,7 @@ export class DevinAdapter extends Adapter {
   static cli = 'devin'
   static icon = '/icons/devin-icon.svg'
   static interactive = true
+  static install = { command: 'curl -fsSL https://cli.devin.ai/install.sh | bash', windows: 'irm https://static.devin.ai/cli/setup.ps1 | iex' }
 
   buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) { return ['-p', '--respect-workspace-trust=false', ...(prompt ? [prompt] : [])] }

@@ -6,6 +6,7 @@ export class ClaudeAdapter extends Adapter {
   static cli = 'claude'
   static icon = '/icons/claude-ai-icon.svg'
   static interactive = true
+  static install = { command: 'npm install -g @anthropic-ai/claude-code' }
 
   buildTerminalArgs() { return [] }
   buildArgs({ prompt } = {}) {
