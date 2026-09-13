@@ -9,6 +9,7 @@ export class ClaudeAdapter extends Adapter {
   static install = { command: 'npm install -g @anthropic-ai/claude-code' }
 
   buildTerminalArgs() { return [] }
+  buildResumeArgs() { return ['--continue'] }
   buildArgs({ prompt } = {}) {
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--input-format', 'stream-json']
     if (prompt) args.push(prompt)

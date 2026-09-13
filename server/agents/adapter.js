@@ -17,6 +17,10 @@ export class Adapter {
 
   buildArgs(_options) { return [] }
   buildTerminalArgs(_options) { return [] }
+  // Arguments that relaunch the CLI continuing its previous conversation,
+  // or null when the CLI cannot resume — the runner falls back to a fresh
+  // interactive spawn.
+  buildResumeArgs() { return null }
   normalizeLine(_line, _state) { return [] }
   buildUserFrame(text) { return `${text}\n` }
 }

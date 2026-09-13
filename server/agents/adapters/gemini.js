@@ -9,6 +9,7 @@ export class GeminiAdapter extends Adapter {
   static install = { command: 'npm install -g @google/gemini-cli' }
 
   buildTerminalArgs() { return [] }
+  buildResumeArgs() { return ['--resume'] }
   buildArgs({ prompt } = {}) { return ['-p', prompt || ''] }
   normalizeLine(line) { return [{ type: 'message', role: 'assistant', text: line, partial: true }] }
 }

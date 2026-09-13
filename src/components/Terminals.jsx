@@ -8,6 +8,7 @@ import { t } from '../lib/i18n.js'
 import { terminalFontSize, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
+import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
 
 function TerminalView({ id, onReady, modifiersRef }) {
   const host = useRef(null)
@@ -36,6 +37,7 @@ function TerminalView({ id, onReady, modifiersRef }) {
     fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
+    const stopTouchScroll = attachTerminalTouchScroll(host.current)
     terminal.focus()
     const focusTerminal = () => terminal.focus()
     host.current.addEventListener('pointerdown', focusTerminal)
@@ -103,6 +105,7 @@ function TerminalView({ id, onReady, modifiersRef }) {
     hydrate()
     return () => {
       stopResizeWatcher()
+      stopTouchScroll()
       host.current?.removeEventListener('pointerdown', focusTerminal)
       host.current?.removeEventListener('click', focusTerminal)
       dataUnsubscribe()

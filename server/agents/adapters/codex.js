@@ -9,6 +9,7 @@ export class CodexAdapter extends Adapter {
   static install = { command: 'npm install -g @openai/codex' }
 
   buildTerminalArgs() { return [] }
+  buildResumeArgs() { return ['resume', '--last'] }
   buildArgs({ prompt } = {}) { return ['exec', '--json', ...(prompt ? [prompt] : [])] }
 
   normalizeLine(line) {

@@ -8,6 +8,7 @@ import { t } from '../lib/i18n.js'
 import { activeAgent, panelOpen, terminalFontSize, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
+import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
 import { TerminalAccessory } from './Terminals.jsx'
 
 const agentIcons = {
@@ -81,6 +82,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
+    const stopTouchScroll = attachTerminalTouchScroll(host.current)
     // The active agent tab should be immediately typeable after it is
     // restored; xterm otherwise waits for the first explicit click.
     terminal.focus()
@@ -202,6 +204,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     return () => {
       disposed = true
       stopResizeWatcher()
+      stopTouchScroll()
       host.current?.removeEventListener('pointerdown', focusTerminal)
       host.current?.removeEventListener('click', focusTerminal)
       window.removeEventListener('pixcode:ws-open', reconnect)

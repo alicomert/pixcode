@@ -11,6 +11,7 @@ import { GitPanel } from './GitPanel.jsx'
 import { AgentPanel } from './AgentPanel.jsx'
 import { Terminals } from './Terminals.jsx'
 import { UpdateChecker } from './UpdateChecker.jsx'
+import { InstallBanner } from './InstallBanner.jsx'
 
 const views = [
   { id: 'explorer', label: 'view.explorer', icon: 'explorer', mobile: 'files' },
@@ -86,9 +87,9 @@ function TopBar() {
   }
 
   async function install() {
-    if (!installPrompt) return
-    await installPrompt.prompt()
+    const event = installPrompt
     setInstallPrompt(null)
+    try { await event?.prompt() } catch { /* already consumed by the banner */ }
   }
 
   return (
@@ -305,5 +306,6 @@ export function Shell() {
       {panelOpen.value && <><ResizeHandle direction="horizontal" className="panel-resize" onResize={(delta) => setPanelHeight(panelHeight.value - delta)} /><div class="bottom-panel"><div class="panel-header"><span>{t('panel.terminal')}</span><button class="tw-icon-button" type="button" onClick={() => (panelOpen.value = false)} title={t('panel.close')} aria-label={t('panel.close')}><X size={16} /></button></div><Terminals /></div></>}
     </div>
     <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => { const Glyph = item.icon; return <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'terminal') panelOpen.value = true; if (item.id === 'agent' || item.id === 'settings') panelOpen.value = false; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run'; if (item.id === 'settings') activeView.value = 'settings' }}><Glyph size={18} strokeWidth={1.7} aria-hidden="true" /><span>{t(item.label)}</span></button> })}</nav>
+    <InstallBanner />
   </div>
 }

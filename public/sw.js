@@ -1,11 +1,13 @@
 // Service Worker for Pixcode PWA
 // Cache only manifest (needed for PWA install). HTML and JS are never pre-cached
 // so a rebuild + refresh always picks up the latest assets.
-const CACHE_NAME = 'pixcode-v5';
+const CACHE_NAME = 'pixcode-v6';
 const urlsToCache = [
   '/',
   '/manifest.json',
-  '/logo.png'
+  '/logo.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png'
 ];
 
 // Install event

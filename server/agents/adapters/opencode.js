@@ -9,6 +9,7 @@ export class OpenCodeAdapter extends Adapter {
   static install = { command: 'npm install -g opencode-ai' }
 
   buildTerminalArgs() { return [] }
+  buildResumeArgs() { return ['--continue'] }
   buildArgs({ prompt } = {}) { return ['run', ...(prompt ? [prompt] : [])] }
   normalizeLine(line) { return [{ type: 'message', role: 'assistant', text: line, partial: true }] }
 }

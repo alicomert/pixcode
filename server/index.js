@@ -15,6 +15,7 @@ import { agentChannel } from './channels/agent.channel.js'
 import { authChannel } from './channels/auth.channel.js'
 import { registerAllAdapters } from './agents/adapters/index.js'
 import { listAgents } from './agents/adapter.js'
+import { restoreSessions } from './agents/runner.js'
 import { initializeWorkspace } from './projects.js'
 import { projectChannel } from './channels/project.channel.js'
 
@@ -60,6 +61,8 @@ export function createHttpServer() {
 
   const hub = createHub(server)
   registerAllAdapters()
+  // Respawn agent sessions that were running when the previous process died.
+  restoreSessions().catch(() => {})
   hub.register('project', projectChannel)
   hub.register('auth', authChannel)
   hub.register('fs', fsChannel)
