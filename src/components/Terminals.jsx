@@ -5,19 +5,20 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { theme, workspace } from '../state/app.js'
+import { terminalFontSize, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 
 function TerminalView({ id, onReady, modifiersRef }) {
   const host = useRef(null)
   const terminalRef = useRef(null)
+  const fitRef = useRef(null)
 
   useEffect(() => {
     if (!host.current) return undefined
     const terminal = new Terminal({
       fontFamily: terminalFont,
-      fontSize: 13.5,
+      fontSize: terminalFontSize.value,
       lineHeight: 1.25,
       fontWeight: 450,
       cursorBlink: true,
@@ -32,6 +33,7 @@ function TerminalView({ id, onReady, modifiersRef }) {
       input: (data) => terminal.input(data, true)
     })
     const fit = new FitAddon()
+    fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
     terminal.focus()
@@ -86,6 +88,18 @@ function TerminalView({ id, onReady, modifiersRef }) {
     }
     const reconnect = () => { hydrated = false; pending.length = 0; hydrate() }
     window.addEventListener('pixcode:ws-open', reconnect)
+    const keyboardLayout = (event) => {
+      if (!event.detail?.open) return
+      requestAnimationFrame(() => {
+        try {
+          fit.fit()
+          terminal.scrollToBottom()
+        } catch {
+          // xterm may be between open/dispose while the pane is switching.
+        }
+      })
+    }
+    window.addEventListener('pixcode:keyboard', keyboardLayout)
     hydrate()
     return () => {
       stopResizeWatcher()
@@ -95,15 +109,37 @@ function TerminalView({ id, onReady, modifiersRef }) {
       exitUnsubscribe()
       inputDisposable.dispose()
       window.removeEventListener('pixcode:ws-open', reconnect)
+      window.removeEventListener('pixcode:keyboard', keyboardLayout)
       terminal.dispose()
       terminalRef.current = null
+      fitRef.current = null
       onReady?.(null)
     }
   }, [id, onReady])
 
   useEffect(() => {
-    if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme.value)
-  }, [theme.value])
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = terminalTheme(theme.value)
+      requestAnimationFrame(() => {
+        try {
+          fitRef.current?.fit()
+          ws.request('pty', 'resize', { id, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
+        } catch { /* terminal is switching */ }
+      })
+    }
+  }, [theme.value, id])
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.fontSize = terminalFontSize.value
+      requestAnimationFrame(() => {
+        try {
+          fitRef.current?.fit()
+          ws.request('pty', 'resize', { id, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
+        } catch { /* terminal is switching */ }
+      })
+    }
+  }, [terminalFontSize.value, id])
 
   return <div class="terminal-host" ref={host} />
 }
@@ -114,9 +150,65 @@ const functionKeys = [
   ['F9', '\u001b[20~'], ['F10', '\u001b[21~'], ['F11', '\u001b[23~'], ['F12', '\u001b[24~']
 ]
 
+let viewportConsumers = 0
+
 export function TerminalAccessory({ actionsRef, modifiersRef, terminalId }) {
   const [expanded, setExpanded] = useState(false)
   const [ctrl, setCtrl] = useState(false)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return undefined
+    const viewport = window.visualViewport
+    // Android can resize innerHeight together with the visual viewport when
+    // the keyboard opens. Keep the pre-keyboard height so that both resize
+    // modes produce the same keyboard inset.
+    let layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight)
+    let previousKeyboardOpen = false
+    viewportConsumers += 1
+    const updateViewport = () => {
+      const currentLayoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight)
+      const visualHeight = Math.round(viewport.height)
+      const visualOffset = Math.round(viewport.offsetTop)
+      const viewportGap = layoutHeight - (visualHeight + visualOffset)
+      const keyboardHeight = Math.max(0, Math.round(viewportGap))
+      const keyboardOpen = keyboardHeight > 100 && visualHeight < layoutHeight - 80
+      // Refresh the baseline after the keyboard has closed (including after
+      // rotation), but never while the viewport is in its reduced state.
+      if (!keyboardOpen && currentLayoutHeight > layoutHeight) layoutHeight = currentLayoutHeight
+      document.documentElement.style.setProperty('--pixcode-keyboard-height', `${keyboardHeight}px`)
+      document.documentElement.style.setProperty('--pixcode-visual-height', `${visualHeight}px`)
+      document.documentElement.style.setProperty('--pixcode-viewport-offset', `${visualOffset}px`)
+      document.documentElement.classList.toggle('pixcode-keyboard-open', keyboardOpen)
+      if (keyboardOpen !== previousKeyboardOpen) {
+        previousKeyboardOpen = keyboardOpen
+        window.dispatchEvent(new CustomEvent('pixcode:keyboard', { detail: { open: keyboardOpen } }))
+      }
+      setKeyboardOpen(keyboardOpen)
+    }
+    updateViewport()
+    viewport.addEventListener('resize', updateViewport)
+    viewport.addEventListener('scroll', updateViewport)
+    window.addEventListener('resize', updateViewport)
+    const resetViewportBaseline = () => {
+      layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight)
+      updateViewport()
+    }
+    window.addEventListener('orientationchange', resetViewportBaseline)
+    return () => {
+      viewport.removeEventListener('resize', updateViewport)
+      viewport.removeEventListener('scroll', updateViewport)
+      window.removeEventListener('resize', updateViewport)
+      window.removeEventListener('orientationchange', resetViewportBaseline)
+      viewportConsumers -= 1
+      if (viewportConsumers === 0) {
+        document.documentElement.style.removeProperty('--pixcode-keyboard-height')
+        document.documentElement.style.removeProperty('--pixcode-visual-height')
+        document.documentElement.style.removeProperty('--pixcode-viewport-offset')
+        document.documentElement.classList.remove('pixcode-keyboard-open')
+      }
+    }
+  }, [])
 
   useEffect(() => {
     setCtrl(false)
@@ -150,29 +242,30 @@ export function TerminalAccessory({ actionsRef, modifiersRef, terminalId }) {
   }
 
   return <>
-    {expanded && <div class="terminal-mobile-tray" role="group" aria-label={t('terminal.extraKeys')}>
+    {expanded && <div class={`terminal-mobile-tray ${keyboardOpen ? 'keyboard-open' : ''}`} role="group" aria-label={t('terminal.extraKeys')}>
+      <div class="terminal-mobile-tray-heading"><span>{t('terminal.extraKeys')}</span><button type="button" class="terminal-key terminal-key-close" aria-label={t('terminal.closeExtraKeys')} onClick={toggleExpanded}><X size={14} /></button></div>
       <div class="terminal-mobile-tray-grid">
-        {functionKeys.map(([label, value]) => <button key={label} type="button" class="terminal-key terminal-key-function" onClick={() => send(value)}>{label}</button>)}
-        <button type="button" class="terminal-key" onClick={() => send('\u001b[H')}>Home</button>
-        <button type="button" class="terminal-key" onClick={() => send('\u001b[F')}>End</button>
-        <button type="button" class="terminal-key" onClick={() => send('\u001b[5~')}>PgUp</button>
-        <button type="button" class="terminal-key" onClick={() => send('\u001b[6~')}>PgDn</button>
-        <button type="button" class={`terminal-key ${ctrl ? 'active' : ''}`} aria-pressed={ctrl} onClick={toggleCtrl}>Ctrl</button>
-        <button type="button" class="terminal-key" onClick={() => send('\u001b')}>Esc</button>
-        <button type="button" class="terminal-key" onClick={() => send('\t')}>Tab</button>
-        <button type="button" class="terminal-key" onClick={() => send('\u001b[3~')}>Del</button>
+        {functionKeys.map(([label, value]) => <button key={label} type="button" class="terminal-key terminal-key-function" onPointerDown={(event) => event.preventDefault()} onClick={() => send(value)}>{label}</button>)}
+        <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[H')}>Home</button>
+        <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[F')}>End</button>
+        <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[5~')}>PgUp</button>
+        <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[6~')}>PgDn</button>
+        <button type="button" class={`terminal-key ${ctrl ? 'active' : ''}`} aria-pressed={ctrl} onPointerDown={(event) => event.preventDefault()} onClick={toggleCtrl}>Ctrl</button>
+        <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b')}>Esc</button>
+        <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => send('\t')}>Tab</button>
+        <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[3~')}>Del</button>
       </div>
     </div>}
-    <div class="terminal-mobile-accessory" role="toolbar" aria-label={t('terminal.keyboardToolbar')}>
-      <button type="button" class={`terminal-key terminal-key-modifier ${ctrl ? 'active' : ''}`} aria-pressed={ctrl} onClick={toggleCtrl}>Ctrl</button>
-      <button type="button" class="terminal-key" onClick={() => sendControl('c')}>^C</button>
-      <button type="button" class="terminal-key" onClick={() => sendControl('x')}>^X</button>
-      <button type="button" class="terminal-key" onClick={() => sendControl('v')}>^V</button>
-      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowLeft')} onClick={() => send('\u001b[D')}><ArrowLeft size={16} /></button>
-      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowDown')} onClick={() => send('\u001b[B')}><ArrowDownToLine size={16} /></button>
-      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowUp')} onClick={() => send('\u001b[A')}><ArrowUpFromLine size={16} /></button>
-      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowRight')} onClick={() => send('\u001b[C')}><ArrowRight size={16} /></button>
-      <button type="button" class="terminal-key terminal-key-more" aria-expanded={expanded} aria-label={t('terminal.extraKeys')} onClick={toggleExpanded}><span>•••</span><ChevronDown size={13} /></button>
+    <div class={`terminal-mobile-accessory ${keyboardOpen ? 'keyboard-open' : ''}`} role="toolbar" aria-label={t('terminal.keyboardToolbar')}>
+      <button type="button" class={`terminal-key terminal-key-modifier ${ctrl ? 'active' : ''}`} aria-pressed={ctrl} onPointerDown={(event) => event.preventDefault()} onClick={toggleCtrl}>Ctrl</button>
+      <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => sendControl('c')}>^C</button>
+      <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => sendControl('x')}>^X</button>
+      <button type="button" class="terminal-key" onPointerDown={(event) => event.preventDefault()} onClick={() => sendControl('v')}>^V</button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowLeft')} onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[D')}><ArrowLeft size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowDown')} onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[B')}><ArrowDownToLine size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowUp')} onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[A')}><ArrowUpFromLine size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-icon" aria-label={t('terminal.arrowRight')} onPointerDown={(event) => event.preventDefault()} onClick={() => send('\u001b[C')}><ArrowRight size={16} /></button>
+      <button type="button" class="terminal-key terminal-key-more" aria-expanded={expanded} aria-label={t('terminal.extraKeys')} onPointerDown={(event) => event.preventDefault()} onClick={toggleExpanded}><span>•••</span><ChevronDown size={13} /></button>
     </div>
   </>
 }

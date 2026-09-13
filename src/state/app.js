@@ -23,6 +23,7 @@ export const panelOpen = signal(false)
 export const sidebarWidth = signal(Number(localStorage.getItem('pixcode.sidebarWidth') || 276))
 export const agentWidth = signal(Number(localStorage.getItem('pixcode.agentWidth') || 368))
 export const panelHeight = signal(Number(localStorage.getItem('pixcode.panelHeight') || 260))
+export const terminalFontSize = signal(Math.min(18, Math.max(11, Number(localStorage.getItem('pixcode.terminalFontSize') || 13.5))))
 
 function workspaceKey(record = workspace.value) {
   return String(record?.id || record?.path || 'default')
@@ -99,6 +100,12 @@ export function setAgentWidth(value) {
 export function setPanelHeight(value) {
   panelHeight.value = Math.min(520, Math.max(150, Math.round(value)))
   localStorage.setItem('pixcode.panelHeight', String(panelHeight.value))
+}
+
+export function setTerminalFontSize(value) {
+  const numeric = Math.min(18, Math.max(11, Number(value) || 13.5))
+  terminalFontSize.value = Math.round(numeric * 2) / 2
+  localStorage.setItem('pixcode.terminalFontSize', String(terminalFontSize.value))
 }
 
 setTheme(theme.value)

@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { activeAgent, theme, workspace } from '../state/app.js'
+import { activeAgent, terminalFontSize, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { TerminalAccessory } from './Terminals.jsx'
@@ -72,11 +72,13 @@ function AgentLogo({ agent, size = 18 }) {
 function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
   const host = useRef(null)
   const terminalRef = useRef(null)
+  const fitRef = useRef(null)
 
   useEffect(() => {
     if (!host.current || !session) return undefined
-    const terminal = new Terminal({ fontFamily: terminalFont, fontSize: 13.5, lineHeight: 1.25, fontWeight: 450, cursorBlink: session.status === 'running', disableStdin: session.status !== 'running', scrollOnUserInput: true, convertEol: true, scrollback: 5_000, theme: terminalTheme(theme.value) })
+    const terminal = new Terminal({ fontFamily: terminalFont, fontSize: terminalFontSize.value, lineHeight: 1.25, fontWeight: 450, cursorBlink: session.status === 'running', disableStdin: session.status !== 'running', scrollOnUserInput: true, convertEol: true, scrollback: 5_000, theme: terminalTheme(theme.value) })
     const fit = new FitAddon()
+    fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
     // The active agent tab should be immediately typeable after it is
@@ -155,6 +157,18 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
       hydrate()
     }
     window.addEventListener('pixcode:ws-open', reconnect)
+    const keyboardLayout = (event) => {
+      if (!event.detail?.open) return
+      requestAnimationFrame(() => {
+        try {
+          fit.fit()
+          terminal.scrollToBottom()
+        } catch {
+          // xterm may be between open/dispose while the pane is switching.
+        }
+      })
+    }
+    window.addEventListener('pixcode:keyboard', keyboardLayout)
     let inputErrorShown = false
     const inputDisposable = terminal.onData((data) => {
       let nextData = data
@@ -191,16 +205,37 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
       host.current?.removeEventListener('pointerdown', focusTerminal)
       host.current?.removeEventListener('click', focusTerminal)
       window.removeEventListener('pixcode:ws-open', reconnect)
+      window.removeEventListener('pixcode:keyboard', keyboardLayout)
       dataUnsubscribe()
       inputDisposable.dispose()
       terminal.dispose()
       terminalRef.current = null
+      fitRef.current = null
       modifiersRef.current = false
       onReady?.(null)
     }
   }, [session?.sessionId, onReady, modifiersRef])
 
-  useEffect(() => { if (terminalRef.current) terminalRef.current.options.theme = terminalTheme(theme.value) }, [theme.value])
+  useEffect(() => {
+    if (!terminalRef.current) return
+    terminalRef.current.options.theme = terminalTheme(theme.value)
+    requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit()
+        ws.request('agent', 'resize', { sessionId: session?.sessionId, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
+      } catch { /* terminal is switching */ }
+    })
+  }, [theme.value, session?.sessionId])
+  useEffect(() => {
+    if (!terminalRef.current) return
+    terminalRef.current.options.fontSize = terminalFontSize.value
+    requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit()
+        ws.request('agent', 'resize', { sessionId: session?.sessionId, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
+      } catch { /* terminal is switching */ }
+    })
+  }, [terminalFontSize.value, session?.sessionId])
   useEffect(() => {
     if (!terminalRef.current) return
     terminalRef.current.options.disableStdin = session?.status !== 'running'
@@ -302,7 +337,9 @@ export function AgentPanel() {
         const nextIndex = Math.max(0, ...current.filter((item) => item.agent === event.agent).map((item) => Number(item.index) || 0)) + 1
         // Adapter status messages such as Claude's "ready" describe the
         // provider, not the PTY lifecycle. Keep the tab live until `done`.
-        const nextStatus = event.type === 'status' ? 'running' : (event.status || 'running')
+        const nextStatus = event.type === 'status'
+          ? (event.status === 'stopped' ? 'stopped' : 'running')
+          : (event.status || 'running')
         const next = existing
           ? current.map((session) => session.sessionId === event.sessionId
             ? { ...session, status: session.status === 'stopped' && nextStatus === 'running' ? 'stopped' : nextStatus }

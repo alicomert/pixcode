@@ -31,6 +31,7 @@
 }
 
 * { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; }
 html, body, #app { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.45 var(--sans); }
 button, input, textarea, select { font: inherit; color: inherit; }
@@ -411,13 +412,13 @@ button:disabled { cursor: wait; opacity: .55; }
 }
 
 @media (max-width: 767px) {
-  .shell { grid-template-rows: 42px minmax(0, 1fr) auto; }
+  .shell { grid-template-rows: 42px minmax(0, 1fr) auto; width: 100%; height: 100dvh; min-height: 0; overflow: hidden; }
   .topbar { padding: 0 7px; }
   .window-brand { min-width: auto; }
   .brand-name, .window-nav, .command-center, .project-label, .topbar .layout-button, .logout-button { display: none; }
   .project-switcher { max-width: 160px; }
   .project-switcher select { max-width: 120px; }
-  .workbench { display: block; position: relative; height: 100%; }
+  .workbench { display: block; position: relative; width: 100%; max-width: 100%; height: auto; min-height: 0; overflow: hidden; }
   .activity-bar, .resize-handle, .sidebar, .editor-area, .auxiliary, .bottom-panel { display: none; }
   .sidebar.mobile-active, .editor-area.mobile-active, .auxiliary.mobile-active { display: flex; width: 100%; height: 100%; }
   .sidebar.mobile-active { position: absolute; inset: 0; }
@@ -1319,6 +1320,15 @@ body {
   background: #171a20;
 }
 
+.agent-command-line {
+  background: var(--ui-surface, #181e26);
+  color: var(--ui-text, #edf2f7);
+}
+
+.agent-command-line textarea {
+  color: inherit;
+}
+
 .agent-picker-item,
 .agent-modal-item,
 .extension-card,
@@ -1551,7 +1561,7 @@ body {
   --ui-text: #1d2936;
   --ui-muted: #617080;
   --ui-accent: #1769c2;
-  --ui-terminal: #17202a;
+  --ui-terminal: #f1f5f9;
 }
 
 body,
@@ -1802,12 +1812,65 @@ body,
   .shell {
     height: 100dvh;
     min-height: 100dvh;
+    width: 100vw;
+    max-width: 100vw;
+    overflow: hidden;
+  }
+
+  .pixcode-keyboard-open .shell {
+    height: var(--pixcode-visual-height, 100dvh);
+    min-height: 0;
+    max-height: var(--pixcode-visual-height, 100dvh);
+  }
+
+  .pixcode-keyboard-open body,
+  .pixcode-keyboard-open #app {
+    height: var(--pixcode-visual-height, 100dvh);
+    max-height: var(--pixcode-visual-height, 100dvh);
+    overflow: hidden;
+  }
+
+  .workbench,
+  .mobile-tabs,
+  .terminal-mobile-stage {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .workbench {
+    height: auto;
+    min-height: 0;
+    padding-bottom: 54px;
+  }
+
+  .pixcode-keyboard-open .workbench {
+    padding-bottom: 0;
+  }
+
+  .pixcode-keyboard-open .terminal-mobile-stage {
+    padding-bottom: calc(46px + max(5px, env(safe-area-inset-bottom)));
+  }
+
+  .pixcode-keyboard-open .mobile-tabs {
+    display: none !important;
+  }
+
+  .terminal-host,
+  .agent-terminal-host,
+  .terminal-host .xterm,
+  .agent-terminal-host .xterm {
+    width: 100%;
+    max-width: 100%;
   }
 
   .topbar {
     background: #141a22;
     border-bottom-color: #2b3643;
     box-shadow: 0 1px 0 rgb(255 255 255 / 3%);
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .window-brand {
@@ -1830,14 +1893,42 @@ body,
     color: #cbd8e7;
   }
 
+  .project-switcher,
+  .workspace-tabs {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .project-switcher {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .workspace-tab {
+    min-width: 88px;
+    max-width: 112px;
+  }
+
+  .workspace-tabs {
+    overflow: hidden;
+  }
+
+  .topbar-actions .update-checker,
+  .topbar-actions > select {
+    display: none;
+  }
+
   .terminal-mobile-accessory {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(9, minmax(0, 1fr));
     z-index: 3;
+    width: 100%;
+    max-width: 100%;
     min-height: 46px;
     align-items: center;
-    gap: 4px;
-    overflow-x: auto;
-    padding: 5px 7px max(5px, env(safe-area-inset-bottom));
+    gap: 3px;
+    overflow: hidden;
+    padding: 5px 5px max(5px, env(safe-area-inset-bottom));
     border-top: 1px solid #2f3a47;
     background: #171d25;
     box-shadow: 0 -8px 24px rgb(0 0 0 / 18%);
@@ -1851,13 +1942,14 @@ body,
 
   .terminal-key {
     display: inline-flex;
-    width: auto;
-    min-width: 35px;
+    width: 100%;
+    min-width: 0;
+    flex: none;
     height: 34px;
-    flex: 0 0 auto;
+    flex: none;
     align-items: center;
     justify-content: center;
-    padding: 0 9px;
+    padding: 0 4px;
     border: 1px solid #334152;
     border-radius: 6px;
     background: #222b36;
@@ -1884,14 +1976,15 @@ body,
   }
 
   .terminal-key-icon {
-    width: 34px;
-    min-width: 34px;
+    width: 100%;
+    min-width: 0;
+    flex: none;
     padding: 0;
   }
 
   .terminal-key-more {
-    min-width: 54px;
-    margin-left: auto;
+    min-width: 0;
+    flex: none;
     gap: 3px;
     color: #a9bad0;
   }
@@ -1904,9 +1997,9 @@ body,
 
   .terminal-mobile-tray {
     position: absolute;
-    right: 7px;
-    bottom: 7px;
-    left: 7px;
+    right: 5px;
+    bottom: calc(46px + max(5px, env(safe-area-inset-bottom)) + 7px);
+    left: 5px;
     display: block;
     z-index: 5;
     padding: 9px;
@@ -1917,7 +2010,60 @@ body,
     backdrop-filter: blur(14px);
   }
 
+  .terminal-mobile-tray-heading {
+    display: flex;
+    min-height: 26px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 5px 3px;
+    color: #a9bad0;
+    font: 600 10px/1 var(--mono);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+
+  .terminal-mobile-tray-heading .terminal-key-close {
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+    padding: 0;
+  }
+
+  .terminal-mobile-accessory.keyboard-open {
+    position: fixed;
+    right: 0;
+    /* Keep the measured layout untouched; lift only the accessory surface
+       slightly so it never sits flush against the OS keyboard edge. */
+    bottom: calc(var(--pixcode-keyboard-height, 0px) + 6px);
+    left: 0;
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .terminal-mobile-tray.keyboard-open {
+    position: fixed;
+    right: 5px;
+    bottom: calc(var(--pixcode-keyboard-height, 0px) + 46px + max(5px, env(safe-area-inset-bottom)) + 13px);
+    left: 5px;
+    width: auto;
+    max-width: calc(100vw - 10px);
+    max-height: min(52vh, calc(var(--pixcode-visual-height, 100dvh) - 72px));
+    overflow-y: auto;
+  }
+
   .mobile-tabs {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    grid-row: auto;
+    width: 100vw;
+    min-width: 0;
+    min-height: 54px;
+    max-width: 100vw;
+    flex: 0 0 auto;
     padding: 5px 7px max(5px, env(safe-area-inset-bottom));
     gap: 4px;
     border-top-color: #2f3a47;
@@ -1926,6 +2072,7 @@ body,
   }
 
   .mobile-tab {
+    min-width: 0;
     min-height: 43px;
     gap: 3px;
     border-color: transparent;
@@ -1934,6 +2081,13 @@ body,
     font-size: 10px;
     font-weight: 600;
     letter-spacing: .01em;
+  }
+
+  .mobile-tab span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mobile-tab.active {
@@ -2019,5 +2173,534 @@ body,
     border-color: #c0cedd;
     background: rgb(248 250 253 / 97%);
     box-shadow: 0 14px 40px rgb(35 53 75 / 20%);
+  }
+
+  [data-theme="light"] .terminal-mobile-tray-heading {
+    color: #617080;
+  }
+
+  [data-theme="light"] .terminal-key-function {
+    color: #24619a;
+  }
+}
+
+/* Keep the compact agent input and empty state readable in both themes. */
+[data-theme="light"] .agent-command-line {
+  border-top-color: var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+[data-theme="light"] .agent-empty-terminal {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface);
+  color: var(--ui-muted);
+}
+
+/* The auth gate is also part of the theme. Keep it quiet and structural so
+   a stored light preference is respected before the workbench mounts. */
+.auth {
+  background: var(--ui-bg, #11161c);
+}
+
+.auth::before,
+.auth-orb {
+  display: none;
+}
+
+.auth-card {
+  border-color: var(--ui-border-strong, #465668);
+  border-radius: 8px;
+  background: var(--ui-surface, #181e26);
+  box-shadow: 0 18px 45px rgb(0 0 0 / 28%);
+}
+
+.auth-brand,
+.auth-heading h1,
+.auth-field,
+.auth-input-wrap input {
+  color: var(--ui-text, #edf2f7);
+}
+
+.auth-eyebrow {
+  color: var(--ui-accent, #59a9ff);
+}
+
+.auth-description,
+.auth-footnote {
+  color: var(--ui-muted, #8f9baa);
+}
+
+.auth-input-wrap {
+  border-color: var(--ui-border, #303b48);
+  background: var(--ui-raised, #222a34);
+  color: var(--ui-muted, #8f9baa);
+}
+
+.auth-input-wrap:focus-within {
+  border-color: var(--ui-accent, #59a9ff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent, #59a9ff) 18%, transparent);
+}
+
+[data-theme="light"] .auth-card {
+  box-shadow: 0 18px 45px rgb(45 71 100 / 13%);
+}
+
+/* Settings is intentionally a compact control surface rather than a loose
+   list of browser-default controls. All colors come from the active theme
+   tokens so switching themes does not leave stale dark panels behind. */
+.settings-view {
+  min-width: 0;
+}
+
+.settings-scroll {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  overflow: auto;
+  padding: 18px 14px 24px;
+  scrollbar-width: thin;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 2px;
+}
+
+.settings-section-heading strong {
+  color: var(--ui-text);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .02em;
+}
+
+.settings-section-heading small {
+  color: var(--ui-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.settings-card {
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-surface);
+}
+
+.settings-control-row {
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.settings-control-row-last {
+  border-bottom: 0;
+}
+
+.settings-control-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  color: var(--ui-accent);
+}
+
+.settings-control-copy > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-control-copy strong {
+  overflow: hidden;
+  color: var(--ui-text);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-control-copy small {
+  overflow: hidden;
+  color: var(--ui-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-control-row select {
+  width: min(150px, 42%);
+  min-width: 96px;
+  padding: 6px 8px;
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+
+.settings-range-control {
+  display: flex;
+  min-width: min(190px, 45%);
+  align-items: center;
+  gap: 9px;
+}
+
+.settings-range-control input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--ui-accent);
+}
+
+.settings-range-control output {
+  min-width: 42px;
+  color: var(--ui-muted);
+  font: 10px var(--mono);
+  text-align: right;
+}
+
+.settings-segmented {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-raised);
+}
+
+.settings-segmented button,
+.settings-action {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ui-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.settings-segmented button {
+  padding: 0 8px;
+}
+
+.settings-segmented button:hover,
+.settings-action:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-hover);
+  color: var(--ui-text);
+}
+
+.settings-segmented button.active {
+  border-color: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-border));
+  background: color-mix(in srgb, var(--ui-accent) 16%, var(--ui-surface));
+  color: var(--ui-text);
+}
+
+.settings-action {
+  flex: 0 0 auto;
+  padding: 0 9px;
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+}
+
+.settings-update-card {
+  padding: 12px;
+}
+
+.settings-update-card .update-checker-detailed {
+  gap: 8px;
+}
+
+.settings-update-card .update-button {
+  align-self: flex-start;
+}
+
+@media (max-width: 767px) {
+  .settings-scroll {
+    gap: 14px;
+    padding: 14px 10px 80px;
+  }
+
+  .settings-control-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .settings-control-row select,
+  .settings-segmented,
+  .settings-action,
+  .settings-range-control {
+    width: 100%;
+  }
+
+  .settings-segmented button {
+    flex: 1;
+  }
+
+  .settings-action {
+    min-height: 32px;
+  }
+}
+
+/* Final theme contract. Older layout rules above are kept for compatibility,
+   but every visible workbench surface resolves through these tokens. */
+.topbar,
+.activity-bar,
+.sidebar,
+.editor-area,
+.auxiliary,
+.bottom-panel,
+.agent-panel,
+.terminal-section,
+.welcome-view,
+.workspace-tab,
+.editor-tabs,
+.editor-tab,
+.editor-breadcrumb,
+.editor-toolbar,
+.tree-toolbar,
+.agent-terminal-header,
+.agent-session-tabs,
+.terminal-tabs {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+.activity-bar {
+  background: var(--ui-bg);
+}
+
+.sidebar-heading,
+.panel-header,
+.editor-breadcrumb,
+.tree-toolbar,
+.agent-terminal-header,
+.agent-session-tabs,
+.terminal-tabs {
+  background: var(--ui-raised);
+}
+
+.sidebar .tree-item,
+.workspace-tab,
+.editor-tab,
+.agent-session-tab,
+.terminal-tab,
+.terminal-badge,
+.project-label {
+  color: var(--ui-muted);
+}
+
+.sidebar .tree-item:hover,
+.tree-toolbar button:hover,
+.tree-actions button:hover,
+.workspace-tab:hover,
+.editor-tab:hover,
+.agent-session-tab:hover,
+.terminal-tab:hover,
+.mobile-tab:hover,
+.tw-icon-button:hover,
+.tw-toolbar-button:hover {
+  background: var(--ui-hover);
+  color: var(--ui-text);
+}
+
+.sidebar .tree-item,
+.sidebar-heading,
+.panel-header,
+.editor-breadcrumb strong,
+.workspace-tab.active,
+.editor-tab.active,
+.agent-session-tab.active,
+.terminal-tab.active,
+.welcome-view,
+.welcome-hero h1,
+.welcome-column h2,
+.welcome-cards > button,
+.welcome-cards strong,
+.agent-terminal-provider,
+.agent-command-line,
+.command-prompt {
+  color: var(--ui-text);
+}
+
+.workspace-tab.active,
+.editor-tab.active,
+.agent-session-tab.active,
+.terminal-tab.active {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 13%, var(--ui-surface));
+}
+
+.workspace-tab-index {
+  background: var(--ui-raised);
+  color: var(--ui-muted);
+}
+
+.workspace-tab.active .workspace-tab-index {
+  background: color-mix(in srgb, var(--ui-accent) 35%, var(--ui-raised));
+  color: var(--ui-text);
+}
+
+.workspace-tab-close,
+.editor-tab .close {
+  color: var(--ui-muted);
+}
+
+.workspace-tab-close:hover,
+.editor-tab:hover .close {
+  background: var(--ui-hover);
+  color: var(--ui-text);
+}
+
+.workspace-tab-copy small,
+.welcome-hero p,
+.welcome-column h2,
+.welcome-cards small,
+.welcome-hint,
+.search-result-meta,
+.agent-line.system,
+.agent-command-line textarea::placeholder {
+  color: var(--ui-muted);
+}
+
+.welcome-view {
+  justify-content: center;
+  background: var(--ui-bg);
+}
+
+.welcome-column > button {
+  color: var(--ui-accent);
+}
+
+.welcome-column > button:hover {
+  border-color: var(--ui-border);
+  background: var(--ui-hover);
+}
+
+.command-center,
+.project-switcher select,
+.project-switcher button,
+.topbar-actions button,
+.topbar-actions select,
+.agent-terminal-header select,
+.search-view form input,
+.project-modal input,
+.file-action-modal input {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+
+.command-center .command-icon,
+.command-center kbd,
+.topbar-actions button,
+.topbar-actions select {
+  color: var(--ui-muted);
+}
+
+.project-modal,
+.file-action-modal,
+.agent-modal,
+.info-card,
+.extension-card,
+.settings-card,
+.settings-update {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+.project-modal-header,
+.agent-modal-heading,
+.project-modal-tabs,
+.settings-control-row {
+  border-color: var(--ui-border);
+}
+
+.project-modal h2,
+.agent-modal-heading,
+.info-card strong,
+.extension-card strong,
+.agent-modal-item,
+.agent-picker-item,
+.settings-update h3 {
+  color: var(--ui-text);
+}
+
+.project-modal p,
+.agent-modal > p,
+.agent-modal-item small,
+.info-card,
+.extension-card small,
+.settings-update p {
+  color: var(--ui-muted);
+}
+
+.agent-modal-item,
+.agent-picker-item,
+.agent-history-item,
+.welcome-column {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+}
+
+.agent-modal-item:hover,
+.agent-picker-item:hover,
+.agent-history-item:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-hover);
+}
+
+.agent-picker-item.active,
+.agent-history-item.active {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-surface));
+}
+
+.agent-console,
+.terminal-host,
+.agent-terminal-host {
+  border-color: var(--ui-border);
+  background: var(--ui-terminal);
+}
+
+.agent-terminal-provider {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+}
+
+.terminal-mobile-accessory,
+.mobile-tabs {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+}
+
+@media (max-width: 767px) {
+  .topbar,
+  .terminal-mobile-accessory,
+  .mobile-tabs {
+    background: var(--ui-surface);
   }
 }

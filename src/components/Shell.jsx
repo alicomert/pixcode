@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { ArrowLeft, ArrowRight, Blocks, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, RefreshCw, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
-import { activeView, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTheme, sidebarWidth, theme, workspace } from '../state/app.js'
+import { activeView, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTheme, sidebarWidth, terminalFontSize, theme, workspace } from '../state/app.js'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -27,7 +27,8 @@ const mobileTabs = [
   { id: 'editor', label: 'tab.editor', icon: Code2 },
   { id: 'agent', label: 'tab.agent', icon: Sparkles },
   { id: 'terminal', label: 'tab.terminal', icon: TerminalIcon },
-  { id: 'git', label: 'tab.git', icon: GitBranch }
+  { id: 'git', label: 'tab.git', icon: GitBranch },
+  { id: 'settings', label: 'tab.settings', icon: Settings }
 ]
 
 function Icon({ name }) {
@@ -60,7 +61,7 @@ function ActivityBar() {
         ))}
       </div>
       <div class="activity-bottom">
-        <button class={"activity-button tw-rail-button " + (activeView.value === 'settings' ? 'active' : '')} data-active={activeView.value === 'settings'} type="button" title={t('view.settings')} onClick={() => { activeView.value = 'settings'; mobileTab.value = 'files'; if (sidebarWidth.value === 0) setSidebarWidth(276) }}><Settings size={19} strokeWidth={1.65} /></button>
+        <button class={"activity-button tw-rail-button " + (activeView.value === 'settings' ? 'active' : '')} data-active={activeView.value === 'settings'} type="button" title={t('view.settings')} onClick={() => { activeView.value = 'settings'; mobileTab.value = isCompactViewport() ? 'settings' : 'files'; panelOpen.value = false; if (sidebarWidth.value === 0) setSidebarWidth(276) }}><Settings size={19} strokeWidth={1.65} /></button>
         <span class="activity-version">v2</span>
       </div>
     </nav>
@@ -181,7 +182,63 @@ function ExtensionsView() {
 }
 
 function SettingsView() {
-  return <div class="info-view"><div class="sidebar-heading">{t('view.settings')}</div><div class="settings-list"><label><span>{t('settings.theme')}</span><select value={theme.value} onChange={(event) => setTheme(event.currentTarget.value)}><option value="dark">{t('topbar.theme.dark')}</option><option value="light">{t('topbar.theme.light')}</option></select></label><label><span>{t('lang.label')}</span><select value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>{languages.map((language) => <option key={language.value} value={language.value}>{language.nativeName}</option>)}</select></label><section class="settings-update"><h3>{t('update.title')}</h3><p>{t('update.description')}</p><UpdateChecker detailed /></section><button type="button" onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</button><button type="button" onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</button></div></div>
+  function resetLayout() {
+    setSidebarWidth(276)
+    setAgentWidth(368)
+    setPanelHeight(260)
+    panelOpen.value = false
+    mobileTab.value = 'files'
+    activeView.value = 'explorer'
+  }
+
+  return <div class="info-view settings-view">
+    <div class="sidebar-heading"><span>{t('view.settings')}</span><Settings size={14} /></div>
+    <div class="settings-scroll">
+      <section class="settings-section">
+        <div class="settings-section-heading"><strong>{t('settings.appearance')}</strong><small>{t('settings.appearanceHint')}</small></div>
+        <div class="settings-card">
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><Sun size={16} /><span><strong>{t('settings.theme')}</strong><small>{t('settings.themeHint')}</small></span></div>
+            <div class="settings-segmented" role="group" aria-label={t('settings.theme')}>
+              <button type="button" class={theme.value === 'dark' ? 'active' : ''} aria-pressed={theme.value === 'dark'} onClick={() => setTheme('dark')}><Moon size={14} />{t('settings.dark')}</button>
+              <button type="button" class={theme.value === 'light' ? 'active' : ''} aria-pressed={theme.value === 'light'} onClick={() => setTheme('light')}><Sun size={14} />{t('settings.light')}</button>
+            </div>
+          </div>
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><TerminalIcon size={16} /><span><strong>{t('settings.terminalFontSize')}</strong><small>{t('settings.terminalFontSizeHint')}</small></span></div>
+            <div class="settings-range-control"><input type="range" min="11" max="18" step="0.5" value={terminalFontSize.value} onInput={(event) => setTerminalFontSize(event.currentTarget.value)} aria-label={t('settings.terminalFontSize')} /><output>{terminalFontSize.value}px</output></div>
+          </div>
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><Globe2 size={16} /><span><strong>{t('lang.label')}</strong><small>{t('settings.languageHint')}</small></span></div>
+            <select value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)} aria-label={t('lang.label')}>
+              {languages.map((language) => <option key={language.value} value={language.value}>{language.nativeName}</option>)}
+            </select>
+          </div>
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-section-heading"><strong>{t('settings.workspace')}</strong><small>{t('settings.workspaceHint')}</small></div>
+        <div class="settings-card">
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><PanelLeft size={16} /><span><strong>{t('settings.sidebar')}</strong><small>{sidebarWidth.value ? t('settings.visible') : t('settings.hidden')}</small></span></div>
+            <button type="button" class="settings-action" onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</button>
+          </div>
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><PanelBottom size={16} /><span><strong>{t('settings.terminalPanel')}</strong><small>{panelOpen.value ? t('settings.visible') : t('settings.hidden')}</small></span></div>
+            <button type="button" class="settings-action" onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</button>
+          </div>
+          <div class="settings-control-row settings-control-row-last">
+            <div class="settings-control-copy"><RefreshCw size={16} /><span><strong>{t('settings.resetLayout')}</strong><small>{t('settings.resetLayoutHint')}</small></span></div>
+            <button type="button" class="settings-action" onClick={resetLayout}>{t('settings.reset')}</button>
+          </div>
+        </div>
+      </section>
+      <section class="settings-section">
+        <div class="settings-section-heading"><strong>{t('update.title')}</strong><small>{t('update.description')}</small></div>
+        <div class="settings-card settings-update-card"><UpdateChecker detailed /></div>
+      </section>
+    </div>
+  </div>
 }
 
 function ResizeHandle({ direction, className = '', onResize }) {
@@ -240,13 +297,13 @@ export function Shell() {
     <TopBar />
     <div class="workbench" style={{ '--sidebar-width': `${effectiveSidebar}px`, '--agent-width': `${effectiveAgent}px`, '--panel-height': `${effectivePanel}px` }}>
       <ActivityBar />
-      <aside class={`sidebar pane ${mobile === 'files' || mobile === 'git' ? 'mobile-active' : ''} ${effectiveSidebar ? '' : 'collapsed'}`}><SidebarView /></aside>
+      <aside class={`sidebar pane ${mobile === 'files' || mobile === 'git' || mobile === 'settings' ? 'mobile-active' : ''} ${effectiveSidebar ? '' : 'collapsed'}`}><SidebarView /></aside>
       <ResizeHandle direction="vertical" className="sidebar-resize" onResize={(delta) => setSidebarWidth(sidebarWidth.value + delta)} />
       <main class={`editor-area pane ${mobile === 'editor' ? 'mobile-active' : ''}`}><EditorPane /></main>
       <ResizeHandle direction="vertical" className="agent-resize" onResize={(delta) => setAgentWidth(agentWidth.value - delta)} />
       <aside class={`auxiliary pane ${mobile === 'agent' || mobile === 'terminal' ? 'mobile-active' : ''}`}><section class={`aux-section agent-section ${mobile === 'terminal' ? 'aux-section-hidden' : ''} ${mobile === 'agent' || mobile !== 'terminal' ? 'mobile-view-active' : ''}`}><AgentPanel /></section>{mobile === 'terminal' && <section class="aux-section terminal-section mobile-view-active"><Terminals /></section>}</aside>
       {panelOpen.value && <><ResizeHandle direction="horizontal" className="panel-resize" onResize={(delta) => setPanelHeight(panelHeight.value - delta)} /><div class="bottom-panel"><div class="panel-header"><span>{t('panel.terminal')}</span><button class="tw-icon-button" type="button" onClick={() => (panelOpen.value = false)} title={t('panel.close')} aria-label={t('panel.close')}><X size={16} /></button></div><Terminals /></div></>}
     </div>
-    <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => { const Glyph = item.icon; return <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'terminal') panelOpen.value = true; if (item.id === 'agent') panelOpen.value = false; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run' }}><Glyph size={18} strokeWidth={1.7} aria-hidden="true" /><span>{t(item.label)}</span></button> })}</nav>
+    <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => { const Glyph = item.icon; return <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'terminal') panelOpen.value = true; if (item.id === 'agent' || item.id === 'settings') panelOpen.value = false; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run'; if (item.id === 'settings') activeView.value = 'settings' }}><Glyph size={18} strokeWidth={1.7} aria-hidden="true" /><span>{t(item.label)}</span></button> })}</nav>
   </div>
 }
