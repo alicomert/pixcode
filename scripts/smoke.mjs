@@ -82,7 +82,7 @@ await check('websocket channels', async () => {
   }
   const files = await request('fs', 'list', { path: '.' })
   const agents = await request('agent', 'agents')
-  if (!Array.isArray(files) || agents.length !== 6) throw new Error('channel response invalid')
+  if (!Array.isArray(files) || agents.length !== 7) throw new Error('channel response invalid')
   const terminal = await request('pty', 'create', { cols: 80, rows: 24 })
   await request('pty', 'input', { id: terminal.id, data: 'exit\n' })
   socket.close()

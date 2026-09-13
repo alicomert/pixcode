@@ -13,6 +13,7 @@ import { TerminalAccessory } from './Terminals.jsx'
 const agentIcons = {
   claude: '/icons/claude-ai-icon.svg',
   codex: '/icons/codex-white.svg',
+  devin: '/icons/devin-icon.svg',
   gemini: '/icons/gemini-ai-icon.svg',
   qwen: '/icons/qwen-logo.svg',
   opencode: '/icons/opencode-logo-dark.svg',

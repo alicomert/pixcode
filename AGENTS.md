@@ -35,7 +35,7 @@ backend first, then `node scripts/smoke.mjs`.
 
 - `smoke.mjs` — `BASE` defaults to `http://localhost:3001`. Performs first-run
   setup itself using `PIXCODE_SMOKE_PASSWORD` (default `secret123`). Asserts the
-  WS `agent.agents` reply has exactly **6** adapters — keep this in sync if you
+  WS `agent.agents` reply has exactly **7** adapters — keep this in sync if you
   add/remove an adapter in `server/agents/adapters/`.
 - `agent-terminal-smoke.mjs` — `BASE` defaults to `http://127.0.0.1:3231`
   (different port — set `BASE` or run a second server on 3231). Requires at least
@@ -58,11 +58,12 @@ backend first, then `node scripts/smoke.mjs`.
 
 ## Agent adapters
 
-Six adapters live in `server/agents/adapters/`: `claude`, `codex`, `gemini`,
-`qwen`, `opencode`, `grok`. Each wraps an external CLI discovered via `which`;
-`available` is false if the binary is missing. Only `claude` sets `interactive:
-true`. Adding a 7th requires updating `registerAllAdapters` **and** the
-`agents.length !== 6` assertion in `scripts/smoke.mjs`.
+Seven adapters live in `server/agents/adapters/`: `claude`, `codex`, `devin`,
+`gemini`, `qwen`, `opencode`, `grok`. Each wraps an external CLI discovered via
+`which`; `available` is false if the binary is missing. Only `claude` and
+`devin` set `interactive: true`. Adding an 8th requires updating
+`registerAllAdapters` **and** the `agents.length !== 7` assertion in
+`scripts/smoke.mjs`.
 
 ## Auth & config
 
