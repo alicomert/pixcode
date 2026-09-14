@@ -5,9 +5,11 @@
 //   normal buffer — move the viewport's scrollTop in pixels for smooth,
 //                   1:1 finger tracking plus release momentum;
 //   alt-buffer / mouse-reporting TUI (devin, claude, vim, …) — the viewport
-//                   has nothing to scroll, so drags are forwarded as wheel
-//                   events which xterm turns into SGR scroll or arrow keys
-//                   for the application, also with momentum.
+//                   has nothing to scroll. When the app reports mouse mode
+//                   we forward real wheel events (xterm turns them into SGR
+//                   mouse reports); when it does not, we translate drags into
+//                   arrow keys — the same thing xterm does for wheel input in
+//                   the alternate buffer.
 const DRAG_THRESHOLD_PX = 6
 const MOMENTUM_DECAY = 0.94
 const MOMENTUM_MIN_PX = 0.4
@@ -25,7 +27,13 @@ export function attachTerminalTouchScroll(host, terminal) {
   let momentumFrame = 0
 
   const viewport = () => host.querySelector('.xterm-viewport')
-  const viaWheel = () => terminal?.modes?.mouseTrackingMode !== 'none' || terminal?.buffer?.active?.type === 'alternate'
+  const xtermEl = () => host.querySelector('.xterm')
+  // Mouse-reporting apps get real wheel events; other alt-buffer TUIs get
+  // arrow keys — xterm only listens to wheel while mouse mode is active, so
+  // a wheel event on a plain alt-buffer app would go nowhere.
+  const viaMouse = () => terminal?.modes?.mouseTrackingMode !== 'none'
+  const viaArrows = () => !viaMouse() && terminal?.buffer?.active?.type === 'alternate'
+  const lineHeightPx = () => Math.max(8, (terminal?.options?.fontSize || 13) * (terminal?.options?.lineHeight || 1.25))
 
   const cancelMomentum = () => {
     if (momentumFrame) cancelAnimationFrame(momentumFrame)
@@ -33,11 +41,27 @@ export function attachTerminalTouchScroll(host, terminal) {
   }
 
   const wheel = (deltaY) => {
-    target?.dispatchEvent(new WheelEvent('wheel', { deltaY, deltaMode: 0, bubbles: true, cancelable: true }))
+    xtermEl()?.dispatchEvent(new WheelEvent('wheel', { deltaY, deltaMode: 0, bubbles: true, cancelable: true }))
+  }
+
+  // Carry of partial-line drags so a slow finger still accumulates whole
+  // arrow presses instead of losing the remainder on every event.
+  let arrowRemainder = 0
+  const arrows = (delta) => {
+    arrowRemainder += delta
+    const unit = lineHeightPx()
+    while (Math.abs(arrowRemainder) >= unit) {
+      // delta > 0 means the finger moved up, i.e. content scrolls down.
+      // wasUserInput=false keeps scrollOnUserInput from snapping back to the
+      // prompt while the user is still dragging through history.
+      terminal?.input(arrowRemainder > 0 ? '\x1b[B' : '\x1b[A', false)
+      arrowRemainder -= Math.sign(arrowRemainder) * unit
+    }
   }
 
   const apply = (delta) => {
-    if (viaWheel()) wheel(delta)
+    if (viaMouse()) wheel(delta)
+    else if (viaArrows()) arrows(delta)
     else { const vp = viewport(); if (vp) vp.scrollTop += delta }
   }
 
@@ -48,6 +72,7 @@ export function attachTerminalTouchScroll(host, terminal) {
     startY = lastY = event.touches[0].pageY
     lastT = performance.now()
     velocity = 0
+    arrowRemainder = 0
     scrolling = false
   }
 

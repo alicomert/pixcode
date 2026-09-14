@@ -1045,15 +1045,15 @@ body {
 .agent-terminal-header,
 .editor-breadcrumb,
 .tree-toolbar {
-  border-color: var(--serious-border);
-  background: #1b1e24;
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
 }
 
 .sidebar .tree-item:hover,
 .search-result:hover,
 .tree-toolbar button:hover,
 .tree-actions button:hover {
-  background: #252a32;
+  background: var(--ui-hover);
 }
 
 .editor-area {
@@ -1095,8 +1095,8 @@ body {
 .terminal-tabs {
   gap: 0;
   padding: 4px 6px;
-  border-color: var(--serious-border);
-  background: #1b1e24;
+  border-color: var(--ui-border);
+  background: var(--ui-bg);
 }
 
 .agent-session-tabs-scroll {
@@ -1115,15 +1115,15 @@ body {
 
 .agent-session-tab:hover,
 .terminal-tab:hover {
-  border-color: var(--serious-border);
-  background: #252a32;
+  border-color: var(--ui-border);
+  background: var(--ui-hover);
 }
 
 .agent-session-tab.active,
 .terminal-tab.active {
-  border-color: var(--serious-border);
-  border-top: 1px solid var(--serious-accent);
-  background: #20252d;
+  border-color: var(--ui-border);
+  border-top: 1px solid var(--ui-accent);
+  background: var(--ui-raised);
   box-shadow: none;
 }
 
@@ -1132,31 +1132,31 @@ body {
 }
 
 .agent-terminal-provider {
-  border-color: var(--serious-border);
+  border-color: var(--ui-border);
   border-radius: 4px;
-  background: #20242a;
+  background: var(--ui-raised);
 }
 
 .agent-console,
 .agent-terminal-host,
 .terminal-host {
-  background: #0d1015;
+  background: var(--ui-terminal);
 }
 
 .agent-terminal-host,
 .terminal-host {
   margin: 6px;
   padding: 7px;
-  border: 1px solid #242a33;
+  border: 1px solid var(--ui-border);
   border-radius: 3px;
   box-shadow: none;
 }
 
 .agent-empty-terminal {
   margin: 7px;
-  border: 1px dashed var(--serious-border);
+  border: 1px dashed var(--ui-border);
   border-radius: 3px;
-  background: #171a20;
+  background: var(--ui-raised);
 }
 
 .agent-command-line {
@@ -1294,7 +1294,7 @@ body {
 }
 
 .mobile-tab:hover {
-  background: #252a32;
+  background: var(--ui-hover);
 }
 
 .mobile-tab.active {
