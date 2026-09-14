@@ -9,6 +9,7 @@ import { activeAgent, panelOpen, terminalFontSize, theme, workspace } from '../s
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
+import { sanitizeReplay } from '../lib/terminal-replay.js'
 import { TerminalAccessory } from './Terminals.jsx'
 
 const agentIcons = {
@@ -110,7 +111,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
         if (generation !== hydrationGeneration) return
         for (const event of history) {
           if (event.seq && event.seq <= lastSeq) continue
-          if (event.type === 'data') terminal.write(event.data || '')
+          if (event.type === 'data') terminal.write(sanitizeReplay(event.data))
           lastSeq = Math.max(lastSeq, event.seq || 0)
           if (event.type === 'done') onStatus(session.sessionId, 'stopped')
         }

@@ -9,6 +9,7 @@ import { terminalFontSize, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
+import { sanitizeReplay } from '../lib/terminal-replay.js'
 
 function TerminalView({ id, onReady, modifiersRef }) {
   const host = useRef(null)
@@ -73,7 +74,9 @@ function TerminalView({ id, onReady, modifiersRef }) {
         if (Array.isArray(history)) {
           for (const event of history) {
             if (event.seq && event.seq <= lastSeq) continue
-            terminal.write(event.data || '')
+            // Replayed output must not re-answer terminal queries; stale
+            // responses would land in the shell's input as literal text.
+            terminal.write(sanitizeReplay(event.data))
             lastSeq = Math.max(lastSeq, event.seq || lastSeq)
           }
         }
