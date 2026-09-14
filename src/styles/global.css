@@ -3127,3 +3127,56 @@ textarea,
 .agent-terminal-host {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-text) 4%, transparent);
 }
+
+/* Collapse the agent rail entirely when no sessions exist — VS Code never
+   shows an empty secondary sidebar. AgentPanel stays mounted inside the
+   0-width column so its modal (position:fixed) and WS listeners keep working. */
+@media (min-width: 768px) {
+  .workbench.agents-collapsed {
+    grid-template-columns: 44px minmax(0, var(--sidebar-width)) 5px minmax(0, 1fr) 0 0;
+  }
+
+  .workbench.agents-collapsed .agent-resize {
+    display: none;
+  }
+
+  .workbench.agents-collapsed .auxiliary {
+    border: 0;
+  }
+}
+
+/* Workspace tabs read as flat labeled tabs, not heavy pills. */
+.workspace-tab.active {
+  border-color: transparent;
+  border-bottom-color: var(--ui-accent-strong);
+  background: transparent;
+  color: var(--ui-text);
+}
+
+.workspace-tab.active .workspace-tab-index {
+  background: var(--ui-accent-strong);
+  color: #fff;
+}
+
+/* Empty agent state — calm centered placeholder instead of a dashed well. */
+.agent-empty-terminal {
+  border: 0;
+  background: transparent;
+  color: var(--ui-muted);
+  gap: 12px;
+}
+
+/* Kill stray 1px borders inherited from the generic `button` rule — list rows
+   and ghost controls must be borderless (this was the "spreadsheet" look). */
+.tree-item,
+.search-result,
+.update-button,
+.editor-toolbar button,
+.git-actions button,
+.commit-row button {
+  border-color: transparent;
+}
+
+.tree-item {
+  border: 0;
+}

@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { activeAgent, panelOpen, terminalFontSize, theme, workspace } from '../state/app.js'
+import { activeAgent, agentSessions, panelOpen, terminalFontSize, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
@@ -251,6 +251,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
 export function AgentPanel() {
   const [agents, setAgents] = useState([])
   const [sessions, setSessions] = useState([])
+  useEffect(() => { agentSessions.value = sessions; return () => { agentSessions.value = [] } }, [sessions])
   const [activeSessionId, setActiveSessionId] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)

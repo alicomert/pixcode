@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Blocks, Circle, Code2, Download, Files, GitBranc
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
-import { activeView, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTheme, sidebarWidth, terminalFontSize, theme, workspace } from '../state/app.js'
+import { activeView, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTheme, sidebarWidth, terminalFontSize, theme, workspace } from '../state/app.js'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -294,9 +294,13 @@ export function Shell() {
   const effectiveSidebar = sidebarWidth.value
   const effectivePanel = panelOpen.value ? panelHeight.value : 0
   const effectiveAgent = agentWidth.value
+  // With zero agent sessions the auxiliary rail collapses entirely (VS Code
+  // hides empty secondary sidebars); AgentPanel stays mounted so the new-
+  // session modal and its WS listener keep working inside the 0-width box.
+  const agentsCollapsed = agentSessions.value.length === 0 && !isCompactViewport()
   return <div class="shell">
     <TopBar />
-    <div class="workbench" style={{ '--sidebar-width': `${effectiveSidebar}px`, '--agent-width': `${effectiveAgent}px`, '--panel-height': `${effectivePanel}px` }}>
+    <div class={`workbench ${agentsCollapsed ? 'agents-collapsed' : ''}`} style={{ '--sidebar-width': `${effectiveSidebar}px`, '--agent-width': `${effectiveAgent}px`, '--panel-height': `${effectivePanel}px` }}>
       <ActivityBar />
       <aside class={`sidebar pane ${mobile === 'files' || mobile === 'git' || mobile === 'settings' ? 'mobile-active' : ''} ${effectiveSidebar ? '' : 'collapsed'}`}><SidebarView /></aside>
       <ResizeHandle direction="vertical" className="sidebar-resize" onResize={(delta) => setSidebarWidth(sidebarWidth.value + delta)} />

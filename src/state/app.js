@@ -3,6 +3,7 @@ import { signal } from '@preact/signals'
 export const theme = signal(localStorage.getItem('pixcode.theme') || 'dark')
 export const mobileTab = signal('files')
 export const activeAgent = signal('')
+export const agentSessions = signal([])
 // The backend exposes one active workspace at a time, while the browser can
 // keep several workspace tabs open. Keep the selected record in a signal so
 // every view can refresh its data without a full page reload.
