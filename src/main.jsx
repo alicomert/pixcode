@@ -1,5 +1,7 @@
 import { render } from 'preact'
 import { App } from './App.jsx'
+import '@fontsource/cascadia-code/400.css'
+import '@fontsource/cascadia-code/700.css'
 import './styles/tailwind.css'
 import './styles/global.css'
 

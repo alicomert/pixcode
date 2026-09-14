@@ -1,33 +1,33 @@
 :root {
-  --bg: #15171c;
-  --panel: #1d2027;
-  --panel-2: #252a33;
-  --panel-3: #303641;
-  --border: #343b47;
-  --fg: #edf1f7;
-  --muted: #9aa4b2;
-  --accent: #65a7ff;
-  --accent-strong: #3d86ed;
-  --green: #75d69b;
-  --red: #f08383;
-  --yellow: #e8c46b;
-  --mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", "DejaVu Sans Mono", Consolas, monospace;
+  --bg: #181818;
+  --panel: #181818;
+  --panel-2: #2b2b2b;
+  --panel-3: #313131;
+  --border: #2b2b2b;
+  --fg: #cccccc;
+  --muted: #9d9d9d;
+  --accent: #4daafc;
+  --accent-strong: #0078d4;
+  --green: #89d185;
+  --red: #f48771;
+  --yellow: #cca700;
+  --mono: "Cascadia Code", "JetBrains Mono", "SFMono-Regular", "DejaVu Sans Mono", Consolas, monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 [data-theme="light"] {
-  --bg: #f4f6f8;
-  --panel: #ffffff;
-  --panel-2: #edf1f5;
-  --panel-3: #e1e6ec;
-  --border: #cfd6df;
-  --fg: #17202b;
-  --muted: #657282;
-  --accent: #2668c9;
-  --accent-strong: #174f9e;
-  --green: #19834a;
-  --red: #b53b3b;
-  --yellow: #987000;
+  --bg: #f8f8f8;
+  --panel: #f8f8f8;
+  --panel-2: #e5e5e5;
+  --panel-3: #ffffff;
+  --border: #e5e5e5;
+  --fg: #3b3b3b;
+  --muted: #616161;
+  --accent: #005fb8;
+  --accent-strong: #005fb8;
+  --green: #107c10;
+  --red: #e51400;
+  --yellow: #bf8803;
 }
 
 * { box-sizing: border-box; }
@@ -938,175 +938,6 @@ button:disabled { cursor: wait; opacity: .55; }
   min-height: 0;
 }
 
-[data-theme="light"] .shell,
-[data-theme="light"] .workbench {
-  background: #eef1f5;
-}
-
-[data-theme="light"] .topbar,
-[data-theme="light"] .activity-bar,
-[data-theme="light"] .sidebar,
-[data-theme="light"] .auxiliary,
-[data-theme="light"] .bottom-panel {
-  background: #f8f9fb;
-  border-color: #d6dce4;
-}
-
-[data-theme="light"] .command-center,
-[data-theme="light"] .project-switcher select,
-[data-theme="light"] .project-switcher button,
-[data-theme="light"] .agent-terminal-header select,
-[data-theme="light"] .settings-list select {
-  border-color: #c9d1dc;
-  background: #fff;
-  color: #263241;
-}
-
-[data-theme="light"] .command-center,
-[data-theme="light"] .window-brand strong,
-[data-theme="light"] .activity-button.active,
-[data-theme="light"] .sidebar-heading,
-[data-theme="light"] .sidebar .tree-item,
-[data-theme="light"] .editor-tab.active,
-[data-theme="light"] .editor-breadcrumb strong {
-  color: #263241;
-}
-
-[data-theme="light"] .editor-area,
-[data-theme="light"] .editor-tabs,
-[data-theme="light"] .editor-tab,
-[data-theme="light"] .editor-breadcrumb,
-[data-theme="light"] .editor-toolbar {
-  background: #fff;
-  border-color: #d6dce4;
-}
-
-[data-theme="light"] .tree-toolbar,
-[data-theme="light"] .sidebar-heading,
-[data-theme="light"] .editor-tabs,
-[data-theme="light"] .editor-breadcrumb,
-[data-theme="light"] .editor-toolbar,
-[data-theme="light"] .panel-header,
-[data-theme="light"] .agent-terminal-header,
-[data-theme="light"] .agent-command-line {
-  border-color: #d6dce4;
-}
-
-[data-theme="light"] .tree-item:hover,
-[data-theme="light"] .activity-button:hover,
-[data-theme="light"] .tree-toolbar button:hover,
-[data-theme="light"] .tree-actions button:hover,
-[data-theme="light"] .search-result:hover,
-[data-theme="light"] .editor-tab:hover .close {
-  background: #e8edf3;
-}
-
-[data-theme="light"] .agent-console {
-  background: #17202b;
-}
-
-[data-theme="light"] .agent-panel,
-[data-theme="light"] .agent-picker {
-  background: #f8f9fb;
-}
-
-[data-theme="light"] .agent-session-tabs,
-[data-theme="light"] .agent-session-tab.active {
-  background: #fff;
-  border-color: #d6dce4;
-}
-
-[data-theme="light"] .agent-session-tab {
-  color: #687585;
-}
-
-[data-theme="light"] .agent-session-tab:hover {
-  background: #e8edf3;
-  color: #263241;
-}
-
-[data-theme="light"] .agent-modal {
-  border-color: #cbd3de;
-  background: #fff;
-}
-
-[data-theme="light"] .agent-modal-heading {
-  border-color: #d6dce4;
-  color: #17202b;
-}
-
-[data-theme="light"] .agent-modal-item {
-  border-color: #e0e5eb;
-  background: #f8f9fb;
-  color: #263241;
-}
-
-[data-theme="light"] .agent-modal-item:hover {
-  background: #e0edff;
-}
-
-[data-theme="light"] .agent-picker-item {
-  border-color: #e0e5eb;
-  background: #fff;
-  color: #394554;
-}
-
-[data-theme="light"] .agent-picker-item:hover {
-  border-color: #c4ced9;
-  background: #e8edf3;
-}
-
-[data-theme="light"] .agent-picker-item.active {
-  border-color: #2668c9;
-  background: #e0edff;
-  color: #17202b;
-}
-
-[data-theme="light"] .agent-picker-item.active .agent-picker-logo {
-  background: #c6ddfa;
-}
-
-[data-theme="light"] .agent-picker-item.active .agent-picker-copy small {
-  color: #38699b;
-}
-
-[data-theme="light"] .agent-picker-logo {
-  background: #edf1f5;
-}
-
-[data-theme="light"] .agent-picker-copy small,
-[data-theme="light"] .agent-terminal-provider code {
-  color: #687585;
-}
-
-[data-theme="light"] .project-modal,
-[data-theme="light"] .file-action-modal {
-  border-color: #cbd3de;
-  background: #fff;
-}
-
-[data-theme="light"] .project-modal h2,
-[data-theme="light"] .file-action-modal h2 {
-  color: #17202b;
-}
-
-[data-theme="light"] .info-card,
-[data-theme="light"] .extension-card {
-  border-color: #d6dce4;
-  background: #fff;
-}
-
-[data-theme="light"] .info-card strong,
-[data-theme="light"] .extension-card strong {
-  color: #263241;
-}
-
-[data-theme="light"] .project-modal input,
-[data-theme="light"] .file-action-modal input {
-  border-color: #cbd3de;
-  background: #f8f9fb;
-  color: #17202b;
-}
 
 
 /* Serious workbench surfaces
@@ -1115,14 +946,14 @@ button:disabled { cursor: wait; opacity: .55; }
  * dialogs remain clear on every browser and GPU.
  */
 :root {
-  --serious-bg: #111318;
-  --serious-surface: #181b21;
-  --serious-raised: #20242c;
-  --serious-border: #303640;
-  --serious-border-strong: #46505e;
-  --serious-text: #e6eaf0;
-  --serious-muted: #8b95a4;
-  --serious-accent: #4da3ff;
+  --serious-bg: var(--ui-editor);
+  --serious-surface: var(--ui-surface);
+  --serious-raised: var(--ui-raised);
+  --serious-border: var(--ui-border);
+  --serious-border-strong: var(--ui-border-strong);
+  --serious-text: var(--ui-text);
+  --serious-muted: var(--ui-muted);
+  --serious-accent: var(--ui-accent);
 }
 
 body {
@@ -1545,30 +1376,44 @@ body {
    the existing component structure. */
 :root {
   color-scheme: dark;
-  --ui-bg: #11161c;
-  --ui-surface: #181e26;
-  --ui-raised: #222a34;
-  --ui-hover: #293542;
-  --ui-border: #303b48;
-  --ui-border-strong: #465668;
-  --ui-text: #edf2f7;
-  --ui-muted: #8f9baa;
-  --ui-accent: #59a9ff;
-  --ui-terminal: #0b1016;
+  --ui-bg: #181818;
+  --ui-editor: #1f1f1f;
+  --ui-surface: #181818;
+  --ui-raised: #2b2b2b;
+  --ui-hover: #2a2d2e;
+  --ui-border: #2b2b2b;
+  --ui-border-strong: #3c3c3c;
+  --ui-text: #cccccc;
+  --ui-muted: #9d9d9d;
+  --ui-accent: #4daafc;
+  --ui-accent-strong: #0078d4;
+  --ui-accent-hover: #026ec1;
+  --ui-selection: #264f78;
+  --ui-input: #313131;
+  --ui-terminal: #1f1f1f;
+  --ui-slider: #79797966;
+  --ui-slider-hover: #646464b3;
 }
 
 [data-theme="light"] {
   color-scheme: light;
-  --ui-bg: #f3f6f9;
-  --ui-surface: #ffffff;
-  --ui-raised: #eef2f6;
-  --ui-hover: #e3ebf4;
-  --ui-border: #d3dbe5;
-  --ui-border-strong: #b9c6d5;
-  --ui-text: #1d2936;
-  --ui-muted: #617080;
-  --ui-accent: #1769c2;
-  --ui-terminal: #f1f5f9;
+  --ui-bg: #f8f8f8;
+  --ui-editor: #ffffff;
+  --ui-surface: #f8f8f8;
+  --ui-raised: #e5e5e5;
+  --ui-hover: #f2f2f2;
+  --ui-border: #e5e5e5;
+  --ui-border-strong: #cecece;
+  --ui-text: #3b3b3b;
+  --ui-muted: #616161;
+  --ui-accent: #005fb8;
+  --ui-accent-strong: #005fb8;
+  --ui-accent-hover: #0258a8;
+  --ui-selection: #add6ff;
+  --ui-input: #ffffff;
+  --ui-terminal: #ffffff;
+  --ui-slider: #64646466;
+  --ui-slider-hover: #646464b3;
 }
 
 body,
@@ -1610,7 +1455,7 @@ body,
 .editor-area,
 .welcome-view,
 .editor-tab.active {
-  background: var(--ui-bg);
+  background: var(--ui-editor);
   color: var(--ui-text);
 }
 
@@ -1872,9 +1717,8 @@ body,
   }
 
   .topbar {
-    background: #141a22;
-    border-bottom-color: #2b3643;
-    box-shadow: 0 1px 0 rgb(255 255 255 / 3%);
+    background: var(--ui-surface);
+    border-bottom-color: var(--ui-border);
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
@@ -1894,10 +1738,10 @@ body,
   }
 
   .project-switcher select {
-    border-color: #344355;
+    border-color: var(--ui-border-strong);
     border-radius: 6px;
-    background: #202a35;
-    color: #cbd8e7;
+    background: var(--ui-input);
+    color: var(--ui-text);
   }
 
   .project-switcher,
@@ -1936,8 +1780,8 @@ body,
     gap: 3px;
     overflow: hidden;
     padding: 5px 5px max(5px, env(safe-area-inset-bottom));
-    border-top: 1px solid #2f3a47;
-    background: #171d25;
+    border-top: 1px solid var(--ui-border);
+    background: var(--ui-surface);
     box-shadow: 0 -8px 24px rgb(0 0 0 / 18%);
     scrollbar-width: none;
     overscroll-behavior-x: contain;
@@ -1957,10 +1801,10 @@ body,
     align-items: center;
     justify-content: center;
     padding: 0 4px;
-    border: 1px solid #334152;
+    border: 1px solid var(--ui-border-strong);
     border-radius: 6px;
-    background: #222b36;
-    color: #dce7f4;
+    background: var(--ui-raised);
+    color: var(--ui-text);
     font: 600 11px/1 var(--mono);
     letter-spacing: .01em;
     box-shadow: inset 0 1px rgb(255 255 255 / 6%);
@@ -1970,16 +1814,16 @@ body,
 
   .terminal-key:hover,
   .terminal-key:focus-visible {
-    border-color: #5a8fc2;
-    background: #2d4054;
+    border-color: var(--ui-accent);
+    background: var(--ui-hover);
     outline: 0;
   }
 
   .terminal-key:active,
   .terminal-key.active {
-    border-color: #63adf1;
-    background: #28577e;
-    color: #fff;
+    border-color: var(--ui-accent);
+    background: color-mix(in srgb, var(--ui-accent) 22%, var(--ui-surface));
+    color: var(--ui-text);
   }
 
   .terminal-key-icon {
@@ -1993,7 +1837,7 @@ body,
     min-width: 0;
     flex: none;
     gap: 3px;
-    color: #a9bad0;
+    color: var(--ui-muted);
   }
 
   .terminal-key-more span {
@@ -2010,9 +1854,9 @@ body,
     display: block;
     z-index: 5;
     padding: 9px;
-    border: 1px solid #405166;
+    border: 1px solid var(--ui-border-strong);
     border-radius: 9px;
-    background: rgb(24 31 40 / 97%);
+    background: color-mix(in srgb, var(--ui-surface) 96%, transparent);
     box-shadow: 0 14px 40px rgb(0 0 0 / 42%), inset 0 1px rgb(255 255 255 / 6%);
     backdrop-filter: blur(14px);
   }
@@ -2023,7 +1867,7 @@ body,
     align-items: center;
     justify-content: space-between;
     padding: 0 0 5px 3px;
-    color: #a9bad0;
+    color: var(--ui-muted);
     font: 600 10px/1 var(--mono);
     letter-spacing: .04em;
     text-transform: uppercase;
@@ -2073,8 +1917,8 @@ body,
     flex: 0 0 auto;
     padding: 5px 7px max(5px, env(safe-area-inset-bottom));
     gap: 4px;
-    border-top-color: #2f3a47;
-    background: #171d25;
+    border-top-color: var(--ui-border);
+    background: var(--ui-surface);
     box-shadow: 0 -8px 24px rgb(0 0 0 / 20%);
   }
 
@@ -2084,7 +1928,7 @@ body,
     gap: 3px;
     border-color: transparent;
     border-radius: 7px;
-    color: #8190a1;
+    color: var(--ui-muted);
     font-size: 10px;
     font-weight: 600;
     letter-spacing: .01em;
@@ -2098,37 +1942,11 @@ body,
   }
 
   .mobile-tab.active {
-    border-color: #355778;
-    background: #223549;
-    color: #a9d4fb;
-    box-shadow: inset 0 1px rgb(255 255 255 / 7%);
+    border-color: color-mix(in srgb, var(--ui-accent) 45%, var(--ui-border));
+    background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-surface));
+    color: var(--ui-accent);
   }
 
-  [data-theme="light"] .topbar {
-    background: #f7f9fc;
-    border-bottom-color: #d7e0ea;
-    box-shadow: 0 1px 0 rgb(45 71 100 / 7%);
-  }
-
-  [data-theme="light"] .window-brand strong {
-    color: #25364a;
-  }
-
-  [data-theme="light"] .mobile-tabs {
-    border-top-color: #d4dce6;
-    background: #f8fafc;
-    box-shadow: 0 -8px 24px rgb(45 71 100 / 10%);
-  }
-
-  [data-theme="light"] .mobile-tab {
-    color: #718196;
-  }
-
-  [data-theme="light"] .mobile-tab.active {
-    border-color: #a8c7e5;
-    background: #e5f0fb;
-    color: #24619a;
-  }
 
   .terminal-mobile-tray-grid {
     display: grid;
@@ -2147,58 +1965,19 @@ body,
   }
 
   .terminal-key-function {
-    color: #9ed0ff;
+    color: var(--ui-accent);
   }
 
-  [data-theme="light"] .terminal-mobile-accessory {
-    border-top-color: #cbd5e1;
-    background: #eef2f7;
-    box-shadow: 0 -8px 24px rgb(35 53 75 / 12%);
-  }
-
-  [data-theme="light"] .terminal-key {
-    border-color: #c4cfdd;
-    background: #fff;
-    color: #2c4055;
-    box-shadow: 0 1px 2px rgb(35 53 75 / 8%);
-  }
-
-  [data-theme="light"] .terminal-key:hover,
-  [data-theme="light"] .terminal-key:focus-visible {
-    border-color: #6698ca;
-    background: #e4effa;
-  }
-
-  [data-theme="light"] .terminal-key.active,
-  [data-theme="light"] .terminal-key:active {
-    border-color: #3e83c9;
-    background: #d3e8fb;
-    color: #174f82;
-  }
-
-  [data-theme="light"] .terminal-mobile-tray {
-    border-color: #c0cedd;
-    background: rgb(248 250 253 / 97%);
-    box-shadow: 0 14px 40px rgb(35 53 75 / 20%);
-  }
-
-  [data-theme="light"] .terminal-mobile-tray-heading {
-    color: #617080;
-  }
-
-  [data-theme="light"] .terminal-key-function {
-    color: #24619a;
-  }
 }
 
 /* Keep the compact agent input and empty state readable in both themes. */
-[data-theme="light"] .agent-command-line {
+.agent-command-line {
   border-top-color: var(--ui-border);
   background: var(--ui-surface);
   color: var(--ui-text);
 }
 
-[data-theme="light"] .agent-empty-terminal {
+.agent-empty-terminal {
   border-color: var(--ui-border-strong);
   background: var(--ui-surface);
   color: var(--ui-muted);
@@ -2787,4 +2566,406 @@ body,
     left: 8px;
     width: auto;
   }
+}
+
+/* === VS Code-style theme contract + interaction polish ======================
+   Everything visible resolves through the --ui-* tokens (Dark Modern /
+   Light Modern workbench values), so both themes stay consistent and every
+   interactive element gets the same tactile feedback. */
+
+::selection {
+  background: var(--ui-selection);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-slider) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background: var(--ui-slider);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ui-slider-hover);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Tactile feedback: every pressable control eases its color and gives a
+   subtle press so taps feel intentional instead of instant swaps. */
+button,
+select,
+[role="button"],
+.sidebar .tree-item,
+.editor-tab,
+.agent-session-tab,
+.terminal-tab,
+.mobile-tab,
+.activity-button {
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease, opacity .12s ease, transform .08s ease, box-shadow .12s ease;
+}
+
+.btn-accent:active:not(:disabled),
+.settings-action:active:not(:disabled),
+.install-banner-action:active:not(:disabled),
+.mobile-tab:active:not(:disabled),
+.activity-button:active:not(:disabled),
+.tw-icon-button:active:not(:disabled),
+.tw-toolbar-button:active:not(:disabled),
+.terminal-key:active:not(:disabled),
+.agent-modal-item:active:not(:disabled),
+.agent-picker-item:active:not(:disabled),
+.workspace-add-button:active:not(:disabled),
+.editor-toolbar button:active:not(:disabled),
+.tree-toolbar button:active:not(:disabled) {
+  transform: scale(.95);
+}
+
+:focus-visible {
+  outline: 1px solid var(--ui-accent);
+  outline-offset: -1px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+/* Activity bar — VS Code keeps icons flat; active = accent edge bar. */
+.activity-button {
+  border: 1px solid transparent;
+  color: var(--ui-muted);
+  background: transparent;
+}
+
+.activity-button:hover {
+  border-color: transparent;
+  background: var(--ui-hover);
+  color: var(--ui-text);
+}
+
+.activity-button.active {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text);
+  box-shadow: none;
+}
+
+.activity-button.active::before {
+  top: 50%;
+  left: 0;
+  width: 2px;
+  height: 26px;
+  border-radius: 0 2px 2px 0;
+  background: var(--ui-accent-strong);
+  transform: translateY(-50%);
+}
+
+/* Tab strips sit on a slightly raised surface; the active tab reconnects
+   to the editor surface below and carries the accent top edge. */
+.editor-tabs {
+  background: var(--ui-raised);
+}
+
+.editor-tab {
+  border-top: 1px solid transparent;
+  background: transparent;
+  color: var(--ui-muted);
+}
+
+.editor-tab:hover {
+  color: var(--ui-text);
+}
+
+.editor-tab.active {
+  border-top-color: var(--ui-accent-strong);
+  background: var(--ui-editor);
+  color: var(--ui-text);
+  box-shadow: none;
+}
+
+.agent-session-tab.active,
+.terminal-tab.active {
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: inset 0 2px 0 var(--ui-accent-strong);
+}
+
+.workspace-tab.active {
+  border-color: var(--ui-border);
+  border-bottom-color: var(--ui-accent-strong);
+  background: var(--ui-editor);
+  color: var(--ui-text);
+}
+
+/* Panels, headers and cards */
+.sidebar-heading,
+.panel-header,
+.editor-breadcrumb,
+.editor-toolbar,
+.tree-toolbar,
+.agent-terminal-header,
+.agent-command-line {
+  background: var(--ui-surface);
+}
+
+.editor-breadcrumb,
+.editor-toolbar {
+  background: var(--ui-editor);
+}
+
+.agent-picker-item,
+.agent-modal-item,
+.agent-history-item,
+.extension-card,
+.info-card,
+.settings-update,
+.welcome-column,
+.folder-browser,
+.workspace-add-select,
+.workspace-add-button,
+.workspace-project-picker button,
+.search-view form button,
+.terminal-key {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+}
+
+.agent-picker-item:hover,
+.agent-modal-item:hover,
+.agent-history-item:hover,
+.extension-card:hover,
+.welcome-column > button:hover,
+.folder-browser button:hover,
+.workspace-project-picker button:hover,
+.editor-toolbar button:hover,
+.command-center:hover,
+.project-switcher select:hover,
+.project-switcher button:hover,
+.topbar-actions button:hover,
+.topbar-actions select:hover,
+.update-checker-detailed .update-button:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-hover);
+  color: var(--ui-text);
+}
+
+.agent-picker-item.active,
+.agent-history-item.active,
+.agent-picker-item.active .agent-picker-logo {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 14%, var(--ui-surface));
+}
+
+.agent-picker-item.active .agent-picker-logo {
+  background: color-mix(in srgb, var(--ui-accent) 26%, var(--ui-surface));
+}
+
+/* Inputs and select fields use the dedicated input token so light mode keeps
+   crisp white fields instead of sunken gray wells. */
+.command-center,
+.project-switcher select,
+.project-switcher button,
+.topbar-actions select,
+.agent-terminal-header select,
+.settings-list select,
+.settings-control-row select,
+.search-view form input,
+.project-modal input,
+.file-action-modal input,
+.agent-command-line textarea,
+.folder-browser {
+  border-color: var(--ui-border);
+  background: var(--ui-input);
+  color: var(--ui-text);
+}
+
+.command-center:focus-within,
+.search-view form input:focus,
+.project-modal input:focus,
+.file-action-modal input:focus,
+.agent-command-line textarea:focus,
+.settings-control-row select:focus {
+  border-color: var(--ui-accent-strong);
+  outline: none;
+}
+
+/* Primary action */
+.btn-accent,
+.install-banner-action {
+  border-color: var(--ui-accent-strong);
+  background: var(--ui-accent-strong);
+  color: #fff;
+}
+
+.btn-accent:hover:not(:disabled),
+.install-banner-action:hover {
+  border-color: var(--ui-accent-hover);
+  background: var(--ui-accent-hover);
+  color: #fff;
+}
+
+/* Modals float above a dimmed workbench. */
+.modal-backdrop,
+.agent-modal-backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.project-modal,
+.file-action-modal,
+.agent-modal,
+.update-modal {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface);
+  box-shadow: 0 20px 56px rgb(0 0 0 / 45%);
+}
+
+.project-modal-tabs button.active {
+  background: var(--ui-raised);
+  color: var(--ui-text);
+}
+
+/* Status accents */
+.update-dot,
+.agent-session-live,
+.agent-state-dot.ready {
+  background: var(--green);
+}
+
+.agent-history-button > span {
+  background: var(--ui-accent-strong);
+  color: #fff;
+}
+
+.resize-handle.vertical:hover::after,
+.resize-handle.vertical:active::after,
+.resize-handle.horizontal:hover::after,
+.resize-handle.horizontal:active::after {
+  background: var(--ui-accent);
+}
+
+.extension-icon {
+  background: color-mix(in srgb, var(--ui-accent) 20%, var(--ui-surface));
+  color: var(--ui-accent);
+}
+
+.agent-tab-close:hover,
+.update-modal-close:hover {
+  background: var(--ui-hover);
+  color: var(--ui-text);
+}
+
+.agent-console {
+  color: var(--ui-text);
+  scrollbar-color: var(--ui-slider) transparent;
+}
+
+.tree-file-icon,
+.tree-actions button,
+.tree-toolbar button {
+  color: var(--ui-muted);
+}
+
+.workspace-tab-copy small,
+.agent-picker-copy small,
+.agent-terminal-provider code,
+.search-result-meta,
+.command-center,
+.command-center kbd {
+  color: var(--ui-muted);
+}
+
+/* Mobile bottom navigation: active tab tints with accent instead of a
+   heavy filled pill. */
+.mobile-tab.active {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ui-accent) 13%, var(--ui-surface));
+  color: var(--ui-accent);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: .01ms !important;
+  }
+}
+
+/* Residual hardcoded accents → tokens (keeps light mode legible). */
+.brand-name,
+.git-welcome h2,
+.topbar strong {
+  color: var(--ui-text);
+}
+
+.git-welcome,
+.window-nav button,
+.topbar-actions button,
+.topbar-actions select,
+.command-center .command-icon,
+.update-button,
+.update-modal-close,
+.update-modal small,
+.sidebar-heading-actions {
+  color: var(--ui-muted);
+}
+
+.update-eyebrow,
+.update-button-available {
+  color: var(--green);
+}
+
+.update-release-link {
+  color: var(--ui-accent);
+}
+
+.update-dot {
+  box-shadow: 0 0 0 2px var(--ui-surface);
+}
+
+.agent-section,
+.git-item,
+.git-actions,
+.commit-row,
+.git-diff {
+  border-color: var(--ui-border);
+}
+
+.resize-handle.vertical:hover,
+.resize-handle.vertical:active,
+.resize-handle.horizontal:hover,
+.resize-handle.horizontal:active {
+  background: var(--ui-accent);
+}
+
+.agent-line .line-prefix,
+.agent-line.user .line-prefix {
+  color: var(--ui-accent);
+}
+
+.agent-line.user {
+  color: var(--ui-text);
+}
+
+.agent-line.tool {
+  color: var(--yellow);
+}
+
+.agent-line.system {
+  color: var(--ui-muted);
 }

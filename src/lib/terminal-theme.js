@@ -1,6 +1,6 @@
 // Shared xterm settings. Explicit ANSI colors keep CLI TUIs colorful even
 // when the browser or operating system has an unusual terminal palette.
-export const terminalFont = '"JetBrains Mono", "Cascadia Code", "SFMono-Regular", "DejaVu Sans Mono", Consolas, monospace'
+export const terminalFont = '"Cascadia Code", "JetBrains Mono", "SFMono-Regular", "DejaVu Sans Mono", Consolas, monospace'
 
 const ansi = {
   black: '#1e1e1e',
@@ -43,6 +43,6 @@ const lightAnsi = {
 
 export function terminalTheme(mode = 'dark') {
   return mode === 'light'
-    ? { ...lightAnsi, background: '#f1f5f9', foreground: '#1f2937', cursor: '#1f2937', selectionBackground: '#b9d8f5' }
-    : { ...ansi, background: '#101214', foreground: '#e6edf3', cursor: '#e6edf3', selectionBackground: '#264f78' }
+    ? { ...lightAnsi, background: '#ffffff', foreground: '#3b3b3b', cursor: '#3b3b3b', selectionBackground: '#add6ff' }
+    : { ...ansi, background: '#1f1f1f', foreground: '#cccccc', cursor: '#aeafad', selectionBackground: '#264f78' }
 }

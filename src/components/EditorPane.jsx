@@ -26,17 +26,24 @@ function WelcomeView() {
 
 const themeCompartment = new Compartment()
 const lightEditorTheme = EditorView.theme({
-  '&': { color: '#263241', backgroundColor: '#ffffff' },
-  '.cm-content': { caretColor: '#111827' },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#111827' },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: '#c6ddf7' },
-  '.cm-gutters': { backgroundColor: '#f5f7fa', color: '#7b8794', border: 'none' },
-  '.cm-activeLine': { backgroundColor: '#f6f8fb' },
-  '.cm-activeLineGutter': { backgroundColor: '#eef2f7' }
+  '&': { color: '#3b3b3b', backgroundColor: '#ffffff' },
+  '.cm-content': { caretColor: '#3b3b3b' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#3b3b3b' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: '#add6ff' },
+  '.cm-gutters': { backgroundColor: '#ffffff', color: '#6e7681', border: 'none' },
+  '.cm-activeLine': { backgroundColor: '#f0f0f0' },
+  '.cm-activeLineGutter': { backgroundColor: '#f0f0f0', color: '#171184' }
+})
+
+const darkEditorSurface = EditorView.theme({
+  '&': { backgroundColor: '#1f1f1f' },
+  '.cm-gutters': { backgroundColor: '#1f1f1f', color: '#6e7681', border: 'none' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: '#264f78' },
+  '.cm-activeLine': { backgroundColor: '#2a2d2e66' }
 })
 
 function editorTheme() {
-  return theme.value === 'light' ? lightEditorTheme : oneDark
+  return theme.value === 'light' ? lightEditorTheme : [oneDark, darkEditorSurface]
 }
 
 const languageLoaders = [
