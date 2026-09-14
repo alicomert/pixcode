@@ -1393,6 +1393,10 @@ body {
   --ui-terminal: #1f1f1f;
   --ui-slider: #79797966;
   --ui-slider-hover: #646464b3;
+  --ui-shadow-1: 0 1px 2px rgb(0 0 0 / 30%);
+  --ui-shadow-2: 0 8px 24px rgb(0 0 0 / 40%);
+  --ui-shadow-3: 0 24px 64px rgb(0 0 0 / 55%);
+  --ui-ring: color-mix(in srgb, var(--ui-accent) 45%, transparent);
 }
 
 [data-theme="light"] {
@@ -1414,6 +1418,10 @@ body {
   --ui-terminal: #ffffff;
   --ui-slider: #64646466;
   --ui-slider-hover: #646464b3;
+  --ui-shadow-1: 0 1px 2px rgb(0 0 0 / 6%);
+  --ui-shadow-2: 0 8px 24px rgb(0 0 0 / 10%);
+  --ui-shadow-3: 0 24px 64px rgb(0 0 0 / 18%);
+  --ui-ring: color-mix(in srgb, var(--ui-accent) 35%, transparent);
 }
 
 body,
@@ -2635,8 +2643,8 @@ select,
 }
 
 :focus-visible {
-  outline: 1px solid var(--ui-accent);
-  outline-offset: -1px;
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
 }
 
 button:disabled {
@@ -2968,4 +2976,154 @@ button:disabled {
 
 .agent-line.system {
   color: var(--ui-muted);
+}
+
+/* === Premium polish layer ===================================================
+   shadcn-style refinement: radius hierarchy, real shadow depth, soft ring
+   focus, card lift on hover, blurred modal backdrop — while keeping the IDE
+   density (tabs and chrome stay flat and square). */
+
+/* Radius hierarchy — controls 5-6px, cards 7px, modals 10px. */
+button,
+select,
+input:not([type="range"]),
+textarea,
+.settings-action,
+.btn-accent,
+.install-banner-action,
+.command-center,
+.project-switcher select,
+.project-switcher button,
+.topbar-actions button,
+.topbar-actions select,
+.agent-terminal-header select,
+.settings-list select,
+.settings-control-row select,
+.search-view form input,
+.search-view form button,
+.project-modal input,
+.file-action-modal input,
+.folder-browser,
+.terminal-key {
+  border-radius: 5px;
+}
+
+.agent-picker-item,
+.agent-modal-item,
+.agent-history-item,
+.extension-card,
+.info-card,
+.settings-update,
+.settings-card,
+.welcome-column,
+.agent-picker-logo,
+.terminal-mobile-tray,
+.update-modal,
+.project-modal,
+.file-action-modal,
+.agent-modal {
+  border-radius: 8px;
+}
+
+.project-modal,
+.file-action-modal,
+.agent-modal,
+.update-modal,
+.terminal-mobile-tray {
+  border-radius: 10px;
+}
+
+.install-banner {
+  border-radius: 12px;
+}
+
+/* Elevation — cards rest flat with hairline borders; interactive cards lift
+   one pixel on hover so the surface feels responsive. */
+.extension-card,
+.info-card,
+.settings-update,
+.settings-card {
+  box-shadow: var(--ui-shadow-1);
+}
+
+.agent-picker-item,
+.agent-modal-item,
+.agent-history-item,
+.extension-card,
+.welcome-column > button {
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+
+.agent-picker-item:hover,
+.agent-modal-item:hover,
+.agent-history-item:hover,
+.extension-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ui-shadow-2);
+}
+
+/* Modals — layered depth + blurred dimmer. */
+.modal-backdrop,
+.agent-modal-backdrop {
+  background: rgb(0 0 0 / 50%);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.project-modal,
+.file-action-modal,
+.agent-modal,
+.update-modal {
+  border-color: var(--ui-border);
+  box-shadow: var(--ui-shadow-3), 0 0 0 1px color-mix(in srgb, var(--ui-text) 6%, transparent);
+}
+
+.project-modal h2,
+.file-action-modal h2,
+.agent-modal-heading,
+.update-modal h2,
+.settings-section-heading strong {
+  letter-spacing: -.01em;
+}
+
+/* Field focus — accent border + soft outer ring (shadcn input feel). */
+.command-center:focus-within,
+.search-view form input:focus,
+.project-modal input:focus,
+.file-action-modal input:focus,
+.agent-command-line textarea:focus,
+.settings-control-row select:focus,
+.settings-list select:focus,
+.project-switcher select:focus {
+  border-color: var(--ui-accent-strong);
+  box-shadow: 0 0 0 3px var(--ui-ring);
+  outline: none;
+}
+
+/* Primary action gets subtle elevation. */
+.btn-accent,
+.install-banner-action {
+  box-shadow: var(--ui-shadow-1);
+}
+
+/* Segmented control reads as one pill. */
+.settings-segmented {
+  border-radius: 7px;
+}
+
+.settings-segmented button.active {
+  box-shadow: var(--ui-shadow-1);
+}
+
+/* Status dots glow softly instead of hard outlines. */
+.agent-session-live,
+.agent-state-dot.ready,
+.update-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 20%, transparent);
+}
+
+/* Terminal wells sit slightly inset with a hairline ring. */
+.terminal-host,
+.agent-terminal-host {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-text) 4%, transparent);
 }
