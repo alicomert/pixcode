@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { ArrowLeft, ChevronRight, FolderOpen, FolderPlus, GitFork, Plus, RefreshCw, X } from '../lib/icons.jsx'
+import { ArrowLeft, ChevronRight, FolderOpen, FolderPlus, GitFork, X } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { setWorkspace } from '../state/app.js'
@@ -247,21 +247,21 @@ export function ProjectSwitcher() {
           <option value="">{t('project.openExisting')}</option>
           {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
-        <button class="tw-icon-button workspace-add-button" type="button" onClick={() => openModal('folder')} title={t('project.newWorkspace')} aria-label={t('project.newWorkspace')}><Plus size={15} /></button>
+        <vscode-toolbar-button class="workspace-add-button" icon="add" onClick={() => openModal('folder')} title={t('project.newWorkspace')} aria-label={t('project.newWorkspace')}></vscode-toolbar-button>
         {error && <span class="project-error" title={error}>!</span>}
       </div>
       {showCreate && <div class="modal-backdrop" onClick={() => setShowCreate(false)}>
         <section class="project-modal project-open-modal" onClick={(event) => event.stopPropagation()}>
-          <div class="project-modal-header"><h2>{t('project.newWorkspace')}</h2><button class="tw-icon-button" type="button" onClick={() => setShowCreate(false)} title={t('common.cancel')} aria-label={t('common.cancel')}><X size={15} /></button></div>
+          <div class="project-modal-header"><h2>{t('project.newWorkspace')}</h2><vscode-toolbar-button icon="close" onClick={() => setShowCreate(false)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></div>
           <div class="workspace-project-picker"><span>{t('project.openExisting')}</span><div>{projects.map((project) => <button type="button" key={project.id} onClick={() => openAsTab(project)} disabled={busy}><FolderOpen size={13} /><span>{project.name}</span></button>)}</div></div>
           <div class="project-modal-tabs"><button type="button" class={mode === 'folder' ? 'active' : ''} onClick={() => openModal('folder')}><FolderOpen size={14} /> {t('project.openFolder')}</button><button type="button" class={mode === 'github' ? 'active' : ''} onClick={() => openModal('github')}><GitFork size={14} /> {t('project.cloneRepo')}</button><button type="button" class={mode === 'create' ? 'active' : ''} onClick={() => openModal('create')}><FolderPlus size={14} /> {t('project.new')}</button></div>
           {mode === 'folder' && <form onSubmit={openFolder}>
-            <p>{t('project.folderHint')}</p><div class="project-path-row"><input value={folderPath} onInput={(event) => setFolderPath(event.currentTarget.value)} placeholder="/home/user/project" autoFocus /><button class="tw-icon-button" type="button" onClick={() => browse(folderPath || '~')} disabled={busy} title={t('project.browse')} aria-label={t('project.browse')}><RefreshCw size={14} class={busy ? 'spin' : ''} /></button></div>
+            <p>{t('project.folderHint')}</p><div class="project-path-row"><vscode-textfield value={folderPath} onInput={(event) => setFolderPath(event.currentTarget.value)} placeholder="/home/user/project" autofocus /><vscode-toolbar-button icon="folder-opened" onClick={() => browse(folderPath || '~')} disabled={busy} title={t('project.browse')} aria-label={t('project.browse')}></vscode-toolbar-button></div>
             {browser && <div class="folder-browser"><button type="button" class="folder-browser-parent" disabled={!browser.parent} onClick={() => browse(browser.parent)}><ArrowLeft size={13} /> {browser.parent || '/'}</button>{browser.entries.map((entry) => <button type="button" class="folder-browser-entry" key={entry.path} onClick={() => browse(entry.path)}><FolderOpen size={14} /><span>{entry.name}</span><ChevronRight size={13} /></button>)}{!browser.entries.length && <span class="muted">{t('tree.empty')}</span>}</div>}
-            <div class="modal-actions"><button type="button" onClick={() => setShowCreate(false)}>{t('common.cancel')}</button><button class="btn-accent" type="submit" disabled={busy || !folderPath.trim()}><FolderOpen size={13} /> {t('project.openFolder')}</button></div>
+            <div class="modal-actions"><vscode-button secondary onClick={() => setShowCreate(false)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" icon="folder-opened" disabled={busy || !folderPath.trim()}>{t('project.openFolder')}</vscode-button></div>
           </form>}
-          {mode === 'github' && <form onSubmit={clone}><p>{t('project.cloneHint')}</p><input value={url} onInput={(event) => setUrl(event.currentTarget.value)} placeholder="https://github.com/org/repository.git" autoFocus /><input value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('project.namePlaceholder')} /><div class="modal-actions"><button type="button" onClick={() => setShowCreate(false)}>{t('common.cancel')}</button><button class="btn-accent" type="submit" disabled={busy || !url.trim()}><GitFork size={13} /> {t('project.cloneRepo')}</button></div></form>}
-          {mode === 'create' && <form onSubmit={create}><p>{t('project.nameHint')}</p><input value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('project.namePlaceholder')} autoFocus /><div class="modal-actions"><button type="button" onClick={() => setShowCreate(false)}>{t('common.cancel')}</button><button class="btn-accent" type="submit" disabled={busy}>{t('project.create')}</button></div></form>}
+          {mode === 'github' && <form onSubmit={clone}><p>{t('project.cloneHint')}</p><vscode-textfield value={url} onInput={(event) => setUrl(event.currentTarget.value)} placeholder="https://github.com/org/repository.git" autofocus /><vscode-textfield value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('project.namePlaceholder')} /><div class="modal-actions"><vscode-button secondary onClick={() => setShowCreate(false)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" icon="repo-clone" disabled={busy || !url.trim()}>{t('project.cloneRepo')}</vscode-button></div></form>}
+          {mode === 'create' && <form onSubmit={create}><p>{t('project.nameHint')}</p><vscode-textfield value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('project.namePlaceholder')} autofocus /><div class="modal-actions"><vscode-button secondary onClick={() => setShowCreate(false)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" icon="add" disabled={busy}>{t('project.create')}</vscode-button></div></form>}
           {error && <div class="error-text project-modal-error">{error}</div>}
         </section>
       </div>}

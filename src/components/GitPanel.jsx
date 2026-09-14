@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowDownToLine, ArrowUpFromLine, FolderGit2, GitCompare, GitCommitHorizontal, GitFork, RefreshCw } from '../lib/icons.jsx'
+import { FolderGit2 } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { workspace } from '../state/app.js'
@@ -149,10 +149,10 @@ export function GitPanel() {
     <div style="display:flex; flex:1; min-height:0; flex-direction:column">
       <div class="section-title">
         <span>{state?.branch || t('git.title')}</span>
-        <button class="tw-icon-button" type="button" onClick={refresh} disabled={!!busy} title={t('git.refresh')} aria-label={t('git.refresh')}><RefreshCw size={14} /></button>
+        <vscode-toolbar-button icon="refresh" onClick={refresh} disabled={!!busy} title={t('git.refresh')} aria-label={t('git.refresh')}></vscode-toolbar-button>
       </div>
       {error && <div class="error-text" style="padding:8px">{error}</div>}
-      {repoMissing && <div class="git-welcome"><FolderGit2 size={27} /><h2>{t('git.noRepositoryTitle')}</h2><p>{t('git.noRepositoryDescription')}</p><button type="button" class="tw-toolbar-button" onClick={() => window.dispatchEvent(new Event('pixcode:clone-repo'))}><GitFork size={13} /> {t('git.openRemote')}</button></div>}
+      {repoMissing && <div class="git-welcome"><FolderGit2 size={27} /><h2>{t('git.noRepositoryTitle')}</h2><p>{t('git.noRepositoryDescription')}</p><vscode-button icon="repo-clone" onClick={() => window.dispatchEvent(new Event('pixcode:clone-repo'))}>{t('git.openRemote')}</vscode-button></div>}
       <div class="git-list">
         {!state && !error && <div class="tree muted">{t('tree.loading')}</div>}
         {state?.files.length === 0 && <div class="tree muted">{t('git.noChanges')}</div>}
@@ -162,19 +162,19 @@ export function GitPanel() {
             <div class="git-item" key={file.path}>
               <span class={`git-badge ${item.className}`}>{item.label}</span>
               <span class="path">{file.path}</span>
-              <button class="tw-toolbar-button" type="button" onClick={() => showDiff(file)} disabled={!!busy}><GitCompare size={13} /> {t('git.diff')}</button>
+              <vscode-button secondary icon="git-compare" onClick={() => showDiff(file)} disabled={!!busy}>{t('git.diff')}</vscode-button>
               <button type="button" onClick={() => toggleStage(file)} disabled={!!busy}>{!file.untracked && file.x !== ' ' ? t('git.unstage') : t('git.stage')}</button>
             </div>
           )
         })}
       </div>
       <div class="commit-row">
-        <input value={message} onInput={(event) => setMessage(event.currentTarget.value)} placeholder={t('git.messagePlaceholder')} />
-        <button class="btn-accent tw-toolbar-button" type="button" onClick={commit} disabled={!!busy || !message.trim()}><GitCommitHorizontal size={13} /> {t('git.commit')}</button>
+        <vscode-textfield value={message} onInput={(event) => setMessage(event.currentTarget.value)} placeholder={t('git.messagePlaceholder')} />
+        <vscode-button icon="git-commit" onClick={commit} disabled={!!busy || !message.trim()}>{t('git.commit')}</vscode-button>
       </div>
       <div class="git-actions">
-        <button class="tw-toolbar-button" type="button" onClick={() => run('pull')} disabled={!!busy}><ArrowDownToLine size={13} /> {busy === 'pull' ? t('git.busy') : t('git.pull')}</button>
-        <button class="btn-accent tw-toolbar-button" type="button" onClick={() => run('push')} disabled={!!busy}><ArrowUpFromLine size={13} /> {busy === 'push' ? t('git.busy') : t('git.push')}</button>
+        <vscode-button secondary icon="arrow-down" onClick={() => run('pull')} disabled={!!busy}>{busy === 'pull' ? t('git.busy') : t('git.pull')}</vscode-button>
+        <vscode-button secondary icon="arrow-up" onClick={() => run('push')} disabled={!!busy}>{busy === 'push' ? t('git.busy') : t('git.push')}</vscode-button>
       </div>
       {diff && <div class="git-diff"><strong>{diff.path}</strong><pre>{diff.text || t('git.noChanges')}</pre></div>}
       {output && <pre class="tree muted" style="max-height:90px; overflow:auto; margin:0">{output}</pre>}

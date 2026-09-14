@@ -3241,3 +3241,137 @@ textarea,
 .tree-item {
   border: 0;
 }
+
+/* ============================================================
+   vscode-elements variable bridge — the web components read
+   --vscode-* vars (same contract VS Code injects into webviews).
+   Aliased to our --ui-* tokens so they track both themes.
+   ============================================================ */
+:root {
+  --vscode-font-family: var(--sans);
+  --vscode-font-size: 13px;
+  --vscode-font-weight: normal;
+  --vscode-foreground: var(--ui-text);
+  --vscode-icon-foreground: var(--ui-text);
+  --vscode-focusBorder: var(--ui-accent-strong);
+  --vscode-contrastBorder: var(--ui-border-strong);
+  --vscode-editor-background: var(--ui-editor);
+  --vscode-editor-foreground: var(--ui-text);
+  --vscode-editorGroup-border: var(--ui-border);
+  --vscode-editorWidget-border: var(--ui-border);
+  --vscode-sideBar-background: var(--ui-surface);
+  --vscode-sideBarSectionHeader-background: var(--ui-surface);
+  --vscode-sideBarTitle-foreground: var(--ui-muted);
+  --vscode-panel-background: var(--ui-surface);
+  --vscode-panelTitle-activeBorder: var(--ui-accent-strong);
+  --vscode-panelTitle-activeForeground: var(--ui-text);
+  --vscode-panelTitle-inactiveForeground: var(--ui-muted);
+  --vscode-button-background: var(--ui-accent-strong);
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: var(--ui-accent-hover);
+  --vscode-button-secondaryBackground: var(--ui-raised);
+  --vscode-button-secondaryForeground: var(--ui-text);
+  --vscode-button-secondaryHoverBackground: var(--ui-hover);
+  --vscode-button-separator: var(--ui-border);
+  --vscode-checkbox-background: var(--ui-input);
+  --vscode-checkbox-border: var(--ui-border-strong);
+  --vscode-checkbox-foreground: var(--ui-text);
+  --vscode-settings-checkboxBackground: var(--ui-input);
+  --vscode-settings-checkboxBorder: var(--ui-border-strong);
+  --vscode-settings-checkboxForeground: var(--ui-text);
+  --vscode-settings-dropdownBackground: var(--ui-input);
+  --vscode-settings-dropdownBorder: var(--ui-border-strong);
+  --vscode-settings-dropdownForeground: var(--ui-text);
+  --vscode-settings-dropdownListBorder: var(--ui-border);
+  --vscode-settings-textInputBackground: var(--ui-input);
+  --vscode-settings-textInputBorder: var(--ui-border-strong);
+  --vscode-settings-textInputForeground: var(--ui-text);
+  --vscode-settings-headerBorder: var(--ui-border);
+  --vscode-input-placeholderForeground: var(--ui-muted);
+  --vscode-inputValidation-errorBackground: var(--ui-input);
+  --vscode-inputValidation-errorBorder: #be1100;
+  --vscode-inputOption-activeBackground: color-mix(in srgb, var(--ui-accent-strong) 45%, transparent);
+  --vscode-inputOption-activeBorder: var(--ui-accent-strong);
+  --vscode-inputOption-activeForeground: var(--ui-text);
+  --vscode-list-hoverBackground: var(--ui-hover);
+  --vscode-list-hoverForeground: var(--ui-text);
+  --vscode-list-activeSelectionBackground: var(--ui-selection);
+  --vscode-list-activeSelectionForeground: var(--ui-text);
+  --vscode-list-activeSelectionIconForeground: var(--ui-text);
+  --vscode-list-inactiveSelectionBackground: var(--ui-hover);
+  --vscode-list-highlightForeground: var(--ui-accent);
+  --vscode-list-focusOutline: var(--ui-accent-strong);
+  --vscode-list-focusAndSelectionOutline: var(--ui-accent-strong);
+  --vscode-list-focusHighlightForeground: var(--ui-text);
+  --vscode-menu-background: var(--ui-raised);
+  --vscode-menu-border: var(--ui-border-strong);
+  --vscode-menu-foreground: var(--ui-text);
+  --vscode-menu-selectionBackground: var(--ui-accent-strong);
+  --vscode-menu-selectionBorder: var(--ui-accent-strong);
+  --vscode-menu-selectionForeground: #ffffff;
+  --vscode-menu-separatorBackground: var(--ui-border);
+  --vscode-activityBarBadge-background: var(--ui-accent-strong);
+  --vscode-activityBarBadge-foreground: #ffffff;
+  --vscode-progressBar-background: var(--ui-accent-strong);
+  --vscode-sash-hoverBorder: var(--ui-accent-strong);
+  --vscode-scrollbar-shadow: transparent;
+  --vscode-scrollbarSlider-background: var(--ui-slider);
+  --vscode-scrollbarSlider-hoverBackground: var(--ui-slider-hover);
+  --vscode-scrollbarSlider-activeBackground: var(--ui-slider-hover);
+  --vscode-toolbar-hoverBackground: var(--ui-hover);
+  --vscode-toolbar-activeBackground: transparent;
+  --vscode-toolbar-hoverOutline: transparent;
+  --vscode-tree-indentGuidesStroke: var(--ui-border);
+  --vscode-tree-inactiveIndentGuidesStroke: var(--ui-border);
+  --vscode-keybindingTable-headerBackground: var(--ui-raised);
+  --vscode-keybindingTable-rowsBackground: var(--ui-surface);
+}
+
+:root {
+  --vscode-button-border: rgb(255 255 255 / 10%);
+  --vscode-badge-background: #616161;
+  --vscode-badge-foreground: #f8f8f8;
+  --vscode-menu-selectionBorder: var(--ui-accent-strong);
+  --vscode-widget-shadow: rgb(0 0 0 / 36%);
+}
+
+[data-theme="light"] {
+  --vscode-button-border: rgb(0 0 0 / 10%);
+  --vscode-badge-background: #c4c4c4;
+  --vscode-badge-foreground: #333333;
+  --vscode-widget-shadow: rgb(0 0 0 / 16%);
+  --vscode-list-activeSelectionForeground: #000000;
+  --vscode-list-activeSelectionIconForeground: #000000;
+  --vscode-list-highlightForeground: #0060ab;
+  --vscode-menu-selectionBorder: transparent;
+}
+
+/* vscode-* custom elements inside our flex/grid rows */
+vscode-scrollable {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* vscode-scrollable hosts need explicit bounds to take over scrolling. */
+.tree-scroller { flex: 1; min-height: 0; }
+.sidebar > .tree-scroller { flex: 1; }
+.agent-history-list { max-height: 180px; }
+.agent-modal-list { max-height: min(320px, 50vh); }
+
+/* vce form controls fill their label/rows like the native controls did. */
+.auth-field vscode-textfield,
+.file-action-modal vscode-textfield,
+.project-path-row vscode-textfield,
+.settings-view vscode-single-select { width: 100%; }
+vscode-button.auth-submit { width: 100%; }
+
+/* Scrollable hosts are block containers — restore full-width rows inside. */
+.agent-modal-list .agent-modal-item,
+.agent-history-list .agent-history-item {
+  display: flex;
+  width: 100%;
+}
+
+/* Keep the vce scrollable filling the sidebar column. */
+.file-tree { display: flex; flex-direction: column; min-height: 0; }

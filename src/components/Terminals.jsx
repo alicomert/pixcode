@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, ChevronDown, Plus, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, ChevronDown, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -414,7 +414,7 @@ export function Terminals() {
             <span class="muted" title={t('terminal.close')} onClick={(event) => closeTab(event, id)}><X size={13} /></span>
           </button>
         ))}
-        <button class="tw-icon-button" type="button" onClick={newTab} title={t('terminal.new')} aria-label={t('terminal.new')}><Plus size={14} /></button>
+        <vscode-toolbar-button icon="add" onClick={newTab} title={t('terminal.new')} aria-label={t('terminal.new')}></vscode-toolbar-button>
       </div>
       {error && <div class="error-text" style="padding:8px">{error}</div>}
       {active && <div class="terminal-mobile-stage"><TerminalView key={active} id={active} onReady={handleTerminalReady} modifiersRef={terminalModifiersRef} /><TerminalAccessory terminalId={active} actionsRef={terminalActionsRef} modifiersRef={terminalModifiersRef} /></div>}

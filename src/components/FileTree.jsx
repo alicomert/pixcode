@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FilePlus2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, FolderPlus, Gem, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Pencil, RefreshCw, Scroll, Settings, Shield, SquareFunction, Terminal, Trash2, Video, Workflow } from '../lib/icons.jsx'
+import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, Gem, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Scroll, Settings, Shield, SquareFunction, Terminal, Video, Workflow } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { openFile, workspace } from '../state/app.js'
@@ -82,8 +82,8 @@ function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged })
           <span class="name">{name}</span>
         </button>
         <span class="tree-actions">
-          <button class="tw-icon-button" type="button" title={t('tree.rename')} aria-label={t('tree.rename')} onClick={() => onChanged({ type: 'rename', path, name })}><Pencil size={13} /></button>
-          <button class="tw-icon-button" type="button" title={t('tree.delete')} aria-label={t('tree.delete')} onClick={() => onChanged({ type: 'delete', path, name })}><Trash2 size={13} /></button>
+          <vscode-toolbar-button icon="edit" title={t('tree.rename')} aria-label={t('tree.rename')} onClick={() => onChanged({ type: 'rename', path, name })}></vscode-toolbar-button>
+          <vscode-toolbar-button icon="trash" title={t('tree.delete')} aria-label={t('tree.delete')} onClick={() => onChanged({ type: 'delete', path, name })}></vscode-toolbar-button>
         </span>
       </div>
       {expanded && children?.map((child) => <Node key={joinPath(path, child.name)} path={joinPath(path, child.name)} {...child} depth={depth + 1} refreshToken={refreshToken} onError={onError} onChanged={onChanged} />)}
@@ -162,19 +162,19 @@ export function FileTree() {
   return (
     <div class="file-tree">
       <div class="tree-toolbar" aria-label={t('view.explorer')}>
-        <button class="tw-icon-button" type="button" title={t('tree.newFile')} aria-label={t('tree.newFile')} onClick={() => openCreate('file')}><FilePlus2 size={15} /></button>
-        <button class="tw-icon-button" type="button" title={t('tree.newFolder')} aria-label={t('tree.newFolder')} onClick={() => openCreate('folder')}><FolderPlus size={15} /></button>
-        <button class="tw-icon-button" type="button" title={t('tree.refresh')} aria-label={t('tree.refresh')} onClick={refresh}><RefreshCw size={14} /></button>
+        <vscode-toolbar-button icon="new-file" title={t('tree.newFile')} aria-label={t('tree.newFile')} onClick={() => openCreate('file')}></vscode-toolbar-button>
+        <vscode-toolbar-button icon="new-folder" title={t('tree.newFolder')} aria-label={t('tree.newFolder')} onClick={() => openCreate('folder')}></vscode-toolbar-button>
+        <vscode-toolbar-button icon="refresh" title={t('tree.refresh')} aria-label={t('tree.refresh')} onClick={refresh}></vscode-toolbar-button>
       </div>
       {error && <div class="tree-error error-text">{error}</div>}
       {!error && !root && <div class="tree muted">{t('tree.loading')}</div>}
       {!error && root?.length === 0 && <div class="tree muted">{t('tree.empty')}</div>}
-      {!error && root?.length > 0 && <div class="tree">{root.map((entry) => <Node key={entry.name} path={entry.name} {...entry} refreshToken={refreshToken} onError={setError} onChanged={handleNodeAction} />)}</div>}
+      {!error && root?.length > 0 && <vscode-scrollable class="tree-scroller"><div class="tree">{root.map((entry) => <Node key={entry.name} path={entry.name} {...entry} refreshToken={refreshToken} onError={setError} onChanged={handleNodeAction} />)}</div></vscode-scrollable>}
       {dialog && <div class="modal-backdrop" onClick={() => setDialog(null)}>
         <form class="file-action-modal" onSubmit={submitAction} onClick={(event) => event.stopPropagation()}>
           <h2>{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : dialog.type === 'file' ? 'tree.newFile' : 'tree.newFolder')}</h2>
-          {dialog.type === 'delete' ? <p>{t('tree.deleteConfirm', { name: dialog.name })}</p> : <input value={dialog.value} onInput={(event) => setDialog((current) => ({ ...current, value: event.currentTarget.value }))} placeholder={t('tree.pathPlaceholder')} autoFocus />}
-          <div class="modal-actions"><button type="button" onClick={() => setDialog(null)}>{t('common.cancel')}</button><button class="btn-accent" type="submit" disabled={dialog.type !== 'delete' && !dialog.value.trim()}>{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : 'tree.create')}</button></div>
+          {dialog.type === 'delete' ? <p>{t('tree.deleteConfirm', { name: dialog.name })}</p> : <vscode-textfield value={dialog.value} onInput={(event) => setDialog((current) => ({ ...current, value: event.currentTarget.value }))} placeholder={t('tree.pathPlaceholder')} autofocus />}
+          <div class="modal-actions"><vscode-button secondary onClick={() => setDialog(null)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" disabled={dialog.type !== 'delete' && !dialog.value.trim()}>{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : 'tree.create')}</vscode-button></div>
         </form>
       </div>}
     </div>

@@ -4,6 +4,7 @@ import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
 import { activeView, agentRailOpen, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTheme, sidebarWidth, terminalFontSize, theme, workspace } from '../state/app.js'
+import { VscSelect } from './vsc.jsx'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -113,14 +114,14 @@ function TopBar() {
   return (
     <header class="topbar">
       <div class="window-brand"><img class="brand-logo" src="/logo.png" alt="Pixcode" /><strong>{t('app.title')}</strong></div>
-      <div class="window-nav"><button class="tw-icon-button" type="button" disabled title={t('navigation.back')}><ArrowLeft size={16} /></button><button class="tw-icon-button" type="button" disabled title={t('navigation.forward')}><ArrowRight size={16} /></button></div>
+      <div class="window-nav"><vscode-toolbar-button icon="arrow-left" disabled title={t('navigation.back')}></vscode-toolbar-button><vscode-toolbar-button icon="arrow-right" disabled title={t('navigation.forward')}></vscode-toolbar-button></div>
       <button class="command-center tw-command-field" type="button" onClick={() => { activeView.value = 'search'; mobileTab.value = 'files'; if (sidebarWidth.value === 0) setSidebarWidth(276); window.dispatchEvent(new Event('pixcode:focus-search')) }}><Search class="command-icon" size={15} /><span>{t('command.search')}</span><kbd>Ctrl+P</kbd></button>
       <ProjectSwitcher />
       <span class="spacer" />
       <div class="topbar-actions">
-        {installPrompt && <button type="button" class="icon-button tw-icon-button" title={t('pwa.install')} aria-label={t('pwa.install')} onClick={install}><Download size={16} /></button>}
-        <button type="button" class="layout-button tw-icon-button" title={t('layout.toggleSidebar')} onClick={() => setSidebarWidth(sidebarWidth.value > 0 ? 0 : 276)}><PanelLeft size={16} /></button>
-        <button type="button" class="layout-button tw-icon-button" title={t('layout.togglePanel')} onClick={() => (panelOpen.value = !panelOpen.value)}><PanelBottom size={16} /></button>
+        {installPrompt && <vscode-toolbar-button icon="cloud-download" title={t('pwa.install')} aria-label={t('pwa.install')} onClick={install}></vscode-toolbar-button>}
+        <vscode-toolbar-button class="layout-button" icon="layout-sidebar-left" title={t('layout.toggleSidebar')} onClick={() => setSidebarWidth(sidebarWidth.value > 0 ? 0 : 276)}></vscode-toolbar-button>
+        <vscode-toolbar-button class="layout-button" icon="layout-panel" title={t('layout.togglePanel')} onClick={() => (panelOpen.value = !panelOpen.value)}></vscode-toolbar-button>
         <UpdateChecker />
         <select aria-label={t('lang.label')} value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)}>
           {languages.map((language) => <option key={language.value} value={language.value}>{language.value === 'zh-CN' ? '中文' : language.value.toUpperCase()}</option>)}
@@ -181,15 +182,15 @@ function SearchView() {
     window.clearTimeout(debounceRef.current)
     debounceRef.current = window.setTimeout(() => search(value), 180)
   }
-  return <div class="search-view"><div class="sidebar-heading"><span>{t('view.search')}</span><span class="sidebar-heading-actions">{results.length || ''}</span></div><form onSubmit={search}><Search class="search-input-icon" size={15} /><input ref={inputRef} value={query} onInput={changeQuery} placeholder={t('search.placeholder')} autoFocus /><button class="tw-icon-button" type="submit" aria-label={t('view.search')}><Search size={14} /></button></form><div class="search-results">{busy && <span class="muted">{t('tree.loading')}</span>}{error && <span class="error-text search-error">{error}</span>}{results.map((result) => <button key={result.path + (result.line || '')} type="button" class={['search-result', result.reason === 'content' ? 'content-match' : ''].filter(Boolean).join(' ')} disabled={result.type === 'dir'} onClick={() => { if (result.type !== 'dir') window.dispatchEvent(new CustomEvent('pixcode:open-file', { detail: result.path })) }}><span class="search-result-path">{result.path}</span>{result.line && <span class="search-result-meta">:{result.line} {result.preview || ''}</span>}</button>)}{!busy && query && !results.length && !error && <span class="muted">{t('search.none')}</span>}</div></div>
+  return <div class="search-view"><div class="sidebar-heading"><span>{t('view.search')}</span><span class="sidebar-heading-actions">{results.length || ''}</span></div><form onSubmit={search}><Search class="search-input-icon" size={15} /><vscode-textfield ref={inputRef} value={query} onInput={changeQuery} placeholder={t('search.placeholder')} autofocus /><vscode-toolbar-button icon="search" type="submit" aria-label={t('view.search')}></vscode-toolbar-button></form><div class="search-results">{busy && <span class="muted">{t('tree.loading')}</span>}{error && <span class="error-text search-error">{error}</span>}{results.map((result) => <button key={result.path + (result.line || '')} type="button" class={['search-result', result.reason === 'content' ? 'content-match' : ''].filter(Boolean).join(' ')} disabled={result.type === 'dir'} onClick={() => { if (result.type !== 'dir') window.dispatchEvent(new CustomEvent('pixcode:open-file', { detail: result.path })) }}><span class="search-result-path">{result.path}</span>{result.line && <span class="search-result-meta">:{result.line} {result.preview || ''}</span>}</button>)}{!busy && query && !results.length && !error && <span class="muted">{t('search.none')}</span>}</div></div>
 }
 
 function RunView() {
-  return <div class="info-view"><div class="sidebar-heading">{t('view.run')}</div><div class="info-actions"><button type="button" class="btn-accent" onClick={() => { panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' }}>{t('run.openTerminal')}</button></div></div>
+  return <div class="info-view"><div class="sidebar-heading">{t('view.run')}</div><div class="info-actions"><vscode-button onClick={() => { panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' }}>{t('run.openTerminal')}</vscode-button></div></div>
 }
 
 function AgentInfo() {
-  return <div class="info-view"><div class="sidebar-heading">{t('view.agent')}</div><div class="info-actions"><button type="button" class="btn-accent" onClick={() => { mobileTab.value = 'agent'; panelOpen.value = false; window.dispatchEvent(new Event('pixcode:new-agent')) }}>{t('agent.open')}</button></div></div>
+  return <div class="info-view"><div class="sidebar-heading">{t('view.agent')}</div><div class="info-actions"><vscode-button onClick={() => { mobileTab.value = 'agent'; panelOpen.value = false; window.dispatchEvent(new Event('pixcode:new-agent')) }}>{t('agent.open')}</vscode-button></div></div>
 }
 
 function RemoteView() {
@@ -229,9 +230,9 @@ function SettingsView() {
           </div>
           <div class="settings-control-row">
             <div class="settings-control-copy"><Globe2 size={16} /><span><strong>{t('lang.label')}</strong><small>{t('settings.languageHint')}</small></span></div>
-            <select value={locale.value} onChange={(event) => setLocale(event.currentTarget.value)} aria-label={t('lang.label')}>
-              {languages.map((language) => <option key={language.value} value={language.value}>{language.nativeName}</option>)}
-            </select>
+            <VscSelect value={locale.value} onChange={setLocale} aria-label={t('lang.label')}>
+              {languages.map((language) => <vscode-option key={language.value} value={language.value}>{language.nativeName}</vscode-option>)}
+            </VscSelect>
           </div>
         </div>
       </section>
@@ -240,15 +241,15 @@ function SettingsView() {
         <div class="settings-card">
           <div class="settings-control-row">
             <div class="settings-control-copy"><PanelLeft size={16} /><span><strong>{t('settings.sidebar')}</strong><small>{sidebarWidth.value ? t('settings.visible') : t('settings.hidden')}</small></span></div>
-            <button type="button" class="settings-action" onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</button>
+            <vscode-button secondary onClick={() => setSidebarWidth(sidebarWidth.value ? 0 : 276)}>{t('layout.toggleSidebar')}</vscode-button>
           </div>
           <div class="settings-control-row">
             <div class="settings-control-copy"><PanelBottom size={16} /><span><strong>{t('settings.terminalPanel')}</strong><small>{panelOpen.value ? t('settings.visible') : t('settings.hidden')}</small></span></div>
-            <button type="button" class="settings-action" onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</button>
+            <vscode-button secondary onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</vscode-button>
           </div>
           <div class="settings-control-row settings-control-row-last">
             <div class="settings-control-copy"><RefreshCw size={16} /><span><strong>{t('settings.resetLayout')}</strong><small>{t('settings.resetLayoutHint')}</small></span></div>
-            <button type="button" class="settings-action" onClick={resetLayout}>{t('settings.reset')}</button>
+            <vscode-button secondary onClick={resetLayout}>{t('settings.reset')}</vscode-button>
           </div>
         </div>
       </section>
@@ -328,7 +329,7 @@ export function Shell() {
       <ResizeHandle direction="vertical" className="agent-resize" onResize={(delta) => setAgentWidth(agentWidth.value - delta)} />
       <aside class={`auxiliary pane ${mobile === 'agent' || mobile === 'terminal' ? 'mobile-active' : ''}`}><section class={`aux-section agent-section ${mobile === 'terminal' ? 'aux-section-hidden' : ''} ${mobile === 'agent' || mobile !== 'terminal' ? 'mobile-view-active' : ''}`}><AgentPanel /></section>{mobile === 'terminal' && <section class="aux-section terminal-section mobile-view-active"><Terminals /></section>}</aside>
       <AgentRail />
-      {panelOpen.value && <><ResizeHandle direction="horizontal" className="panel-resize" onResize={(delta) => setPanelHeight(panelHeight.value - delta)} /><div class="bottom-panel"><div class="panel-header"><span>{t('panel.terminal')}</span><button class="tw-icon-button" type="button" onClick={() => (panelOpen.value = false)} title={t('panel.close')} aria-label={t('panel.close')}><X size={16} /></button></div><Terminals /></div></>}
+      {panelOpen.value && <><ResizeHandle direction="horizontal" className="panel-resize" onResize={(delta) => setPanelHeight(panelHeight.value - delta)} /><div class="bottom-panel"><div class="panel-header"><span>{t('panel.terminal')}</span><vscode-toolbar-button icon="close" onClick={() => (panelOpen.value = false)} title={t('panel.close')} aria-label={t('panel.close')}></vscode-toolbar-button></div><Terminals /></div></>}
     </div>
     <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => { const Glyph = item.icon; return <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'terminal') panelOpen.value = true; if (item.id === 'agent' || item.id === 'settings') panelOpen.value = false; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run'; if (item.id === 'settings') activeView.value = 'settings' }}><Glyph size={18} strokeWidth={1.7} aria-hidden="true" /><span>{t(item.label)}</span></button> })}</nav>
     <InstallBanner />

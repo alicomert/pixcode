@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { Download, X } from '../lib/icons.jsx'
+import { Download } from '../lib/icons.jsx'
 import { t } from '../lib/i18n.js'
 
 const DISMISS_KEY = 'pixcode.installBannerDismissed'
@@ -51,7 +51,7 @@ export function InstallBanner() {
         <span>{isIos() ? t('pwa.iosHint') : t('pwa.bannerHint')}</span>
       </div>
       {promptEvent && <button type="button" class="install-banner-action" onClick={install}><Download size={14} />{t('pwa.installAction')}</button>}
-      <button type="button" class="install-banner-close tw-icon-button" aria-label={t('pwa.dismiss')} onClick={dismiss}><X size={15} /></button>
+      <vscode-toolbar-button class="install-banner-close" icon="close" aria-label={t('pwa.dismiss')} onClick={dismiss}></vscode-toolbar-button>
     </div>
   )
 }

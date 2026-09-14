@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Bot, FolderOpen, FolderPlus, GitFork, Plus, Save, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { Bot, FolderOpen, FolderPlus, GitFork, Plus, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -190,8 +190,8 @@ function Editor({ path, onDirty }) {
   return (
     <div class="editor">
       <div class="editor-toolbar">
-        <button class="tw-toolbar-button" type="button" onClick={save}><Save size={13} /> {t('editor.save')}</button>
-        <button class="tw-toolbar-button" type="button" onClick={toggleDiff} disabled={diffBusy}>{diffBusy ? t('editor.diff.loading') : t(showDiff ? 'editor.diff.hide' : 'editor.diff.show')}</button>
+        <vscode-button secondary icon="save" onClick={save}>{t('editor.save')}</vscode-button>
+        <vscode-button secondary icon="diff" onClick={toggleDiff} disabled={diffBusy}>{diffBusy ? t('editor.diff.loading') : t(showDiff ? 'editor.diff.hide' : 'editor.diff.show')}</vscode-button>
         {status && <span class="muted">{status}</span>}
         {error && <span class="error-text">{error}</span>}
       </div>
