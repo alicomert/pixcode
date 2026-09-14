@@ -83,7 +83,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
-    const stopTouchScroll = attachTerminalTouchScroll(host.current)
+    const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal)
     // The active agent tab should be immediately typeable after it is
     // restored; xterm otherwise waits for the first explicit click.
     terminal.focus()

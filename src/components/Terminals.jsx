@@ -38,7 +38,7 @@ function TerminalView({ id, onReady, modifiersRef }) {
     fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
-    const stopTouchScroll = attachTerminalTouchScroll(host.current)
+    const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal)
     terminal.focus()
     const focusTerminal = () => terminal.focus()
     host.current.addEventListener('pointerdown', focusTerminal)
