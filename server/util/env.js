@@ -95,5 +95,13 @@ export async function refreshEnhancedPath() {
 }
 
 export async function enhancedEnv(extra = {}) {
-  return { ...process.env, PATH: await enhancedPath(), ...extra }
+  const env = { ...process.env, PATH: await enhancedPath(), ...extra }
+  // A bare service env may omit HOME/USER/SHELL entirely; rc files then
+  // expand "$HOME/…" against an empty string ("/.local/bin/env" errors).
+  const info = os.userInfo()
+  if (!env.HOME) env.HOME = info.homedir
+  if (!env.USER) env.USER = info.username
+  if (!env.LOGNAME) env.LOGNAME = info.username
+  if (!env.SHELL && process.platform !== 'win32') env.SHELL = info.shell || '/bin/bash'
+  return env
 }
