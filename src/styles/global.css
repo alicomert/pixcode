@@ -16,13 +16,13 @@
 }
 
 [data-theme="light"] {
-  --bg: #f8f8f8;
-  --panel: #f8f8f8;
-  --panel-2: #e5e5e5;
+  --bg: #f7f7f9;
+  --panel: #f7f7f9;
+  --panel-2: #eceef2;
   --panel-3: #ffffff;
-  --border: #e5e5e5;
-  --fg: #3b3b3b;
-  --muted: #616161;
+  --border: #d6d8dd;
+  --fg: #1f2328;
+  --muted: #666a72;
   --accent: #005fb8;
   --accent-strong: #005fb8;
   --green: #107c10;
@@ -1401,26 +1401,26 @@ body {
 
 [data-theme="light"] {
   color-scheme: light;
-  --ui-bg: #f8f8f8;
+  --ui-bg: #eaecef;
   --ui-editor: #ffffff;
-  --ui-surface: #f8f8f8;
-  --ui-raised: #e5e5e5;
-  --ui-hover: #f2f2f2;
-  --ui-border: #e5e5e5;
-  --ui-border-strong: #cecece;
-  --ui-text: #3b3b3b;
-  --ui-muted: #616161;
+  --ui-surface: #f7f7f9;
+  --ui-raised: #eceef2;
+  --ui-hover: #e3e5e9;
+  --ui-border: #d6d8dd;
+  --ui-border-strong: #c5c7cd;
+  --ui-text: #1f2328;
+  --ui-muted: #666a72;
   --ui-accent: #005fb8;
   --ui-accent-strong: #005fb8;
   --ui-accent-hover: #0258a8;
   --ui-selection: #add6ff;
   --ui-input: #ffffff;
   --ui-terminal: #ffffff;
-  --ui-slider: #64646466;
-  --ui-slider-hover: #646464b3;
-  --ui-shadow-1: 0 1px 2px rgb(0 0 0 / 6%);
-  --ui-shadow-2: 0 8px 24px rgb(0 0 0 / 10%);
-  --ui-shadow-3: 0 24px 64px rgb(0 0 0 / 18%);
+  --ui-slider: #555a64;
+  --ui-slider-hover: #3b3f46;
+  --ui-shadow-1: 0 1px 2px rgb(0 0 0 / 8%);
+  --ui-shadow-2: 0 8px 24px rgb(0 0 0 / 12%);
+  --ui-shadow-3: 0 24px 64px rgb(0 0 0 / 20%);
   --ui-ring: color-mix(in srgb, var(--ui-accent) 35%, transparent);
 }
 
@@ -3154,6 +3154,56 @@ textarea,
   grid-row: 1 / 3;
   border-right: 0;
   border-left: 1px solid var(--ui-border);
+}
+
+/* Structural pane separators — earlier rules zeroed these out, which only
+   worked in dark where surfaces differ in lightness. Every pane edge gets a
+   real hairline in both themes; light gets its hierarchy from these lines
+   plus the surface->editor step. */
+@media (min-width: 768px) {
+  .sidebar { border-right: 1px solid var(--ui-border); }
+  .auxiliary { border-left: 1px solid var(--ui-border); }
+  .workbench.agents-collapsed .auxiliary { border-left: 0; }
+}
+
+.editor-breadcrumb {
+  border-bottom: 1px solid var(--ui-border);
+}
+
+/* Terminals are a distinct surface — give their host a visible frame. */
+.agent-terminal-host,
+.terminal-host {
+  box-shadow: inset 0 0 0 1px var(--ui-border);
+}
+
+/* Welcome canvas matches the editor surface; columns become real cards with
+   border + lift so the start screen stops blending into the background. */
+.welcome-view {
+  background: var(--ui-editor);
+}
+
+.welcome-column {
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-1);
+}
+
+.welcome-column > button {
+  border-radius: 6px;
+}
+
+.welcome-column > button:hover {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-hover);
+}
+
+/* Command-center input sits on the surface-colored topbar — needs the input
+   token so it reads as a field, not a hole. */
+.command-center {
+  background: var(--ui-input);
+  border: 1px solid var(--ui-border);
 }
 
 /* Workspace tabs read as flat labeled tabs, not heavy pills. */
