@@ -227,7 +227,7 @@ button:disabled { cursor: wait; opacity: .55; }
 .update-download { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; color: #fff; text-decoration: none; }
 .update-release-link { color: #70b7ff; font-size: 11px; }
 .update-modal small { color: #777; font-size: 10px; }
-.workbench { display: grid; grid-template-columns: 42px var(--sidebar-width) 5px minmax(360px, 1fr) 5px var(--agent-width); grid-template-rows: minmax(0, 1fr) var(--panel-height); min-height: 0; background: #181818; }
+.workbench { display: grid; grid-template-columns: 42px var(--sidebar-width) 5px minmax(360px, 1fr) 5px var(--agent-width) 42px; grid-template-rows: minmax(0, 1fr) var(--panel-height); min-height: 0; background: #181818; }
 .activity-bar { display: flex; grid-column: 1; grid-row: 1 / 3; width: 42px; flex-direction: column; align-items: center; justify-content: space-between; border-right: 1px solid #2b2b2b; background: #181818; }
 .activity-top, .activity-bottom { display: flex; width: 100%; flex-direction: column; align-items: center; }
 .activity-button { position: relative; display: grid; width: 42px; height: 46px; place-items: center; border: 0; border-radius: 0; background: transparent; color: #858585; font-size: 22px; }
@@ -508,7 +508,7 @@ button:disabled { cursor: wait; opacity: .55; }
 .workbench {
   /* Let the center pane shrink on laptop widths instead of pushing terminals
      outside the viewport. */
-  grid-template-columns: 44px minmax(0, var(--sidebar-width)) 5px minmax(0, 1fr) 5px minmax(0, var(--agent-width));
+  grid-template-columns: 44px minmax(0, var(--sidebar-width)) 5px minmax(0, 1fr) 5px minmax(0, var(--agent-width)) 44px;
   min-width: 0;
   width: 100%;
 }
@@ -3133,7 +3133,7 @@ textarea,
    0-width column so its modal (position:fixed) and WS listeners keep working. */
 @media (min-width: 768px) {
   .workbench.agents-collapsed {
-    grid-template-columns: 44px minmax(0, var(--sidebar-width)) 5px minmax(0, 1fr) 0 0;
+    grid-template-columns: 44px minmax(0, var(--sidebar-width)) 5px minmax(0, 1fr) 0 0 44px;
   }
 
   .workbench.agents-collapsed .agent-resize {
@@ -3142,7 +3142,18 @@ textarea,
 
   .workbench.agents-collapsed .auxiliary {
     border: 0;
+    overflow: hidden;
   }
+}
+
+/* Right agent rail — mirrors the left activity bar so agent actions always
+   have a visible home even when the auxiliary pane is collapsed. Hidden on
+   mobile by the shared `.activity-bar` display:none rule. */
+.agent-rail {
+  grid-column: 7;
+  grid-row: 1 / 3;
+  border-right: 0;
+  border-left: 1px solid var(--ui-border);
 }
 
 /* Workspace tabs read as flat labeled tabs, not heavy pills. */

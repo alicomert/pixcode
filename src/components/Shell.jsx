@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, RefreshCw, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { ArrowLeft, ArrowRight, Blocks, Bot, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
-import { activeView, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTheme, sidebarWidth, terminalFontSize, theme, workspace } from '../state/app.js'
+import { activeView, agentRailOpen, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTheme, sidebarWidth, terminalFontSize, theme, workspace } from '../state/app.js'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -64,6 +64,24 @@ function ActivityBar() {
       <div class="activity-bottom">
         <button class={"activity-button tw-rail-button " + (activeView.value === 'settings' ? 'active' : '')} data-active={activeView.value === 'settings'} type="button" title={t('view.settings')} onClick={() => { activeView.value = 'settings'; mobileTab.value = isCompactViewport() ? 'settings' : 'files'; panelOpen.value = false; if (sidebarWidth.value === 0) setSidebarWidth(276) }}><Settings size={19} strokeWidth={1.65} /></button>
         <span class="activity-version">v2</span>
+      </div>
+    </nav>
+  )
+}
+
+// Right-hand rail: always-visible anchor for agent actions. The bot icon
+// toggles the auxiliary agent pane, the plus opens the new-session modal.
+function AgentRail() {
+  const open = agentRailOpen.value
+  return (
+    <nav class="activity-bar agent-rail" aria-label={t('view.agent')}>
+      <div class="activity-top">
+        <button class={'activity-button tw-rail-button ' + (open ? 'active' : '')} type="button" title={t('view.agent')} aria-label={t('view.agent')} aria-pressed={open} onClick={() => setAgentRail(!open)}>
+          <Bot size={20} strokeWidth={1.6} aria-hidden="true" />
+        </button>
+        <button class="activity-button tw-rail-button" type="button" title={t('agent.new')} aria-label={t('agent.new')} onClick={() => window.dispatchEvent(new Event('pixcode:new-agent'))}>
+          <Plus size={20} strokeWidth={1.6} aria-hidden="true" />
+        </button>
       </div>
     </nav>
   )
@@ -294,10 +312,12 @@ export function Shell() {
   const effectiveSidebar = sidebarWidth.value
   const effectivePanel = panelOpen.value ? panelHeight.value : 0
   const effectiveAgent = agentWidth.value
-  // With zero agent sessions the auxiliary rail collapses entirely (VS Code
-  // hides empty secondary sidebars); AgentPanel stays mounted so the new-
-  // session modal and its WS listener keep working inside the 0-width box.
-  const agentsCollapsed = agentSessions.value.length === 0 && !isCompactViewport()
+  // The auxiliary pane is user-toggled through the right agent rail; it opens
+  // itself when a session appears so restored/spawned agents stay visible.
+  useEffect(() => {
+    if (agentSessions.value.length > 0) setAgentRail(true)
+  }, [agentSessions.value.length])
+  const agentsCollapsed = !agentRailOpen.value && !isCompactViewport()
   return <div class="shell">
     <TopBar />
     <div class={`workbench ${agentsCollapsed ? 'agents-collapsed' : ''}`} style={{ '--sidebar-width': `${effectiveSidebar}px`, '--agent-width': `${effectiveAgent}px`, '--panel-height': `${effectivePanel}px` }}>
@@ -307,6 +327,7 @@ export function Shell() {
       <main class={`editor-area pane ${mobile === 'editor' ? 'mobile-active' : ''}`}><EditorPane /></main>
       <ResizeHandle direction="vertical" className="agent-resize" onResize={(delta) => setAgentWidth(agentWidth.value - delta)} />
       <aside class={`auxiliary pane ${mobile === 'agent' || mobile === 'terminal' ? 'mobile-active' : ''}`}><section class={`aux-section agent-section ${mobile === 'terminal' ? 'aux-section-hidden' : ''} ${mobile === 'agent' || mobile !== 'terminal' ? 'mobile-view-active' : ''}`}><AgentPanel /></section>{mobile === 'terminal' && <section class="aux-section terminal-section mobile-view-active"><Terminals /></section>}</aside>
+      <AgentRail />
       {panelOpen.value && <><ResizeHandle direction="horizontal" className="panel-resize" onResize={(delta) => setPanelHeight(panelHeight.value - delta)} /><div class="bottom-panel"><div class="panel-header"><span>{t('panel.terminal')}</span><button class="tw-icon-button" type="button" onClick={() => (panelOpen.value = false)} title={t('panel.close')} aria-label={t('panel.close')}><X size={16} /></button></div><Terminals /></div></>}
     </div>
     <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => { const Glyph = item.icon; return <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'terminal') panelOpen.value = true; if (item.id === 'agent' || item.id === 'settings') panelOpen.value = false; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run'; if (item.id === 'settings') activeView.value = 'settings' }}><Glyph size={18} strokeWidth={1.7} aria-hidden="true" /><span>{t(item.label)}</span></button> })}</nav>
