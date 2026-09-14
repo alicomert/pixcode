@@ -7,6 +7,7 @@
 //
 // Matches: OSC "?" asks (10;? 11;? 4;i;?), DSR/CPR (5n 6n), DA (?c >c 0c),
 // window size reports (14t 18t 19t), DECRPM ($p), XTVERSION (>q), DECID (Z).
+// eslint-disable-next-line no-control-regex -- ANSI sequences are the point
 const REPLAY_QUERY = /\x1b\][0-9;]*\?(?:\x07|\x1b\\)|\x1b\[[0-9?;>]*[nc]|\x1b\[1[489]t|\x1b\[[0-9?;]*\$p|\x1b\[>q|\x1bZ/g
 
 export function sanitizeReplay(data) {
