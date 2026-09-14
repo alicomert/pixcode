@@ -39,9 +39,14 @@ function TerminalView({ id, onReady, modifiersRef }) {
     terminal.loadAddon(fit)
     terminal.open(host.current)
     const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal)
-    terminal.focus()
+    // Auto-focus only on fine-pointer devices; on touch, focusing at mount
+    // opens the keyboard before the user even asks to type.
+    if (!window.matchMedia?.('(pointer: coarse)').matches) terminal.focus()
+    // Focus on click (tap) only — never on pointerdown. On touch devices a
+    // pointerdown focus pops the software keyboard mid-gesture and kills the
+    // scroll drag; a scroll gesture preventDefaults its touchmoves, which
+    // suppresses the click, so drags never steal focus while taps still do.
     const focusTerminal = () => terminal.focus()
-    host.current.addEventListener('pointerdown', focusTerminal)
     host.current.addEventListener('click', focusTerminal)
     const stopResizeWatcher = watchTerminalResize(host.current, fit, terminal, (cols, rows) => {
       ws.request('pty', 'resize', { id, cols, rows }).catch(() => {})
@@ -109,7 +114,6 @@ function TerminalView({ id, onReady, modifiersRef }) {
     return () => {
       stopResizeWatcher()
       stopTouchScroll()
-      host.current?.removeEventListener('pointerdown', focusTerminal)
       host.current?.removeEventListener('click', focusTerminal)
       dataUnsubscribe()
       exitUnsubscribe()

@@ -85,8 +85,10 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     terminal.open(host.current)
     const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal)
     // The active agent tab should be immediately typeable after it is
-    // restored; xterm otherwise waits for the first explicit click.
-    terminal.focus()
+    // restored; xterm otherwise waits for the first explicit click. Skip the
+    // auto-focus on coarse-pointer devices so opening the tab does not pop
+    // the software keyboard before the user asks to type.
+    if (!window.matchMedia?.('(pointer: coarse)').matches) terminal.focus()
     terminalRef.current = terminal
     onReady?.({
       focus: () => terminal.focus(),
@@ -149,8 +151,10 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     const stopResizeWatcher = watchTerminalResize(host.current, fit, terminal, (cols, rows) => {
       ws.request('agent', 'resize', { sessionId: session.sessionId, cols, rows }).catch(() => {})
     })
+    // Tap-to-focus only: a scroll drag preventDefaults its touchmoves, which
+    // suppresses the click — pointerdown focus would pop the keyboard
+    // mid-gesture and break scrolling.
     const focusTerminal = () => terminal.focus()
-    host.current.addEventListener('pointerdown', focusTerminal)
     host.current.addEventListener('click', focusTerminal)
     const reconnect = () => {
       hydrationGeneration += 1
@@ -206,7 +210,6 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
       disposed = true
       stopResizeWatcher()
       stopTouchScroll()
-      host.current?.removeEventListener('pointerdown', focusTerminal)
       host.current?.removeEventListener('click', focusTerminal)
       window.removeEventListener('pixcode:ws-open', reconnect)
       window.removeEventListener('pixcode:keyboard', keyboardLayout)

@@ -3393,3 +3393,7 @@ vscode-button.auth-submit { width: 100%; }
 .settings-control-row .settings-range-control {
   flex-shrink: 0;
 }
+
+/* Terminal viewport never chains its scroll to the page — touch scroll is
+   driven by terminal-touch.js and must not leak into pull-to-refresh. */
+.xterm-viewport { overscroll-behavior: none; }
