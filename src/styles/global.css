@@ -200,15 +200,15 @@ button:disabled { cursor: wait; opacity: .55; }
 .topbar-actions .layout-button, .topbar-actions .icon-button { width: 28px; padding: 0; font-size: 15px; }
 .topbar-actions .logout-button { font-size: 11px; }
 .update-checker { position: relative; display: inline-flex; align-items: center; }
-.update-button { position: relative; display: inline-flex; width: 28px; height: 27px; align-items: center; justify-content: center; gap: 5px; padding: 0; border-color: transparent; background: transparent; color: #aaa; }
-.update-button:hover { border-color: #3c3c3c; background: #292929; color: #eee; }
+.update-button { position: relative; display: inline-flex; width: 28px; height: 27px; align-items: center; justify-content: center; gap: 5px; padding: 0; border-color: transparent; background: transparent; color: var(--ui-muted); }
+.update-button:hover { border-color: var(--ui-border); background: var(--ui-hover); color: var(--ui-text); }
 .update-button-available { color: #75d69b; }
 .update-button:disabled { cursor: wait; }
-.update-dot { position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: #75d69b; box-shadow: 0 0 0 2px #1f1f1f; }
+.update-dot { position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: #75d69b; box-shadow: 0 0 0 2px var(--ui-editor); }
 .update-spin { animation: update-spin 1s linear infinite; }
 @keyframes update-spin { to { transform: rotate(360deg); } }
 .update-checker-detailed { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 7px; }
-.update-checker-detailed .update-button { width: auto; min-width: 150px; justify-content: flex-start; padding: 0 9px; border-color: #3c3c3c; background: #292929; }
+.update-checker-detailed .update-button { width: auto; min-width: 150px; justify-content: flex-start; padding: 0 9px; border-color: var(--ui-border); background: var(--ui-raised); }
 .update-checker-detailed .update-button-available { border-color: rgba(117, 214, 155, .5); background: rgba(117, 214, 155, .1); }
 .update-checker-compact .update-button { width: auto; min-width: 62px; padding: 0 6px; }
 .update-compact-label { font: 10px var(--mono); letter-spacing: .01em; }
@@ -251,11 +251,11 @@ button:disabled { cursor: wait; opacity: .55; }
 .terminal-section { flex: .88; }
 .resize-handle { z-index: 4; background: transparent; }
 .resize-handle.vertical { grid-row: 1; width: 5px; cursor: col-resize; }
-.resize-handle.vertical:hover, .resize-handle.vertical:active { background: #3b75ad; }
+.resize-handle.vertical:hover, .resize-handle.vertical:active { background: var(--ui-accent-strong); }
 .sidebar-resize { grid-column: 3; }
 .agent-resize { grid-column: 5; }
-.resize-handle.horizontal { grid-column: 2 / 7; grid-row: 2; width: 100%; height: 5px; cursor: row-resize; transform: translateY(-2px); }
-.resize-handle.horizontal:hover { background: #3b75ad; }
+.resize-handle.horizontal { grid-column: 2 / 8; grid-row: 2; width: 100%; height: 5px; cursor: row-resize; transform: translateY(-2px); }
+.resize-handle.horizontal:hover { background: var(--ui-accent-strong); }
 .bottom-panel { grid-column: 2 / 7; grid-row: 2; display: flex; min-height: 0; flex-direction: column; border-top: 1px solid #2b2b2b; background: #181818; }
 .panel-header { display: flex; align-items: center; justify-content: space-between; height: 34px; padding: 0 11px; border-bottom: 1px solid #2b2b2b; color: #c5c5c5; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .panel-header button { border: 0; padding: 0 5px; background: transparent; color: #999; font-size: 18px; }
@@ -2095,11 +2095,17 @@ body,
   display: flex;
   min-width: 0;
   min-height: 58px;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--ui-border);
+}
+
+.settings-control-row > :last-child {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .settings-control-row-last {
@@ -2108,6 +2114,7 @@ body,
 
 .settings-control-copy {
   display: flex;
+  flex: 1 1 150px;
   min-width: 0;
   align-items: center;
   gap: 10px;
@@ -2116,26 +2123,23 @@ body,
 
 .settings-control-copy > span {
   display: flex;
+  flex: 1;
   min-width: 0;
   flex-direction: column;
   gap: 3px;
 }
 
 .settings-control-copy strong {
-  overflow: hidden;
   color: var(--ui-text);
   font-size: 11px;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
 }
 
 .settings-control-copy small {
-  overflow: hidden;
   color: var(--ui-muted);
   font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .settings-control-row select {
@@ -3375,3 +3379,17 @@ vscode-button.auth-submit { width: 100%; }
 
 /* Keep the vce scrollable filling the sidebar column. */
 .file-tree { display: flex; flex-direction: column; min-height: 0; }
+
+/* vce scrollable bounds for sidebar views. */
+.settings-scroll, .search-results { flex: 1; min-height: 0; }
+.search-results { display: block; }
+
+.settings-control-row vscode-single-select {
+  width: min(150px, 46%);
+  min-width: 96px;
+}
+
+.settings-control-row .settings-segmented,
+.settings-control-row .settings-range-control {
+  flex-shrink: 0;
+}

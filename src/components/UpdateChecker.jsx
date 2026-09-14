@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { Download, FileCheck, RefreshCw, X } from '../lib/icons.jsx'
+import { Download, FileCheck, RefreshCw } from '../lib/icons.jsx'
 import { t } from '../lib/i18n.js'
 import { checkForUpdate, CURRENT_VERSION, RELEASE_URL } from '../lib/updater.js'
 
@@ -70,7 +70,7 @@ export function UpdateChecker({ detailed = false }) {
     {detailed && state.status === 'error' && <span class="update-error" title={state.error}>{t('update.unavailable')}</span>}
     {open && release?.updateAvailable && <div class="update-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
       <section class="update-modal" role="dialog" aria-modal="true" aria-labelledby="pixcode-update-title">
-        <button type="button" class="update-modal-close" onClick={() => setOpen(false)} title={t('update.dismiss')} aria-label={t('update.dismiss')}><X size={16} /></button>
+        <vscode-toolbar-button class="update-modal-close" icon="close" onClick={() => setOpen(false)} title={t('update.dismiss')} aria-label={t('update.dismiss')}></vscode-toolbar-button>
         <span class="update-eyebrow">{t('update.eyebrow')}</span>
         <h2 id="pixcode-update-title">{t('update.available', { version: release.version })}</h2>
         {shortenNotes(release.notes) && <p>{shortenNotes(release.notes)}</p>}

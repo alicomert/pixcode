@@ -182,7 +182,7 @@ function SearchView() {
     window.clearTimeout(debounceRef.current)
     debounceRef.current = window.setTimeout(() => search(value), 180)
   }
-  return <div class="search-view"><div class="sidebar-heading"><span>{t('view.search')}</span><span class="sidebar-heading-actions">{results.length || ''}</span></div><form onSubmit={search}><Search class="search-input-icon" size={15} /><vscode-textfield ref={inputRef} value={query} onInput={changeQuery} placeholder={t('search.placeholder')} autofocus /><vscode-toolbar-button icon="search" type="submit" aria-label={t('view.search')}></vscode-toolbar-button></form><div class="search-results">{busy && <span class="muted">{t('tree.loading')}</span>}{error && <span class="error-text search-error">{error}</span>}{results.map((result) => <button key={result.path + (result.line || '')} type="button" class={['search-result', result.reason === 'content' ? 'content-match' : ''].filter(Boolean).join(' ')} disabled={result.type === 'dir'} onClick={() => { if (result.type !== 'dir') window.dispatchEvent(new CustomEvent('pixcode:open-file', { detail: result.path })) }}><span class="search-result-path">{result.path}</span>{result.line && <span class="search-result-meta">:{result.line} {result.preview || ''}</span>}</button>)}{!busy && query && !results.length && !error && <span class="muted">{t('search.none')}</span>}</div></div>
+  return <div class="search-view"><div class="sidebar-heading"><span>{t('view.search')}</span><span class="sidebar-heading-actions">{results.length || ''}</span></div><form onSubmit={search}><Search class="search-input-icon" size={15} /><vscode-textfield ref={inputRef} value={query} onInput={changeQuery} placeholder={t('search.placeholder')} autofocus /><vscode-toolbar-button icon="search" type="submit" aria-label={t('view.search')}></vscode-toolbar-button></form><vscode-scrollable class="search-results">{busy && <span class="muted">{t('tree.loading')}</span>}{error && <span class="error-text search-error">{error}</span>}{results.map((result) => <button key={result.path + (result.line || '')} type="button" class={['search-result', result.reason === 'content' ? 'content-match' : ''].filter(Boolean).join(' ')} disabled={result.type === 'dir'} onClick={() => { if (result.type !== 'dir') window.dispatchEvent(new CustomEvent('pixcode:open-file', { detail: result.path })) }}><span class="search-result-path">{result.path}</span>{result.line && <span class="search-result-meta">:{result.line} {result.preview || ''}</span>}</button>)}{!busy && query && !results.length && !error && <span class="muted">{t('search.none')}</span>}</vscode-scrollable></div>
 }
 
 function RunView() {
@@ -213,7 +213,7 @@ function SettingsView() {
 
   return <div class="info-view settings-view">
     <div class="sidebar-heading"><span>{t('view.settings')}</span><Settings size={14} /></div>
-    <div class="settings-scroll">
+    <vscode-scrollable class="settings-scroll">
       <section class="settings-section">
         <div class="settings-section-heading"><strong>{t('settings.appearance')}</strong><small>{t('settings.appearanceHint')}</small></div>
         <div class="settings-card">
@@ -257,7 +257,7 @@ function SettingsView() {
         <div class="settings-section-heading"><strong>{t('update.title')}</strong><small>{t('update.description')}</small></div>
         <div class="settings-card settings-update-card"><UpdateChecker detailed /></div>
       </section>
-    </div>
+    </vscode-scrollable>
   </div>
 }
 
