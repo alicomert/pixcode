@@ -167,7 +167,7 @@ export function FileTree() {
         <vscode-toolbar-button icon="refresh" title={t('tree.refresh')} aria-label={t('tree.refresh')} onClick={refresh}></vscode-toolbar-button>
       </div>
       {error && <div class="tree-error error-text">{error}</div>}
-      {!error && !root && <div class="tree muted">{t('tree.loading')}</div>}
+      {!error && !root && <div class="tree-loading"><vscode-progress-ring /></div>}
       {!error && root?.length === 0 && <div class="tree muted">{t('tree.empty')}</div>}
       {!error && root?.length > 0 && <vscode-scrollable class="tree-scroller"><div class="tree">{root.map((entry) => <Node key={entry.name} path={entry.name} {...entry} refreshToken={refreshToken} onError={setError} onChanged={handleNodeAction} />)}</div></vscode-scrollable>}
       {dialog && <div class="modal-backdrop" onClick={() => setDialog(null)}>

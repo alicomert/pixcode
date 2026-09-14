@@ -214,8 +214,8 @@ function SettingsView() {
   return <div class="info-view settings-view">
     <div class="sidebar-heading"><span>{t('view.settings')}</span><Settings size={14} /></div>
     <vscode-scrollable class="settings-scroll">
-      <section class="settings-section">
-        <div class="settings-section-heading"><strong>{t('settings.appearance')}</strong><small>{t('settings.appearanceHint')}</small></div>
+      <vscode-collapsible class="settings-section" heading={t('settings.appearance')} open>
+        <p class="settings-section-hint">{t('settings.appearanceHint')}</p>
         <div class="settings-card">
           <div class="settings-control-row">
             <div class="settings-control-copy"><Sun size={16} /><span><strong>{t('settings.theme')}</strong><small>{t('settings.themeHint')}</small></span></div>
@@ -235,9 +235,9 @@ function SettingsView() {
             </VscSelect>
           </div>
         </div>
-      </section>
-      <section class="settings-section">
-        <div class="settings-section-heading"><strong>{t('settings.workspace')}</strong><small>{t('settings.workspaceHint')}</small></div>
+      </vscode-collapsible>
+      <vscode-collapsible class="settings-section" heading={t('settings.workspace')} open>
+        <p class="settings-section-hint">{t('settings.workspaceHint')}</p>
         <div class="settings-card">
           <div class="settings-control-row">
             <div class="settings-control-copy"><PanelLeft size={16} /><span><strong>{t('settings.sidebar')}</strong><small>{sidebarWidth.value ? t('settings.visible') : t('settings.hidden')}</small></span></div>
@@ -252,11 +252,11 @@ function SettingsView() {
             <vscode-button secondary onClick={resetLayout}>{t('settings.reset')}</vscode-button>
           </div>
         </div>
-      </section>
-      <section class="settings-section">
-        <div class="settings-section-heading"><strong>{t('update.title')}</strong><small>{t('update.description')}</small></div>
+      </vscode-collapsible>
+      <vscode-collapsible class="settings-section" heading={t('update.title')} open>
+        <p class="settings-section-hint">{t('update.description')}</p>
         <div class="settings-card settings-update-card"><UpdateChecker detailed /></div>
-      </section>
+      </vscode-collapsible>
     </vscode-scrollable>
   </div>
 }

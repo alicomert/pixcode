@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { Download, FileCheck, RefreshCw } from '../lib/icons.jsx'
+import { Download, FileCheck } from '../lib/icons.jsx'
 import { t } from '../lib/i18n.js'
 import { checkForUpdate, CURRENT_VERSION, RELEASE_URL } from '../lib/updater.js'
 
@@ -62,7 +62,7 @@ export function UpdateChecker({ detailed = false }) {
       title={state.status === 'error' ? t('update.error') : label}
       aria-label={label}
     >
-      {state.status === 'checking' ? <RefreshCw size={15} class="update-spin" /> : state.status === 'current' ? <FileCheck size={15} /> : <Download size={15} />}
+      {state.status === 'checking' ? <vscode-progress-ring class="update-ring" /> : state.status === 'current' ? <FileCheck size={15} /> : <Download size={15} />}
       {detailed && <span>{label}</span>}
       {!detailed && <span class="update-compact-label">{compactVersion}</span>}
       {state.status === 'available' && <span class="update-dot" aria-hidden="true" />}

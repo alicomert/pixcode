@@ -3397,3 +3397,10 @@ vscode-button.auth-submit { width: 100%; }
 /* Terminal viewport never chains its scroll to the page — touch scroll is
    driven by terminal-touch.js and must not leak into pull-to-refresh. */
 .xterm-viewport { overscroll-behavior: none; }
+
+/* vce collapsible settings sections + progress rings. */
+.settings-section { margin-bottom: 10px; }
+.settings-section::part(header) { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ui-muted); }
+.settings-section-hint { margin: 2px 4px 8px; color: var(--ui-muted); font-size: 10px; line-height: 1.4; }
+.tree-loading, .agent-modal-loading { display: flex; flex: 1; align-items: center; justify-content: center; padding: 20px; }
+.update-ring { width: 14px; height: 14px; }
