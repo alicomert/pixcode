@@ -63,6 +63,44 @@ function processRunning(pid) {
  try { process.kill(pid, 0); return true } catch { return false }
 }
 
+// When a systemd unit already supervises the daemon, start/stop must go through
+// systemctl. Killing the pidfile pid directly races with Restart=on-failure,
+// and spawning a detached child alongside the unit leaves two processes
+// fighting over the port — the loser lingers as an orphan.
+function systemdUnit() {
+  if (process.platform !== 'linux') return null
+  try { execFileSync('systemctl', ['--version'], { stdio: 'ignore' }) } catch { return null }
+  if (fs.existsSync(LINUX_SYSTEM_UNIT)) return []
+  if (fs.existsSync(LINUX_UNIT)) return ['--user']
+  return null
+}
+
+async function waitForListening(port, timeout = 5_000) {
+  const deadline = Date.now() + timeout
+  let status = await daemonStatus({ port })
+  while (!status.listening && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    status = await daemonStatus({ port })
+  }
+  return status
+}
+
+// Kills pixcode daemon processes still bound to the port after the supervised
+// stop — earlier builds could leave a detached child behind that kept the port
+// and made every subsequent restart report "port already in use".
+function reapOrphanedListeners(port) {
+  if (process.platform !== 'linux') return
+  try {
+    const out = execFileSync('ss', ['-tlnp', `sport = :${port}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    const pids = new Set([...out.matchAll(/pid=(\d+)/g)].map((match) => Number(match[1])))
+    for (const pid of pids) {
+      if (pid !== process.pid && pidMatchesDaemon(pid)) {
+        try { process.kill(pid, 'SIGTERM') } catch { void 0 }
+      }
+    }
+  } catch { void 0 }
+}
+
 function pidMatchesDaemon(pid) {
   if (!processRunning(pid)) return false
   if (process.platform === 'win32') return true
@@ -162,6 +200,15 @@ export async function startDaemon({ port = config.port, workspace } = {}) {
   if (current.running) return { ...current, started: false, message: 'daemon already running' }
   if (current.listening) return { ...current, started: false, message: `port ${normalizedPort} is already in use` }
 
+  const unit = systemdUnit()
+  if (unit) {
+    try {
+      execFileSync('systemctl', [...unit, 'start', SERVICE_NAME], { stdio: 'ignore' })
+      const status = await waitForListening(normalizedPort)
+      return { ...status, started: status.running || status.listening, message: status.listening ? 'daemon started' : 'daemon is starting; inspect the log if it does not come online' }
+    } catch { /* fall through to the detached spawn when systemctl fails */ }
+  }
+
   ensureDaemonDir()
   const log = fs.openSync(LOG_FILE, 'a')
   const child = spawn(process.execPath, ['--enable-source-maps', ...shellArgs({ port: normalizedPort, workspace })], {
@@ -186,6 +233,21 @@ export async function startDaemon({ port = config.port, workspace } = {}) {
 }
 
 export async function stopDaemon() {
+  const unit = systemdUnit()
+  if (unit) {
+    try {
+      execFileSync('systemctl', [...unit, 'stop', SERVICE_NAME], { stdio: 'ignore' })
+      const deadline = Date.now() + 4_000
+      let pid = readPid()
+      while (pid && processRunning(pid) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        pid = readPid()
+      }
+      reapOrphanedListeners(Number(readState().port) || config.port)
+      removeState()
+      return { stopped: true }
+    } catch { /* fall through to the direct kill when systemctl fails */ }
+  }
   const pid = readPid()
   if (!pid || !processRunning(pid)) { removeState(pid); return { stopped: false, message: 'daemon is not running' } }
   try {
@@ -204,6 +266,7 @@ export async function stopDaemon() {
       else process.kill(pid, 'SIGKILL')
     } catch { void 0 }
   }
+  reapOrphanedListeners(Number(readState().port) || config.port)
   removeState(pid)
   return { stopped: true, pid }
 }
