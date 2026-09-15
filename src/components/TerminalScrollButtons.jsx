@@ -37,9 +37,14 @@ export function TerminalScrollButtons({ hostRef, terminalRef }) {
     repeat.current.interval = 0
   }
 
+  // Taps must never reach the host's click-to-focus listener or move focus
+  // onto the button — the keyboard stays in whatever state the user left it.
+  const swallow = (event) => { event.preventDefault(); event.stopPropagation() }
   const stop = (event) => event.stopPropagation()
 
-  return <div class="terminal-scroll-buttons" onTouchStart={stop} onTouchMove={stop} onTouchEnd={stop}>
+  return <div class="terminal-scroll-buttons"
+    onTouchStart={stop} onTouchMove={stop} onTouchEnd={stop}
+    onClick={swallow} onPointerUp={stop} onAuxClick={swallow}>
     <button type="button" class="terminal-scroll-btn" aria-label={t('terminal.scrollUp')}
       onPointerDown={press(-1)} onPointerUp={release} onPointerLeave={release} onPointerCancel={release} onContextMenu={(event) => event.preventDefault()}>
       <ChevronUp size={18} />
