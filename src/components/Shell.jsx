@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Bot, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { ArrowLeft, ArrowRight, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
