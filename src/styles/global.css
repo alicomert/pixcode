@@ -3370,12 +3370,17 @@ vscode-scrollable {
 .settings-view vscode-single-select { width: 100%; }
 vscode-button.auth-submit { width: 100%; }
 
-/* Scrollable hosts are block containers — restore full-width rows inside. */
+/* Scrollable hosts are block containers — restore full-width rows inside.
+   Children are slotted into the shadow scroll wrapper, so the host's own
+   flex gap never reaches them; spacing has to live on the items. */
 .agent-modal-list .agent-modal-item,
 .agent-history-list .agent-history-item {
   display: flex;
   width: 100%;
+  margin-bottom: 3px;
 }
+.agent-modal-list .agent-modal-item:last-child,
+.agent-history-list .agent-history-item:last-child { margin-bottom: 0; }
 
 /* Keep the vce scrollable filling the sidebar column. */
 .file-tree { display: flex; flex-direction: column; min-height: 0; }
