@@ -3452,30 +3452,75 @@ vscode-button.auth-submit { width: 100%; }
   color: #fff;
 }
 
-/* Account management — admin-only settings section. */
-.user-manager { display: flex; flex-direction: column; gap: 2px; }
-.user-manager-error { margin: 0 0 8px; color: var(--ui-error, #f48771); font-size: 11px; }
-.user-row { display: flex; flex-direction: column; }
-.user-row-head { display: flex; width: 100%; align-items: center; gap: 9px; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ui-text); text-align: left; cursor: pointer; }
-.user-row-head:hover:not(:disabled) { background: var(--ui-hover); }
-.user-row-head:disabled { cursor: default; }
-.user-row-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 6px; background: var(--ui-surface); color: var(--ui-muted); }
-.user-row-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
-.user-row-copy strong { font-size: 11px; font-weight: 500; }
-.user-row-copy small { color: var(--ui-muted); font-size: 10px; }
-.user-editor { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 8px; padding: 8px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-editor); }
-.user-editor .settings-control-row { padding: 4px 0; border-bottom: 0; }
-.user-editor vscode-textfield { width: min(170px, 100%); }
-.user-editor-actions { display: flex; justify-content: flex-end; gap: 6px; padding-top: 6px; }
-.user-toggle { display: flex; align-items: center; gap: 6px; color: var(--ui-text); font-size: 11px; }
+/* Account management — centered modal with real room for the editor. */
+.user-modal-backdrop { z-index: 40; }
+.user-modal {
+  display: flex; width: min(560px, calc(100vw - 32px)); max-height: min(640px, calc(100vh - 64px));
+  flex-direction: column; border: 1px solid var(--ui-border); border-radius: 10px;
+  background: var(--ui-surface); box-shadow: var(--ui-shadow-3), 0 0 0 1px color-mix(in srgb, var(--ui-text) 6%, transparent);
+}
+.user-modal-heading {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--ui-border); color: var(--ui-text); font-size: 13px; letter-spacing: -.01em;
+}
+.user-modal-heading-actions { display: flex; align-items: center; gap: 6px; }
+.user-modal-error { margin: 10px 14px 0; color: var(--ui-error, #f48771); font-size: 11px; }
+.user-modal-list { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; }
+
+/* user cards */
+.user-card {
+  width: 100%; margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--ui-border);
+  border-radius: 8px; background: var(--ui-editor);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.user-card:hover { border-color: var(--ui-border-strong, var(--ui-border)); }
+.user-card.editing { border-color: var(--ui-accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-accent) 40%, transparent); }
+.user-card-head { display: flex; align-items: center; gap: 10px; }
+.user-avatar {
+  display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center;
+  border-radius: 50%; background: var(--ui-surface); color: var(--ui-muted); border: 1px solid var(--ui-border);
+}
+.user-avatar.admin { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); border-color: color-mix(in srgb, var(--ui-accent) 40%, transparent); color: var(--ui-accent); }
+.user-card-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.user-card-copy strong { font-size: 12px; font-weight: 600; }
+.user-card-copy small { color: var(--ui-muted); font-size: 10px; }
+.user-badge-disabled { opacity: .8; }
+
+/* inline editor inside the expanded card */
+.user-card-body { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ui-border); }
+.user-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.user-edit-block { display: flex; flex-direction: column; gap: 6px; }
+.user-edit-block vscode-textfield, .user-edit-block vscode-single-select { width: 100%; }
+.user-edit-label { color: var(--ui-muted); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.user-edit-label-row { display: flex; align-items: center; justify-content: space-between; }
+.user-toggle { display: flex; align-items: center; gap: 6px; color: var(--ui-muted); font-size: 11px; cursor: pointer; }
 .user-toggle input { accent-color: var(--ui-accent); }
-.user-checklist { display: flex; max-height: 140px; flex-direction: column; gap: 2px; margin: 0 0 8px; overflow-y: auto; padding: 6px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-surface); }
-.user-check { display: flex; align-items: center; gap: 7px; padding: 3px 4px; border-radius: 4px; color: var(--ui-text); font-size: 11px; cursor: pointer; }
+.user-checklist {
+  display: flex; max-height: 150px; flex-direction: column; gap: 2px; overflow-y: auto;
+  padding: 6px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-surface);
+}
+.user-checklist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px 10px; }
+.user-check { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 5px; color: var(--ui-text); font-size: 11px; cursor: pointer; }
 .user-check:hover { background: var(--ui-hover); }
 .user-check input { accent-color: var(--ui-accent); }
 .user-checklist small { color: var(--ui-muted); font-size: 10px; }
-.user-create { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ui-border); }
-.user-create-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--ui-text); font-size: 11px; }
-.user-create-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.user-create-fields vscode-textfield, .user-create-fields vscode-single-select { width: 100%; }
-.user-create-fields vscode-button { grid-column: 1 / -1; }
+.user-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.user-card-actions-right { display: flex; gap: 6px; }
+.user-danger-toggle { color: var(--ui-error, #f48771); }
+
+/* create form card */
+.user-create-card {
+  margin: 12px 14px 0; padding: 12px; border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, var(--ui-border));
+  border-radius: 8px; background: var(--ui-editor);
+}
+.user-create-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--ui-text); font-size: 12px; }
+.user-create-grid { display: grid; grid-template-columns: 1fr 1fr 130px; gap: 10px; margin-bottom: 10px; }
+.user-field { display: flex; flex-direction: column; gap: 5px; }
+.user-field > span { color: var(--ui-muted); font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.user-field vscode-textfield, .user-field vscode-single-select { width: 100%; }
+
+@media (max-width: 620px) {
+  .user-create-grid, .user-edit-grid { grid-template-columns: 1fr; }
+}
+
+.user-card-actions-end { justify-content: flex-end; }

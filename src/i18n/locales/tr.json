@@ -226,5 +226,9 @@
   "users.noProjects": "Henüz proje yok",
   "users.resetPassword": "Parola sıfırla",
   "users.resetPasswordHint": "Boş bırakırsan mevcut parola kalır.",
-  "users.newPassword": "Yeni parola"
+  "users.newPassword": "Yeni parola",
+  "users.manage": "Yönet",
+  "users.count": "{count} ek hesap",
+  "users.onlyYou": "Sadece senin hesabın",
+  "users.owner": "Sahip"
 }

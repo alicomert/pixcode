@@ -226,5 +226,9 @@
   "users.noProjects": "No projects yet",
   "users.resetPassword": "Reset password",
   "users.resetPasswordHint": "Leave empty to keep the current password.",
-  "users.newPassword": "New password"
+  "users.newPassword": "New password",
+  "users.manage": "Manage",
+  "users.count": "{count} additional account(s)",
+  "users.onlyYou": "Only your account",
+  "users.owner": "Owner"
 }
