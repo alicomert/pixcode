@@ -5,10 +5,11 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { terminalFontSize, theme, workspace } from '../state/app.js'
+import { terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
+import { TerminalScrollButtons } from './TerminalScrollButtons.jsx'
 import { sanitizeReplay } from '../lib/terminal-replay.js'
 
 function TerminalView({ id, onReady, modifiersRef }) {
@@ -38,7 +39,7 @@ function TerminalView({ id, onReady, modifiersRef }) {
     fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
-    const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal)
+    const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal, () => terminalScrollSpeed.value)
     // Auto-focus only on fine-pointer devices; on touch, focusing at mount
     // opens the keyboard before the user even asks to type.
     if (!window.matchMedia?.('(pointer: coarse)').matches) terminal.focus()
@@ -151,7 +152,7 @@ function TerminalView({ id, onReady, modifiersRef }) {
     }
   }, [terminalFontSize.value, id])
 
-  return <div class="terminal-host" ref={host} />
+  return <div class="terminal-host" ref={host}><TerminalScrollButtons hostRef={host} terminalRef={terminalRef} /></div>
 }
 
 const functionKeys = [

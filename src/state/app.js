@@ -30,6 +30,7 @@ export const sidebarWidth = signal(Number(localStorage.getItem('pixcode.sidebarW
 export const agentWidth = signal(Number(localStorage.getItem('pixcode.agentWidth') || 368))
 export const panelHeight = signal(Number(localStorage.getItem('pixcode.panelHeight') || 260))
 export const terminalFontSize = signal(Math.min(18, Math.max(11, Number(localStorage.getItem('pixcode.terminalFontSize') || 13.5))))
+export const terminalScrollSpeed = signal(Math.min(3, Math.max(0.25, Number(localStorage.getItem('pixcode.terminalScrollSpeed') || 1))))
 
 function workspaceKey(record = workspace.value) {
   return String(record?.id || record?.path || 'default')
@@ -112,6 +113,12 @@ export function setTerminalFontSize(value) {
   const numeric = Math.min(18, Math.max(11, Number(value) || 13.5))
   terminalFontSize.value = Math.round(numeric * 2) / 2
   localStorage.setItem('pixcode.terminalFontSize', String(terminalFontSize.value))
+}
+
+export function setTerminalScrollSpeed(value) {
+  const numeric = Math.min(3, Math.max(0.25, Number(value) || 1))
+  terminalScrollSpeed.value = Math.round(numeric * 4) / 4
+  localStorage.setItem('pixcode.terminalScrollSpeed', String(terminalScrollSpeed.value))
 }
 
 setTheme(theme.value)

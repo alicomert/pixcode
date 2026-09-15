@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, Blocks, Bot, Circle, Code2, Download, Files, Git
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
-import { activeView, agentRailOpen, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTheme, sidebarWidth, terminalFontSize, theme, workspace } from '../state/app.js'
+import { activeView, agentRailOpen, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTerminalScrollSpeed, setTheme, sidebarWidth, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { VscSelect } from './vsc.jsx'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
@@ -227,6 +227,10 @@ function SettingsView() {
           <div class="settings-control-row">
             <div class="settings-control-copy"><TerminalIcon size={16} /><span><strong>{t('settings.terminalFontSize')}</strong><small>{t('settings.terminalFontSizeHint')}</small></span></div>
             <div class="settings-range-control"><input type="range" min="11" max="18" step="0.5" value={terminalFontSize.value} onInput={(event) => setTerminalFontSize(event.currentTarget.value)} aria-label={t('settings.terminalFontSize')} /><output>{terminalFontSize.value}px</output></div>
+          </div>
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><ChevronsUpDown size={16} /><span><strong>{t('settings.scrollSpeed')}</strong><small>{t('settings.scrollSpeedHint')}</small></span></div>
+            <div class="settings-range-control"><input type="range" min="0.25" max="3" step="0.25" value={terminalScrollSpeed.value} onInput={(event) => setTerminalScrollSpeed(event.currentTarget.value)} aria-label={t('settings.scrollSpeed')} /><output>×{terminalScrollSpeed.value}</output></div>
           </div>
           <div class="settings-control-row">
             <div class="settings-control-copy"><Globe2 size={16} /><span><strong>{t('lang.label')}</strong><small>{t('settings.languageHint')}</small></span></div>

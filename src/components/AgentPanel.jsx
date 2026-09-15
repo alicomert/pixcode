@@ -5,10 +5,11 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { activeAgent, agentSessions, panelOpen, terminalFontSize, theme, workspace } from '../state/app.js'
+import { activeAgent, agentSessions, panelOpen, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
+import { TerminalScrollButtons } from './TerminalScrollButtons.jsx'
 import { sanitizeReplay } from '../lib/terminal-replay.js'
 import { TerminalAccessory } from './Terminals.jsx'
 
@@ -83,7 +84,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     fitRef.current = fit
     terminal.loadAddon(fit)
     terminal.open(host.current)
-    const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal)
+    const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal, () => terminalScrollSpeed.value)
     // The active agent tab should be immediately typeable after it is
     // restored; xterm otherwise waits for the first explicit click. Skip the
     // auto-focus on coarse-pointer devices so opening the tab does not pop
@@ -248,7 +249,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     terminalRef.current.options.disableStdin = session?.status !== 'running'
     terminalRef.current.options.cursorBlink = session?.status === 'running'
   }, [session?.status])
-  return <div class="agent-terminal-host" ref={host} />
+  return <div class="agent-terminal-host" ref={host}><TerminalScrollButtons hostRef={host} terminalRef={terminalRef} /></div>
 }
 
 export function AgentPanel() {

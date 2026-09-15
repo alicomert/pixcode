@@ -3404,3 +3404,45 @@ vscode-button.auth-submit { width: 100%; }
 .settings-section-hint { margin: 2px 4px 8px; color: var(--ui-muted); font-size: 10px; line-height: 1.4; }
 .tree-loading, .agent-modal-loading { display: flex; flex: 1; align-items: center; justify-content: center; padding: 20px; }
 .update-ring { width: 14px; height: 14px; }
+
+/* Edge scroll arrows for touch terminals (PC-wheel-like line scrolling). */
+.terminal-host, .agent-terminal-host { position: relative; }
+.terminal-scroll-buttons {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 6;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  transform: translateY(-50%);
+}
+
+@media (pointer: coarse) {
+  .terminal-scroll-buttons { display: flex; }
+}
+
+.terminal-scroll-btn {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ui-raised) 82%, transparent);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-1, 0 2px 8px rgba(0,0,0,.25));
+  backdrop-filter: blur(4px);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.terminal-scroll-btn:active {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: #fff;
+}

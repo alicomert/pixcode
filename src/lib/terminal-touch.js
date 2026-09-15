@@ -15,7 +15,27 @@ const MOMENTUM_DECAY = 0.94
 const MOMENTUM_MIN_PX = 0.4
 const FRAME_MS = 16.7
 
-export function attachTerminalTouchScroll(host, terminal) {
+const terminalViewport = (host) => host?.querySelector('.xterm-viewport')
+const terminalXterm = (host) => host?.querySelector('.xterm')
+const lineHeightPx = (terminal) => Math.max(8, (terminal?.options?.fontSize || 13) * (terminal?.options?.lineHeight || 1.25))
+const inMouseMode = (terminal) => terminal?.modes?.mouseTrackingMode !== 'none'
+const inAltBuffer = (terminal) => terminal?.buffer?.active?.type === 'alternate'
+
+// Button-driven scroll shared by the edge arrow strip and keyboard helpers.
+// Lines are whole terminal rows; positive scrolls down through scrollback.
+export function scrollTerminalLines(host, terminal, lines) {
+  const px = lines * lineHeightPx(terminal)
+  if (inMouseMode(terminal)) {
+    terminalXterm(host)?.dispatchEvent(new WheelEvent('wheel', { deltaY: px, deltaMode: 0, bubbles: true, cancelable: true }))
+  } else if (inAltBuffer(terminal)) {
+    const seq = lines > 0 ? '\x1b[B' : '\x1b[A'
+    for (let i = 0; i < Math.abs(Math.round(lines)); i++) terminal?.input(seq, false)
+  } else {
+    terminalViewport(host)?.scrollBy({ top: px, behavior: 'smooth' })
+  }
+}
+
+export function attachTerminalTouchScroll(host, terminal, getSpeed = () => 1) {
   if (!host) return () => {}
 
   let startY = 0
@@ -26,14 +46,11 @@ export function attachTerminalTouchScroll(host, terminal) {
   let scrolling = false
   let momentumFrame = 0
 
-  const viewport = () => host.querySelector('.xterm-viewport')
-  const xtermEl = () => host.querySelector('.xterm')
   // Mouse-reporting apps get real wheel events; other alt-buffer TUIs get
   // arrow keys — xterm only listens to wheel while mouse mode is active, so
   // a wheel event on a plain alt-buffer app would go nowhere.
-  const viaMouse = () => terminal?.modes?.mouseTrackingMode !== 'none'
-  const viaArrows = () => !viaMouse() && terminal?.buffer?.active?.type === 'alternate'
-  const lineHeightPx = () => Math.max(8, (terminal?.options?.fontSize || 13) * (terminal?.options?.lineHeight || 1.25))
+  const viaMouse = () => inMouseMode(terminal)
+  const viaArrows = () => !inMouseMode(terminal) && inAltBuffer(terminal)
 
   const cancelMomentum = () => {
     if (momentumFrame) cancelAnimationFrame(momentumFrame)
@@ -41,7 +58,7 @@ export function attachTerminalTouchScroll(host, terminal) {
   }
 
   const wheel = (deltaY) => {
-    xtermEl()?.dispatchEvent(new WheelEvent('wheel', { deltaY, deltaMode: 0, bubbles: true, cancelable: true }))
+    terminalXterm(host)?.dispatchEvent(new WheelEvent('wheel', { deltaY, deltaMode: 0, bubbles: true, cancelable: true }))
   }
 
   // Carry of partial-line drags so a slow finger still accumulates whole
@@ -49,7 +66,7 @@ export function attachTerminalTouchScroll(host, terminal) {
   let arrowRemainder = 0
   const arrows = (delta) => {
     arrowRemainder += delta
-    const unit = lineHeightPx()
+    const unit = lineHeightPx(terminal)
     while (Math.abs(arrowRemainder) >= unit) {
       // delta > 0 means the finger moved up, i.e. content scrolls down.
       // wasUserInput=false keeps scrollOnUserInput from snapping back to the
@@ -62,12 +79,14 @@ export function attachTerminalTouchScroll(host, terminal) {
   const apply = (delta) => {
     if (viaMouse()) wheel(delta)
     else if (viaArrows()) arrows(delta)
-    else { const vp = viewport(); if (vp) vp.scrollTop += delta }
+    else { const vp = terminalViewport(host); if (vp) vp.scrollTop += delta }
   }
 
   const onStart = (event) => {
     cancelMomentum()
-    if (event.touches.length !== 1) { target = null; return }
+    // The edge scroll strip owns its own taps; a touch starting there must
+    // not be treated as the beginning of a content drag.
+    if (event.touches.length !== 1 || event.target?.closest?.('.terminal-scroll-buttons')) { target = null; return }
     target = event.target
     startY = lastY = event.touches[0].pageY
     lastT = performance.now()
@@ -94,7 +113,7 @@ export function attachTerminalTouchScroll(host, terminal) {
     // Exponential moving average of recent drag speed feeds the release
     // momentum; a slow careful drag barely moves after the finger lifts.
     if (dt > 0) velocity = velocity * 0.6 + (delta / dt) * 0.4
-    apply(delta)
+    apply(delta * (Number(getSpeed()) || 1))
   }
 
   const momentum = () => {
@@ -103,7 +122,7 @@ export function attachTerminalTouchScroll(host, terminal) {
     velocity *= MOMENTUM_DECAY
     const step = velocity * FRAME_MS
     if (Math.abs(step) < MOMENTUM_MIN_PX) { target = null; return }
-    apply(step)
+    apply(step * (Number(getSpeed()) || 1))
     momentumFrame = requestAnimationFrame(momentum)
   }
 

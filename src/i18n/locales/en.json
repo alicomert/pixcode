@@ -89,13 +89,13 @@
   "settings.resetLayout": "Reset layout",
   "settings.resetLayoutHint": "Restore the default panel sizes and close the terminal panel.",
   "settings.reset": "Reset",
- "tree.empty": "Empty",
- "tree.newFile": "New file",
- "tree.newFolder": "New folder",
- "tree.refresh": "Refresh",
- "tree.rename": "Rename",
- "tree.delete": "Delete",
- "tree.newFilePrompt": "New file path",
+  "tree.empty": "Empty",
+  "tree.newFile": "New file",
+  "tree.newFolder": "New folder",
+  "tree.refresh": "Refresh",
+  "tree.rename": "Rename",
+  "tree.delete": "Delete",
+  "tree.newFilePrompt": "New file path",
   "tree.newFolderPrompt": "New folder path",
   "tree.pathPlaceholder": "e.g. src/components/example.js",
   "tree.renamePrompt": "New name",
@@ -167,34 +167,38 @@
   "terminal.arrowUp": "Up arrow",
   "terminal.arrowRight": "Right arrow",
   "lang.label": "Language",
-  "project.openFolder": "Open folder"
-  ,"project.folderHint": "Open any folder on your computer as the workspace."
-  ,"project.browse": "Browse folders"
-  ,"project.cloneRepo": "Clone GitHub repository"
-  ,"project.cloneHint": "Enter a GitHub or other Git remote URL."
-  ,"welcome.subtitle": "Code, run, and manage your agents in one workspace."
-  ,"welcome.start": "Start"
-  ,"welcome.newFile": "New file"
-  ,"welcome.openFolder": "Open folder"
-  ,"welcome.cloneRepo": "Clone GitHub repository"
-  ,"welcome.newProject": "New Pixcode project"
-  ,"welcome.tools": "Workspace tools"
-  ,"welcome.agentTitle": "Agent terminal"
-  ,"welcome.agentDescription": "Open Codex, Claude, Gemini, and other CLIs."
-  ,"welcome.terminalTitle": "Terminal"
-  ,"welcome.terminalDescription": "Run commands in your workspace."
-  ,"welcome.hint": "Tip: press Ctrl+P to search files or commands."
-  ,"update.title": "Updates"
-  ,"update.description": "Check the official Pixcode releases for a newer desktop or web build."
-  ,"update.check": "Check for updates"
-  ,"update.checking": "Checking for updates..."
-  ,"update.current": "Pixcode is up to date (v{version})"
-  ,"update.available": "Pixcode {version} is available"
-  ,"update.unavailable": "Could not check for updates. Try again later."
-  ,"update.error": "Update check failed"
-  ,"update.eyebrow": "New release"
-  ,"update.download": "Download installer"
-  ,"update.releaseNotes": "View release notes"
-  ,"update.manualInstall": "The downloaded installer must be opened manually to finish the update."
-  ,"update.dismiss": "Close update dialog"
+  "project.openFolder": "Open folder",
+  "project.folderHint": "Open any folder on your computer as the workspace.",
+  "project.browse": "Browse folders",
+  "project.cloneRepo": "Clone GitHub repository",
+  "project.cloneHint": "Enter a GitHub or other Git remote URL.",
+  "welcome.subtitle": "Code, run, and manage your agents in one workspace.",
+  "welcome.start": "Start",
+  "welcome.newFile": "New file",
+  "welcome.openFolder": "Open folder",
+  "welcome.cloneRepo": "Clone GitHub repository",
+  "welcome.newProject": "New Pixcode project",
+  "welcome.tools": "Workspace tools",
+  "welcome.agentTitle": "Agent terminal",
+  "welcome.agentDescription": "Open Codex, Claude, Gemini, and other CLIs.",
+  "welcome.terminalTitle": "Terminal",
+  "welcome.terminalDescription": "Run commands in your workspace.",
+  "welcome.hint": "Tip: press Ctrl+P to search files or commands.",
+  "update.title": "Updates",
+  "update.description": "Check the official Pixcode releases for a newer desktop or web build.",
+  "update.check": "Check for updates",
+  "update.checking": "Checking for updates...",
+  "update.current": "Pixcode is up to date (v{version})",
+  "update.available": "Pixcode {version} is available",
+  "update.unavailable": "Could not check for updates. Try again later.",
+  "update.error": "Update check failed",
+  "update.eyebrow": "New release",
+  "update.download": "Download installer",
+  "update.releaseNotes": "View release notes",
+  "update.manualInstall": "The downloaded installer must be opened manually to finish the update.",
+  "update.dismiss": "Close update dialog",
+  "settings.scrollSpeed": "Scroll sensitivity",
+  "settings.scrollSpeedHint": "Multiplier for touch drag scrolling in terminals.",
+  "terminal.scrollUp": "Scroll up",
+  "terminal.scrollDown": "Scroll down"
 }

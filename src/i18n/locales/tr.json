@@ -89,13 +89,13 @@
   "settings.resetLayout": "Düzeni sıfırla",
   "settings.resetLayoutHint": "Varsayılan panel boyutlarını geri yükler ve terminal panelini kapatır.",
   "settings.reset": "Sıfırla",
- "tree.empty": "Boş",
- "tree.newFile": "Yeni dosya",
- "tree.newFolder": "Yeni klasör",
- "tree.refresh": "Yenile",
- "tree.rename": "Yeniden adlandır",
- "tree.delete": "Sil",
- "tree.newFilePrompt": "Yeni dosya yolu",
+  "tree.empty": "Boş",
+  "tree.newFile": "Yeni dosya",
+  "tree.newFolder": "Yeni klasör",
+  "tree.refresh": "Yenile",
+  "tree.rename": "Yeniden adlandır",
+  "tree.delete": "Sil",
+  "tree.newFilePrompt": "Yeni dosya yolu",
   "tree.newFolderPrompt": "Yeni klasör yolu",
   "tree.pathPlaceholder": "ör. src/components/example.js",
   "tree.renamePrompt": "Yeni ad",
@@ -167,34 +167,38 @@
   "terminal.arrowUp": "Yukarı ok",
   "terminal.arrowRight": "Sağ ok",
   "lang.label": "Dil",
-  "project.openFolder": "Klasör aç"
-  ,"project.folderHint": "Bilgisayarınızdaki bir klasörü çalışma alanı olarak açın."
-  ,"project.browse": "Klasörleri göster"
-  ,"project.cloneRepo": "GitHub deposu klonla"
-  ,"project.cloneHint": "GitHub veya başka bir Git uzak adresi girin."
-  ,"welcome.subtitle": "Kodla, çalıştır ve agent’larını tek çalışma alanında yönet."
-  ,"welcome.start": "Başlat"
-  ,"welcome.newFile": "Yeni dosya"
-  ,"welcome.openFolder": "Klasör aç"
-  ,"welcome.cloneRepo": "GitHub deposu klonla"
-  ,"welcome.newProject": "Yeni Pixcode projesi"
-  ,"welcome.tools": "Çalışma araçları"
-  ,"welcome.agentTitle": "Agent terminali"
-  ,"welcome.agentDescription": "Codex, Claude, Gemini ve diğer CLI’ları açın."
-  ,"welcome.terminalTitle": "Terminal"
-  ,"welcome.terminalDescription": "Çalışma alanınızda komut çalıştırın."
-  ,"welcome.hint": "İpucu: Ctrl+P ile dosya veya komut arayın."
-  ,"update.title": "Güncellemeler"
-  ,"update.description": "Daha yeni masaüstü veya web sürümü için resmi Pixcode yayınlarını kontrol edin."
-  ,"update.check": "Güncellemeleri kontrol et"
-  ,"update.checking": "Güncellemeler kontrol ediliyor..."
-  ,"update.current": "Pixcode güncel (v{version})"
-  ,"update.available": "Pixcode {version} kullanıma hazır"
-  ,"update.unavailable": "Güncellemeler kontrol edilemedi. Daha sonra tekrar deneyin."
-  ,"update.error": "Güncelleme kontrolü başarısız"
-  ,"update.eyebrow": "Yeni sürüm"
-  ,"update.download": "Yükleyiciyi indir"
-  ,"update.releaseNotes": "Sürüm notlarını gör"
-  ,"update.manualInstall": "Güncellemeyi tamamlamak için indirilen yükleyiciyi elle açmanız gerekir."
-  ,"update.dismiss": "Güncelleme penceresini kapat"
+  "project.openFolder": "Klasör aç",
+  "project.folderHint": "Bilgisayarınızdaki bir klasörü çalışma alanı olarak açın.",
+  "project.browse": "Klasörleri göster",
+  "project.cloneRepo": "GitHub deposu klonla",
+  "project.cloneHint": "GitHub veya başka bir Git uzak adresi girin.",
+  "welcome.subtitle": "Kodla, çalıştır ve agent’larını tek çalışma alanında yönet.",
+  "welcome.start": "Başlat",
+  "welcome.newFile": "Yeni dosya",
+  "welcome.openFolder": "Klasör aç",
+  "welcome.cloneRepo": "GitHub deposu klonla",
+  "welcome.newProject": "Yeni Pixcode projesi",
+  "welcome.tools": "Çalışma araçları",
+  "welcome.agentTitle": "Agent terminali",
+  "welcome.agentDescription": "Codex, Claude, Gemini ve diğer CLI’ları açın.",
+  "welcome.terminalTitle": "Terminal",
+  "welcome.terminalDescription": "Çalışma alanınızda komut çalıştırın.",
+  "welcome.hint": "İpucu: Ctrl+P ile dosya veya komut arayın.",
+  "update.title": "Güncellemeler",
+  "update.description": "Daha yeni masaüstü veya web sürümü için resmi Pixcode yayınlarını kontrol edin.",
+  "update.check": "Güncellemeleri kontrol et",
+  "update.checking": "Güncellemeler kontrol ediliyor...",
+  "update.current": "Pixcode güncel (v{version})",
+  "update.available": "Pixcode {version} kullanıma hazır",
+  "update.unavailable": "Güncellemeler kontrol edilemedi. Daha sonra tekrar deneyin.",
+  "update.error": "Güncelleme kontrolü başarısız",
+  "update.eyebrow": "Yeni sürüm",
+  "update.download": "Yükleyiciyi indir",
+  "update.releaseNotes": "Sürüm notlarını gör",
+  "update.manualInstall": "Güncellemeyi tamamlamak için indirilen yükleyiciyi elle açmanız gerekir.",
+  "update.dismiss": "Güncelleme penceresini kapat",
+  "settings.scrollSpeed": "Kaydırma hassasiyeti",
+  "settings.scrollSpeedHint": "Terminallerde dokunarak kaydırma hızı çarpanı.",
+  "terminal.scrollUp": "Yukarı kaydır",
+  "terminal.scrollDown": "Aşağı kaydır"
 }
