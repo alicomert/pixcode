@@ -286,6 +286,30 @@ export function selectProject(id) {
   return active
 }
 
+// Admin-granted workspace roots for per-user allowlists: validate the folder,
+// register it for the workspace guard, and remember it in workspace.json so it
+// survives restarts — without switching the caller's active project.
+export function grantExternalWorkspace(folderPath) {
+  const value = String(folderPath || '').trim()
+  if (!value) throw httpError(400, 'folder path required')
+  const expanded = value === '~' || value.startsWith(`~${path.sep}`) ? path.join(os.homedir(), value.slice(2)) : value
+  const resolved = path.resolve(expanded)
+  let stat
+  try { stat = fs.statSync(resolved) } catch { throw httpError(404, 'folder not found') }
+  if (!stat.isDirectory()) throw httpError(400, 'path is not a folder')
+  const name = managedName(resolved)
+  // A folder inside the managed projects dir is just a managed project — its
+  // allowlist id is the folder name, not an external path.
+  if (name) return projectRecord(name, false)
+  const state = workspaceState()
+  if (!state.externals.some((item) => path.resolve(item.path) === resolved)) {
+    state.externals = [...state.externals, { path: resolved }]
+    persistWorkspaceState(state)
+  }
+  registerWorkspace(resolved)
+  return { id: externalId(resolved), name: path.basename(resolved) || resolved, path: resolved, external: true }
+}
+
 export function openWorkspace(folderPath) {
   const value = String(folderPath || '').trim()
   if (!value) throw httpError(400, 'folder path required')

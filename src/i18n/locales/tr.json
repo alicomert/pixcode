@@ -230,5 +230,10 @@
   "users.manage": "Yönet",
   "users.count": "{count} ek hesap",
   "users.onlyYou": "Sadece senin hesabın",
-  "users.owner": "Sahip"
+  "users.owner": "Sahip",
+  "users.addFolder": "Klasör ekle…",
+  "users.grantFolder": "Bu klasöre izin ver",
+  "users.up": "Üst klasör",
+  "users.emptyFolder": "Alt klasör yok",
+  "users.noAgents": "Agent yok"
 }

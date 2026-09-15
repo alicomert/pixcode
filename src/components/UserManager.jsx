@@ -2,7 +2,91 @@ import { useEffect, useState } from 'preact/hooks'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { VscSelect } from './vsc.jsx'
-import { Shield, User, UserPlus } from '../lib/icons.jsx'
+import { Folder, Shield, User, UserPlus } from '../lib/icons.jsx'
+
+// Shared allowlist editor: "All allowed" toggle plus a scrollable checklist of
+// items. `children` renders under the list (used for the folder picker).
+function AccessPicker({ label, allChecked, onToggleAll, items, selected, onToggleItem, grid = false, empty, children }) {
+  return (
+    <div class="user-edit-block">
+      <div class="user-edit-label-row">
+        <span class="user-edit-label">{label}</span>
+        <label class="user-toggle"><input type="checkbox" checked={allChecked} onChange={onToggleAll} />{t('users.all')}</label>
+      </div>
+      {!allChecked && (
+        <>
+          <div class={`user-checklist ${grid ? 'user-checklist-grid' : ''}`}>
+            {items.map((item) => (
+              <label key={item.id} class="user-check" title={item.sub || undefined}>
+                <input type="checkbox" checked={selected.has(item.id)} onChange={() => onToggleItem(item.id)} />
+                <span class="user-check-copy"><span>{item.label}</span>{item.sub && <small>{item.sub}</small>}</span>
+              </label>
+            ))}
+            {!items.length && <small>{empty}</small>}
+          </div>
+          {children}
+        </>
+      )}
+    </div>
+  )
+}
+
+// Inline folder browser so an admin can grant any directory on the server, not
+// just workspaces previously opened in the picker.
+function FolderGrantPicker({ onGrant }) {
+  const [browse, setBrowse] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [browseError, setBrowseError] = useState('')
+
+  async function open(target) {
+    setBusy(true)
+    setBrowseError('')
+    try {
+      setBrowse(await ws.request('project', 'browse', { path: target || '~' }))
+    } catch (requestError) {
+      setBrowseError(requestError.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function grant() {
+    setBusy(true)
+    setBrowseError('')
+    try {
+      const record = await ws.request('project', 'grant', { path: browse.path })
+      onGrant(record)
+      setBrowse(null)
+    } catch (requestError) {
+      setBrowseError(requestError.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!browse) {
+    return <vscode-button class="user-add-folder" secondary icon="new-folder" onClick={() => open('~')} disabled={busy}>{t('users.addFolder')}</vscode-button>
+  }
+  return (
+    <div class="user-browse">
+      <div class="user-browse-head">
+        <vscode-toolbar-button icon="arrow-up" disabled={!browse.parent || busy} onClick={() => open(browse.parent)} title={t('users.up')} aria-label={t('users.up')}></vscode-toolbar-button>
+        <span class="user-browse-path" title={browse.path}>{browse.path}</span>
+        <vscode-button secondary onClick={() => setBrowse(null)} disabled={busy}>{t('common.cancel')}</vscode-button>
+        <vscode-button onClick={grant} disabled={busy}>{t('users.grantFolder')}</vscode-button>
+      </div>
+      {browseError && <small class="user-browse-error">{browseError}</small>}
+      <div class="user-browse-list">
+        {browse.entries.map((entry) => (
+          <button key={entry.path} type="button" class="user-browse-entry" onClick={() => open(entry.path)} disabled={busy}>
+            <Folder size={13} /><span>{entry.name}</span>
+          </button>
+        ))}
+        {!browse.entries.length && <small>{t('users.emptyFolder')}</small>}
+      </div>
+    </div>
+  )
+}
 
 // Admin-only account management. The settings sidebar only carries a summary
 // row — the real UI lives in a centered modal where allowlists and forms have
@@ -12,10 +96,12 @@ export function UserManager() {
   const [users, setUsers] = useState([])
   const [projects, setProjects] = useState([])
   const [agents, setAgents] = useState([])
-  const [form, setForm] = useState(null) // {username, password, role} while creating
+  const [form, setForm] = useState(null) // blank account form while creating
   const [draft, setDraft] = useState(null) // editable copy of the user being edited
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const blankForm = () => ({ username: '', password: '', role: 'member', allProjects: true, projects: new Set(), allAgents: true, agents: new Set() })
 
   async function load() {
     try {
@@ -34,15 +120,33 @@ export function UserManager() {
   }
   useEffect(() => { if (open) void load() }, [open])
 
+  function toggleIn(state, setState, key, value) {
+    const next = new Set(state[key])
+    if (next.has(value)) next.delete(value)
+    else next.add(value)
+    setState({ ...state, [key]: next })
+  }
+
+  // A freshly granted folder becomes selectable immediately, before the next
+  // project.list round-trip.
+  function addProjectOption(record) {
+    setProjects((current) => current.some((project) => project.id === record.id) ? current : [...current, record])
+  }
+
+  const projectItems = projects.map((project) => ({ id: project.id, label: project.name, sub: project.id.startsWith('external:') ? project.path : '' }))
+  const agentItems = agents.map((agent) => ({ id: agent.id, label: agent.label }))
+
   async function create(event) {
-    event.preventDefault()
+    event?.preventDefault?.()
     setBusy(true)
     setError('')
     try {
       await ws.request('auth', 'createUser', {
         username: form.username.trim(),
         password: form.password,
-        role: form.role
+        role: form.role,
+        projects: form.allProjects ? null : [...form.projects],
+        agents: form.allAgents ? null : [...form.agents]
       })
       setForm(null)
       await load()
@@ -67,13 +171,6 @@ export function UserManager() {
       agents: new Set(user.agents || []),
       password: ''
     })
-  }
-
-  function toggle(list, value) {
-    const next = new Set(draft[list])
-    if (next.has(value)) next.delete(value)
-    else next.add(value)
-    setDraft({ ...draft, [list]: next })
   }
 
   async function save() {
@@ -124,33 +221,54 @@ export function UserManager() {
           <div class="user-modal-heading">
             <strong id="user-modal-title">{t('users.title')}</strong>
             <span class="user-modal-heading-actions">
-              {!form && <vscode-button secondary icon="add" onClick={() => { setDraft(null); setForm({ username: '', password: '', role: 'member' }) }}>{t('users.add')}</vscode-button>}
+              {!form && <vscode-button secondary icon="add" onClick={() => { setDraft(null); setForm(blankForm()) }}>{t('users.add')}</vscode-button>}
               <vscode-toolbar-button icon="close" onClick={() => { setOpen(false); setDraft(null); setForm(null) }} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button>
             </span>
           </div>
           {error && <p class="user-modal-error">{error}</p>}
 
-          {form && (
-            <form class="user-create-card" onSubmit={create}>
-              <div class="user-create-title"><UserPlus size={15} /><strong>{t('users.add')}</strong></div>
-              <div class="user-create-grid">
-                <label class="user-field"><span>{t('users.username')}</span><vscode-textfield type="text" value={form.username} onInput={(event) => setForm({ ...form, username: event.currentTarget.value })} required minlength={3} maxlength={32} autofocus /></label>
-                <label class="user-field"><span>{t('users.password')}</span><vscode-textfield type="password" value={form.password} onInput={(event) => setForm({ ...form, password: event.currentTarget.value })} required minlength={6} /></label>
-                <label class="user-field"><span>{t('users.role')}</span>
-                  <VscSelect value={form.role} onChange={(value) => setForm({ ...form, role: value })}>
-                    <vscode-option value="member">{t('users.member')}</vscode-option>
-                    <vscode-option value="admin">{t('users.admin')}</vscode-option>
-                  </VscSelect>
-                </label>
-              </div>
-              <div class="user-card-actions user-card-actions-end">
-                <vscode-button secondary onClick={() => setForm(null)}>{t('common.cancel')}</vscode-button>
-                <vscode-button type="submit" disabled={busy || !form.username.trim() || form.password.length < 6}>{t('users.add')}</vscode-button>
-              </div>
-            </form>
-          )}
-
           <vscode-scrollable class="user-modal-list">
+            {form && (
+              <form class="user-create-card" onSubmit={create}>
+                <div class="user-create-title"><UserPlus size={15} /><strong>{t('users.add')}</strong></div>
+                <div class="user-create-grid">
+                  <label class="user-field"><span>{t('users.username')}</span><vscode-textfield type="text" value={form.username} onInput={(event) => setForm({ ...form, username: event.currentTarget.value })} required minlength={3} maxlength={32} autofocus /></label>
+                  <label class="user-field"><span>{t('users.password')}</span><vscode-textfield type="password" value={form.password} onInput={(event) => setForm({ ...form, password: event.currentTarget.value })} required minlength={6} /></label>
+                  <label class="user-field"><span>{t('users.role')}</span>
+                    <VscSelect value={form.role} onChange={(value) => setForm({ ...form, role: value })}>
+                      <vscode-option value="member">{t('users.member')}</vscode-option>
+                      <vscode-option value="admin">{t('users.admin')}</vscode-option>
+                    </VscSelect>
+                  </label>
+                </div>
+                <AccessPicker
+                  label={t('users.projects')}
+                  allChecked={form.allProjects}
+                  onToggleAll={() => setForm({ ...form, allProjects: !form.allProjects })}
+                  items={projectItems}
+                  selected={form.projects}
+                  onToggleItem={(id) => toggleIn(form, setForm, 'projects', id)}
+                  empty={t('users.noProjects')}
+                >
+                  <FolderGrantPicker onGrant={(record) => { addProjectOption(record); setForm((current) => ({ ...current, projects: new Set(current.projects).add(record.id) })) }} />
+                </AccessPicker>
+                <AccessPicker
+                  label={t('users.agents')}
+                  allChecked={form.allAgents}
+                  onToggleAll={() => setForm({ ...form, allAgents: !form.allAgents })}
+                  items={agentItems}
+                  selected={form.agents}
+                  onToggleItem={(id) => toggleIn(form, setForm, 'agents', id)}
+                  grid
+                  empty={t('users.noAgents')}
+                />
+                <div class="user-card-actions user-card-actions-end">
+                  <vscode-button secondary onClick={() => setForm(null)}>{t('common.cancel')}</vscode-button>
+                  <vscode-button onClick={create} disabled={busy || !form.username.trim() || form.password.length < 6}>{t('users.add')}</vscode-button>
+                </div>
+              </form>
+            )}
+
             {users.map((user) => (
               <div class={`user-card ${draft?.id === user.id ? 'editing' : ''}`} key={user.id}>
                 <div class="user-card-head">
@@ -185,28 +303,28 @@ export function UserManager() {
                       </div>
                     </div>
 
-                    <div class="user-edit-block">
-                      <div class="user-edit-label-row"><span class="user-edit-label">{t('users.projects')}</span><label class="user-toggle"><input type="checkbox" checked={draft.allProjects} onChange={() => setDraft({ ...draft, allProjects: !draft.allProjects })} />{t('users.all')}</label></div>
-                      {!draft.allProjects && (
-                        <div class="user-checklist">
-                          {projects.map((project) => (
-                            <label key={project.id} class="user-check"><input type="checkbox" checked={draft.projects.has(project.id)} onChange={() => toggle('projects', project.id)} /><span>{project.name}</span></label>
-                          ))}
-                          {!projects.length && <small>{t('users.noProjects')}</small>}
-                        </div>
-                      )}
-                    </div>
+                    <AccessPicker
+                      label={t('users.projects')}
+                      allChecked={draft.allProjects}
+                      onToggleAll={() => setDraft({ ...draft, allProjects: !draft.allProjects })}
+                      items={projectItems}
+                      selected={draft.projects}
+                      onToggleItem={(id) => toggleIn(draft, setDraft, 'projects', id)}
+                      empty={t('users.noProjects')}
+                    >
+                      <FolderGrantPicker onGrant={(record) => { addProjectOption(record); setDraft((current) => ({ ...current, projects: new Set(current.projects).add(record.id) })) }} />
+                    </AccessPicker>
 
-                    <div class="user-edit-block">
-                      <div class="user-edit-label-row"><span class="user-edit-label">{t('users.agents')}</span><label class="user-toggle"><input type="checkbox" checked={draft.allAgents} onChange={() => setDraft({ ...draft, allAgents: !draft.allAgents })} />{t('users.all')}</label></div>
-                      {!draft.allAgents && (
-                        <div class="user-checklist user-checklist-grid">
-                          {agents.map((agent) => (
-                            <label key={agent.id} class="user-check"><input type="checkbox" checked={draft.agents.has(agent.id)} onChange={() => toggle('agents', agent.id)} /><span>{agent.label}</span></label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <AccessPicker
+                      label={t('users.agents')}
+                      allChecked={draft.allAgents}
+                      onToggleAll={() => setDraft({ ...draft, allAgents: !draft.allAgents })}
+                      items={agentItems}
+                      selected={draft.agents}
+                      onToggleItem={(id) => toggleIn(draft, setDraft, 'agents', id)}
+                      grid
+                      empty={t('users.noAgents')}
+                    />
 
                     <div class="user-card-actions">
                       <label class="user-toggle user-danger-toggle"><input type="checkbox" checked={draft.disabled} onChange={() => setDraft({ ...draft, disabled: !draft.disabled })} />{t('users.disableAccount')}</label>

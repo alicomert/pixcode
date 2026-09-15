@@ -1,6 +1,6 @@
 import { accessFor, requireAccess, requireAdmin } from '../auth.js'
 import { httpError } from '../util/http.js'
-import { browseDirectories, cloneProject, createProject, currentProject, listProjects, openWorkspace, selectProject } from '../projects.js'
+import { browseDirectories, cloneProject, createProject, currentProject, grantExternalWorkspace, listProjects, openWorkspace, selectProject } from '../projects.js'
 
 function visibleProjects(ctx) {
   const access = requireAccess(ctx)
@@ -26,6 +26,7 @@ export const projectChannel = {
     },
     open: (ctx, { path } = {}) => { requireAdmin(ctx); return openWorkspace(path) },
     clone: (ctx, { url, name } = {}) => { requireAdmin(ctx); return cloneProject(url, name) },
-    browse: (ctx, { path } = {}) => { requireAdmin(ctx); return browseDirectories(path) }
+    browse: (ctx, { path } = {}) => { requireAdmin(ctx); return browseDirectories(path) },
+    grant: (ctx, { path } = {}) => { requireAdmin(ctx); return grantExternalWorkspace(path) }
   }
 }

@@ -230,5 +230,10 @@
   "users.manage": "Manage",
   "users.count": "{count} additional account(s)",
   "users.onlyYou": "Only your account",
-  "users.owner": "Owner"
+  "users.owner": "Owner",
+  "users.addFolder": "Add folder…",
+  "users.grantFolder": "Allow this folder",
+  "users.up": "Parent folder",
+  "users.emptyFolder": "No subfolders",
+  "users.noAgents": "No agents"
 }
