@@ -1,10 +1,27 @@
 import { WebSocketServer } from 'ws'
 import { verifyToken, checkApiKey } from './auth.js'
 
+// Reverse proxies and tunnels kill idle WebSockets after ~60s, and an
+// aborted mid-frame read surfaces in the client as "invalid frame header".
+// A periodic ping keeps the connection alive; a missed pong means the peer
+// is silently gone, so the socket is terminated and removed.
+const PING_INTERVAL_MS = 30_000
+const PONG_TIMEOUT_MS = 10_000
+
 export function createHub(server) {
   const channels = new Map()
   const connections = new Set()
   const wss = new WebSocketServer({ noServer: true })
+
+  const heartbeat = setInterval(() => {
+    for (const ws of connections) {
+      if (ws.isAlive === false) { ws.terminate(); continue }
+      ws.isAlive = false
+      ws.ping()
+      ws.pongTimer = setTimeout(() => { if (ws.isAlive === false) ws.terminate() }, PONG_TIMEOUT_MS)
+    }
+  }, PING_INTERVAL_MS)
+  heartbeat.unref?.()
 
   function authenticate(url) {
     const key = url.searchParams.get('key')
@@ -31,6 +48,8 @@ export function createHub(server) {
       return
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
+      ws.isAlive = true
+      ws.on('pong', () => { ws.isAlive = true; clearTimeout(ws.pongTimer) })
       connections.add(ws)
       const context = {
         principal,
@@ -65,13 +84,19 @@ export function createHub(server) {
           context.send({ ch: frame.ch, id: frame.id, ok: false, error: error.message || 'channel error' })
         }
       })
-      ws.on('close', () => {
+      ws.on('close', (code, reason) => {
+        clearTimeout(ws.pongTimer)
+        if (code === 1006 || code === 1002) console.warn(`[ws] abnormal close code=${code} reason=${reason?.toString().slice(0, 120) || '-'} client=${context.clientId}`)
         connections.delete(ws)
         for (const channel of channels.values()) {
           try { channel.onClose?.(context) } catch { void 0 }
         }
       })
-      ws.on('error', () => {})
+      ws.on('error', (error) => {
+        // Malformed frames (a proxy mangling the stream, a non-WS client)
+        // surface here; keep the process alive but record what happened.
+        console.warn(`[ws] connection error: ${error.message} client=${context.clientId}`)
+      })
     })
   })
 
