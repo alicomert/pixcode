@@ -34,11 +34,11 @@ export const ptyChannel = {
     async create(ctx, { cols = 80, rows = 24, cwd, workspace: requestedWorkspace, command } = {}) {
       const id = `pty_${++counter}`
       const size = dimensions(cols, rows)
-      const workspacePath = workspaceRoot(requestedWorkspace)
+      const workspacePath = workspaceRoot(requestedWorkspace, ctx)
       const term = pty.spawn(defaultShell(), [], {
         name: 'xterm-256color',
         ...size,
-        cwd: workspaceCwd(workspacePath, cwd),
+        cwd: workspaceCwd(workspacePath, cwd, ctx),
         env: await enhancedEnv({ TERM: 'xterm-256color' })
       })
       const shell = { term, owner: ownerKey(ctx), subscribers: new Set([ctx]), workspace: workspacePath, history: [], historyBytes: 0, sequence: 0 }
@@ -63,7 +63,7 @@ export const ptyChannel = {
     },
 
     list(ctx, { workspace } = {}) {
-      const requested = workspace ? workspaceRoot(workspace) : ''
+      const requested = workspace ? workspaceRoot(workspace, ctx) : ''
       return [...shells.entries()]
         .filter(([, shell]) => shell.owner === ownerKey(ctx) && (!requested || shell.workspace === requested))
         .map(([id, shell]) => ({ id, workspace: shell.workspace, pid: shell.term.pid }))

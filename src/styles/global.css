@@ -3451,3 +3451,31 @@ vscode-button.auth-submit { width: 100%; }
   background: var(--ui-accent);
   color: #fff;
 }
+
+/* Account management — admin-only settings section. */
+.user-manager { display: flex; flex-direction: column; gap: 2px; }
+.user-manager-error { margin: 0 0 8px; color: var(--ui-error, #f48771); font-size: 11px; }
+.user-row { display: flex; flex-direction: column; }
+.user-row-head { display: flex; width: 100%; align-items: center; gap: 9px; padding: 7px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--ui-text); text-align: left; cursor: pointer; }
+.user-row-head:hover:not(:disabled) { background: var(--ui-hover); }
+.user-row-head:disabled { cursor: default; }
+.user-row-icon { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 6px; background: var(--ui-surface); color: var(--ui-muted); }
+.user-row-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+.user-row-copy strong { font-size: 11px; font-weight: 500; }
+.user-row-copy small { color: var(--ui-muted); font-size: 10px; }
+.user-editor { display: flex; flex-direction: column; gap: 4px; margin: 2px 0 8px; padding: 8px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-editor); }
+.user-editor .settings-control-row { padding: 4px 0; border-bottom: 0; }
+.user-editor vscode-textfield { width: min(170px, 100%); }
+.user-editor-actions { display: flex; justify-content: flex-end; gap: 6px; padding-top: 6px; }
+.user-toggle { display: flex; align-items: center; gap: 6px; color: var(--ui-text); font-size: 11px; }
+.user-toggle input { accent-color: var(--ui-accent); }
+.user-checklist { display: flex; max-height: 140px; flex-direction: column; gap: 2px; margin: 0 0 8px; overflow-y: auto; padding: 6px 8px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-surface); }
+.user-check { display: flex; align-items: center; gap: 7px; padding: 3px 4px; border-radius: 4px; color: var(--ui-text); font-size: 11px; cursor: pointer; }
+.user-check:hover { background: var(--ui-hover); }
+.user-check input { accent-color: var(--ui-accent); }
+.user-checklist small { color: var(--ui-muted); font-size: 10px; }
+.user-create { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ui-border); }
+.user-create-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; color: var(--ui-text); font-size: 11px; }
+.user-create-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.user-create-fields vscode-textfield, .user-create-fields vscode-single-select { width: 100%; }
+.user-create-fields vscode-button { grid-column: 1 / -1; }

@@ -186,12 +186,12 @@ export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, col
   const AdapterClass = getAdapter(agent)
   if (!AdapterClass) throw httpError(400, 'unknown agent')
   const sessionId = `s_${++counter}`
-  const requestedWorkspace = workspaceRoot(workspace)
+  const requestedWorkspace = workspaceRoot(workspace, ctx)
   const index = nextSessionIndex(ctx, agent, requestedWorkspace)
   const session = {
     sessionId,
     adapter: new AdapterClass(),
-    state: { agent, cwd: workspaceCwd(requestedWorkspace, cwd), status: 'running' },
+    state: { agent, cwd: workspaceCwd(requestedWorkspace, cwd, ctx), status: 'running' },
     // Capture the workspace at spawn time. Selecting another workspace must
     // never move or terminate an already running agent process.
     workspace: requestedWorkspace,
@@ -302,7 +302,7 @@ export function detachSubscriber(ctx) {
 }
 
 export function listSessions(ctx, requestedWorkspace) {
-  const workspace = requestedWorkspace ? workspaceRoot(requestedWorkspace) : ''
+  const workspace = requestedWorkspace ? workspaceRoot(requestedWorkspace, ctx) : ''
   const own = [...sessions.values()].filter((session) => session.owner === ownerKey(ctx) && (!workspace || session.workspace === workspace))
   return own.map((session) => {
     session.subscribers.add(ctx)

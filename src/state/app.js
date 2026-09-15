@@ -1,4 +1,30 @@
-import { signal } from '@preact/signals'
+import { computed, signal } from '@preact/signals'
+
+// The signed-in account, decoded from the stored JWT. `role` is the server's
+// resolved role ('admin' for the owner account); members carry 'member'.
+function readPrincipal() {
+  try {
+    const token = localStorage.getItem('pixcode.token') || ''
+    const body = token.split('.')[1]
+    if (!body) return null
+    const payload = JSON.parse(atob(body.replace(/-/g, '+').replace(/_/g, '/')))
+    if (!payload?.exp || Number(payload.exp) < Date.now()) return null
+    return {
+      sub: payload.sub || '',
+      username: payload.username || '',
+      role: payload.role === 'owner' ? 'admin' : (payload.role || 'member')
+    }
+  } catch {
+    return null
+  }
+}
+export const principal = signal(readPrincipal())
+export const isAdmin = computed(() => principal.value?.role === 'admin')
+export function setPrincipal(value) {
+  principal.value = value && typeof value === 'object'
+    ? { sub: value.sub || '', username: value.username || '', role: value.role === 'owner' ? 'admin' : (value.role || 'member') }
+    : null
+}
 
 export const theme = signal(localStorage.getItem('pixcode.theme') || 'dark')
 export const mobileTab = signal('files')

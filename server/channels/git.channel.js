@@ -116,7 +116,8 @@ async function baseline(filePath, staged, head = false, requestedWorkspace) {
 
 export const gitChannel = {
   ops: {
-    async status(_ctx, { workspace } = {}) {
+    async status(ctx, { workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
       try {
         const { stdout } = await git(['status', '--porcelain=v2', '--branch', '--untracked-files=all'], {}, workspace)
         return parseStatus(stdout)
@@ -126,7 +127,8 @@ export const gitChannel = {
       }
     },
 
-    async diff(_ctx, { path: filePath, staged = false, head = false, workspace } = {}) {
+    async diff(ctx, { path: filePath, staged = false, head = false, workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
       const args = ['diff', '--no-color']
       if (head) args.push('HEAD')
       else if (staged) args.push('--cached')
@@ -161,24 +163,28 @@ export const gitChannel = {
       return { diff: stdout + additions.join('') }
     },
 
-    async baseline(_ctx, { path: filePath, staged = false, head = false, workspace } = {}) {
+    async baseline(ctx, { path: filePath, staged = false, head = false, workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
       if (!filePath) throw httpError(400, 'path required')
       return baseline(safeRelative(filePath, workspace), staged, head, workspace)
     },
 
-    async stage(_ctx, { paths = [], workspace } = {}) {
+    async stage(ctx, { paths = [], workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
       if (!Array.isArray(paths) || paths.length === 0) throw httpError(400, 'paths required')
       await git(['add', '--', ...paths.map((item) => safeRelative(item, workspace))], {}, workspace)
       return { ok: true }
     },
 
-    async unstage(_ctx, { paths = [], workspace } = {}) {
+    async unstage(ctx, { paths = [], workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
       if (!Array.isArray(paths) || paths.length === 0) throw httpError(400, 'paths required')
       await git(['reset', 'HEAD', '--', ...paths.map((item) => safeRelative(item, workspace))], {}, workspace)
       return { ok: true }
     },
 
-    async commit(_ctx, { message, workspace } = {}) {
+    async commit(ctx, { message, workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
       if (!String(message || '').trim()) throw httpError(400, 'message required')
       try {
         const { stdout, stderr } = await git(['commit', '-m', String(message)], {}, workspace)
@@ -189,7 +195,7 @@ export const gitChannel = {
       }
     },
 
-    push: (_ctx, { remote, branch, workspace } = {}) => remoteOperation('push', remote, branch, workspace),
-    pull: (_ctx, { remote, branch, workspace } = {}) => remoteOperation('pull', remote, branch, workspace)
+    push: (ctx, { remote, branch, workspace } = {}) => { workspacePath(workspace, '.', ctx); return remoteOperation('push', remote, branch, workspace) },
+    pull: (ctx, { remote, branch, workspace } = {}) => { workspacePath(workspace, '.', ctx); return remoteOperation('pull', remote, branch, workspace) }
   }
 }

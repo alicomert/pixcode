@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws'
-import { verifyToken, checkApiKey } from './auth.js'
+import { verifyToken, checkApiKey, resolvePrincipal } from './auth.js'
 
 // Reverse proxies and tunnels kill idle WebSockets after ~60s, and an
 // aborted mid-frame read surfaces in the client as "invalid frame header".
@@ -25,9 +25,9 @@ export function createHub(server) {
 
   function authenticate(url) {
     const key = url.searchParams.get('key')
-    if (key && checkApiKey(key)) return { sub: 'owner', role: 'owner' }
+    if (key && checkApiKey(key)) return { sub: 'owner', role: 'admin' }
     const token = url.searchParams.get('token')
-    return token ? verifyToken(token) : null
+    return token ? resolvePrincipal(verifyToken(token)) : null
   }
 
   function broadcast(channel, event, data) {

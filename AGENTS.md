@@ -80,6 +80,14 @@ assertion in `scripts/smoke.mjs`.
   State lives in `$PIXCODE_HOME/auth.json` (default `~/.pixcode/`, mode 0600).
 - Auth accepts JWT bearer tokens (24h TTL) **or** API keys (`px_…`, issued via
   `/api/auth/keys`). WS auth passes the token as `?token=` on the `/ws` URL.
+- Multi-account access: `auth.json` keeps the owner account plus `users[]`
+  (admin-created, `role` `admin`/`member`, `projects`/`agents` allowlists —
+  `null` means unrestricted — and `disabled`). `resolvePrincipal` maps tokens to
+  live users so disable/delete revokes mid-session; `accessFor(ctx)` is checked
+  per op. `workspaceRoot(ws, ctx)` enforces the project allowlist across
+  fs/git/pty/agent channels; `project` create/open/clone/browse and API-key +
+  user management ops are admin-only. Members see filtered `project.list` /
+  `agent.agents`, and `pty`/`agent` sessions stay isolated per `sub:clientId`.
 - Env (see `server/config.js`): `PORT`/`PIXCODE_PORT` (3001), `PIXCODE_HOST`
   (`0.0.0.0`), `PIXCODE_HOME` (auth dir), `PIXCODE_PROJECTS` (projects dir,
   default `./pixcode-projects`), `PIXCODE_WORKSPACE` (pin a single external

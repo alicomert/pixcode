@@ -3,8 +3,9 @@ import { ArrowLeft, ArrowRight, Blocks, Bot, ChevronsUpDown, Circle, Code2, Down
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { setToken } from '../lib/api.js'
-import { activeView, agentRailOpen, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTerminalScrollSpeed, setTheme, sidebarWidth, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
+import { activeView, agentRailOpen, isAdmin, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTerminalScrollSpeed, setTheme, sidebarWidth, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { VscSelect } from './vsc.jsx'
+import { UserManager } from './UserManager.jsx'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -261,6 +262,12 @@ function SettingsView() {
         <p class="settings-section-hint">{t('update.description')}</p>
         <div class="settings-card settings-update-card"><UpdateChecker detailed /></div>
       </vscode-collapsible>
+      {isAdmin.value && (
+        <vscode-collapsible class="settings-section" heading={t('users.title')} open>
+          <p class="settings-section-hint">{t('users.hint')}</p>
+          <UserManager />
+        </vscode-collapsible>
+      )}
     </vscode-scrollable>
   </div>
 }

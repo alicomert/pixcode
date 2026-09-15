@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks'
 import { api, setToken } from '../lib/api.js'
+import { setPrincipal } from '../state/app.js'
 import { t } from '../lib/i18n.js'
 
 export function AuthGate({ setupRequired, onAuthenticated }) {
@@ -18,6 +19,7 @@ export function AuthGate({ setupRequired, onAuthenticated }) {
         : await api.post('/api/auth/login', { ...(username.trim() ? { username: username.trim() } : {}), password })
       setToken(response.token)
       if (response.username) localStorage.setItem('pixcode.username', response.username)
+      setPrincipal({ username: response.username, role: response.role })
       onAuthenticated()
     } catch (requestError) {
       setError(requestError.message || t('auth.error'))
