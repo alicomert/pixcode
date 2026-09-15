@@ -4,6 +4,21 @@ import { t } from '../lib/i18n.js'
 import { VscSelect } from './vsc.jsx'
 import { Folder, Shield, User, UserPlus } from '../lib/icons.jsx'
 
+// vscode-scrollable swallows every wheel event that bubbles through it, which
+// kills native scrolling in nested lists. Keep the wheel on the inner list
+// while it can still move; at the edge let it bubble so the outer scrollable
+// takes over.
+function nestedWheel(el) {
+  if (!el || el._nestedWheel) return
+  el._nestedWheel = true
+  el.addEventListener('wheel', (event) => {
+    const canScroll = event.deltaY < 0
+      ? el.scrollTop > 0
+      : el.scrollTop + el.clientHeight < el.scrollHeight - 1
+    if (canScroll) event.stopPropagation()
+  })
+}
+
 // Shared allowlist editor: "All allowed" toggle plus a scrollable checklist of
 // items. `children` renders under the list (used for the folder picker).
 function AccessPicker({ label, allChecked, onToggleAll, items, selected, onToggleItem, grid = false, empty, children }) {
@@ -15,7 +30,7 @@ function AccessPicker({ label, allChecked, onToggleAll, items, selected, onToggl
       </div>
       {!allChecked && (
         <>
-          <div class={`user-checklist ${grid ? 'user-checklist-grid' : ''}`}>
+          <div class={`user-checklist ${grid ? 'user-checklist-grid' : ''}`} ref={nestedWheel}>
             {items.map((item) => (
               <label key={item.id} class="user-check" title={item.sub || undefined}>
                 <input type="checkbox" checked={selected.has(item.id)} onChange={() => onToggleItem(item.id)} />
@@ -76,7 +91,7 @@ function FolderGrantPicker({ onGrant }) {
         <vscode-button onClick={grant} disabled={busy}>{t('users.grantFolder')}</vscode-button>
       </div>
       {browseError && <small class="user-browse-error">{browseError}</small>}
-      <div class="user-browse-list">
+      <div class="user-browse-list" ref={nestedWheel}>
         {browse.entries.map((entry) => (
           <button key={entry.path} type="button" class="user-browse-entry" onClick={() => open(entry.path)} disabled={busy}>
             <Folder size={13} /><span>{entry.name}</span>
