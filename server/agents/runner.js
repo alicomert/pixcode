@@ -46,8 +46,17 @@ function persistSessions() {
   } catch { /* the registry is best-effort; sessions keep working without it */ }
 }
 
+// Sessions belong to the account, not the browser tab: a phone, a laptop, and
+// a second tab all attach to the same running agents and see the same output.
+// Per-user still isolates members from each other.
 function ownerKey(ctx) {
-  return `${String(ctx?.principal?.sub || 'owner')}:${String(ctx?.clientId || 'legacy')}`
+  return String(ctx?.principal?.sub || 'owner')
+}
+
+// Older builds stored `sub:clientId`; strip the client suffix so sessions
+// recorded before per-user ownership still reattach after an upgrade.
+function normalizeOwner(owner) {
+  return String(owner || 'owner').split(':')[0] || 'owner'
 }
 
 function dimensions(cols, rows) {
@@ -161,7 +170,7 @@ export async function restoreSessions() {
       history: [],
       historyBytes: 0,
       sequence: 0,
-      owner: record.owner || 'owner:legacy',
+      owner: normalizeOwner(record.owner),
       subscribers: new Set(),
       term: null,
       startedAt: record.startedAt || Date.now(),

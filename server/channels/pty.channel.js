@@ -7,8 +7,10 @@ const shells = new Map()
 let counter = 0
 const MAX_HISTORY_BYTES = 2 * 1024 * 1024
 
+// Terminals belong to the account, not the tab: reopening Pixcode on another
+// device reattaches to the same running shells.
 function ownerKey(ctx) {
-  return `${String(ctx?.principal?.sub || 'owner')}:${String(ctx?.clientId || 'legacy')}`
+  return String(ctx?.principal?.sub || 'owner')
 }
 
 function defaultShell() {
