@@ -41,15 +41,23 @@ export function closePrompts() {
 
 export async function ask(question, fallback = '') {
   const suffix = fallback ? ` ${c.dim(`[${fallback}]`)}` : ''
-  const answer = (await prompt().question(`  ${question}${suffix}: `)).trim()
-  return answer || fallback
+  try {
+    const answer = (await prompt().question(`  ${question}${suffix}: `)).trim()
+    return answer || fallback
+  } catch {
+    return fallback // EOF — accept the default
+  }
 }
 
 export async function confirm(question, fallback = true) {
   const hint = fallback ? 'Y/n' : 'y/N'
-  const answer = (await prompt().question(`  ${question} ${c.dim(`[${hint}]`)}: `)).trim().toLowerCase()
-  if (!answer) return fallback
-  return answer === 'y' || answer === 'yes'
+  try {
+    const answer = (await prompt().question(`  ${question} ${c.dim(`[${hint}]`)}: `)).trim().toLowerCase()
+    if (!answer) return fallback
+    return answer === 'y' || answer === 'yes'
+  } catch {
+    return fallback
+  }
 }
 
 // Numbered pick-list; returns the chosen option's `value`, 'back', or null on
@@ -61,7 +69,12 @@ export async function choose(title, options, { defaultValue } = {}) {
     console.log(`    ${c.accent(`${index + 1})`)} ${option.label}${option.hint ? `  ${c.dim(option.hint)}` : ''}`)
   })
   for (;;) {
-    const raw = (await prompt().question(`  ${c.dim('>')} `)).trim().toLowerCase()
+    let raw
+    try {
+      raw = (await prompt().question(`  ${c.dim('>')} `)).trim().toLowerCase()
+    } catch {
+      return null // stdin closed (Ctrl+D / EOF) — treat as quit
+    }
     if (!raw && defaultValue !== undefined) return defaultValue
     if (raw === 'q' || raw === 'quit' || raw === 'exit') return null
     if (raw === 'b' || raw === 'back') return 'back'
