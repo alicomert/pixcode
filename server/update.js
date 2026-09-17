@@ -54,15 +54,20 @@ async function fetchJson(url, timeout = 6000) {
 }
 
 async function latestOnGithub() {
-  const release = await fetchJson(RELEASE_API)
-  if (release?.tag_name) return String(release.tag_name).replace(/^v/i, '')
-  // No release objects yet — fall back to the newest semver tag.
-  const tags = await fetchJson(TAGS_API)
-  if (!Array.isArray(tags)) return null
+  // Check both: releases can lag tags (a pushed tag may have no Release
+  // object yet), so the newest semver across either wins.
+  const [release, tags] = await Promise.all([fetchJson(RELEASE_API), fetchJson(TAGS_API)])
+  const candidates = []
+  if (release?.tag_name) candidates.push(String(release.tag_name).replace(/^v/i, ''))
+  if (Array.isArray(tags)) {
+    for (const tag of tags) {
+      const version = String(tag?.name || '').replace(/^v/i, '')
+      if (/^\d+\.\d+\.\d+/.test(version)) candidates.push(version)
+    }
+  }
   let best = null
-  for (const tag of tags) {
-    const version = String(tag?.name || '').replace(/^v/i, '')
-    if (/^\d+\.\d+\.\d+/.test(version) && (!best || compareVersions(version, best) > 0)) best = version
+  for (const version of candidates) {
+    if (!best || compareVersions(version, best) > 0) best = version
   }
   return best
 }
