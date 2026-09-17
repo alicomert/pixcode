@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { ArrowLeft, ArrowRight, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Save, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, Trash2, X } from '../lib/icons.jsx'
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
+import { initFsWatch } from '../lib/fs-watch.js'
 import { setToken } from '../lib/api.js'
 import { activeView, agentRailOpen, isAdmin, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTerminalScrollSpeed, setTheme, sidebarWidth, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { VscSelect } from './vsc.jsx'
@@ -258,6 +259,10 @@ function SettingsView() {
           </div>
         </div>
       </vscode-collapsible>
+      <vscode-collapsible class="settings-section" heading={t('git.accountTitle')} open>
+        <p class="settings-section-hint">{t('git.accountHint')}</p>
+        <GitAccountCard />
+      </vscode-collapsible>
       <vscode-collapsible class="settings-section" heading={t('update.title')} open>
         <p class="settings-section-hint">{t('update.description')}</p>
         <div class="settings-card settings-update-card"><UpdateChecker detailed /></div>
@@ -269,6 +274,77 @@ function SettingsView() {
         </vscode-collapsible>
       )}
     </vscode-scrollable>
+  </div>
+}
+
+// Per-user git connection: commit identity plus one HTTPS token per host.
+// Tokens are write-only — the server stores them in a 0600 file and injects
+// them into git's credential helper per operation; this form only ever sees
+// the list of configured hosts.
+function GitAccountCard() {
+  const [account, setAccount] = useState(null)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [host, setHost] = useState('github.com')
+  const [token, setToken] = useState('')
+  const [status, setStatus] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    ws.request('git', 'account', {}).then((result) => {
+      setAccount(result)
+      setName(result.name || '')
+      setEmail(result.email || '')
+    }).catch(() => setAccount({ name: '', email: '', hosts: [] }))
+  }, [])
+
+  async function save() {
+    setBusy(true)
+    setStatus('')
+    try {
+      const next = await ws.request('git', 'saveAccount', { name, email, ...(token.trim() ? { host, token: token.trim() } : {}) })
+      setAccount(next)
+      setToken('')
+      setStatus(t('git.accountSaved'))
+    } catch (requestError) {
+      setStatus(requestError.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeHost(value) {
+    setBusy(true)
+    try {
+      setAccount(await ws.request('git', 'saveAccount', { removeHost: value }))
+    } catch { /* keep current list */ } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!account) return <div class="settings-card"><span class="muted">{t('tree.loading')}</span></div>
+  return <div class="settings-card git-account-card">
+    <div class="settings-control-row">
+      <div class="settings-control-copy"><GitBranch size={16} /><span><strong>{t('git.identity')}</strong><small>{t('git.identityHint')}</small></span></div>
+    </div>
+    <div class="git-account-fields">
+      <vscode-textfield value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('git.namePlaceholder')} aria-label={t('git.namePlaceholder')} />
+      <vscode-textfield value={email} onInput={(event) => setEmail(event.currentTarget.value)} placeholder={t('git.emailPlaceholder')} aria-label={t('git.emailPlaceholder')} />
+    </div>
+    <div class="settings-control-row">
+      <div class="settings-control-copy"><Globe2 size={16} /><span><strong>{t('git.tokenTitle')}</strong><small>{t('git.tokenHint')}</small></span></div>
+    </div>
+    <div class="git-account-fields">
+      <vscode-textfield value={host} onInput={(event) => setHost(event.currentTarget.value)} placeholder="github.com" aria-label={t('git.hostPlaceholder')} />
+      <vscode-textfield type="password" value={token} onInput={(event) => setToken(event.currentTarget.value)} placeholder={t('git.tokenPlaceholder')} aria-label={t('git.tokenPlaceholder')} />
+    </div>
+    {account.hosts?.length > 0 && <div class="git-account-hosts">
+      {account.hosts.map((value) => <span class="git-host-chip" key={value}><code>{value}</code><button type="button" onClick={() => removeHost(value)} disabled={busy} title={t('git.removeHost')} aria-label={`${t('git.removeHost')} ${value}`}><Trash2 size={12} /></button></span>)}
+    </div>}
+    <div class="git-account-footer">
+      {status && <span class={status === t('git.accountSaved') ? 'muted' : 'error-text'}>{status}</span>}
+      <vscode-button onClick={save} disabled={busy} icon="save"><Save size={13} /> {t('git.saveAccount')}</vscode-button>
+    </div>
   </div>
 }
 
@@ -295,6 +371,7 @@ function ResizeHandle({ direction, className = '', onResize }) {
 
 export function Shell() {
   useEffect(() => {
+    initFsWatch()
     const open = (event) => openFile(event.detail)
     const openAgent = () => { mobileTab.value = 'agent'; panelOpen.value = false; window.setTimeout(() => window.dispatchEvent(new Event('pixcode:new-agent')), 0) }
     const openTerminal = () => { panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' }

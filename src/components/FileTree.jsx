@@ -39,14 +39,14 @@ const namedFileIcons = {
   'README.md': [BookOpen, '#5e9be7'], LICENSE: [FileCheck, '#9299a5'], 'CHANGELOG.md': [Scroll, '#5e9be7']
 }
 
-function getFileIcon(name, type, expanded) {
+export function getFileIcon(name, type, expanded) {
   if (type === 'dir') return [expanded ? FolderOpen : Folder, expanded ? '#d6a94e' : '#c9973e']
   if (namedFileIcons[name]) return namedFileIcons[name]
   const extension = name.includes('.') ? name.split('.').pop().toLowerCase() : ''
   return fileIcons[extension] || [File, '#858585']
 }
 
-function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged }) {
+function Node({ path, name, type, depth = 0, refreshToken, softToken, onError, onChanged }) {
   const [expanded, setExpanded] = useState(false)
   const [children, setChildren] = useState(null)
 
@@ -54,6 +54,12 @@ function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged })
     setExpanded(false)
     setChildren(null)
   }, [refreshToken])
+
+  // External change: reload this directory's children in place — expansion
+  // state survives, unlike the hard `refreshToken` collapse.
+  useEffect(() => {
+    if (expanded && children) void loadChildren(true)
+  }, [softToken])
 
   async function loadChildren(force = false) {
     if (!force && children) return
@@ -69,7 +75,7 @@ function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged })
     if (type !== 'dir') { openFile(path); return }
     const next = !expanded
     setExpanded(next)
-    if (next) await loadChildren()
+    if (next) await loadChildren(true)
   }
 
   const itemClass = ['tree-item', type === 'dir' ? 'dir' : 'file', expanded ? 'open' : ''].filter(Boolean).join(' ')
@@ -86,7 +92,7 @@ function Node({ path, name, type, depth = 0, refreshToken, onError, onChanged })
           <vscode-toolbar-button icon="trash" title={t('tree.delete')} aria-label={t('tree.delete')} onClick={() => onChanged({ type: 'delete', path, name })}></vscode-toolbar-button>
         </span>
       </div>
-      {expanded && children?.map((child) => <Node key={joinPath(path, child.name)} path={joinPath(path, child.name)} {...child} depth={depth + 1} refreshToken={refreshToken} onError={onError} onChanged={onChanged} />)}
+      {expanded && children?.map((child) => <Node key={joinPath(path, child.name)} path={joinPath(path, child.name)} {...child} depth={depth + 1} refreshToken={refreshToken} softToken={softToken} onError={onError} onChanged={onChanged} />)}
       {expanded && children?.length === 0 && <div class="tree-item muted" style={{ paddingLeft: String(18 + depth * 12) + 'px' }}>{t('tree.empty')}</div>}
     </div>
   )
@@ -96,8 +102,10 @@ export function FileTree() {
   const [root, setRoot] = useState(null)
   const [error, setError] = useState('')
   const [refreshToken, setRefreshToken] = useState(0)
+  const [softToken, setSoftToken] = useState(0)
   const [dialog, setDialog] = useState(null)
   const refreshSequence = useRef(0)
+  const softTimer = useRef(null)
 
   async function refresh() {
     const sequence = ++refreshSequence.current
@@ -113,6 +121,20 @@ export function FileTree() {
     }
   }
 
+  // Live updates: reload the root and every expanded directory without
+  // collapsing the tree, so another user's or an agent CLI's edits surface
+  // immediately like terminal output does.
+  async function softRefresh() {
+    const sequence = ++refreshSequence.current
+    const requestedWorkspace = workspace.value?.path || ''
+    try {
+      const nextRoot = await ws.request('fs', 'list', { path: '.', workspace: requestedWorkspace })
+      if (sequence !== refreshSequence.current || requestedWorkspace !== (workspace.value?.path || '')) return
+      setRoot(nextRoot)
+      setSoftToken((value) => value + 1)
+    } catch { /* keep the stale tree — the next event retries */ }
+  }
+
   useEffect(() => {
     refresh()
     const newFile = () => openCreate('file')
@@ -121,9 +143,17 @@ export function FileTree() {
       setError('')
       refresh()
     }
+    const changed = (data) => {
+      if (String(data?.workspace || '') !== (workspace.value?.path || '')) return
+      window.clearTimeout(softTimer.current)
+      softTimer.current = window.setTimeout(softRefresh, 200)
+    }
+    const unsubscribe = ws.on('fs', 'changed', changed)
     window.addEventListener('pixcode:new-file', newFile)
     window.addEventListener('pixcode:workspace-change', workspaceChange)
     return () => {
+      unsubscribe()
+      window.clearTimeout(softTimer.current)
       window.removeEventListener('pixcode:new-file', newFile)
       window.removeEventListener('pixcode:workspace-change', workspaceChange)
     }
@@ -169,7 +199,7 @@ export function FileTree() {
       {error && <div class="tree-error error-text">{error}</div>}
       {!error && !root && <div class="tree-loading"><vscode-progress-ring /></div>}
       {!error && root?.length === 0 && <div class="tree muted">{t('tree.empty')}</div>}
-      {!error && root?.length > 0 && <vscode-scrollable class="tree-scroller"><div class="tree">{root.map((entry) => <Node key={entry.name} path={entry.name} {...entry} refreshToken={refreshToken} onError={setError} onChanged={handleNodeAction} />)}</div></vscode-scrollable>}
+      {!error && root?.length > 0 && <vscode-scrollable class="tree-scroller"><div class="tree">{root.map((entry) => <Node key={entry.name} path={entry.name} {...entry} refreshToken={refreshToken} softToken={softToken} onError={setError} onChanged={handleNodeAction} />)}</div></vscode-scrollable>}
       {dialog && <div class="modal-backdrop" onClick={() => setDialog(null)}>
         <form class="file-action-modal" onSubmit={submitAction} onClick={(event) => event.stopPropagation()}>
           <h2>{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : dialog.type === 'file' ? 'tree.newFile' : 'tree.newFolder')}</h2>

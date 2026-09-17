@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { config } from './config.js'
 import { httpError } from './util/http.js'
 import { registerWorkspace } from './workspace.js'
+import { credentialFor } from './git-account.js'
 
 let active = null
 const execFileAsync = promisify(execFile)
@@ -353,7 +354,7 @@ export function browseDirectories(folderPath) {
   return { path: target, parent, entries }
 }
 
-export async function cloneProject(url, name) {
+export async function cloneProject(url, name, ctx) {
   const source = String(url || '').trim()
   if (!/^https?:\/\//i.test(source) && !/^git@[^:]+:[^/]+\/.+/.test(source)) throw httpError(400, 'unsupported repository URL')
   const fallback = source.split('/').at(-1)?.replace(/\.git$/i, '').replace(/[^\p{L}\p{N}._-]+/gu, '-') || ''
@@ -362,7 +363,8 @@ export async function cloneProject(url, name) {
   const destination = insideRoot(projectName)
   if (fs.existsSync(destination)) throw httpError(409, 'project already exists')
   try {
-    await execFileAsync('git', ['clone', '--', source, destination], { env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' }, timeout: 120_000, maxBuffer: 4 * 1024 * 1024 })
+    const cred = ctx ? credentialFor(ctx, source) : { args: [], env: {} }
+    await execFileAsync('git', [...cred.args, 'clone', '--', source, destination], { env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never', ...cred.env }, timeout: 120_000, maxBuffer: 4 * 1024 * 1024 })
   } catch (error) {
     try { fs.rmSync(destination, { recursive: true, force: true }) } catch { void 0 }
     const detail = `${error.stderr || ''}${error.stdout || ''}`.trim()

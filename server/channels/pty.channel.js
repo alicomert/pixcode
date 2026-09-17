@@ -1,6 +1,7 @@
 import pty from '@homebridge/node-pty-prebuilt-multiarch'
 import { httpError } from '../util/http.js'
 import { enhancedEnv } from '../util/env.js'
+import { cliEnvFor } from '../cli-env.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 
 const shells = new Map()
@@ -41,7 +42,7 @@ export const ptyChannel = {
         name: 'xterm-256color',
         ...size,
         cwd: workspaceCwd(workspacePath, cwd, ctx),
-        env: await enhancedEnv({ TERM: 'xterm-256color' })
+        env: await enhancedEnv({ TERM: 'xterm-256color', ...(cliEnvFor(ownerKey(ctx)) || {}) })
       })
       const shell = { term, owner: ownerKey(ctx), subscribers: new Set([ctx]), workspace: workspacePath, history: [], historyBytes: 0, sequence: 0 }
       shells.set(id, shell)

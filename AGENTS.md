@@ -43,6 +43,15 @@ backend first, then `node scripts/smoke.mjs`.
 
 ## Architecture boundaries
 
+- Live filesystem sync: `fs.watch`/`fs.unwatch` subscribe a connection to its
+  workspace; `fs:changed` pushes `{workspace, files:[{path,kind}], git}` to
+  every subscriber (debounced ~120ms). Watching is per-directory
+  (node_modules/caches skipped — inotify cost stays proportional to the
+  source tree); `.git` top-level + `refs/` flag `git:true` so commits/pulls
+  from any side refresh the Git panel instantly. Late-appearing `.git` dirs
+  are picked up live. Client subscription is centralized in
+  `src/lib/fs-watch.js` (re-arms on `pixcode:ws-open`, re-points on
+  workspace change); views just listen for the event.
 - `server/` — Node backend. Entry `server/index.js` (`createHttpServer`/`startServer`);
   CLI `server/cli.js` (`pixcode start [--port N] [--workspace PATH] | status | version`).
   One file per WS channel in `server/channels/`. `server/agents/runner.js` spawns
@@ -80,6 +89,23 @@ assertion in `scripts/smoke.mjs`.
   State lives in `$PIXCODE_HOME/auth.json` (default `~/.pixcode/`, mode 0600).
 - Auth accepts JWT bearer tokens (24h TTL) **or** API keys (`px_…`, issued via
   `/api/auth/keys`). WS auth passes the token as `?token=` on the `/ws` URL.
+- Session expiry: JWTs live 24h. Client-side `ws.js` reads `exp` before each
+  connect, probes `/api/auth/me` once when an upgrade is refused, and any
+  non-login REST 401 clears the token — all paths fire `pixcode:auth-expired`,
+  which `App.jsx` listens for to drop back to `AuthGate`. Reconnects use
+  capped exponential backoff (~1s→15s + jitter); `ws.close()` is re-armable —
+  `connect()` clears the flag so the "server unavailable → retry" path can
+  reopen the socket.
+- Per-user CLI environment: `cli-env.json` (0600) maps each `sub` to
+  `{env: {KEY: value}, home: bool}`. `cliEnvFor(sub)` merges those vars over
+  the daemon env at every spawn (`agent` runner + `pty` channel) — a user with
+  no record inherits the shared daemon credentials; `home:true` gives them a
+  private `cli-home/<sub>` HOME (0700, lazily created) so CLI logins/configs
+  don't collide. `agent.cliEnv`/`agent.saveCliEnv` ops are per-user and take
+  an admin-only `for: <sub>` to manage a member's record (UserManager's
+  "Private CLI home" toggle drives this); values are write-only (names only
+  in responses). `PATH`/`HOME`/`USER`/`LOGNAME`/`SHELL` overrides are
+  rejected — HOME is the flag's job.
 - Multi-account access: `auth.json` keeps the owner account plus `users[]`
   (admin-created, `role` `admin`/`member`, `projects`/`agents` allowlists —
   `null` means unrestricted — and `disabled`). `resolvePrincipal` maps tokens to
@@ -92,6 +118,17 @@ assertion in `scripts/smoke.mjs`.
   (`0.0.0.0`), `PIXCODE_HOME` (auth dir), `PIXCODE_PROJECTS` (projects dir,
   default `./pixcode-projects`), `PIXCODE_WORKSPACE` (pin a single external
   workspace instead of numbered projects).
+- GitHub sign-in has three tiers. Primary: **web OAuth** — `git.oauthStart`
+  returns the app's authorize URL; GitHub redirects the browser to
+  `/api/git/oauth/callback`, where `webComplete` swaps the code for a user
+  token and adopts the profile. Requires a stored `clientId` + `clientSecret`
+  (0600 `$PIXCODE_HOME/git-oauth.json`), produced automatically by the
+  manifest bootstrap (`git.appBootstrap` → `/api/git/app/callback` — the
+  manifest also registers the callback URL). Fallbacks: **device flow**
+  (`git.deviceStart`/`devicePoll`, needs the app owner's manual Device-Flow
+  opt-in — GitHub exposes no API for it) and manual PAT paste. A client_id
+  saved without a secret (legacy or `PIXCODE_GITHUB_CLIENT_ID` /
+  `git.saveOauthClientId`) can only use device flow.
 
 ## Conventions
 

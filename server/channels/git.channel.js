@@ -3,14 +3,17 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import { httpError } from '../util/http.js'
 import { workspacePath } from '../workspace.js'
+import { credentialFor, getGitAccount, identityArgs, saveGitAccount } from '../git-account.js'
+import { adoptGithubUser, appBootstrap, devicePoll, deviceStart, oauthConfigInfo, setGithubClientId, webStart } from '../git-oauth.js'
+import { requireAccess, requireAdmin } from '../auth.js'
 
 const execFileAsync = promisify(execFile)
 const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' }
 
-function git(args, options = {}, requestedWorkspace) {
+function git(args, options = {}, requestedWorkspace, extraEnv = {}) {
   const base = workspacePath(requestedWorkspace, '.').base
   return execFileAsync('git', ['-C', base, ...args], {
-    env: GIT_ENV,
+    env: { ...GIT_ENV, ...extraEnv },
     maxBuffer: 20 * 1024 * 1024,
     timeout: options.timeout || 30_000,
     killSignal: 'SIGTERM'
@@ -19,10 +22,17 @@ function git(args, options = {}, requestedWorkspace) {
 
 function parseStatus(output) {
   let branch = 'HEAD'
+  let ahead = 0
+  let behind = 0
   const files = []
   for (const line of output.split('\n')) {
     if (line.startsWith('# branch.head ')) {
       branch = line.slice('# branch.head '.length)
+      continue
+    }
+    if (line.startsWith('# branch.ab ')) {
+      const counts = line.match(/\+(\d+)\s+-(\d+)/)
+      if (counts) { ahead = Number(counts[1]); behind = Number(counts[2]) }
       continue
     }
     if (line.startsWith('? ')) {
@@ -42,7 +52,7 @@ function parseStatus(output) {
       })
     }
   }
-  return { branch, files }
+  return { branch, ahead, behind, files }
 }
 
 function refPart(value, label) {
@@ -56,14 +66,23 @@ function safeRelative(value, requestedWorkspace) {
   return workspacePath(requestedWorkspace, value).relative
 }
 
-async function remoteOperation(command, remote, branch, requestedWorkspace) {
+async function remoteOperation(command, remote, branch, requestedWorkspace, ctx) {
   const args = [command]
   const remoteRef = refPart(remote, 'remote')
   const branchRef = refPart(branch, 'branch')
   if (remoteRef) args.push(remoteRef)
   if (branchRef) args.push(branchRef)
+  // Look up the remote's URL so the caller's stored token for that host can
+  // be injected for this invocation only.
+  const cred = { args: [], env: {} }
   try {
-    const { stdout, stderr } = await git(args, { timeout: 120_000 }, requestedWorkspace)
+    const { stdout } = await git(['remote', 'get-url', remoteRef || 'origin'], {}, requestedWorkspace)
+    const found = credentialFor(ctx, stdout.trim())
+    cred.args.push(...found.args)
+    Object.assign(cred.env, found.env)
+  } catch { /* no configured remote — let the real op report the failure */ }
+  try {
+    const { stdout, stderr } = await git([...cred.args, ...args], { timeout: 120_000 }, requestedWorkspace, cred.env)
     return { ok: true, output: `${stdout}${stderr}` }
   } catch (error) {
     const detail = `${error.stdout || ''}${error.stderr || ''}`.trim()
@@ -183,11 +202,14 @@ export const gitChannel = {
       return { ok: true }
     },
 
-    async commit(ctx, { message, workspace } = {}) {
+    async commit(ctx, { message, all = false, workspace } = {}) {
       workspacePath(workspace, '.', ctx)
       if (!String(message || '').trim()) throw httpError(400, 'message required')
       try {
-        const { stdout, stderr } = await git(['commit', '-m', String(message)], {}, workspace)
+        // `all` mirrors VS Code's commit button: stage every change first so
+        // the user never has to think about the staging area.
+        if (all) await git(['add', '-A'], {}, workspace)
+        const { stdout, stderr } = await git([...identityArgs(ctx), 'commit', '-m', String(message)], {}, workspace)
         return { ok: true, output: `${stdout}${stderr}` }
       } catch (error) {
         const detail = `${error.stdout || ''}${error.stderr || ''}`.trim()
@@ -195,7 +217,84 @@ export const gitChannel = {
       }
     },
 
-    push: (ctx, { remote, branch, workspace } = {}) => { workspacePath(workspace, '.', ctx); return remoteOperation('push', remote, branch, workspace) },
-    pull: (ctx, { remote, branch, workspace } = {}) => { workspacePath(workspace, '.', ctx); return remoteOperation('pull', remote, branch, workspace) }
+    async init(ctx, { workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
+      const { stdout, stderr } = await git(['init'], {}, workspace)
+      return { ok: true, output: `${stdout}${stderr}` }
+    },
+
+    async discard(ctx, { path: filePath, workspace } = {}) {
+      workspacePath(workspace, '.', ctx)
+      if (!filePath) throw httpError(400, 'path required')
+      const safePath = safeRelative(filePath, workspace)
+      if (await isTracked(safePath, workspace)) {
+        // Restores both index and worktree so a staged edit also disappears.
+        await git(['restore', '--staged', '--worktree', '--', safePath], {}, workspace)
+      } else {
+        await git(['clean', '-f', '--', safePath], {}, workspace)
+      }
+      return { ok: true }
+    },
+
+    async log(ctx, { workspace, limit = 12 } = {}) {
+      workspacePath(workspace, '.', ctx)
+      try {
+        const { stdout } = await git(['log', '--format=%h%x00%s%x00%an%x00%cr', '-n', String(Math.min(Number(limit) || 12, 50))], {}, workspace)
+        const commits = stdout.split('\n').filter(Boolean).map((line) => {
+          const [short, subject, author, ago] = line.split('\x00')
+          return { short, subject, author, ago }
+        })
+        return { commits }
+      } catch {
+        // A repository without commits still gets a panel — just an empty one.
+        return { commits: [] }
+      }
+    },
+
+    // Validates a GitHub access token (web/device/PAT) against the API,
+    // stores it for github.com and adopts the profile as the commit identity.
+    async connectGitHub(ctx, { token } = {}) {
+      requireAccess(ctx)
+      const value = String(token || '').trim()
+      if (!value) throw httpError(400, 'token required')
+      return adoptGithubUser(ctx?.principal?.sub || 'owner', value)
+    },
+
+    // Web OAuth flow: open the app's authorize URL in a tab, GitHub sends the
+    // browser back to /api/git/oauth/callback, and the server saves the token.
+    // The workbench polls `git account` until the profile shows up.
+    oauthStart: (ctx) => { requireAccess(ctx); return webStart(ctx?.principal?.sub || 'owner') },
+
+    // OAuth device flow: GitHub hands the user a short code they approve in
+    // the browser; polling swaps it for a token that then flows through the
+    // normal connectGitHub path. The client_id is a public app identifier —
+    // resolved from PIXCODE_GITHUB_CLIENT_ID or the admin-managed store.
+    oauthConfig: (ctx) => { requireAccess(ctx); return oauthConfigInfo() },
+    // Admin-only one-time setup: builds the manifest + nonce the client posts
+    // to github.com/settings/apps/new so the GitHub App creates itself.
+    appBootstrap: (ctx, { origin } = {}) => {
+      requireAdmin(ctx)
+      const value = String(origin || '')
+      if (!/^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(value)) throw httpError(400, 'invalid origin')
+      return appBootstrap(value)
+    },
+    deviceStart: (ctx) => { requireAccess(ctx); return deviceStart() },
+    async devicePoll(ctx, { deviceCode } = {}) {
+      requireAccess(ctx)
+      const result = await devicePoll(deviceCode)
+      if (result.status !== 'authorized') return result
+      const account = await gitChannel.ops.connectGitHub(ctx, { token: result.token })
+      return { status: 'authorized', account }
+    },
+    saveOauthClientId: (ctx, { clientId } = {}) => { requireAdmin(ctx); return setGithubClientId(clientId) },
+
+    push: (ctx, { remote, branch, workspace } = {}) => { workspacePath(workspace, '.', ctx); return remoteOperation('push', remote, branch, workspace, ctx) },
+    pull: (ctx, { remote, branch, workspace } = {}) => { workspacePath(workspace, '.', ctx); return remoteOperation('pull', remote, branch, workspace, ctx) },
+    fetch: (ctx, { remote, workspace } = {}) => { workspacePath(workspace, '.', ctx); return remoteOperation('fetch', remote, null, workspace, ctx) },
+
+    // Per-account git identity + HTTPS tokens. Each signed-in user edits only
+    // their own record; tokens are write-only and never returned to clients.
+    account: (ctx) => { requireAccess(ctx); return getGitAccount(ctx) },
+    saveAccount: (ctx, data = {}) => { requireAccess(ctx); return saveGitAccount(ctx, data) }
   }
 }

@@ -15,9 +15,11 @@ import { agentChannel } from './channels/agent.channel.js'
 import { authChannel } from './channels/auth.channel.js'
 import { registerAllAdapters } from './agents/adapters/index.js'
 import { listAgents } from './agents/adapter.js'
-import { restoreSessions } from './agents/runner.js'
+import { restoreSessions, setPresenceNotifier } from './agents/runner.js'
 import { initializeWorkspace } from './projects.js'
 import { projectChannel } from './channels/project.channel.js'
+import { previewRoutes } from './preview.js'
+import { oauthRoutes } from './git-oauth.js'
 
 function allowLocalOrigin(origin) {
   if (!origin) return false
@@ -40,6 +42,8 @@ export function createHttpServer() {
   initializeWorkspace()
   const router = new Router()
   authRoutes(router)
+  previewRoutes(router)
+  oauthRoutes(router)
   const distExists = fs.existsSync(config.distDir)
   const server = http.createServer(async (req, res) => {
     const localOrigin = setCors(req, res)
@@ -69,6 +73,9 @@ export function createHttpServer() {
   hub.register('git', gitChannel)
   hub.register('pty', ptyChannel)
   hub.register('agent', agentChannel)
+  // Agent session lifecycle changes are broadcast so every client can refresh
+  // its "who else is working" presence strip.
+  setPresenceNotifier(() => hub.broadcast('agent', 'presence', {}))
 
   // Re-detect agent CLIs in the background so installs and removals surface
   // without a manual refresh. Only broadcast when availability changed.

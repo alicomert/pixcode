@@ -43,6 +43,6 @@ const lightAnsi = {
 
 export function terminalTheme(mode = 'dark') {
   return mode === 'light'
-    ? { ...lightAnsi, background: '#ffffff', foreground: '#3b3b3b', cursor: '#3b3b3b', selectionBackground: '#add6ff' }
-    : { ...ansi, background: '#1f1f1f', foreground: '#cccccc', cursor: '#aeafad', selectionBackground: '#264f78' }
+    ? { ...lightAnsi, background: '#ffffff', foreground: '#3b3b3b', cursor: '#3b3b3b', selectionBackground: '#d6ccff' }
+    : { ...ansi, background: '#0e1219', foreground: '#d8dee9', cursor: '#aeafad', selectionBackground: '#5c3ffc66' }
 }

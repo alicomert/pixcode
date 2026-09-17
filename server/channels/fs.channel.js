@@ -7,6 +7,129 @@ import { workspacePath } from '../workspace.js'
 // including dotfiles, build output and the .git directory like a local editor.
 const SKIP = new Set(['.DS_Store'])
 const SEARCH_SKIP = new Set(['node_modules', '.git', 'dist', '.cache', '.DS_Store'])
+
+// Live file watching: every connected client subscribes to its workspace and
+// gets `fs:changed` pushes when bytes move on disk — another user's session,
+// an agent CLI, another PC — so the tree/editor/git views stay current
+// without polling. Each watched directory costs one inotify watch, so
+// dependency/build trees are skipped to keep usage proportional to the
+// source tree, not the package tree.
+const WATCH_DEBOUNCE_MS = 120
+const WATCH_MAX_FILES = 300
+const WATCH_MAX_DEPTH = 24
+const WATCH_SKIP = new Set(['node_modules', '.git', '.cache', '.next', '.nuxt', '.turbo', 'coverage', '__pycache__', '.venv', 'venv', 'target'])
+const GIT_WATCH_SKIP = new Set(['objects', 'logs', 'hooks', 'info', 'lfs', 'modules', 'worktrees'])
+
+// base(realpath) -> { subscribers: Map<ctx, workspaceArg>, dirs: Map<abs, FSWatcher>, pending: Map<rel,kind>, git, timer }
+const watchers = new Map()
+
+function scheduleFlush(entry) {
+  if (entry.timer) return
+  entry.timer = setTimeout(() => flushWatch(entry), WATCH_DEBOUNCE_MS)
+  entry.timer.unref?.()
+}
+
+function flushWatch(entry) {
+  entry.timer = null
+  const files = [...entry.pending].slice(0, WATCH_MAX_FILES).map(([filePath, kind]) => ({ path: filePath, kind }))
+  entry.pending.clear()
+  const git = entry.git
+  entry.git = false
+  if (!files.length && !git) return
+  for (const [ctx, workspaceArg] of entry.subscribers) {
+    try { ctx.emit('fs', 'changed', { workspace: workspaceArg, files, git }) } catch { entry.subscribers.delete(ctx) }
+  }
+  if (!entry.subscribers.size) teardownWatch(entry)
+}
+
+function teardownWatch(entry) {
+  if (entry.timer) clearTimeout(entry.timer)
+  entry.timer = null
+  for (const handle of entry.dirs.values()) { try { handle.close() } catch { void 0 } }
+  entry.dirs.clear()
+  watchers.delete(entry.base)
+}
+
+function watchGitTree(entry, abs) {
+  if (entry.dirs.has(abs)) return
+  try {
+    entry.dirs.set(abs, fs.watch(abs, { persistent: false }, () => { entry.git = true; scheduleFlush(entry) }))
+  } catch { return }
+  let entries
+  try { entries = fs.readdirSync(abs, { withFileTypes: true }) } catch { return }
+  for (const child of entries) {
+    if (child.isDirectory() && !GIT_WATCH_SKIP.has(child.name)) watchGitTree(entry, path.join(abs, child.name))
+  }
+}
+
+// .git top-level (HEAD/index/MERGE_HEAD live there) plus the refs subtree —
+// enough to flag that a commit, checkout, or pull happened on any side.
+function watchGit(entry, base) {
+  const gitDir = path.join(base, '.git')
+  if (entry.dirs.has(gitDir)) return
+  try {
+    entry.dirs.set(gitDir, fs.watch(gitDir, { persistent: false }, () => { entry.git = true; scheduleFlush(entry) }))
+  } catch { return } // not a repo — no git flagging needed
+  watchGitTree(entry, path.join(gitDir, 'refs'))
+}
+
+function onSourceEvent(entry, dirAbs, dirRel, type, name) {
+  const fileName = name == null ? '' : String(name)
+  if (!fileName) return
+  const rel = dirRel ? `${dirRel}/${fileName}` : fileName
+  const abs = path.join(dirAbs, fileName)
+  let stat = null
+  try { stat = fs.statSync(abs) } catch { /* deleted or a dangling link */ }
+  // A repository can be initialized after the watch started — `git init` and
+  // clones land here as a brand-new `.git` dir that must start reporting.
+  if (rel === '.git') {
+    if (stat?.isDirectory()) watchGit(entry, entry.base)
+    return
+  }
+  if (WATCH_SKIP.has(fileName)) return
+  if (stat?.isDirectory()) {
+    watchSourceTree(entry, abs, rel)
+  } else if (type === 'rename' && !stat) {
+    // Deleted or moved away — drop any watches still pointing at its subtree.
+    for (const [watchedAbs, handle] of entry.dirs) {
+      if (watchedAbs === abs || watchedAbs.startsWith(`${abs}${path.sep}`)) {
+        try { handle.close() } catch { void 0 }
+        entry.dirs.delete(watchedAbs)
+      }
+    }
+  }
+  entry.pending.set(rel, type === 'rename' ? 'rename' : 'change')
+  scheduleFlush(entry)
+}
+
+function watchSourceTree(entry, abs, rel, depth = 0) {
+  if (entry.dirs.has(abs) || depth > WATCH_MAX_DEPTH) return
+  try {
+    entry.dirs.set(abs, fs.watch(abs, { persistent: false }, (type, name) => onSourceEvent(entry, abs, rel, type, name)))
+  } catch { return }
+  let entries
+  try { entries = fs.readdirSync(abs, { withFileTypes: true }) } catch { return }
+  for (const child of entries) {
+    if (child.isDirectory() && !WATCH_SKIP.has(child.name)) {
+      watchSourceTree(entry, path.join(abs, child.name), rel ? `${rel}/${child.name}` : child.name, depth + 1)
+    }
+  }
+}
+
+function watcherFor(base) {
+  let entry = watchers.get(base)
+  if (entry) return entry
+  entry = { base, subscribers: new Map(), dirs: new Map(), pending: new Map(), git: false, timer: null }
+  watchers.set(base, entry)
+  watchSourceTree(entry, base, '')
+  watchGit(entry, base)
+  return entry
+}
+
+function realBase(requestedWorkspace, ctx) {
+  const { base } = workspacePath(requestedWorkspace, '.', ctx)
+  try { return fs.realpathSync(base) } catch { return base }
+}
 async function existingPath(rel, requestedWorkspace, ctx) {
   const { base, resolved: lexical } = workspacePath(requestedWorkspace, rel, ctx)
   const resolved = lexical
@@ -147,6 +270,29 @@ export const fsChannel = {
       if (target === workspacePath(workspace, '.', ctx).base) throw httpError(400, 'cannot delete workspace')
       await fs.promises.rm(target, { recursive: true, force: true })
       return { ok: true }
+    },
+
+    // Live view subscription: workspacePath() enforces the caller's project
+    // allowlist, so a member can never watch a workspace they cannot open.
+    watch(ctx, { workspace } = {}) {
+      const entry = watcherFor(realBase(workspace, ctx))
+      entry.subscribers.set(ctx, String(workspace || ''))
+      return { watching: entry.dirs.size > 0 }
+    },
+
+    unwatch(ctx, { workspace } = {}) {
+      const entry = watchers.get(realBase(workspace, ctx))
+      if (entry) {
+        entry.subscribers.delete(ctx)
+        if (!entry.subscribers.size) teardownWatch(entry)
+      }
+      return { watching: false }
+    }
+  },
+
+  onClose(ctx) {
+    for (const entry of watchers.values()) {
+      if (entry.subscribers.delete(ctx) && !entry.subscribers.size) teardownWatch(entry)
     }
   }
 }

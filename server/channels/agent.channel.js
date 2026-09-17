@@ -1,7 +1,8 @@
 import { listAgents } from '../agents/adapter.js'
-import { requireAccess } from '../auth.js'
+import { requireAccess, requireAdmin } from '../auth.js'
 import { httpError } from '../util/http.js'
-import { closeRunner, detachSubscriber, getHistory, inputRunner, listSessions, resizeRunner, sendToRunner, startRunner, stopRunner } from '../agents/runner.js'
+import { cliEnvInfo, saveCliEnv } from '../cli-env.js'
+import { closeRunner, detachSubscriber, getHistory, inputRunner, listChangedFiles, listPresence, listSessions, resizeRunner, sendToRunner, startRunner, stopRunner, unwatchRunner, watchRunner } from '../agents/runner.js'
 
 export const agentChannel = {
   ops: {
@@ -21,7 +22,29 @@ export const agentChannel = {
     stop: (ctx, { sessionId } = {}) => stopRunner(ctx, sessionId),
     close: (ctx, { sessionId } = {}) => closeRunner(ctx, sessionId),
     sessions: (ctx, { workspace } = {}) => listSessions(ctx, workspace),
-    history: (ctx, { sessionId } = {}) => getHistory(ctx, sessionId)
+    history: (ctx, { sessionId } = {}) => getHistory(ctx, sessionId),
+    presence: (ctx) => { requireAccess(ctx); return listPresence(ctx) },
+    watch: (ctx, { sessionId } = {}) => { requireAccess(ctx); return watchRunner(ctx, sessionId) },
+    unwatch: (ctx, { sessionId } = {}) => unwatchRunner(ctx, sessionId),
+    changedFiles: (ctx, { sessionId } = {}) => { requireAccess(ctx); return listChangedFiles(ctx, sessionId) },
+    // Per-user CLI environment: names-only view (values are write-only) plus
+    // the private-home toggle. Any signed-in user manages their own record;
+    // admins may pass `for` to manage a member's (e.g. grant a private home
+    // so the member signs in to claude/devin/gh with their own account).
+    cliEnv: (ctx, { for: target } = {}) => {
+      const self = ctx?.principal?.sub || 'owner'
+      const sub = target ? String(target) : self
+      if (sub !== self) requireAdmin(ctx)
+      else requireAccess(ctx)
+      return cliEnvInfo(sub)
+    },
+    saveCliEnv: (ctx, { for: target, env, home } = {}) => {
+      const self = ctx?.principal?.sub || 'owner'
+      const sub = target ? String(target) : self
+      if (sub !== self) requireAdmin(ctx)
+      else requireAccess(ctx)
+      return saveCliEnv(sub, { env, home })
+    }
   },
   onClose(ctx) { detachSubscriber(ctx) }
 }

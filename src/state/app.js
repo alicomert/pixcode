@@ -50,6 +50,9 @@ function readWorkspace() {
 export const workspace = signal(readWorkspace())
 export const openFiles = signal([])
 export const activeFile = signal('')
+// The preview lives inside the editor tab strip as a sentinel path — it
+// persists per workspace and survives file switches like any other tab.
+export const PREVIEW_TAB = '$preview'
 export const activeView = signal('explorer')
 export const panelOpen = signal(false)
 export const sidebarWidth = signal(Number(localStorage.getItem('pixcode.sidebarWidth') || 276))
@@ -110,6 +113,10 @@ export function openFile(filePath) {
   activeFile.value = filePath
   rememberEditorState()
   mobileTab.value = 'editor'
+}
+
+export function openPreview() {
+  openFile(PREVIEW_TAB)
 }
 
 export function closeFile(filePath) {

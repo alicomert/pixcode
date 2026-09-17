@@ -8,11 +8,10 @@ const HOLD_DELAY_MS = 280
 const HOLD_REPEAT_MS = 60
 const TAP_LINES = 5
 
-// Floating edge arrows so touch users can scroll a terminal like a mouse
-// wheel: tap for a few lines, hold for a continuous repeat. Rendered only on
-// coarse-pointer devices — the desktop scrollbar already does this job.
+// Floating edge arrows so any pointer can scroll a terminal like a mouse
+// wheel: tap for a few lines, hold for a continuous repeat. On desktop they
+// sit dimmed beside the scrollbar and brighten on hover.
 export function TerminalScrollButtons({ hostRef, terminalRef }) {
-  if (typeof window === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches) return null
   const repeat = useRef({ delay: 0, interval: 0 })
 
   function scroll(direction) {

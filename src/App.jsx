@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { api, getToken, setToken } from './lib/api.js'
 import { ws } from './lib/ws.js'
 import { t } from './lib/i18n.js'
+import { setPrincipal } from './state/app.js'
 import { AuthGate } from './components/AuthGate.jsx'
 import { Shell } from './components/Shell.jsx'
 
@@ -37,7 +38,11 @@ export function App() {
         let authenticated = false
         if (getToken()) {
           try {
-            await api.get('/api/auth/me')
+            const me = await api.get('/api/auth/me')
+            // Rehydrate the principal on reload — admin-only UI (user manager,
+            // Git bootstrap) keys off this and must not depend on the login
+            // response having just run.
+            if (me?.principal) setPrincipal(me.principal)
             authenticated = true
           } catch {
             setToken('')
@@ -51,6 +56,14 @@ export function App() {
     boot()
     return () => { cancelled = true; ws.close() }
   }, [retryKey])
+
+  // The socket layer clears the credential and fires this when the session is
+  // unrecoverable (token expired, account revoked). Drop back to the gate.
+  useEffect(() => {
+    const expired = () => setState((current) => ({ ...current, authenticated: false }))
+    window.addEventListener('pixcode:auth-expired', expired)
+    return () => window.removeEventListener('pixcode:auth-expired', expired)
+  }, [])
 
   if (state.loading) return <div class="loading-screen"><img src="/logo.png" alt="Pixcode" /><span>Pixcode</span></div>
   if (state.unavailable) return <div class="loading-screen loading-unavailable"><img src="/logo.png" alt="Pixcode" /><span>{t('app.unavailable')}</span><small>{t('app.unavailableHint')}</small><button type="button" class="btn-accent" onClick={() => { setState({ loading: true, setupRequired: false, authenticated: false }); setRetryKey((value) => value + 1) }}>{t('app.retry')}</button></div>

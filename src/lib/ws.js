@@ -1,4 +1,4 @@
-import { backendOrigin, getToken } from './api.js'
+import { api, backendOrigin, getToken, setToken } from './api.js'
 
 function clientId() {
   const key = 'pixcode.clientId'
@@ -9,7 +9,24 @@ function clientId() {
     localStorage.setItem(key, value)
     return value
   } catch {
-    return 'legacy'
+    // Storage can be unavailable (private mode, locked profile). A shared
+    // 'legacy' id would merge sessions across every such client — fall back
+    // to a per-page random id instead.
+    return clientId.memory ||= `mem_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+  }
+}
+
+// JWT bodies carry `exp` in ms. Reading it here lets the client skip a doomed
+// upgrade and go straight to the login screen instead of retrying a dead
+// credential forever. Non-JWT keys (px_…) fail the parse and connect normally.
+function tokenExpired() {
+  const token = getToken()
+  if (!token) return true
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return !payload.exp || payload.exp < Date.now()
+  } catch {
+    return false
   }
 }
 
@@ -22,16 +39,52 @@ export class MultiplexWS {
     this.counter = 0
     this.reconnectTimer = null
     this.closed = false
+    this.attempts = 0
+    this.authFailed = false
+  }
+
+  // The session is unrecoverable (expired token, revoked account): drop the
+  // credential once and bounce the app back to the login gate.
+  expireSession() {
+    if (this.authFailed) return
+    this.authFailed = true
+    this.failedToken = getToken()
+    setToken('')
+    // The revoked-account path reaches here with the socket still open —
+    // close it so the server drops the connection instead of serving ops.
+    this.socket?.close()
+    window.dispatchEvent(new Event('pixcode:auth-expired'))
+  }
+
+  scheduleReconnect() {
+    if (this.closed || this.reconnectTimer || this.authFailed) return
+    // 1s → 2s → 4s → 8s → capped at ~15s with jitter so a room of clients
+    // does not stampede the server the moment it comes back.
+    const delay = Math.min(1_000 * 2 ** this.attempts, 15_000) + Math.random() * 500
+    this.attempts += 1
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect()
+    }, delay)
   }
 
   connect() {
-    if (this.closed || this.socket || !getToken()) return
+    this.closed = false
+    const token = getToken()
+    // A fresh login replaces the dead credential — that is the only thing
+    // allowed to clear authFailed and let the socket try again.
+    if (this.authFailed && token && token !== this.failedToken) this.authFailed = false
+    if (this.socket || !token || this.authFailed) return
+    if (tokenExpired()) { this.expireSession(); return }
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const token = encodeURIComponent(getToken())
     const endpoint = backendOrigin ? backendOrigin.replace(/^http/, 'ws') : `${protocol}//${location.host}`
-    this.socket = new WebSocket(`${endpoint}/ws?token=${token}&client=${encodeURIComponent(clientId())}`)
-    this.socket.onopen = () => {
-      for (const frame of this.queue.splice(0)) this.socket.send(frame)
+    const socket = new WebSocket(`${endpoint}/ws?token=${encodeURIComponent(token)}&client=${encodeURIComponent(clientId())}`)
+    this.socket = socket
+    socket.wasOpen = false
+    socket.onopen = () => {
+      socket.wasOpen = true
+      this.attempts = 0
+      for (const frame of this.queue.splice(0)) socket.send(frame)
       // Let mounted views re-attach long-lived sessions and re-fit terminals
       // after a transient connection loss.
       window.dispatchEvent(new Event('pixcode:ws-open'))
@@ -43,15 +96,20 @@ export class MultiplexWS {
         const pending = this.pending.get(frame.id)
         this.pending.delete(frame.id)
         if (frame.ok) pending.resolve(frame.data)
-        else pending.reject(new Error(frame.error || 'websocket error'))
+        else {
+          // An account disabled/deleted mid-session fails every op with this
+          // marker — treat it like an expired token and drop to the gate.
+          if (frame.error === 'session revoked') this.expireSession()
+          pending.reject(new Error(frame.error || 'websocket error'))
+        }
         return
       }
       if (!frame.ev) return
       const listeners = this.handlers.get(`${frame.ch}:${frame.ev}`)
       if (listeners) for (const listener of listeners) listener(frame.data)
     }
-    this.socket.onclose = () => {
-      this.socket = null
+    socket.onclose = () => {
+      if (this.socket === socket) this.socket = null
       // A request attached to a socket that has already closed can never be
       // answered. Reject it so hydration/loading guards are released and the
       // next reconnect can issue a fresh request instead of leaving the
@@ -59,9 +117,23 @@ export class MultiplexWS {
       for (const pending of this.pending.values()) pending.reject(new Error('websocket disconnected'))
       this.pending.clear()
       this.queue = []
-      if (!this.closed && getToken()) this.reconnectTimer = setTimeout(() => this.connect(), 1_000)
+      if (this.closed || !getToken()) return
+      if (!socket.wasOpen) {
+        // The upgrade itself was refused — either the token died (401) or the
+        // server is unreachable. Probe the REST endpoint once: a 401 means
+        // the session is over, anything else means keep retrying.
+        api.get('/api/auth/me').then(
+          () => this.scheduleReconnect(),
+          (error) => {
+            if (error?.status === 401) this.expireSession()
+            else this.scheduleReconnect()
+          }
+        )
+        return
+      }
+      this.scheduleReconnect()
     }
-    this.socket.onerror = () => {}
+    socket.onerror = () => {}
   }
 
   send(frame) {

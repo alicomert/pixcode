@@ -116,7 +116,7 @@ export function UserManager() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const blankForm = () => ({ username: '', password: '', role: 'member', allProjects: true, projects: new Set(), allAgents: true, agents: new Set() })
+  const blankForm = () => ({ username: '', password: '', role: 'member', allProjects: true, projects: new Set(), allAgents: true, agents: new Set(), cliHome: false })
 
   async function load() {
     try {
@@ -156,13 +156,14 @@ export function UserManager() {
     setBusy(true)
     setError('')
     try {
-      await ws.request('auth', 'createUser', {
+      const created = await ws.request('auth', 'createUser', {
         username: form.username.trim(),
         password: form.password,
         role: form.role,
         projects: form.allProjects ? null : [...form.projects],
         agents: form.allAgents ? null : [...form.agents]
       })
+      if (form.cliHome && created?.id) await ws.request('agent', 'saveCliEnv', { for: created.id, home: true })
       setForm(null)
       await load()
     } catch (requestError) {
@@ -172,7 +173,7 @@ export function UserManager() {
     }
   }
 
-  function edit(user) {
+  async function edit(user) {
     if (user.owner) return
     setForm(null)
     setDraft({
@@ -184,8 +185,13 @@ export function UserManager() {
       projects: new Set(user.projects || []),
       allAgents: user.agents === null,
       agents: new Set(user.agents || []),
-      password: ''
+      password: '',
+      cliHome: false
     })
+    try {
+      const info = await ws.request('agent', 'cliEnv', { for: user.id })
+      setDraft((current) => (current?.id === user.id ? { ...current, cliHome: !!info?.home } : current))
+    } catch { /* non-fatal: flag defaults to off */ }
   }
 
   async function save() {
@@ -200,6 +206,7 @@ export function UserManager() {
         agents: draft.allAgents ? null : [...draft.agents],
         ...(draft.password ? { password: draft.password } : {})
       })
+      await ws.request('agent', 'saveCliEnv', { for: draft.id, home: !!draft.cliHome })
       setDraft(null)
       await load()
     } catch (requestError) {
@@ -277,6 +284,10 @@ export function UserManager() {
                   grid
                   empty={t('users.noAgents')}
                 />
+                <div class="user-edit-block">
+                  <label class="user-toggle"><input type="checkbox" checked={form.cliHome} onChange={() => setForm({ ...form, cliHome: !form.cliHome })} />{t('users.cliHome')}</label>
+                  <small class="user-field-hint">{t('users.cliHomeHint')}</small>
+                </div>
                 <div class="user-card-actions user-card-actions-end">
                   <vscode-button secondary onClick={() => setForm(null)}>{t('common.cancel')}</vscode-button>
                   <vscode-button onClick={create} disabled={busy || !form.username.trim() || form.password.length < 6}>{t('users.add')}</vscode-button>
@@ -340,6 +351,11 @@ export function UserManager() {
                       grid
                       empty={t('users.noAgents')}
                     />
+
+                    <div class="user-edit-block">
+                      <label class="user-toggle"><input type="checkbox" checked={draft.cliHome} onChange={() => setDraft({ ...draft, cliHome: !draft.cliHome })} />{t('users.cliHome')}</label>
+                      <small class="user-field-hint">{t('users.cliHomeHint')}</small>
+                    </div>
 
                     <div class="user-card-actions">
                       <label class="user-toggle user-danger-toggle"><input type="checkbox" checked={draft.disabled} onChange={() => setDraft({ ...draft, disabled: !draft.disabled })} />{t('users.disableAccount')}</label>

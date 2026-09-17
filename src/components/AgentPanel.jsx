@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import { Archive, Download, Maximize2, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { Archive, ChevronDown, ChevronUp, Download, Eye, Maximize2, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
-import { activeAgent, agentSessions, panelOpen, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
+import { activeAgent, agentSessions, isAdmin, panelOpen, principal, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
@@ -72,14 +72,17 @@ function AgentLogo({ agent, size = 18 }) {
   return <TerminalIcon size={size} aria-hidden="true" />
 }
 
-function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
+function AgentTerminalView({ session, onStatus, onReady, modifiersRef, foreign = false }) {
   const host = useRef(null)
   const terminalRef = useRef(null)
   const fitRef = useRef(null)
+  // Members may watch an admin's terminal but never type into it; admins get
+  // full control over any session they open.
+  const canType = !foreign || isAdmin.value
 
   useEffect(() => {
     if (!host.current || !session) return undefined
-    const terminal = new Terminal({ fontFamily: terminalFont, fontSize: terminalFontSize.value, lineHeight: 1.25, fontWeight: 450, cursorBlink: session.status === 'running', disableStdin: session.status !== 'running', scrollOnUserInput: true, convertEol: true, scrollback: 5_000, theme: terminalTheme(theme.value) })
+    const terminal = new Terminal({ fontFamily: terminalFont, fontSize: terminalFontSize.value, lineHeight: 1.25, fontWeight: 450, cursorBlink: session.status === 'running' && canType, disableStdin: session.status !== 'running' || !canType, scrollOnUserInput: true, convertEol: true, scrollback: 5_000, theme: terminalTheme(theme.value) })
     const fit = new FitAddon()
     fitRef.current = fit
     terminal.loadAddon(fit)
@@ -150,6 +153,8 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
       }
     }
     const stopResizeWatcher = watchTerminalResize(host.current, fit, terminal, (cols, rows) => {
+      // Watching someone else's PTY must not reflow it for the owner.
+      if (foreign) return
       ws.request('agent', 'resize', { sessionId: session.sessionId, cols, rows }).catch(() => {})
     })
     // Tap-to-focus only: a scroll drag preventDefaults its touchmoves, which
@@ -162,7 +167,10 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
       hydrated = false
       pendingEvents.length = 0
       rehydrateRequested = hydrating
-      hydrate()
+      // WS subscriptions die with the connection — re-watch first so history
+      // and live events stay readable for a foreign session.
+      const resubscribe = foreign ? ws.request('agent', 'watch', { sessionId: session.sessionId }).catch(() => {}) : Promise.resolve()
+      resubscribe.finally(() => hydrate())
     }
     window.addEventListener('pixcode:ws-open', reconnect)
     const keyboardLayout = (event) => {
@@ -179,6 +187,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     window.addEventListener('pixcode:keyboard', keyboardLayout)
     let inputErrorShown = false
     const inputDisposable = terminal.onData((data) => {
+      if (!canType) return
       let nextData = data
       if (modifiersRef?.current && data.length === 1 && /[a-z]/i.test(data)) {
         nextData = String.fromCharCode(data.toUpperCase().charCodeAt(0) - 64)
@@ -230,7 +239,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     requestAnimationFrame(() => {
       try {
         fitRef.current?.fit()
-        ws.request('agent', 'resize', { sessionId: session?.sessionId, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
+        if (!foreign) ws.request('agent', 'resize', { sessionId: session?.sessionId, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
       } catch { /* terminal is switching */ }
     })
   }, [theme.value, session?.sessionId])
@@ -240,15 +249,15 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef }) {
     requestAnimationFrame(() => {
       try {
         fitRef.current?.fit()
-        ws.request('agent', 'resize', { sessionId: session?.sessionId, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
+        if (!foreign) ws.request('agent', 'resize', { sessionId: session?.sessionId, cols: terminalRef.current.cols, rows: terminalRef.current.rows }).catch(() => {})
       } catch { /* terminal is switching */ }
     })
   }, [terminalFontSize.value, session?.sessionId])
   useEffect(() => {
     if (!terminalRef.current) return
-    terminalRef.current.options.disableStdin = session?.status !== 'running'
-    terminalRef.current.options.cursorBlink = session?.status === 'running'
-  }, [session?.status])
+    terminalRef.current.options.disableStdin = session?.status !== 'running' || !canType
+    terminalRef.current.options.cursorBlink = session?.status === 'running' && canType
+  }, [session?.status, canType])
   return <div class="agent-terminal-host" ref={host}><TerminalScrollButtons hostRef={host} terminalRef={terminalRef} /></div>
 }
 
@@ -265,6 +274,13 @@ export function AgentPanel() {
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  // Presence: running agent sessions owned by other accounts. `watching` is
+  // the foreign session currently attached read-only (read-write for admin).
+  const [presence, setPresence] = useState([])
+  const [presenceFiles, setPresenceFiles] = useState({})
+  const [presenceOpen, setPresenceOpen] = useState({})
+  const presenceOpenRef = useRef({})
+  const [watching, setWatching] = useState(null)
   const closedSessions = useRef(readClosedSessions())
   const loadingRef = useRef(false)
   const reloadRequestedRef = useRef(false)
@@ -274,7 +290,9 @@ export function AgentPanel() {
   const agentModifiersRef = useRef(false)
   const handleAgentReady = useCallback((actions) => { agentActionsRef.current = actions }, [])
 
-  const activeSession = sessions.find((session) => session.sessionId === activeSessionId) || null
+  const activeSession = sessions.find((session) => session.sessionId === activeSessionId)
+    || (watching && watching.sessionId === activeSessionId ? watching : null)
+  const viewingForeign = !!(watching && activeSession?.sessionId === watching.sessionId)
 
   function selectSession(sessionId) {
     activeSessionRef.current = sessionId
@@ -294,9 +312,10 @@ export function AgentPanel() {
     const sequence = ++loadSequence.current
     const requestedWorkspace = workspace.value?.path || ''
     try {
-      const [list, currentSessions] = await Promise.all([ws.request('agent', 'agents', forceRefresh ? { refresh: true } : {}), ws.request('agent', 'sessions', { workspace: requestedWorkspace })])
+      const [list, currentSessions, others] = await Promise.all([ws.request('agent', 'agents', forceRefresh ? { refresh: true } : {}), ws.request('agent', 'sessions', { workspace: requestedWorkspace }), ws.request('agent', 'presence', {}).catch(() => [])])
       if (sequence !== loadSequence.current || requestedWorkspace !== (workspace.value?.path || '')) return
       setAgents(list)
+      setPresence(others || [])
       // Keep recent stopped sessions as read-only history. The runner retains
       // their terminal output for a short TTL, so reopening one is instant and
       // does not require another persistence dependency.
@@ -334,7 +353,24 @@ export function AgentPanel() {
       load()
     }
     const agentsPush = ws.on('agent', 'agents', (list) => { if (Array.isArray(list)) setAgents(list) })
+    const presencePush = ws.on('agent', 'presence', () => { fetchPresence() })
+    // Keep expanded "changed files" lists honest while the other side works.
+    const fsPush = ws.on('fs', 'changed', (data) => {
+      if (String(data?.workspace || '') !== (workspace.value?.path || '')) return
+      for (const sessionId of Object.keys(presenceOpenRef.current)) {
+        if (!presenceOpenRef.current[sessionId]) continue
+        ws.request('agent', 'changedFiles', { sessionId }).then((files) => {
+          setPresenceFiles((current) => ({ ...current, [sessionId]: files }))
+        }).catch(() => {})
+      }
+    })
     const unsubscribe = ws.on('agent', 'session', (event) => {
+      // Events from another account's session belong to the watched tab, not
+      // this user's own tab list — reflect status only.
+      if (event.owner && principal.value?.sub && event.owner !== principal.value.sub) {
+        if (event.type === 'done') setWatching((current) => current?.sessionId === event.sessionId ? { ...current, status: 'stopped' } : current)
+        return
+      }
       const currentWorkspace = workspace.value?.path || ''
       if (event.workspace && currentWorkspace && event.workspace !== currentWorkspace) return
       if (isClosedSession(closedSessions.current, event)) return
@@ -364,15 +400,65 @@ export function AgentPanel() {
     window.addEventListener('pixcode:ws-open', reconnect)
     window.addEventListener('pixcode:workspace-change', workspaceChange)
     window.addEventListener('pixcode:new-agent', openNewSession)
+    const presenceTimer = setInterval(fetchPresence, 20_000)
     load()
+    fetchPresence()
     return () => {
       window.removeEventListener('pixcode:ws-open', reconnect)
       window.removeEventListener('pixcode:workspace-change', workspaceChange)
       window.removeEventListener('pixcode:new-agent', openNewSession)
+      clearInterval(presenceTimer)
       agentsPush()
+      presencePush()
+      fsPush()
       unsubscribe()
     }
   }, [])
+
+  async function fetchPresence() {
+    try {
+      const others = await ws.request('agent', 'presence', {})
+      setPresence(Array.isArray(others) ? others : [])
+      setWatching((current) => {
+        if (!current) return current
+        const stillRunning = (others || []).some((item) => item.sessionId === current.sessionId)
+        return stillRunning ? { ...current, ...others.find((item) => item.sessionId === current.sessionId), foreign: true } : (current.status === 'running' ? { ...current, status: 'stopped' } : current)
+      })
+    } catch { /* presence is best-effort */ }
+  }
+
+  async function togglePresenceFiles(foreign) {
+    const opening = !presenceOpenRef.current[foreign.sessionId]
+    setPresenceOpen((current) => {
+      const next = { ...current, [foreign.sessionId]: opening }
+      presenceOpenRef.current = next
+      return next
+    })
+    if (!opening) return
+    try {
+      const files = await ws.request('agent', 'changedFiles', { sessionId: foreign.sessionId })
+      setPresenceFiles((current) => ({ ...current, [foreign.sessionId]: files }))
+    } catch {
+      setPresenceFiles((current) => ({ ...current, [foreign.sessionId]: [] }))
+    }
+  }
+
+  async function startWatching(foreign) {
+    try {
+      const info = await ws.request('agent', 'watch', { sessionId: foreign.sessionId })
+      setWatching({ ...foreign, ...info, foreign: true })
+      selectSession(foreign.sessionId)
+    } catch (requestError) {
+      setError(requestError.message)
+    }
+  }
+
+  function stopWatching(event) {
+    event?.stopPropagation?.()
+    if (watching) ws.request('agent', 'unwatch', { sessionId: watching.sessionId }).catch(() => {})
+    if (activeSessionRef.current === watching?.sessionId) selectSession(sessions.at(-1)?.sessionId || '')
+    setWatching(null)
+  }
 
   async function openAgent(agent) {
     if (!agent.available || busy) return
@@ -468,6 +554,10 @@ export function AgentPanel() {
   }
 
   function updateStatus(sessionId, status) {
+    if (watching?.sessionId === sessionId) {
+      setWatching((current) => current ? { ...current, status } : current)
+      return
+    }
     if (status === 'stopped') {
       setSessions((current) => current.map((session) => session.sessionId === sessionId ? { ...session, status: 'stopped', closedAt: Date.now() } : session))
       return
@@ -494,6 +584,9 @@ export function AgentPanel() {
               <AgentLogo agent={agent} size={14} /><span>{sessionLabel(session)}</span>{session.status === 'running' && <i class="agent-session-live" />}<span class="agent-tab-close" role="button" tabIndex="0" onClick={(event) => requestCloseSession(event, session.sessionId)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') requestCloseSession(event, session.sessionId) }} title={t('agent.close')} aria-label={t('agent.close')}><X size={12} /></span>
             </button>
           })}
+          {watching && <button class={`agent-session-tab watching ${watching.sessionId === activeSessionId ? 'active' : ''}`} type="button" onClick={() => selectSession(watching.sessionId)} title={t('agent.watching', { name: watching.ownerName || watching.owner })}>
+            <Eye size={13} /><span>{watching.ownerName} · {sessionLabel(watching)}</span>{watching.status === 'running' && <i class="agent-session-live" />}<span class="agent-tab-close" role="button" tabIndex="0" onClick={stopWatching} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') stopWatching(event) }} title={t('agent.stopWatching')} aria-label={t('agent.stopWatching')}><X size={12} /></span>
+          </button>}
         </div>
         <vscode-toolbar-button icon="add" onClick={() => { setModalOpen(true); load(true) }} title={t('agent.new')} aria-label={t('agent.new')}></vscode-toolbar-button>
         <button class={`tw-icon-button agent-history-button ${historyOpen ? 'active' : ''}`} type="button" onClick={() => setHistoryOpen((value) => !value)} title={t('agent.history')} aria-label={t('agent.history')}><Archive size={14} />{historySessions.length > 0 && <vscode-badge>{historySessions.length}</vscode-badge>}</button>
@@ -504,13 +597,33 @@ export function AgentPanel() {
       }) : <span class="agent-history-empty">{t('agent.historyEmpty')}</span>}</vscode-scrollable>}
       <div class="agent-terminal-header">
         <span class="terminal-badge"><TerminalIcon size={13} /> AGENT TERMINAL</span>
-        {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{sessionLabel(activeSession)}</strong><code>{activeSession.status}</code></span>}
+        {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{viewingForeign ? `${activeSession.ownerName} · ${sessionLabel(activeSession)}` : sessionLabel(activeSession)}</strong><code>{viewingForeign && !isAdmin.value ? t('agent.readonly') : activeSession.status}</code></span>}
         <span class="agent-header-spacer" />
-        {activeSession?.status === 'running' && <vscode-button secondary icon="debug-stop" onClick={() => stopSession(activeSession.sessionId)}>{t('agent.stop')}</vscode-button>}
+        {activeSession?.status === 'running' && (!viewingForeign || isAdmin.value) && <vscode-button secondary icon="debug-stop" onClick={() => stopSession(activeSession.sessionId)}>{t('agent.stop')}</vscode-button>}
         <vscode-toolbar-button icon="refresh" class={refreshing ? 'spin' : ''} onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}></vscode-toolbar-button>
       </div>
+      {presence.length > 0 && <div class="agent-presence">
+        {presence.map((foreign) => {
+          const agent = agents.find((item) => item.id === foreign.agent)
+          const expanded = !!presenceOpen[foreign.sessionId]
+          const files = presenceFiles[foreign.sessionId]
+          return <div class="agent-presence-row" key={foreign.sessionId}>
+            <button class="agent-presence-main" type="button" onClick={() => togglePresenceFiles(foreign)} title={expanded ? t('agent.hideFiles') : t('agent.showFiles')}>
+              <i class="agent-presence-dot" />
+              <AgentLogo agent={agent} size={13} />
+              <span class="agent-presence-copy"><strong>{foreign.ownerName}</strong><span>{sessionLabel(foreign)}</span></span>
+              {files && <span class="agent-presence-count">{t('agent.files', { count: files.length })}</span>}
+              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+            <button class="agent-presence-watch" type="button" onClick={() => startWatching(foreign)} disabled={watching?.sessionId === foreign.sessionId}><Eye size={12} />{t('agent.watch')}</button>
+            {expanded && <div class="agent-presence-files">
+              {files ? (files.length ? files.map((file) => <code key={file.path} title={file.path}><b>{file.status}</b>{file.path}</code>) : <small>{t('agent.noChangedFiles')}</small>) : <small>…</small>}
+            </div>}
+          </div>
+        })}
+      </div>}
       <div class="agent-console agent-terminal-console">
-        {activeSession ? <div class="terminal-mobile-stage"><AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} onReady={handleAgentReady} modifiersRef={agentModifiersRef} /><TerminalAccessory terminalId={activeSession.sessionId} actionsRef={agentActionsRef} modifiersRef={agentModifiersRef} /></div> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><vscode-button icon="add" onClick={() => { setModalOpen(true); load(true) }}>{t('agent.new')}</vscode-button></div>}
+        {activeSession ? <div class="terminal-mobile-stage"><AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} onReady={handleAgentReady} modifiersRef={agentModifiersRef} foreign={viewingForeign} /><TerminalAccessory terminalId={activeSession.sessionId} actionsRef={agentActionsRef} modifiersRef={agentModifiersRef} /></div> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><vscode-button icon="add" onClick={() => { setModalOpen(true); load(true) }}>{t('agent.new')}</vscode-button></div>}
         {error && <div class="error-text agent-error">{error}</div>}
       </div>
       {modalOpen && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}><section class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title"><div class="agent-modal-heading"><strong id="agent-modal-title">{t('agent.new')}</strong><span class="agent-modal-heading-actions"><vscode-toolbar-button icon="refresh" onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}></vscode-toolbar-button><vscode-toolbar-button icon="close" onClick={() => setModalOpen(false)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></span></div><p>{t('agent.chooseCli')}</p><vscode-scrollable class="agent-modal-list">{refreshing && <div class="agent-modal-loading"><vscode-progress-ring /></div>}{!agents.length && <div class="agent-modal-empty"><span>{error || t('agent.none')}</span><vscode-button secondary icon="refresh" onClick={() => load(true)} disabled={refreshing}>{t('agent.refresh')}</vscode-button></div>}{agents.map((agent) => <button class={`agent-modal-item ${agent.available ? '' : 'unavailable'}`} type="button" disabled={busy} key={agent.id} onClick={() => (agent.available ? openAgent(agent) : setInstallTarget(agent))}><span class="agent-picker-logo"><AgentLogo agent={agent} size={22} /></span><span><strong>{agent.label}</strong><small>{agent.cli}{agent.available ? '' : ` · ${t('agent.missing')}`}</small></span>{agent.available ? <Maximize2 size={13} /> : <Download size={13} />}</button>)}</vscode-scrollable></section></div>}

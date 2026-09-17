@@ -25,7 +25,7 @@ export const projectChannel = {
       return selectProject(id)
     },
     open: (ctx, { path } = {}) => { requireAdmin(ctx); return openWorkspace(path) },
-    clone: (ctx, { url, name } = {}) => { requireAdmin(ctx); return cloneProject(url, name) },
+    clone: (ctx, { url, name } = {}) => { requireAdmin(ctx); return cloneProject(url, name, ctx) },
     browse: (ctx, { path } = {}) => { requireAdmin(ctx); return browseDirectories(path) },
     grant: (ctx, { path } = {}) => { requireAdmin(ctx); return grantExternalWorkspace(path) }
   }

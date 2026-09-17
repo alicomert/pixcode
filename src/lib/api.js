@@ -43,6 +43,14 @@ async function request(method, path, body, origin = backendOrigin) {
   const text = await response.text()
   let data = null
   try { data = text ? JSON.parse(text) : null } catch { data = { error: text || response.statusText } }
+  // Any authenticated call that comes back 401 means the session is dead
+  // (expired JWT, revoked account) — bounce to the login gate once. The
+  // login/setup endpoints themselves are excluded so a bad password still
+  // surfaces its own error.
+  if (response.status === 401 && getToken() && path !== '/api/auth/login' && path !== '/api/auth/setup' && typeof window !== 'undefined') {
+    setToken('')
+    window.dispatchEvent(new Event('pixcode:auth-expired'))
+  }
   if (!response.ok) throw Object.assign(new Error(data?.error || response.statusText), { status: response.status })
   return data
 }

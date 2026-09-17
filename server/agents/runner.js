@@ -1,13 +1,28 @@
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import pty from '@homebridge/node-pty-prebuilt-multiarch'
 import { getAdapter } from './adapter.js'
 import { config } from '../config.js'
 import { httpError } from '../util/http.js'
 import { enhancedEnv } from '../util/env.js'
+import { cliEnvFor } from '../cli-env.js'
+import { accessFor, listUsers } from '../auth.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 
+const execFileAsync = promisify(execFile)
+
 const sessions = new Map()
+const CHANGED_FILES_CACHE_MS = 4_000
+const changedFilesCache = new Map()
+
+// Presence fan-out is wired by index.js once the WS hub exists; the runner
+// announces lifecycle changes and the hub relays them to every client.
+let presenceNotifier = null
+export function setPresenceNotifier(fn) { presenceNotifier = fn }
+function announcePresence() { try { presenceNotifier?.() } catch { void 0 } }
+
 let counter = 0
 const MAX_HISTORY_EVENTS = 2_000
 const MAX_HISTORY_BYTES = 2 * 1024 * 1024
@@ -68,7 +83,7 @@ function dimensions(cols, rows) {
 
 function emit(session, event) {
   if (session.closed) return
-  const data = { ...event, sessionId: session.sessionId, agent: session.state.agent, workspace: session.workspace, startedAt: session.startedAt, index: session.index, seq: ++session.sequence, ts: Date.now() }
+  const data = { ...event, sessionId: session.sessionId, agent: session.state.agent, workspace: session.workspace, startedAt: session.startedAt, index: session.index, owner: session.owner, seq: ++session.sequence, ts: Date.now() }
   session.history.push(data)
   session.historyBytes += Buffer.byteLength(data.data || '')
   while (session.history.length > MAX_HISTORY_EVENTS || session.historyBytes > MAX_HISTORY_BYTES) {
@@ -95,7 +110,7 @@ async function spawnTerm(session, args) {
     name: 'xterm-256color',
     ...session.size,
     cwd: session.state.cwd,
-    env: await enhancedEnv({ TERM: 'xterm-256color', COLORTERM: 'truecolor' })
+    env: await enhancedEnv({ TERM: 'xterm-256color', COLORTERM: 'truecolor', ...(cliEnvFor(session.owner) || {}) })
   })
   session.term = term
   term.onData((data) => emit(session, { type: 'data', data }))
@@ -129,6 +144,7 @@ function handleExit(session, { exitCode, signal }) {
   session.state.status = 'stopped'
   session.closedAt = Date.now()
   persistSessions()
+  announcePresence()
   setTimeout(() => {
     const current = sessions.get(session.sessionId)
     if (current && current.state.status !== 'running') sessions.delete(session.sessionId)
@@ -151,6 +167,7 @@ async function respawnSession(session, { resume } = {}) {
   if (resume) session.resumedAt = Date.now()
   emit(session, { type: 'status', role: 'system', status: 'started', agent: session.state.agent })
   persistSessions()
+  announcePresence()
 }
 
 // Called once at server startup: sessions recorded as running when the last
@@ -233,6 +250,7 @@ export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, col
   emit(session, { type: 'status', role: 'system', status: 'started', agent })
   if (prompt) setTimeout(() => { if (session.state.status === 'running') session.term?.write(String(prompt) + '\r') }, 80)
   persistSessions()
+  announcePresence()
   return sessionInfo(session)
 }
 
@@ -249,15 +267,31 @@ function sessionInfo(session) {
   }
 }
 
-function getOwnedSession(ctx, sessionId) {
+function usernamesById() {
+  try { return new Map(listUsers().map((user) => [String(user.id), user.username])) } catch { return new Map() }
+}
+
+// Read access: the owner, any admin, or a context that explicitly watched the
+// session. Write access: the owner or an admin only — a member can watch an
+// admin's terminal but can never type into it.
+function getSession(ctx, sessionId, { write = false } = {}) {
   const session = sessions.get(sessionId)
-  if (!session || session.owner !== ownerKey(ctx)) throw httpError(404, 'session not found')
-  session.subscribers.add(ctx)
-  return session
+  if (!session || session.closed) throw httpError(404, 'session not found')
+  if (session.owner === ownerKey(ctx)) {
+    session.subscribers.add(ctx)
+    return session
+  }
+  const access = accessFor(ctx)
+  if (access?.admin) {
+    session.subscribers.add(ctx)
+    return session
+  }
+  if (!write && session.subscribers.has(ctx)) return session
+  throw httpError(404, 'session not found')
 }
 
 export function inputRunner(ctx, sessionId, data) {
-  const session = getOwnedSession(ctx, sessionId)
+  const session = getSession(ctx, sessionId, { write: true })
   if (session.state.status !== 'running' || !session.term) throw httpError(404, 'session not running')
   if (data == null) return { ok: true }
   session.term.write(String(data))
@@ -265,7 +299,11 @@ export function inputRunner(ctx, sessionId, data) {
 }
 
 export function resizeRunner(ctx, sessionId, cols, rows) {
-  const session = getOwnedSession(ctx, sessionId)
+  const session = sessions.get(sessionId)
+  if (!session || session.closed) throw httpError(404, 'session not found')
+  // A viewer never resizes the owner's PTY — the watcher's viewport adapts
+  // to the session's dimensions, not the other way around.
+  if (session.owner !== ownerKey(ctx)) return { ok: true }
   const size = dimensions(cols, rows)
   session.size = size
   if (session.state.status !== 'running' || !session.term) return { ok: true }
@@ -274,7 +312,7 @@ export function resizeRunner(ctx, sessionId, cols, rows) {
 }
 
 export function sendToRunner(ctx, sessionId, text) {
-  const session = getOwnedSession(ctx, sessionId)
+  const session = getSession(ctx, sessionId, { write: true })
   if (session.state.status !== 'running' || !session.term) throw httpError(404, 'session not running')
   if (!String(text || '').trim()) throw httpError(400, 'text required')
   session.term.write(String(text) + '\r')
@@ -282,18 +320,19 @@ export function sendToRunner(ctx, sessionId, text) {
 }
 
 export function stopRunner(ctx, sessionId) {
-  const session = getOwnedSession(ctx, sessionId)
+  const session = getSession(ctx, sessionId, { write: true })
   if (session.state.status === 'running' && session.term) {
     session.state.status = 'stopped'
     try { session.term.kill() } catch { void 0 }
   }
+  announcePresence()
   return { ok: true }
 }
 
 // Closing a tab is stronger than stopping a process: remove the reconnectable
 // session and its history so an explicit close cannot reappear after refresh.
 export function closeRunner(ctx, sessionId) {
-  const session = getOwnedSession(ctx, sessionId)
+  const session = getSession(ctx, sessionId, { write: true })
   session.closed = true
   if (session.state.status === 'running' && session.term) {
     try { session.term.kill() } catch { void 0 }
@@ -301,7 +340,74 @@ export function closeRunner(ctx, sessionId) {
   }
   sessions.delete(sessionId)
   persistSessions()
+  announcePresence()
   return { ok: true }
+}
+
+// Live sessions owned by other accounts — the presence strip under the agent
+// terminal header. Everyone signed in may see who is working; writing into a
+// foreign session still requires admin rights (enforced per op above).
+export function listPresence(ctx) {
+  const me = ownerKey(ctx)
+  const names = usernamesById()
+  return [...sessions.values()]
+    .filter((session) => !session.closed && session.state.status === 'running' && session.owner !== me)
+    .map((session) => ({ ...sessionInfo(session), owner: session.owner, ownerName: names.get(session.owner) || session.owner }))
+}
+
+// Watching subscribes this connection to a foreign session's live output and
+// unlocks its history read. It grants no write access by itself.
+export function watchRunner(ctx, sessionId) {
+  const session = sessions.get(sessionId)
+  if (!session || session.closed) throw httpError(404, 'session not found')
+  session.subscribers.add(ctx)
+  const names = usernamesById()
+  return { ...sessionInfo(session), owner: session.owner, ownerName: names.get(session.owner) || session.owner }
+}
+
+export function unwatchRunner(ctx, sessionId) {
+  const session = sessions.get(sessionId)
+  if (session && session.owner !== ownerKey(ctx)) session.subscribers.delete(ctx)
+  return { ok: true }
+}
+
+function sessionCwd(session) {
+  const cwd = path.resolve(String(session.state.cwd || session.workspace || '.'))
+  const root = path.resolve(String(session.workspace || cwd))
+  return cwd === root || cwd.startsWith(root + path.sep) ? cwd : root
+}
+
+function parseChangedFiles(output) {
+  const files = []
+  const entries = output.split('\0').filter(Boolean)
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index]
+    const status = entry.slice(0, 2).trim() || '?'
+    const filePath = entry.slice(3)
+    if (!filePath) continue
+    files.push({ path: filePath, status })
+    // In -z porcelain, renames/copies emit a second entry holding the source
+    // path — skip it so it does not surface as a changed file.
+    if (/[RC]/.test(status)) index++
+  }
+  return files.slice(0, 80)
+}
+
+export async function listChangedFiles(ctx, sessionId) {
+  getSession(ctx, sessionId)
+  const cached = changedFilesCache.get(sessionId)
+  if (cached && Date.now() - cached.ts < CHANGED_FILES_CACHE_MS) return cached.files
+  let files = []
+  try {
+    const { stdout } = await execFileAsync('git', ['-C', sessionCwd(sessions.get(sessionId)), 'status', '--porcelain=v1', '-z', '--untracked-files=normal'], {
+      timeout: 10_000,
+      maxBuffer: 4 * 1024 * 1024,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
+    })
+    files = parseChangedFiles(stdout)
+  } catch { files = [] }
+  changedFilesCache.set(sessionId, { ts: Date.now(), files })
+  return files
 }
 
 export function detachSubscriber(ctx) {
@@ -320,6 +426,6 @@ export function listSessions(ctx, requestedWorkspace) {
 }
 
 export function getHistory(ctx, sessionId) {
-  const session = getOwnedSession(ctx, sessionId)
+  const session = getSession(ctx, sessionId)
   return session.history
 }
