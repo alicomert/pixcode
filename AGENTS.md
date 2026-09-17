@@ -13,10 +13,23 @@ typecheck script — `npm run lint` is the only automated check.
 - `npm start` (a.k.a. `npm run server`) — backend only, always on the stable
   publication port `3001`. For an isolated port use `node server/cli.js start
   --port N`; host is `0.0.0.0`; serves `dist/` if it exists, otherwise 404s on `/`.
+- `pixcode` (no args, TTY) — interactive dashboard: status box, daemon
+  start/stop/restart, open-in-browser, settings, update check, logs. Non-TTY
+  prints compact status.
 - `pixcode daemon install` — start the backend detached and register login
   autostart (systemd/desktop entry on Linux, LaunchAgent on macOS, Startup folder
-  on Windows). Use `daemon status`, `daemon logs`, `daemon restart`, or
-  `daemon disable` to manage it.
+  on Windows). On a real first run (no `~/.pixcode/cli.json`, TTY, no `--port`)
+  it asks port + autostart; a busy port is probed via `/api/health` — a pixcode
+  already serving there is reported and adopted into the message, a foreign
+  app is refused. `daemon status|logs|restart|stop|disable` manage it.
+- `pixcode settings [set port|workspace|autostart <v>]` — edits
+  `~/.pixcode/cli.json` (0600); port resolution is flag > cli.json > env >
+  default. Interactive `settings` rewrites autostart + restarts the daemon.
+- `pixcode update [--check|--yes]` — checks npm registry **and** GitHub
+  releases/tags, applies through the install channel (`npm i -g` for global
+  installs, `git pull --ff-only` + rebuild for checkouts), then restarts the
+  daemon. `server/update.js` holds the logic; `server/cli-ui.js` is the
+  dependency-free prompt/ANSI layer (degrades cleanly without a TTY).
 - `npm run dev` — Vite frontend only, port 5199. **It proxies `/api` and `/ws` to
   the backend at `PORT||PIXCODE_PORT||3001`, so you must also run `npm start` or API/WS will fail.**
 - `npm run build` — Vite build into `dist/` (what the backend serves in prod).

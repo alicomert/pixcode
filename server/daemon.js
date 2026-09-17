@@ -149,6 +149,24 @@ function probePort(port, timeout = 900) {
   })
 }
 
+// Asks the HTTP server on a port who it is. A live pixcode answers
+// `{name:'pixcode'}` from /api/health — anything else (or nothing) means the
+// port belongs to a foreign process and must not be touched.
+export async function healthProbe(port, timeout = 1200) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+  try {
+    const response = await fetch(`http://127.0.0.1:${normalizePort(port)}/api/health`, { signal: controller.signal })
+    if (!response.ok) return { occupied: true, pixcode: false }
+    const data = await response.json()
+    return { occupied: true, pixcode: data?.name === 'pixcode', version: data?.version || null }
+  } catch {
+    return { occupied: false, pixcode: false }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function daemonStatus({ port = config.port } = {}) {
   const normalizedPort = normalizePort(port)
   const pid = readPid()
