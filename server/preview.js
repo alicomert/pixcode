@@ -120,9 +120,12 @@ function serveStaticFile(req, res) {
   }
   const type = MIME[path.extname(resolved).toLowerCase()] || 'application/octet-stream'
   try {
-    const body = fs.readFileSync(resolved)
-    res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' })
-    res.end(body)
+    const stat = fs.statSync(resolved)
+    // Previews are source files — cap them so a giant artifact cannot stall
+    // the event loop, and stream rather than buffering the whole file.
+    if (!stat.isFile() || stat.size > 50 * 1024 * 1024) { sendJson(res, 404, { error: 'not found' }); return }
+    res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store', 'content-length': stat.size })
+    fs.createReadStream(resolved).on('error', () => { if (!res.writableEnded) res.end() }).pipe(res)
   } catch {
     sendJson(res, 404, { error: 'not found' })
   }

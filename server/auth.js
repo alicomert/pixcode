@@ -165,6 +165,21 @@ export function requireAccess(ctx) {
   return access
 }
 
+// Throttled "is this principal still allowed" check for hot paths — the
+// runner/pty/fs emit loops fan out to every subscriber per chunk, so a full
+// accessFor() (allowlist Set rebuild) per event is wasteful. 5s is short
+// enough that a revoked account still goes quiet almost immediately.
+const ACCESS_TTL_MS = 5_000
+const accessAliveCache = new WeakMap()
+export function accessAlive(ctx) {
+  const now = Date.now()
+  const cached = accessAliveCache.get(ctx)
+  if (cached && now - cached.ts < ACCESS_TTL_MS) return cached.ok
+  const ok = Boolean(accessFor(ctx))
+  accessAliveCache.set(ctx, { ts: now, ok })
+  return ok
+}
+
 export function requireAdmin(ctx) {
   const access = requireAccess(ctx)
   if (!access.admin) throw httpError(403, 'admin required')

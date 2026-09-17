@@ -39,7 +39,9 @@ async function request(method, path, body, origin = backendOrigin) {
   const headers = {}
   if (body !== undefined) headers['content-type'] = 'application/json'
   if (getToken()) headers.authorization = `Bearer ${getToken()}`
-  const response = await fetch(`${origin}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+  // A wedged server that accepts TCP but never answers must not leave the UI
+  // spinning forever — every REST call gets a hard ceiling.
+  const response = await fetch(`${origin}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(25_000) })
   const text = await response.text()
   let data = null
   try { data = text ? JSON.parse(text) : null } catch { data = { error: text || response.statusText } }

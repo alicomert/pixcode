@@ -8,7 +8,7 @@ import { config } from '../config.js'
 import { httpError } from '../util/http.js'
 import { enhancedEnv } from '../util/env.js'
 import { cliEnvFor } from '../cli-env.js'
-import { accessFor, listUsers } from '../auth.js'
+import { accessAlive, accessFor, listUsers } from '../auth.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 
 const execFileAsync = promisify(execFile)
@@ -91,6 +91,9 @@ function emit(session, event) {
     session.historyBytes -= Buffer.byteLength(removed?.data || '')
   }
   for (const subscriber of session.subscribers) {
+    // A revoked account must go quiet even while its socket is still open —
+    // drop subscribers whose access died instead of streaming them output.
+    if (!accessAlive(subscriber)) { session.subscribers.delete(subscriber); continue }
     try { subscriber.emit('agent', 'session', data) } catch { session.subscribers.delete(subscriber) }
   }
 }
@@ -147,7 +150,10 @@ function handleExit(session, { exitCode, signal }) {
   announcePresence()
   setTimeout(() => {
     const current = sessions.get(session.sessionId)
-    if (current && current.state.status !== 'running') sessions.delete(session.sessionId)
+    if (current && current.state.status !== 'running') {
+      sessions.delete(session.sessionId)
+      changedFilesCache.delete(session.sessionId)
+    }
   }, STOPPED_SESSION_TTL).unref?.()
 }
 
@@ -277,12 +283,15 @@ function usernamesById() {
 function getSession(ctx, sessionId, { write = false } = {}) {
   const session = sessions.get(sessionId)
   if (!session || session.closed) throw httpError(404, 'session not found')
+  // A disabled/deleted owner loses live control too — session ownership is
+  // not a bypass around mid-session revocation.
+  const access = accessFor(ctx)
+  if (!access) throw httpError(401, 'session revoked')
   if (session.owner === ownerKey(ctx)) {
     session.subscribers.add(ctx)
     return session
   }
-  const access = accessFor(ctx)
-  if (access?.admin) {
+  if (access.admin) {
     session.subscribers.add(ctx)
     return session
   }
@@ -301,6 +310,7 @@ export function inputRunner(ctx, sessionId, data) {
 export function resizeRunner(ctx, sessionId, cols, rows) {
   const session = sessions.get(sessionId)
   if (!session || session.closed) throw httpError(404, 'session not found')
+  if (!accessFor(ctx)) throw httpError(401, 'session revoked')
   // A viewer never resizes the owner's PTY — the watcher's viewport adapts
   // to the session's dimensions, not the other way around.
   if (session.owner !== ownerKey(ctx)) return { ok: true }
@@ -339,6 +349,7 @@ export function closeRunner(ctx, sessionId) {
     session.state.status = 'stopped'
   }
   sessions.delete(sessionId)
+  changedFilesCache.delete(sessionId)
   persistSessions()
   announcePresence()
   return { ok: true }

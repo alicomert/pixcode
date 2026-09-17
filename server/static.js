@@ -40,8 +40,12 @@ export function serveStatic(req, res, root) {
     const type = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream'
     const stat = fs.statSync(filePath)
     res.writeHead(200, { 'content-type': type, 'content-length': stat.size })
-    if (req.method === 'HEAD') res.end()
-    else fs.createReadStream(filePath).pipe(res)
+    if (req.method === 'HEAD') { res.end(); return true }
+    // The file can vanish between stat() and open() — an unhandled stream
+    // 'error' event would crash the process, so fail the request instead.
+    fs.createReadStream(filePath)
+      .on('error', () => { if (!res.writableEnded) res.end() })
+      .pipe(res)
     return true
   } catch {
     if (!res.writableEnded) res.writeHead(500).end('failed to serve file')

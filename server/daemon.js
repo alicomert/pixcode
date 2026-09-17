@@ -197,7 +197,9 @@ export function runDaemonForeground({ port = config.port, workspace } = {}) {
   // this handler only removes stale state when a signal arrives.
   process.once('SIGINT', cleanup)
   process.once('SIGTERM', cleanup)
-  if (workspace) process.env.PIXCODE_WORKSPACE = workspace
+  // config.js may already be cached (cli-config imports it at module load),
+  // so mutate the live object rather than relying on a frozen env snapshot.
+  if (workspace) config.workspace = path.resolve(workspace)
   process.env.PORT = String(normalizedPort)
   return import('./index.js').then(({ startServer }) => startServer({ port: normalizedPort }))
 }
@@ -207,7 +209,7 @@ export function runDaemonForeground({ port = config.port, workspace } = {}) {
 // be mistaken for a CLI-managed daemon.
 export function runServerForeground({ port = config.port, workspace } = {}) {
   const normalizedPort = normalizePort(port)
-  if (workspace) process.env.PIXCODE_WORKSPACE = workspace
+  if (workspace) config.workspace = path.resolve(workspace)
   process.env.PORT = String(normalizedPort)
   return import('./index.js').then(({ startServer }) => startServer({ port: normalizedPort }))
 }

@@ -3,6 +3,7 @@ import { httpError } from '../util/http.js'
 import { enhancedEnv } from '../util/env.js'
 import { cliEnvFor } from '../cli-env.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
+import { accessAlive, accessFor } from '../auth.js'
 
 const shells = new Map()
 let counter = 0
@@ -28,6 +29,8 @@ function dimensions(cols, rows) {
 function getOwnedShell(ctx, id) {
   const shell = shells.get(id)
   if (!shell || shell.owner !== ownerKey(ctx)) throw httpError(404, 'terminal not found')
+  // Terminal ownership does not bypass mid-session account revocation.
+  if (!accessFor(ctx)) throw httpError(401, 'session revoked')
   shell.subscribers.add(ctx)
   return shell
 }
@@ -52,6 +55,8 @@ export const ptyChannel = {
         shell.historyBytes += Buffer.byteLength(data)
         while (shell.historyBytes > MAX_HISTORY_BYTES && shell.history.length > 1) shell.historyBytes -= Buffer.byteLength(shell.history.shift()?.data || '')
         for (const subscriber of shell.subscribers) {
+          // Drop revoked accounts mid-stream instead of streaming them output.
+          if (!accessAlive(subscriber)) { shell.subscribers.delete(subscriber); continue }
           try { subscriber.emit('pty', 'data', { id, data, seq: event.seq }) } catch { shell.subscribers.delete(subscriber) }
         }
       })
@@ -66,6 +71,7 @@ export const ptyChannel = {
     },
 
     list(ctx, { workspace } = {}) {
+      if (!accessFor(ctx)) throw httpError(401, 'session revoked')
       const requested = workspace ? workspaceRoot(workspace, ctx) : ''
       return [...shells.entries()]
         .filter(([, shell]) => shell.owner === ownerKey(ctx) && (!requested || shell.workspace === requested))

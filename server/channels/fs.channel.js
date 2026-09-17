@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { httpError } from '../util/http.js'
 import { workspacePath } from '../workspace.js'
+import { accessAlive } from '../auth.js'
 
 // Keep dependency trees out of the explorer/search, but expose project files
 // including dotfiles, build output and the .git directory like a local editor.
@@ -37,6 +38,8 @@ function flushWatch(entry) {
   entry.git = false
   if (!files.length && !git) return
   for (const [ctx, workspaceArg] of entry.subscribers) {
+    // Revoked accounts stop receiving fs events even with a socket open.
+    if (!accessAlive(ctx)) { entry.subscribers.delete(ctx); continue }
     try { ctx.emit('fs', 'changed', { workspace: workspaceArg, files, git }) } catch { entry.subscribers.delete(ctx) }
   }
   if (!entry.subscribers.size) teardownWatch(entry)
@@ -50,10 +53,26 @@ function teardownWatch(entry) {
   watchers.delete(entry.base)
 }
 
+// A deleted/moved directory or an inotify hiccup surfaces as an async 'error'
+// on the FSWatcher — unhandled, that throws and kills the process. Every
+// handle gets a listener that just drops the dead watch (plus its subtree).
+function attachWatcher(entry, abs, listener) {
+  const handle = fs.watch(abs, { persistent: false }, listener)
+  handle.on('error', () => {
+    for (const [watchedAbs, watched] of entry.dirs) {
+      if (watchedAbs === abs || watchedAbs.startsWith(`${abs}${path.sep}`)) {
+        try { watched.close() } catch { void 0 }
+        entry.dirs.delete(watchedAbs)
+      }
+    }
+  })
+  entry.dirs.set(abs, handle)
+}
+
 function watchGitTree(entry, abs) {
   if (entry.dirs.has(abs)) return
   try {
-    entry.dirs.set(abs, fs.watch(abs, { persistent: false }, () => { entry.git = true; scheduleFlush(entry) }))
+    attachWatcher(entry, abs, () => { entry.git = true; scheduleFlush(entry) })
   } catch { return }
   let entries
   try { entries = fs.readdirSync(abs, { withFileTypes: true }) } catch { return }
@@ -68,7 +87,7 @@ function watchGit(entry, base) {
   const gitDir = path.join(base, '.git')
   if (entry.dirs.has(gitDir)) return
   try {
-    entry.dirs.set(gitDir, fs.watch(gitDir, { persistent: false }, () => { entry.git = true; scheduleFlush(entry) }))
+    attachWatcher(entry, gitDir, () => { entry.git = true; scheduleFlush(entry) })
   } catch { return } // not a repo — no git flagging needed
   watchGitTree(entry, path.join(gitDir, 'refs'))
 }
@@ -105,7 +124,7 @@ function onSourceEvent(entry, dirAbs, dirRel, type, name) {
 function watchSourceTree(entry, abs, rel, depth = 0) {
   if (entry.dirs.has(abs) || depth > WATCH_MAX_DEPTH) return
   try {
-    entry.dirs.set(abs, fs.watch(abs, { persistent: false }, (type, name) => onSourceEvent(entry, abs, rel, type, name)))
+    attachWatcher(entry, abs, (type, name) => onSourceEvent(entry, abs, rel, type, name))
   } catch { return }
   let entries
   try { entries = fs.readdirSync(abs, { withFileTypes: true }) } catch { return }
@@ -170,6 +189,10 @@ export const fsChannel = {
       const seen = new Map()
       const root = workspacePath(workspace, '.', ctx).base
       const limit = Math.min(Math.max(Number(maxResults) || 100, 1), 500)
+      // A query with no hits would otherwise read every file in the tree —
+      // cap the traversal so one search cannot churn the disk indefinitely.
+      const MAX_VISITED = 20_000
+      let visited = 0
       const addResult = (result) => {
         const existing = seen.get(result.path)
         if (existing) {
@@ -182,11 +205,13 @@ export const fsChannel = {
         }
       }
       async function walk(directory, relative) {
-        if (results.length >= limit) return
+        if (results.length >= limit || visited >= MAX_VISITED) return
         let entries
         try { entries = await fs.promises.readdir(directory, { withFileTypes: true }) } catch { return }
         for (const entry of entries) {
           if (SEARCH_SKIP.has(entry.name)) continue
+          visited += 1
+          if (visited >= MAX_VISITED) return
           const childRelative = relative ? `${relative}/${entry.name}` : entry.name
           const childPath = path.join(directory, entry.name)
           const nameMatch = entry.name.toLowerCase().includes(needle)

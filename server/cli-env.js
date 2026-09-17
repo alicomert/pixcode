@@ -72,6 +72,9 @@ export function cliEnvFor(sub) {
     const home = cliHomeFor(sub)
     fs.mkdirSync(home, { recursive: true, mode: 0o700 })
     extra.HOME = home
+    // Windows CLIs resolve config against USERPROFILE, not HOME — without
+    // this the "private home" flag would silently share credentials there.
+    if (process.platform === 'win32') extra.USERPROFILE = home
   }
   return Object.keys(extra).length ? extra : null
 }

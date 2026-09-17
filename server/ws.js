@@ -11,7 +11,9 @@ const PONG_TIMEOUT_MS = 10_000
 export function createHub(server) {
   const channels = new Map()
   const connections = new Set()
-  const wss = new WebSocketServer({ noServer: true })
+  // The editor accepts files up to 5 MiB, so saves must fit inside one frame.
+  // 8 MiB leaves headroom while still stopping the 100 MiB default's abuse.
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 * 1024 })
 
   const heartbeat = setInterval(() => {
     for (const ws of connections) {
@@ -102,7 +104,9 @@ export function createHub(server) {
 
   function register(name, channel) {
     channels.set(name, channel)
-    for (const context of connections) channel.onOpen?.(context)
+    for (const context of connections) {
+      try { channel.onOpen?.(context) } catch { void 0 }
+    }
   }
 
   return { register, registerChannel: register, broadcast }

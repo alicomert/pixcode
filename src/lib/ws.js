@@ -106,7 +106,13 @@ export class MultiplexWS {
       }
       if (!frame.ev) return
       const listeners = this.handlers.get(`${frame.ch}:${frame.ev}`)
-      if (listeners) for (const listener of listeners) listener(frame.data)
+      if (listeners) {
+        for (const listener of listeners) {
+          // A throwing view handler must not starve the remaining listeners
+          // on the same frame or kill the message pump.
+          try { listener(frame.data) } catch (error) { console.error('[ws] listener error', error) }
+        }
+      }
     }
     socket.onclose = () => {
       if (this.socket === socket) this.socket = null
@@ -140,13 +146,27 @@ export class MultiplexWS {
     const encoded = JSON.stringify(frame)
     this.connect()
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(encoded)
-    else this.queue.push(encoded)
+    else {
+      // While disconnected, every send would buffer — including keystrokes
+      // typed into a dead terminal, which must never replay on reconnect.
+      // Cap the backlog and keep the newest frames.
+      this.queue.push(encoded)
+      if (this.queue.length > 256) this.queue.splice(0, this.queue.length - 256)
+    }
   }
 
   request(ch, op, data = {}) {
     const id = `r${++this.counter}`
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
+      // A response lost between the server and this frame would otherwise
+      // pin a loading spinner forever — reject after a hard ceiling.
+      const timer = setTimeout(() => {
+        if (this.pending.delete(id)) reject(new Error('request timed out'))
+      }, 60_000)
+      this.pending.set(id, {
+        resolve: (value) => { clearTimeout(timer); resolve(value) },
+        reject: (error) => { clearTimeout(timer); reject(error) }
+      })
       this.send({ ch, id, op, data })
     })
   }

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { httpError } from '../util/http.js'
@@ -105,7 +106,8 @@ async function untrackedDiff(filePath, requestedWorkspace) {
   const absolute = path.resolve(base, filePath)
   const relative = path.relative(base, absolute) || path.basename(absolute)
   try {
-    await git(['diff', '--no-index', '--no-color', '--', '/dev/null', relative], {}, requestedWorkspace)
+    // os.devNull is NUL on Windows — /dev/null only exists on POSIX.
+    await git(['diff', '--no-index', '--no-color', '--', os.devNull, relative], {}, requestedWorkspace)
     return ''
   } catch (error) {
     // `git diff --no-index` returns exit code 1 when the files differ; its

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import os from 'node:os'
+import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { ask, box, c, choose, closePrompts, confirm, isInteractive } from './cli-ui.js'
 import { cliConfigExists, readCliConfig, resolvePort, validPort, writeCliConfig } from './cli-config.js'
@@ -442,9 +443,10 @@ async function main() {
     return
   }
   const options = parseStartArgs(args)
-  if (options.port) process.env.PORT = String(options.port)
-  if (options.workspace) process.env.PIXCODE_WORKSPACE = options.workspace
   const { config } = await import('./config.js')
+  // config.js was already loaded by cli-config's top-level import, so the env
+  // vars below are frozen — apply flags onto the live config object instead.
+  if (options.workspace) config.workspace = path.resolve(options.workspace)
   const port = resolvePort(options.port) || config.port
   const holder = await describePort(port)
   if (holder.kind === 'pixcode') {
@@ -458,7 +460,9 @@ async function main() {
     return
   }
   const { startServer } = await import('./index.js')
-  const server = startServer()
+  // config.js was loaded before --port set env.PORT, so pass the resolved
+  // port explicitly — config.port alone would always bind the default.
+  const server = startServer({ port })
   server.once('listening', () => {
     const bound = Number(server.address()?.port || port)
     for (const ip of lanIps()) console.log(`mobile: http://${ip}:${bound}`)

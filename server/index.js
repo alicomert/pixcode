@@ -53,8 +53,16 @@ export function createHttpServer() {
       return
     }
     if (req.url?.startsWith('/api/')) {
-      const handled = await router.handle(req, res, { verify: authMiddleware })
-      if (handled || res.writableEnded) return
+      try {
+        const handled = await router.handle(req, res, { verify: authMiddleware })
+        if (handled || res.writableEnded) return
+      } catch (error) {
+        // A throwing verifier or a router-level bug must never leave the
+        // request hanging — answer 500 instead of stalling the client.
+        console.error(`[api] ${req.url}: ${error?.message || error}`)
+        if (!res.writableEnded) sendJson(res, 500, { error: 'internal error' })
+        return
+      }
       sendJson(res, 404, { error: 'not found' })
       return
     }
