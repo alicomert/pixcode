@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, History, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Save, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, Trash2, X } from '../lib/icons.jsx'
+import { ArrowLeft, ArrowRight, Bell, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, History, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Save, Search, Send, Settings, Sparkles, Sun, Terminal as TerminalIcon, Trash2, X } from '../lib/icons.jsx'
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { initFsWatch } from '../lib/fs-watch.js'
+import { initNotifications, notificationsEnabled, setNotificationsEnabled } from '../lib/notify.js'
 import { setToken } from '../lib/api.js'
 import { activeView, agentRailOpen, isAdmin, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTerminalScrollSpeed, setTheme, sidebarWidth, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { VscSelect } from './vsc.jsx'
@@ -207,6 +208,15 @@ function ExtensionsView() {
 }
 
 function SettingsView() {
+  const [notifyOn, setNotifyOn] = useState(notificationsEnabled())
+  async function toggleNotifications() {
+    if (notifyOn) {
+      await setNotificationsEnabled(false)
+      setNotifyOn(false)
+    } else {
+      setNotifyOn(await setNotificationsEnabled(true))
+    }
+  }
   function resetLayout() {
     setSidebarWidth(276)
     setAgentWidth(368)
@@ -259,6 +269,19 @@ function SettingsView() {
           <div class="settings-control-row settings-control-row-last">
             <div class="settings-control-copy"><RefreshCw size={16} /><span><strong>{t('settings.resetLayout')}</strong><small>{t('settings.resetLayoutHint')}</small></span></div>
             <vscode-button secondary onClick={resetLayout}>{t('settings.reset')}</vscode-button>
+          </div>
+        </div>
+      </vscode-collapsible>
+      <vscode-collapsible class="settings-section" heading={t('settings.notifications')} open>
+        <p class="settings-section-hint">{t('settings.notificationsHint')}</p>
+        <div class="settings-card">
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><Bell size={16} /><span><strong>{t('settings.agentAlerts')}</strong><small>{t('settings.agentAlertsHint')}</small></span></div>
+            <vscode-button secondary onClick={toggleNotifications}>{notifyOn ? t('settings.on') : t('settings.off')}</vscode-button>
+          </div>
+          <div class="settings-control-row settings-control-row-last">
+            <div class="settings-control-copy"><Send size={16} /><span><strong>{t('settings.webhook')}</strong><small>{t('settings.webhookHint')}</small></span></div>
+            <span class="muted settings-webhook-note">pixcode settings set webhook &lt;url&gt;</span>
           </div>
         </div>
       </vscode-collapsible>
@@ -375,6 +398,7 @@ function ResizeHandle({ direction, className = '', onResize }) {
 export function Shell() {
   useEffect(() => {
     initFsWatch()
+    initNotifications()
     const open = (event) => openFile(event.detail)
     const openAgent = () => { mobileTab.value = 'agent'; panelOpen.value = false; window.setTimeout(() => window.dispatchEvent(new Event('pixcode:new-agent')), 0) }
     const openTerminal = () => { panelOpen.value = true; if (isCompactViewport()) mobileTab.value = 'terminal' }

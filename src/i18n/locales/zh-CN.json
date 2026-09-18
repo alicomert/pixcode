@@ -276,5 +276,13 @@
   "activity.agentHandoff": "{agent} 写下了交接文档",
   "agent.continueHandoff": "从交接继续",
   "agent.handoffMissing": "{agent} CLI 未安装",
-  "agent.memory": "工作区记忆"
+  "agent.memory": "工作区记忆",
+  "settings.notifications": "通知",
+  "settings.notificationsHint": "代理会话结束时收到提醒。",
+  "settings.agentAlerts": "代理提醒",
+  "settings.agentAlertsHint": "会话结束或写入交接时通知+提示音",
+  "settings.webhook": "服务器 Webhook",
+  "settings.webhookHint": "将代理事件 POST 到 ntfy.sh、Discord 或任意 URL — 通过 CLI 设置",
+  "settings.on": "开",
+  "settings.off": "关"
 }

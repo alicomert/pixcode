@@ -360,5 +360,13 @@
   "activity.agentHandoff": "{agent} handoff yazdı",
   "agent.continueHandoff": "Handoff'tan devam et",
   "agent.handoffMissing": "{agent} CLI kurulu değil",
-  "agent.memory": "Çalışma alanı hafızası"
+  "agent.memory": "Çalışma alanı hafızası",
+  "settings.notifications": "Bildirimler",
+  "settings.notificationsHint": "Agent oturumları bitince haberdar olun.",
+  "settings.agentAlerts": "Agent uyarıları",
+  "settings.agentAlertsHint": "Oturum bitince veya handoff yazınca bildirim + ses",
+  "settings.webhook": "Sunucu webhook'u",
+  "settings.webhookHint": "Agent olaylarını ntfy.sh, Discord veya herhangi bir URL'ye POST et — CLI'den ayarlanır",
+  "settings.on": "Açık",
+  "settings.off": "Kapalı"
 }

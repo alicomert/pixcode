@@ -241,16 +241,27 @@ async function settingsFlow() {
     box('settings', [
       `port       ${settings.port}${status.listening ? c.dim(' · listening') : ''}`,
       `workspace  ${settings.workspace || c.dim('(managed projects)')}`,
-      `autostart  ${settings.autostart ? 'on' : 'off'}${status.service.enabled ? c.dim(` · ${status.service.mode}`) : ''}`
+      `autostart  ${settings.autostart ? 'on' : 'off'}${status.service.enabled ? c.dim(` · ${status.service.mode}`) : ''}`,
+      `webhook    ${settings.webhook || c.dim('(none)')}`
     ])
     console.log('')
     const pick = await choose('change what?', [
       { value: 'port', label: 'Port' },
       { value: 'workspace', label: 'Pinned workspace' },
       { value: 'autostart', label: `Autostart ${settings.autostart ? 'off' : 'on'}` },
+      { value: 'webhook', label: 'Notify webhook' },
       { value: 'back', label: 'Back' }
     ], { defaultValue: 'back' })
     if (pick === null || pick === 'back') break
+
+    if (pick === 'webhook') {
+      const value = await ask('webhook URL (empty = off)', settings.webhook || '')
+      if (value && !/^https?:\/\//.test(value)) { console.log(`  ${c.err('must be an http(s) URL')}`); continue }
+      writeCliConfig({ webhook: value || null })
+      // The running server re-reads cli.json on every send — no restart needed.
+      console.log(`  ${c.ok('✓')} webhook ${value ? '→ ' + value : 'off'}`)
+      continue
+    }
 
     if (pick === 'autostart') {
       writeCliConfig({ autostart: !settings.autostart })
@@ -292,8 +303,13 @@ async function settingsCommand(args) {
     } else if (key === 'autostart') {
       if (!['on', 'off', 'true', 'false'].includes(value)) throw new Error('settings set autostart on|off')
       writeCliConfig({ autostart: value === 'on' || value === 'true' })
+    } else if (key === 'webhook') {
+      if (value && !/^https?:\/\//.test(value)) throw new Error('settings set webhook <http(s) URL|empty>')
+      writeCliConfig({ webhook: value || null })
+      console.log('saved — the running daemon picks this up on the next send')
+      return
     } else {
-      throw new Error('known keys: port, workspace, autostart')
+      throw new Error('known keys: port, workspace, autostart, webhook')
     }
     console.log('saved. Restart the daemon to apply: pixcode daemon restart')
     return

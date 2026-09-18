@@ -9,7 +9,8 @@ const FILE = path.join(config.dataDir, 'cli.json')
 const DEFAULTS = {
   port: 3001,
   workspace: null,
-  autostart: true
+  autostart: true,
+  webhook: null
 }
 
 export function cliConfigExists() {

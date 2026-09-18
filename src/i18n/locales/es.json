@@ -276,5 +276,13 @@
   "activity.agentHandoff": "{agent} escribió un handoff",
   "agent.continueHandoff": "Continuar desde un handoff",
   "agent.handoffMissing": "La CLI {agent} no está instalada",
-  "agent.memory": "Memoria del workspace"
+  "agent.memory": "Memoria del workspace",
+  "settings.notifications": "Notificaciones",
+  "settings.notificationsHint": "Recibe avisos cuando terminan las sesiones de agente.",
+  "settings.agentAlerts": "Alertas de agente",
+  "settings.agentAlertsHint": "Notificación + sonido al terminar sesión o escribir handoff",
+  "settings.webhook": "Webhook del servidor",
+  "settings.webhookHint": "POST de eventos de agente a ntfy.sh, Discord o cualquier URL — vía CLI",
+  "settings.on": "Activado",
+  "settings.off": "Desactivado"
 }

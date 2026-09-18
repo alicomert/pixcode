@@ -276,5 +276,13 @@
   "activity.agentHandoff": "{agent} 引き継ぎを書きました",
   "agent.continueHandoff": "ハンドオフから続行",
   "agent.handoffMissing": "{agent} CLI がインストールされていません",
-  "agent.memory": "ワークスペースメモリ"
+  "agent.memory": "ワークスペースメモリ",
+  "settings.notifications": "通知",
+  "settings.notificationsHint": "エージェントセッション終了時に通知を受け取ります。",
+  "settings.agentAlerts": "エージェント通知",
+  "settings.agentAlertsHint": "セッション終了・ハンドオフ時に通知+サウンド",
+  "settings.webhook": "サーバーWebhook",
+  "settings.webhookHint": "エージェントイベントを ntfy.sh・Discord・任意URLへPOST — CLIで設定",
+  "settings.on": "オン",
+  "settings.off": "オフ"
 }

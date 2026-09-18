@@ -13,6 +13,7 @@ import { workspaceCwd, workspaceRoot } from '../workspace.js'
 import { recordActivity } from '../activity.js'
 import { pinFsWatcher, unpinFsWatcher } from '../channels/fs.channel.js'
 import { tailFromHistory, writeHandoff } from '../handoffs.js'
+import { notifyWebhook } from '../notify.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -146,7 +147,14 @@ async function archiveHandoff(session) {
       branch = stdout.trim()
     } catch { branch = '' }
     const name = writeHandoff(session, { files, branch, tail: tailFromHistory(session.history) })
-    if (name) recordActivity(session.workspace, 'agent', { action: 'handoff', agent: session.state.agent, index: session.index, files: [`.pixcode/handoffs/${name}`], user: session.ownerName })
+    if (name) {
+      recordActivity(session.workspace, 'agent', { action: 'handoff', agent: session.state.agent, index: session.index, files: [`.pixcode/handoffs/${name}`], user: session.ownerName })
+      notifyWebhook('agent.handoff', {
+        title: `${session.state.agent} #${session.index || 1} wrote a handoff`,
+        body: `${files.length} changed file${files.length === 1 ? '' : 's'}${session.ownerName ? ` · ${session.ownerName}` : ''}`,
+        workspace: session.workspace
+      })
+    }
   } catch { /* handoffs are best-effort */ }
 }
 
@@ -181,6 +189,11 @@ function handleExit(session, { exitCode, signal }) {
   unpinSessionWorkspace(session)
   void archiveHandoff(session)
   recordActivity(session.workspace, 'agent', { action: 'exit', agent: session.state.agent, index: session.index, exitCode, user: session.ownerName })
+  notifyWebhook('agent.exit', {
+    title: `${session.state.agent} #${session.index || 1} finished`,
+    body: `session ended (code ${exitCode ?? '?'})${session.ownerName ? ` · ${session.ownerName}` : ''}`,
+    workspace: session.workspace
+  })
   persistSessions()
   announcePresence()
   setTimeout(() => {
