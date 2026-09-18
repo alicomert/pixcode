@@ -8,7 +8,9 @@
 import { spawn, execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import https from 'node:https';
+import os from 'node:os';
 import path from 'node:path';
 import { config } from './config.js';
 
@@ -18,6 +20,9 @@ const log = (msg) => console.log(`[share] ${msg}`);
 const stateFile = () => path.join(config.dataDir, 'share.json');
 const binDir = () => path.join(config.dataDir, 'bin');
 const keyFile = () => path.join(config.dataDir, 'share-key');
+const tunnelLog = () => path.join(config.dataDir, 'share.log');
+const openLog = () => path.join(config.dataDir, 'bore-open.log');
+const openersDir = () => path.join(config.dataDir, 'openers');
 
 function readState() {
     try { return JSON.parse(fs.readFileSync(stateFile(), 'utf8')); } catch { return null; }
@@ -110,6 +115,7 @@ const PROVIDERS = {
     cloudflared: {
         label: 'Cloudflare quick tunnel',
         fixed: false,
+        account: 'none',
         fields: [],
         async build(_opts, { port }) {
             const bin = await ensureBinary('cloudflared',
@@ -124,6 +130,7 @@ const PROVIDERS = {
     sish: {
         label: 'sish (own SSH relay)',
         fixed: true,
+        account: 'own',
         fields: [
             { key: 'host', label: 'Relay host', required: true, placeholder: 'tun.example.com' },
             { key: 'port', label: 'SSH port', default: '2222' },
@@ -153,6 +160,7 @@ const PROVIDERS = {
     ngrok: {
         label: 'ngrok',
         fixed: true,
+        account: 'free',
         fields: [
             { key: 'authtoken', label: 'Authtoken', required: true, secret: true },
             { key: 'domain', label: 'Dev domain', placeholder: 'xxx.ngrok-free.app (empty = random)' },
@@ -169,6 +177,7 @@ const PROVIDERS = {
     zrok: {
         label: 'zrok',
         fixed: true,
+        account: 'free',
         fields: [
             { key: 'token', label: 'Enable token', required: true, secret: true, placeholder: 'from zrok invite' },
             { key: 'name', label: 'Reserved name', placeholder: 'empty = random' },
@@ -186,12 +195,14 @@ const PROVIDERS = {
     bore: {
         label: 'bore.dk',
         fixed: true,
+        account: 'free',
         fields: [
             { key: 'name', label: 'Namespace', placeholder: 'empty = account default' },
         ],
         async build(opts, { port }) {
             const bin = await ensureBinary('bore',
                 `https://bore.dk/downloads/latest/bore-${plat}-${arch}${exeExt}`);
+            if (!boreSignedIn()) throw new Error('bore.dk sign-in required first');
             const args = ['up', String(port)];
             if (opts.name) args.push('--namespace', opts.name);
             return { cmd: bin, args, urlRe: /https:\/\/[\w.-]+\.bore\.dk/ };
@@ -201,7 +212,7 @@ const PROVIDERS = {
 
 export function shareProviders() {
     return Object.entries(PROVIDERS).map(([id, p]) => ({
-        id, label: p.label, fixed: p.fixed, fields: p.fields,
+        id, label: p.label, fixed: p.fixed, account: p.account || 'none', fields: p.fields,
     }));
 }
 
@@ -225,10 +236,15 @@ export async function shareEnable(provider, opts = {}, { port = config.port } = 
     if (!p) throw new Error(`unknown share provider "${provider}"`);
     shareDisableInternal();
     const spec = await p.build(opts, { port });
+    // Tunnel output goes to a log file: the detached process keeps running
+    // without pipe buffers to drain, and dead tunnels stay diagnosable.
+    fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
+    fs.appendFileSync(tunnelLog(), `\n--- ${new Date().toISOString()} ${provider} start ---\n`);
     const child = spawn(spec.cmd, spec.args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout?.pipe(fs.createWriteStream(tunnelLog(), { flags: 'a' }));
+    child.stderr?.pipe(fs.createWriteStream(tunnelLog(), { flags: 'a' }));
     const url = spec.url || await waitForUrl(child, spec.urlRe, 25000);
     child.unref();
-    child.stdout?.destroy(); child.stderr?.destroy();
     // display-safe state (secrets masked) + 0600 sidecar so resume works unattended
     fs.writeFileSync(fullOptsFile(), JSON.stringify(opts), { mode: 0o600 });
     const st = { enabled: true, provider, opts: stripSecrets(opts, p), url, pid: child.pid, startedAt: Date.now() };
@@ -289,4 +305,149 @@ export async function shareResume({ port = config.port } = {}) {
     try {
         await shareEnable(st.provider, readFullOpts(), { port });
     } catch (e) { log(`share resume failed: ${e.message}`); }
+}
+
+/**
+ * Watchdog for the detached tunnel process. A pid check alone misses the
+ * classic quick-tunnel failure (cloudflared still alive but the edge reports
+ * 1033), so every few ticks the public URL itself is probed; two consecutive
+ * failures respawn the tunnel.
+ */
+let superviseTimer = null;
+export function shareSupervise({ port = config.port } = {}) {
+    if (superviseTimer) return;
+    let unhealthyStreak = 0;
+    let tick = 0;
+    superviseTimer = setInterval(async () => {
+        const st = readState();
+        if (!st?.enabled) { unhealthyStreak = 0; return; }
+        if (!pidAlive(st.pid)) {
+            log('tunnel process died — respawning');
+            try { await shareEnable(st.provider, readFullOpts(), { port }); } catch (e) { log(`respawn failed: ${e.message}`); }
+            unhealthyStreak = 0;
+            return;
+        }
+        if (++tick % 3 !== 0 || !st.url) return; // probe every ~2 min
+        const healthy = await shareProbe().catch(() => ({ healthy: false }));
+        if (healthy.healthy) { unhealthyStreak = 0; return; }
+        if (++unhealthyStreak >= 2) {
+            log('tunnel alive but unreachable — restarting');
+            unhealthyStreak = 0;
+            try { await shareEnable(st.provider, readFullOpts(), { port }); } catch (e) { log(`restart failed: ${e.message}`); }
+        }
+    }, 45_000);
+    superviseTimer.unref?.();
+}
+
+/** Live check: does the public URL actually answer right now? */
+export function shareProbe() {
+    const st = readState();
+    if (!st?.url) return Promise.resolve({ healthy: false, reason: 'no-url' });
+    return new Promise((resolve) => {
+        const req = https.get(`${st.url}/api/health`, {
+            timeout: 8000,
+            headers: { 'ngrok-skip-browser-warning': '1', 'user-agent': 'pixcode-share-probe' },
+        }, (res) => {
+            let body = '';
+            res.on('data', (d) => { body += d; if (body.length > 4096) req.destroy(); });
+            res.on('end', () => resolve({ healthy: res.statusCode === 200 && body.includes('"pixcode"'), http: res.statusCode }));
+        });
+        req.on('timeout', () => { req.destroy(); resolve({ healthy: false, reason: 'timeout' }); });
+        req.on('error', (e) => resolve({ healthy: false, reason: e.code || e.message }));
+    });
+}
+
+/* ---------------- bore.dk sign-in ----------------
+ * `bore login` opens the auth URL through the OS browser — useless on a
+ * headless daemon. We shadow `xdg-open`/`open`/`$BROWSER` with a shim that
+ * logs the URL instead, rewrite its 127.0.0.1 callback to this Pixcode
+ * origin, and hand the link to the admin. After bore.dk sign-in the browser
+ * lands back on /api/share/bore/callback, which we proxy to the local
+ * listener — so sign-in works from any device, including a phone.
+ */
+const boreConfigFile = () => path.join(os.homedir(), '.bore', 'config.json');
+let pendingBore = null;
+
+export function boreSignedIn() {
+    try {
+        const cfg = JSON.parse(fs.readFileSync(boreConfigFile(), 'utf8'));
+        return !!(cfg.session || cfg.token || cfg.accessToken || cfg.authToken || cfg.credentials);
+    } catch { return false; }
+}
+
+export function boreStatus() {
+    return { signedIn: boreSignedIn(), pending: !!pendingBore };
+}
+
+function ensureOpeners() {
+    const dir = openersDir();
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const script = `#!/bin/sh\nfor a in "$@"; do echo "$a" >> '${openLog()}'; done\n`;
+    for (const name of ['xdg-open', 'open', 'sensible-browser', 'x-www-browser', 'www-browser']) {
+        fs.writeFileSync(path.join(dir, name), script, { mode: 0o755 });
+    }
+    return dir;
+}
+
+export async function boreLogin(origin) {
+    if (boreSignedIn()) { pendingBore = null; return { signedIn: true }; }
+    const bin = await ensureBinary('bore',
+        `https://bore.dk/downloads/latest/bore-${plat}-${arch}${exeExt}`);
+    const openers = ensureOpeners();
+    fs.writeFileSync(openLog(), '', { mode: 0o600 });
+    const child = spawn(bin, ['login'], {
+        detached: true,
+        stdio: ['ignore', fs.openSync(tunnelLog(), 'a'), fs.openSync(tunnelLog(), 'a')],
+        env: { ...process.env, PATH: `${openers}:${process.env.PATH || ''}`, BROWSER: path.join(openers, 'open') },
+    });
+    child.unref();
+    pendingBore = { pid: child.pid, cbPort: null, at: Date.now() };
+    // The login helper exits once auth completes; give the shim time to log the URL.
+    const authUrl = await waitForOpenUrl(12000);
+    if (!authUrl) { killPending(); throw new Error('bore did not produce a sign-in URL'); }
+    const cbPort = Number(decodeURIComponent(authUrl.match(/callback=([^&]+)/)?.[1] || '').match(/127\.0\.0\.1:(\d+)/)?.[1]);
+    if (!cbPort) { killPending(); throw new Error('could not parse bore callback address'); }
+    pendingBore.cbPort = cbPort;
+    // Expire the pending login if nobody finishes it.
+    const pending = pendingBore;
+    setTimeout(() => { if (pendingBore === pending) killPending(); }, 5 * 60_000).unref?.();
+    const base = (origin || `http://127.0.0.1:${config.port}`).replace(/\/$/, '');
+    return { signedIn: false, authUrl: authUrl.replace(/callback=[^&]+/, `callback=${encodeURIComponent(`${base}/api/share/bore/callback`)}`) };
+}
+
+function killPending() {
+    if (pendingBore?.pid && pidAlive(pendingBore.pid)) {
+        try { process.kill(-pendingBore.pid, 'SIGTERM'); } catch { try { process.kill(pendingBore.pid, 'SIGTERM'); } catch { /* gone */ } }
+    }
+    pendingBore = null;
+}
+
+function waitForOpenUrl(timeoutMs) {
+    const started = Date.now();
+    return new Promise((resolve) => {
+        const check = () => {
+            try {
+                const match = fs.readFileSync(openLog(), 'utf8').match(/https:\/\/\S+/);
+                if (match) { resolve(match[0]); return; }
+            } catch { /* not yet */ }
+            if (Date.now() - started > timeoutMs) { resolve(null); return; }
+            setTimeout(check, 250).unref?.();
+        };
+        check();
+    });
+}
+
+/** Public route: forward the bore.dk post-login redirect to the local listener. */
+export function shareRoutes(router) {
+    router.get('/api/share/bore/callback', (req, res) => {
+        const cbPort = pendingBore?.cbPort;
+        if (!cbPort) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('no bore sign-in in progress'); return; }
+        const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        const proxy = http.get({ host: '127.0.0.1', port: cbPort, path: `/callback${query}`, timeout: 8000 }, (up) => {
+            res.writeHead(up.statusCode || 200, { 'content-type': up.headers['content-type'] || 'text/html' });
+            up.pipe(res);
+        });
+        proxy.on('timeout', () => { proxy.destroy(); res.writeHead(502); res.end('bore callback timed out'); });
+        proxy.on('error', () => { res.writeHead(502); res.end('bore callback unreachable'); });
+    }, { auth: false });
 }

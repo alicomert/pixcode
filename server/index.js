@@ -20,7 +20,7 @@ import { initializeWorkspace } from './projects.js'
 import { projectChannel } from './channels/project.channel.js'
 import { activityChannel } from './channels/activity.channel.js'
 import { shareChannel } from './channels/share.channel.js'
-import { shareResume } from './share.js'
+import { shareResume, shareRoutes, shareSupervise } from './share.js'
 import { previewRoutes } from './preview.js'
 import { oauthRoutes } from './git-oauth.js'
 
@@ -47,6 +47,7 @@ export function createHttpServer() {
   authRoutes(router)
   previewRoutes(router)
   oauthRoutes(router)
+  shareRoutes(router)
   const distExists = fs.existsSync(config.distDir)
   const server = http.createServer(async (req, res) => {
     const localOrigin = setCors(req, res)
@@ -123,6 +124,7 @@ export function startServer(options = {}) {
       const displayHost = host === '0.0.0.0' ? 'localhost' : host
       console.log(`pixcode v${VERSION} listening on http://${displayHost}:${activePort}`)
       shareResume({ port: activePort })
+      shareSupervise({ port: activePort })
     }
     const onError = (error) => {
       if (allowPortFallback && error?.code === 'EADDRINUSE' && activePort < lastPort) {

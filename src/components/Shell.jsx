@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Bell, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, History, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Save, Search, Send, Settings, Sparkles, Sun, Terminal as TerminalIcon, Trash2, X } from '../lib/icons.jsx'
+import { ArrowLeft, ArrowRight, Bell, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe, Globe2, History, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Save, Search, Send, Settings, Sparkles, Sun, Terminal as TerminalIcon, Trash2, X } from '../lib/icons.jsx'
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { initFsWatch } from '../lib/fs-watch.js'
@@ -10,6 +10,7 @@ import { VscSelect } from './vsc.jsx'
 import { UserManager } from './UserManager.jsx'
 import { SkillManager } from './SkillManager.jsx'
 import { ShareCard } from './ShareCard.jsx'
+import { ShareModal } from './ShareModal.jsx'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -140,6 +141,27 @@ function TopBar() {
   )
 }
 
+// On phones the activity rail is hidden; this strip inside the sidebar gives
+// every rail view (search, activity, remote, extensions) a reachable home
+// without crowding the bottom tab bar.
+const mobileSidebarViews = [
+  { id: 'explorer', label: 'view.explorer', icon: Files },
+  { id: 'search', label: 'view.search', icon: Search },
+  { id: 'activity', label: 'view.activity', icon: History },
+  { id: 'remote', label: 'view.remote', icon: Globe2 },
+  { id: 'extensions', label: 'view.extensions', icon: Blocks },
+]
+
+function MobileViewPicker() {
+  if (mobileTab.value !== 'files') return null
+  return <nav class="mobile-view-picker" aria-label={t('view.navigation')}>
+    {mobileSidebarViews.map((view) => {
+      const Glyph = view.icon
+      return <button key={view.id} type="button" class={`mobile-view-pick ${activeView.value === view.id ? 'active' : ''}`} title={t(view.label)} aria-label={t(view.label)} aria-pressed={activeView.value === view.id} onClick={() => { activeView.value = view.id }}><Glyph size={17} strokeWidth={1.7} /></button>
+    })}
+  </nav>
+}
+
 function SidebarView() {
   if (activeView.value === 'search') return <SearchView />
   if (activeView.value === 'source') return <GitPanel />
@@ -201,8 +223,24 @@ function AgentInfo() {
   return <div class="info-view"><div class="sidebar-heading">{t('view.agent')}</div><div class="info-actions"><vscode-button onClick={() => { mobileTab.value = 'agent'; panelOpen.value = false; window.dispatchEvent(new Event('pixcode:new-agent')) }}>{t('agent.open')}</vscode-button></div></div>
 }
 
+// Remote Explorer: connection info plus the public-link status. Provider
+// setup happens in ShareModal — this view only shows where you stand.
 function RemoteView() {
-  return <div class="info-view"><div class="sidebar-heading"><span>{t('view.remote')}</span><Globe2 size={14} /></div><div class="info-card"><Globe2 size={22} /><strong>{t('remote.localTitle')}</strong><p>{t('remote.localDescription')}</p><code>localhost</code></div></div>
+  const [status, setStatus] = useState(null)
+  useEffect(() => {
+    if (!isAdmin.value) { setStatus({ enabled: false }); return }
+    ws.request('share', 'status').then(setStatus).catch(() => setStatus({ enabled: false }))
+  }, [])
+  const live = status?.running && status.url
+  return <div class="info-view"><div class="sidebar-heading"><span>{t('view.remote')}</span><Globe2 size={14} /></div>
+    <div class="info-card"><Globe2 size={22} /><strong>{t('remote.localTitle')}</strong><p>{t('remote.localDescription')}</p><code>{location.host}</code></div>
+    {isAdmin.value && <div class="info-card share-remote-card">
+      <Globe size={20} />
+      <strong>{t('share.title')}</strong>
+      {live ? <a class="share-url" href={status.url} target="_blank" rel="noreferrer">{status.url}</a> : <p>{t('share.off')}</p>}
+      <vscode-button onClick={() => window.dispatchEvent(new Event('pixcode:share-open'))}>{t('share.manage')}</vscode-button>
+    </div>}
+  </div>
 }
 
 function ExtensionsView() {
@@ -450,7 +488,7 @@ export function Shell() {
     <TopBar />
     <div class={`workbench ${agentsCollapsed ? 'agents-collapsed' : ''}`} style={{ '--sidebar-width': `${effectiveSidebar}px`, '--agent-width': `${effectiveAgent}px`, '--panel-height': `${effectivePanel}px` }}>
       <ActivityBar />
-      <aside class={`sidebar pane ${mobile === 'files' || mobile === 'git' || mobile === 'settings' ? 'mobile-active' : ''} ${effectiveSidebar ? '' : 'collapsed'}`}><SidebarView /></aside>
+      <aside class={`sidebar pane ${mobile === 'files' || mobile === 'git' || mobile === 'settings' ? 'mobile-active' : ''} ${effectiveSidebar ? '' : 'collapsed'}`}><MobileViewPicker /><SidebarView /></aside>
       <ResizeHandle direction="vertical" className="sidebar-resize" onResize={(delta) => setSidebarWidth(sidebarWidth.value + delta)} />
       <main class={`editor-area pane ${mobile === 'editor' ? 'mobile-active' : ''}`}><EditorPane /></main>
       <ResizeHandle direction="vertical" className="agent-resize" onResize={(delta) => setAgentWidth(agentWidth.value - delta)} />
@@ -460,5 +498,6 @@ export function Shell() {
     </div>
     <nav class="mobile-tabs" aria-label={t('view.navigation')}>{mobileTabs.map((item) => { const Glyph = item.icon; return <button key={item.id} class={`mobile-tab ${mobile === item.id ? 'active' : ''}`} type="button" onClick={() => { mobileTab.value = item.id; if (item.id === 'terminal') panelOpen.value = true; if (item.id === 'agent' || item.id === 'settings') panelOpen.value = false; if (item.id === 'git') activeView.value = 'source'; if (item.id === 'files') activeView.value = 'explorer'; if (item.id === 'agent') activeView.value = 'agent'; if (item.id === 'terminal') activeView.value = 'run'; if (item.id === 'settings') activeView.value = 'settings' }}><Glyph size={18} strokeWidth={1.7} aria-hidden="true" /><span>{t(item.label)}</span></button> })}</nav>
     <InstallBanner />
+    <ShareModal />
   </div>
 }

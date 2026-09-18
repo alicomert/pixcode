@@ -78,9 +78,19 @@ backend first, then `node scripts/smoke.mjs`.
   it spawns a detached tunnel process (cloudflared / `ssh -R` to a sish relay /
   ngrok / zrok / bore.dk) that exposes the daemon on a public HTTPS URL. State
   lives in `$PIXCODE_HOME/share.json` (+ `share-opts.json` 0600 for restart),
-  a persistent `share-key` ed25519 keypair is the sish identity, and
-  `shareResume()` on server start respawns an enabled tunnel. Provider secrets
-  are write-only — `share.json` masks them.
+  a persistent `share-key` ed25519 keypair is the sish identity, tunnel output
+  appends to `$PIXCODE_HOME/share.log`, and `shareResume()` +
+  `shareSupervise()` (dead pid → respawn, repeated `/api/health` probe
+  failures → restart) keep the tunnel alive across daemon restarts and edge
+  drops. bore.dk auth is headless-friendly: `share.boreLogin` shadows
+  `xdg-open` with a shim to capture the auth URL, rewrites its
+  `127.0.0.1:port/callback` to the caller's origin, and the public
+  `GET /api/share/bore/callback` route (auth:false) proxies the redirect back
+  to the local listener — sign-in works from any device, incl. phones.
+  `share.probe` reports live tunnel health. Provider secrets are write-only —
+  `share.json` masks them. The UI entry points are `ShareModal` (opened via
+  the `pixcode:share-open` window event), a slim `ShareCard` row in Settings,
+  and the Remote view.
 - `src/` — Preact frontend. Entry `src/main.jsx` → `App.jsx`. State via
   `@preact/signals` (`src/state/`). Styling is **Tailwind v4** through
   `@tailwindcss/vite` (CSS entry `src/styles/tailwind.css`), not a tailwind config.
