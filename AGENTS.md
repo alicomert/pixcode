@@ -40,6 +40,22 @@ typecheck script — `npm run lint` is the only automated check.
   `node_modules` small). `beforeDevCommand` starts Vite, but the Node backend
   is **not** started for you; run `npm start` separately.
 
+## Desktop shell notes
+
+- The packaged app spawns a bundled Node server (`resource_dir()/pixcode-runtime`,
+  staged by `scripts/prepare-desktop-resources.mjs`). Its stdout/stderr and the
+  shell's own spawn/exit/watchdog events go to `app_data_dir()/server.log` —
+  the "server unavailable" screen tails it via the `pixcode_server_log`
+  command, so check there first when the EXE can't reach its backend.
+- **Private Network Access**: WebView2 classifies `tauri.localhost`→`127.0.0.1`
+  as public→private and requires `Access-Control-Allow-Private-Network` on
+  CORS preflights — `setCors` in `server/index.js` answers it. Removing that
+  breaks every packaged desktop fetch (dev is unaffected, `localhost` is
+  already a local address).
+- The bundled server may slide to `port+1..+20` under `PIXCODE_DESKTOP=1`;
+  `desktopHealth` in `src/lib/api.js` scans 3001–3021 and rejects servers
+  older than `CURRENT_VERSION`.
+
 Verify order: `npm run lint`. There is no `test` script.
 
 ## Smoke tests (manual, no npm script)
