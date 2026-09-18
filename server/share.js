@@ -5,7 +5,7 @@
  * detached so it survives daemon restarts; the pid in the state file is the
  * single source of truth for "is it running".
  */
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -111,11 +111,50 @@ function keyFingerprint() {
  *     urlRe — regex matched against combined stdout+stderr, capture group or
  *             whole match is the public URL; url — URL known upfront.
  */
+const boreRuntimeFile = () => path.join(os.homedir(), '.bore', 'runtime.json');
+function boreRuntime() {
+    try { return JSON.parse(fs.readFileSync(boreRuntimeFile(), 'utf8')); } catch { return null; }
+}
+
 const PROVIDERS = {
+    bore: {
+        label: 'bore.dk',
+        fixed: true,
+        account: 'free',
+        recommended: true,
+        docs: 'https://bore.dk',
+        // `bore up` claims the tunnel then exits — the bore daemon (tracked
+        // in ~/.bore/runtime.json) holds it open, so the spawned pid is the
+        // wrong liveness signal. exits:true runs the CLI to completion and
+        // resolve() adopts the daemon's pid + the assigned public URL.
+        exits: true,
+        fields: [],
+        async build(_opts, { port }) {
+            const bin = await ensureBinary('bore',
+                `https://bore.dk/downloads/latest/bore-${plat}-${arch}${exeExt}`);
+            if (!boreSignedIn()) throw new Error('bore.dk sign-in required first');
+            return { cmd: bin, args: ['up', String(port)], urlRe: /https:\/\/[\w.-]+\.bore\.dk/ };
+        },
+        resolve({ port }) {
+            const rt = boreRuntime();
+            const active = (rt?.tunnels || []).filter((t) => t.status === 'active');
+            const tun = active.find((t) => t.localPort === Number(port)) || active[0];
+            if (!tun || !rt?.daemonPid) return { pid: null, url: null };
+            return { pid: rt.daemonPid, url: tun.publicUrl || null };
+        },
+        async stop({ port }) {
+            try {
+                const bin = await ensureBinary('bore',
+                    `https://bore.dk/downloads/latest/bore-${plat}-${arch}${exeExt}`);
+                execFileSync(bin, ['down', String(port)], { stdio: 'pipe', timeout: 15000 });
+            } catch { /* bore daemon already gone */ }
+        },
+    },
     cloudflared: {
         label: 'Cloudflare quick tunnel',
         fixed: false,
         account: 'none',
+        docs: null,
         fields: [],
         async build(_opts, { port }) {
             const bin = await ensureBinary('cloudflared',
@@ -131,6 +170,7 @@ const PROVIDERS = {
         label: 'sish (own SSH relay)',
         fixed: true,
         account: 'own',
+        docs: 'https://github.com/antoniomika/sish',
         fields: [
             { key: 'host', label: 'Relay host', required: true, placeholder: 'tun.example.com' },
             { key: 'port', label: 'SSH port', default: '2222' },
@@ -161,6 +201,7 @@ const PROVIDERS = {
         label: 'ngrok',
         fixed: true,
         account: 'free',
+        docs: 'https://dashboard.ngrok.com/get-started/your-authtoken',
         fields: [
             { key: 'authtoken', label: 'Authtoken', required: true, secret: true },
             { key: 'domain', label: 'Dev domain', placeholder: 'xxx.ngrok-free.app (empty = random)' },
@@ -178,6 +219,7 @@ const PROVIDERS = {
         label: 'zrok',
         fixed: true,
         account: 'free',
+        docs: 'https://docs.zrok.io/docs/getting-started',
         fields: [
             { key: 'token', label: 'Enable token', required: true, secret: true, placeholder: 'from zrok invite' },
             { key: 'name', label: 'Reserved name', placeholder: 'empty = random' },
@@ -192,39 +234,24 @@ const PROVIDERS = {
             return { cmd: bin, args, urlRe: /https:\/\/[\w.-]+\.share\.zrok\.io/ };
         },
     },
-    bore: {
-        label: 'bore.dk',
-        fixed: true,
-        account: 'free',
-        fields: [
-            { key: 'name', label: 'Namespace', placeholder: 'empty = account default' },
-        ],
-        async build(opts, { port }) {
-            const bin = await ensureBinary('bore',
-                `https://bore.dk/downloads/latest/bore-${plat}-${arch}${exeExt}`);
-            if (!boreSignedIn()) throw new Error('bore.dk sign-in required first');
-            const args = ['up', String(port)];
-            if (opts.name) args.push('--namespace', opts.name);
-            return { cmd: bin, args, urlRe: /https:\/\/[\w.-]+\.bore\.dk/ };
-        },
-    },
 };
 
 export function shareProviders() {
     return Object.entries(PROVIDERS).map(([id, p]) => ({
-        id, label: p.label, fixed: p.fixed, account: p.account || 'none', fields: p.fields,
+        id, label: p.label, fixed: p.fixed, account: p.account || 'none',
+        recommended: !!p.recommended, docs: p.docs || null, fields: p.fields,
     }));
 }
 
 export function shareStatus() {
     const st = readState();
-    const running = !!(st && pidAlive(st.pid));
+    const pid = livePid(st);
     return {
         enabled: !!st,
-        running,
+        running: !!pid,
         provider: st?.provider || null,
-        url: running ? st?.url || null : null,
-        pid: running ? st.pid : null,
+        url: pid ? st?.url || null : null,
+        pid,
         pubkey: fs.existsSync(keyFile() + '.pub') ? fs.readFileSync(keyFile() + '.pub', 'utf8').trim() : null,
     };
 }
@@ -234,22 +261,43 @@ const fullOptsFile = () => path.join(config.dataDir, 'share-opts.json');
 export async function shareEnable(provider, opts = {}, { port = config.port } = {}) {
     const p = PROVIDERS[provider];
     if (!p) throw new Error(`unknown share provider "${provider}"`);
-    shareDisableInternal();
+    await shareDisableInternal();
     const spec = await p.build(opts, { port });
     // Tunnel output goes to a log file: the detached process keeps running
     // without pipe buffers to drain, and dead tunnels stay diagnosable.
     fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
     fs.appendFileSync(tunnelLog(), `\n--- ${new Date().toISOString()} ${provider} start ---\n`);
-    const child = spawn(spec.cmd, spec.args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    child.stdout?.pipe(fs.createWriteStream(tunnelLog(), { flags: 'a' }));
-    child.stderr?.pipe(fs.createWriteStream(tunnelLog(), { flags: 'a' }));
-    const url = spec.url || await waitForUrl(child, spec.urlRe, 25000);
-    child.unref();
+    let url, pid;
+    if (p.exits) {
+        // Register-and-exit providers (bore): the CLI claims the tunnel and
+        // exits; resolve() maps the provider's own runtime state to the pid
+        // that actually holds the tunnel open plus the assigned URL.
+        const res = spawnSync(spec.cmd, spec.args, { encoding: 'utf8', timeout: 30000 });
+        const out = `${res.stdout || ''}${res.stderr || ''}`;
+        fs.appendFileSync(tunnelLog(), out);
+        if (res.error) throw new Error(`${provider} failed: ${res.error.message}`);
+        if (res.status !== 0) throw new Error(`${provider} exited ${res.status}: ${out.trim().slice(-300)}`);
+        let resolved = (await p.resolve?.({ port })) || {};
+        if (!resolved.pid) {
+            await new Promise((r) => setTimeout(r, 800));
+            resolved = (await p.resolve?.({ port })) || {};
+        }
+        url = resolved.url || out.match(spec.urlRe)?.[0] || null;
+        pid = resolved.pid || null;
+        if (!url) throw new Error(`${provider} did not report a public URL`);
+    } else {
+        const child = spawn(spec.cmd, spec.args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        child.stdout?.pipe(fs.createWriteStream(tunnelLog(), { flags: 'a' }));
+        child.stderr?.pipe(fs.createWriteStream(tunnelLog(), { flags: 'a' }));
+        url = spec.url || await waitForUrl(child, spec.urlRe, 25000);
+        pid = child.pid;
+        child.unref();
+    }
     // display-safe state (secrets masked) + 0600 sidecar so resume works unattended
     fs.writeFileSync(fullOptsFile(), JSON.stringify(opts), { mode: 0o600 });
-    const st = { enabled: true, provider, opts: stripSecrets(opts, p), url, pid: child.pid, startedAt: Date.now() };
+    const st = { enabled: true, provider, opts: stripSecrets(opts, p), url, pid, startedAt: Date.now() };
     writeState(st);
-    log(`share enabled via ${provider} → ${url} (pid ${child.pid})`);
+    log(`share enabled via ${provider} → ${url} (pid ${pid})`);
     return { ...st, running: true };
 }
 
@@ -283,15 +331,41 @@ function waitForUrl(child, urlRe, timeoutMs) {
     });
 }
 
-function shareDisableInternal() {
+/**
+ * The pid that actually proves the tunnel is alive. Register-and-exit
+ * providers (bore) hand the tunnel to their own daemon, so when our recorded
+ * pid is stale we adopt the provider's runtime pid and heal the state file.
+ */
+function livePid(st) {
+    if (!st) return null;
+    if (st.pid && pidAlive(st.pid)) return st.pid;
+    const p = PROVIDERS[st.provider];
+    if (p?.resolve) {
+        try {
+            const resolved = p.resolve({ port: config.port });
+            if (resolved?.pid && pidAlive(resolved.pid)) {
+                st.pid = resolved.pid;
+                if (resolved.url && resolved.url !== st.url) st.url = resolved.url;
+                writeState(st);
+                return st.pid;
+            }
+        } catch { /* fall through to dead */ }
+    }
+    return null;
+}
+
+async function shareDisableInternal() {
     const st = readState();
+    if (!st) return;
+    const p = PROVIDERS[st.provider];
+    if (p?.stop) { try { await p.stop({ port: config.port }); } catch { /* best effort */ } }
     if (st?.pid && pidAlive(st.pid)) {
         try { process.kill(-st.pid, 'SIGTERM'); } catch { try { process.kill(st.pid, 'SIGTERM'); } catch { /* gone */ } }
     }
 }
 
-export function shareDisable() {
-    shareDisableInternal();
+export async function shareDisable() {
+    await shareDisableInternal();
     writeState(null);
     try { fs.unlinkSync(fullOptsFile()); } catch { /* gone */ }
     return { enabled: false, running: false };
@@ -321,7 +395,7 @@ export function shareSupervise({ port = config.port } = {}) {
     superviseTimer = setInterval(async () => {
         const st = readState();
         if (!st?.enabled) { unhealthyStreak = 0; return; }
-        if (!pidAlive(st.pid)) {
+        if (!livePid(st)) {
             log('tunnel process died — respawning');
             try { await shareEnable(st.provider, readFullOpts(), { port }); } catch (e) { log(`respawn failed: ${e.message}`); }
             unhealthyStreak = 0;

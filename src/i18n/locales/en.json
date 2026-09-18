@@ -396,6 +396,8 @@
   "share.provider": "Provider",
   "share.fixedUrl": "fixed URL",
   "share.randomUrl": "random URL",
+  "share.recommended": "Recommended",
+  "share.getCreds": "Where do I get this?",
   "share.account.none": "no account",
   "share.account.free": "free account",
   "share.account.own": "your server",

@@ -396,6 +396,8 @@
   "share.provider": "Sağlayıcı",
   "share.fixedUrl": "sabit URL",
   "share.randomUrl": "rastgele URL",
+  "share.recommended": "Önerilen",
+  "share.getCreds": "Bunu nereden alırım?",
   "share.account.none": "hesapsız",
   "share.account.free": "ücretsiz hesap",
   "share.account.own": "kendi sunucun",

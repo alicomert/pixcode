@@ -3262,3 +3262,24 @@ vscode-button.auth-submit { width: 100%; }
 .share-field { display: flex; flex-direction: column; gap: 4px }
 .share-field-label { font-size: 11px; font-weight: 500; color: var(--ui-text) }
 .share-req { color: var(--error, #f47067); font-style: normal; margin-left: 2px }
+
+/* --- share: recommended + docs + live url fixes ------------------------- */
+.share-badge.recommended {
+  border-color: rgb(92 63 252 / 60%); color: var(--accent, #5c3ffc);
+  background: rgb(92 63 252 / 12%); font-weight: 700;
+}
+.share-docs-row {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--link, #7ea6ff); text-decoration: none;
+  width: fit-content;
+}
+.share-docs-row:hover { text-decoration: underline }
+.share-card-live { display: flex; align-items: center; gap: 6px; min-width: 0 }
+.share-card-live .share-url { max-width: 260px }
+
+/* Action buttons must never clip their label on narrow screens. */
+.share-modal-actions { flex-wrap: wrap }
+.share-modal-actions vscode-button { min-width: 0 }
+.share-modal-actions vscode-button::part(base) { white-space: normal; height: auto; min-height: 28px; padding: 4px 12px }
+.share-provider-card { min-width: 0 }
+.share-provider-badges { min-width: 0 }

@@ -96,6 +96,8 @@ export function ShareModal() {
         if (next.signedIn) {
           window.clearInterval(pollRef.current)
           setBore({ signedIn: true })
+          // Sign-in done → turn the tunnel on without a second click.
+          if (provider === 'bore') enable()
         }
       } catch { /* keep polling */ }
     }, 2000)
@@ -180,6 +182,7 @@ export function ShareModal() {
               onClick={() => setProvider(item.id)}>
               <strong>{item.label}</strong>
               <span class="share-provider-badges">
+                {item.recommended && <span class="share-badge recommended">{t('share.recommended')}</span>}
                 <span class={`share-badge ${item.fixed ? 'fixed' : ''}`}>{item.fixed ? t('share.fixedUrl') : t('share.randomUrl')}</span>
                 <span class="share-badge">{t(`share.account.${item.account || 'none'}`)}</span>
               </span>
@@ -187,6 +190,7 @@ export function ShareModal() {
           ))}
         </div>
         {active && <p class="share-provider-hint">{t(`share.hint.${active.id}`)}</p>}
+        {active?.docs && <a class="share-docs-row" href={active.docs} target="_blank" rel="noreferrer"><ExternalLink size={11} />{t('share.getCreds')}</a>}
         {active?.id === 'bore' && (
           <div class="share-bore-box">
             {bore?.signedIn ? (
