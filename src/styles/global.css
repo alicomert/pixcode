@@ -3101,3 +3101,20 @@ vscode-button.auth-submit { width: 100%; }
 .agent-handoff-item:disabled { opacity: .45; cursor: not-allowed }
 .agent-handoff-item > span { flex: 1; display: flex; flex-direction: column; min-width: 0 }
 .agent-handoff-item small { color: var(--muted, #8b8ba3); font-size: 11px }
+
+.agent-broadcast { border-bottom: 1px solid var(--border, #2d2d44); padding: 8px 12px; display: flex; flex-direction: column; gap: 8px }
+.agent-broadcast-targets { display: flex; flex-wrap: wrap; gap: 6px }
+.agent-broadcast-target { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--border, #2d2d44); border-radius: 999px; font-size: 11px; cursor: pointer; user-select: none }
+.agent-broadcast-target input { accent-color: var(--accent, #5c3ffc); margin: 0 }
+.agent-broadcast-compose { display: flex; gap: 8px }
+.agent-broadcast-input { flex: 1; background: var(--bg-2, #17171f); border: 1px solid var(--border, #2d2d44); border-radius: 6px; color: inherit; padding: 6px 10px; font-size: 12px; outline: none }
+.agent-broadcast-input:focus { border-color: var(--accent, #5c3ffc) }
+.agent-broadcast-result { font-size: 11px; color: var(--muted, #8b8ba3) }
+.skill-manager { display: flex; flex-direction: column; gap: 10px }
+.skill-repo-input { flex: 1 }
+.skill-list { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto }
+.skill-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border, #2d2d44); border-radius: 7px }
+.skill-name { flex: 1; display: flex; flex-direction: column; min-width: 0; font-size: 12px }
+.skill-name small { color: var(--muted, #8b8ba3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.skill-notice { font-size: 11px; color: var(--success, #4ec9b0) }
+.settings-webhook-note { font-size: 11px; font-family: var(--mono, monospace) }

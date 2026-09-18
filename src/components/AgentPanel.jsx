@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import { Archive, BookOpen, ChevronDown, ChevronUp, Download, Eye, History, Maximize2, Search, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { Archive, BookOpen, ChevronDown, ChevronUp, Download, Eye, History, Maximize2, Radio, Search, Send, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -480,6 +480,11 @@ export function AgentPanel() {
   }
 
   const [handoffs, setHandoffs] = useState([])
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [broadcastText, setBroadcastText] = useState('')
+  const [broadcastPicks, setBroadcastPicks] = useState(() => new Set())
+  const [broadcastResult, setBroadcastResult] = useState('')
+  const [broadcastBusy, setBroadcastBusy] = useState(false)
 
   async function loadHandoffs() {
     try {
@@ -541,6 +546,42 @@ export function AgentPanel() {
       setError(requestError.message)
     } finally {
       setInstalling(false)
+    }
+  }
+
+  function toggleBroadcast(targets) {
+    setBroadcastOpen((open) => {
+      if (!open) setBroadcastPicks(new Set(targets.map((item) => item.session.sessionId)))
+      setBroadcastResult('')
+      return !open
+    })
+  }
+
+  function toggleBroadcastPick(id) {
+    setBroadcastPicks((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  async function sendBroadcast() {
+    const text = broadcastText.trim()
+    if (!text || !broadcastPicks.size || broadcastBusy) return
+    setBroadcastBusy(true)
+    setBroadcastResult('')
+    try {
+      const { results } = await ws.request('agent', 'broadcast', { sessionIds: [...broadcastPicks], text })
+      const failed = (results || []).filter((item) => !item.ok)
+      setBroadcastResult(failed.length
+        ? t('agent.broadcastPartial', { count: failed.length })
+        : t('agent.broadcastSent', { count: results?.length || 0 }))
+      if (!failed.length) setBroadcastText('')
+    } catch (requestError) {
+      setBroadcastResult(requestError.message)
+    } finally {
+      setBroadcastBusy(false)
     }
   }
 
@@ -611,6 +652,12 @@ export function AgentPanel() {
   const closeConfirmSession = sessions.find((session) => session.sessionId === closeConfirmSessionId) || null
   const liveSessions = sessions.filter((session) => session.status === 'running')
   const historySessions = sessions.filter((session) => session.status !== 'running')
+  // Broadcast targets: own running sessions, plus foreign ones for admins —
+  // matching the same write rules sendToRunner enforces per session.
+  const broadcastTargets = [
+    ...liveSessions.map((session) => ({ session, foreign: false })),
+    ...(isAdmin.value ? presence.filter((foreign) => foreign.status === 'running').map((session) => ({ session, foreign: true })) : [])
+  ]
 
   return (
     <div class="agent-panel">
@@ -638,10 +685,27 @@ export function AgentPanel() {
         {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{viewingForeign ? `${activeSession.ownerName} · ${sessionLabel(activeSession)}` : sessionLabel(activeSession)}</strong><code>{viewingForeign && !isAdmin.value ? t('agent.readonly') : activeSession.status}</code></span>}
         <span class="agent-header-spacer" />
         {activeSession?.status === 'running' && (!viewingForeign || isAdmin.value) && <vscode-button secondary icon="debug-stop" onClick={() => stopSession(activeSession.sessionId)}>{t('agent.stop')}</vscode-button>}
+        {broadcastTargets.length > 1 && <vscode-toolbar-button icon="megaphone" class={broadcastOpen ? 'active' : ''} title={t('agent.broadcast')} aria-label={t('agent.broadcast')} onClick={() => toggleBroadcast(broadcastTargets)}></vscode-toolbar-button>}
         {activeSession && <vscode-toolbar-button icon="search" title={t('terminal.search')} aria-label={t('terminal.search')} onClick={() => window.dispatchEvent(new CustomEvent('pixcode:agent-search', { detail: activeSession.sessionId }))}></vscode-toolbar-button>}
         <vscode-toolbar-button icon="book" title={t('agent.memory')} aria-label={t('agent.memory')} onClick={openMemory}></vscode-toolbar-button>
         <vscode-toolbar-button icon="refresh" class={refreshing ? 'spin' : ''} onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}></vscode-toolbar-button>
       </div>
+      {broadcastOpen && <div class="agent-broadcast">
+        <div class="agent-broadcast-targets">
+          {broadcastTargets.map(({ session, foreign }) => (
+            <label class="agent-broadcast-target" key={session.sessionId}>
+              <input type="checkbox" checked={broadcastPicks.has(session.sessionId)} onChange={() => toggleBroadcastPick(session.sessionId)} />
+              <AgentLogo agent={agents.find((item) => item.id === session.agent)} size={13} />
+              <span>{foreign ? `${session.ownerName} · ` : ''}{sessionLabel(session)}</span>
+            </label>
+          ))}
+        </div>
+        <div class="agent-broadcast-compose">
+          <input class="agent-broadcast-input" type="text" value={broadcastText} placeholder={t('agent.broadcastPlaceholder')} onInput={(event) => setBroadcastText(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') sendBroadcast() }} />
+          <vscode-button icon="send" disabled={!broadcastText.trim() || !broadcastPicks.size || broadcastBusy} onClick={sendBroadcast}>{t('agent.broadcastSend')}</vscode-button>
+        </div>
+        {broadcastResult && <span class="agent-broadcast-result">{broadcastResult}</span>}
+      </div>}
       {presence.length > 0 && <div class="agent-presence">
         {presence.map((foreign) => {
           const agent = agents.find((item) => item.id === foreign.agent)

@@ -8,6 +8,7 @@ import { setToken } from '../lib/api.js'
 import { activeView, agentRailOpen, isAdmin, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTerminalScrollSpeed, setTheme, sidebarWidth, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { VscSelect } from './vsc.jsx'
 import { UserManager } from './UserManager.jsx'
+import { SkillManager } from './SkillManager.jsx'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -288,6 +289,10 @@ function SettingsView() {
       <vscode-collapsible class="settings-section" heading={t('git.accountTitle')} open>
         <p class="settings-section-hint">{t('git.accountHint')}</p>
         <GitAccountCard />
+      </vscode-collapsible>
+      <vscode-collapsible class="settings-section" heading={t('skills.title')} open>
+        <p class="settings-section-hint">{t('skills.hint')}</p>
+        <SkillManager />
       </vscode-collapsible>
       <vscode-collapsible class="settings-section" heading={t('update.title')} open>
         <p class="settings-section-hint">{t('update.description')}</p>
