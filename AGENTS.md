@@ -2,7 +2,7 @@
 
 Pixcode v2 — a self-hosted AI coding workbench: a Node.js backend (ESM, Node >=22)
 serves a Preact/Vite frontend over HTTP plus one authenticated WebSocket that
-multiplexes `fs`, `git`, `pty`, `agent`, `project`, `auth` channels. A Tauri 2
+multiplexes `fs`, `git`, `pty`, `agent`, `project`, `auth`, `activity` channels. A Tauri 2
 shell wraps the built frontend for desktop. There is no test runner and no
 typecheck script — `npm run lint` is the only automated check.
 
@@ -69,6 +69,10 @@ backend first, then `node scripts/smoke.mjs`.
   CLI `server/cli.js` (`pixcode start [--port N] [--workspace PATH] | status | version`).
   One file per WS channel in `server/channels/`. `server/agents/runner.js` spawns
   agent CLIs via `node-pty`; `workspaceCwd` rejects any cwd outside the workspace (403).
+  `server/activity.js` keeps a per-workspace JSONL event log (fs ops, watcher
+  flushes, git, pty/agent lifecycles) behind the `activity` channel; workspace
+  keys are canonicalized realpaths, and running agent sessions + activity
+  subscribers pin the fs watcher so logging survives closed trees/clients.
 - `src/` — Preact frontend. Entry `src/main.jsx` → `App.jsx`. State via
   `@preact/signals` (`src/state/`). Styling is **Tailwind v4** through
   `@tailwindcss/vite` (CSS entry `src/styles/tailwind.css`), not a tailwind config.

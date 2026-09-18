@@ -10,6 +10,8 @@ import { enhancedEnv } from '../util/env.js'
 import { cliEnvFor } from '../cli-env.js'
 import { accessAlive, accessFor, listUsers } from '../auth.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
+import { recordActivity } from '../activity.js'
+import { pinFsWatcher, unpinFsWatcher } from '../channels/fs.channel.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -120,6 +122,18 @@ async function spawnTerm(session, args) {
   term.onExit((exit) => handleExit(session, exit))
 }
 
+// A running session pins the workspace fs watcher so the activity log keeps
+// recording the agent's file changes even while no client has the tree open.
+function pinSessionWorkspace(session) {
+  if (session.watcherPinned || !session.workspace) return
+  try { pinFsWatcher(session.workspace); session.watcherPinned = true } catch { void 0 }
+}
+function unpinSessionWorkspace(session) {
+  if (!session.watcherPinned) return
+  session.watcherPinned = false
+  try { unpinFsWatcher(session.workspace) } catch { void 0 }
+}
+
 function handleExit(session, { exitCode, signal }) {
   session.term = null
   // A resume attempt that dies instantly probably used a flag this CLI does
@@ -137,6 +151,7 @@ function handleExit(session, { exitCode, signal }) {
     respawnSession(session, { resume: false }).catch(() => {
       session.state.status = 'stopped'
       session.closedAt = Date.now()
+      unpinSessionWorkspace(session)
       persistSessions()
     })
     return
@@ -146,6 +161,8 @@ function handleExit(session, { exitCode, signal }) {
   if (!session.closed) emit(session, { type: 'done', role: 'system', exitCode, signal })
   session.state.status = 'stopped'
   session.closedAt = Date.now()
+  unpinSessionWorkspace(session)
+  recordActivity(session.workspace, 'agent', { action: 'exit', agent: session.state.agent, index: session.index, exitCode, user: session.ownerName })
   persistSessions()
   announcePresence()
   setTimeout(() => {
@@ -170,6 +187,7 @@ async function respawnSession(session, { resume } = {}) {
   await spawnTerm(session, args)
   session.state.status = 'running'
   session.startedAt = Date.now()
+  pinSessionWorkspace(session)
   if (resume) session.resumedAt = Date.now()
   emit(session, { type: 'status', role: 'system', status: 'started', agent: session.state.agent })
   persistSessions()
@@ -237,7 +255,8 @@ export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, col
     index,
     size: dimensions(cols, rows),
     autoRestarted: false,
-    resumedAt: 0
+    resumedAt: 0,
+    ownerName: ctx?.principal?.username || ownerKey(ctx)
   }
   let args
   try {
@@ -251,10 +270,12 @@ export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, col
     throw httpError(400, error.code === 'ENOENT' ? 'agent cli not found' : (error.message || 'agent process failed to start'))
   }
   sessions.set(sessionId, session)
+  pinSessionWorkspace(session)
   // Attach PTY listeners before announcing startup so fast CLIs cannot emit
   // their first screen between spawn and the initial status event.
   emit(session, { type: 'status', role: 'system', status: 'started', agent })
   if (prompt) setTimeout(() => { if (session.state.status === 'running') session.term?.write(String(prompt) + '\r') }, 80)
+  recordActivity(requestedWorkspace, 'agent', { action: 'start', agent, index, user: session.ownerName })
   persistSessions()
   announcePresence()
   return sessionInfo(session)

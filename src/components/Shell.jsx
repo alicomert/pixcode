@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowLeft, ArrowRight, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Save, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, Trash2, X } from '../lib/icons.jsx'
+import { ArrowLeft, ArrowRight, Blocks, Bot, ChevronsUpDown, Circle, Code2, Download, Files, GitBranch, Globe2, History, Moon, PanelBottom, PanelLeft, Play, Plus, RefreshCw, Save, Search, Settings, Sparkles, Sun, Terminal as TerminalIcon, Trash2, X } from '../lib/icons.jsx'
 import { t, setLocale, locale, languages } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
 import { initFsWatch } from '../lib/fs-watch.js'
@@ -13,6 +13,7 @@ import { EditorPane } from './EditorPane.jsx'
 import { GitPanel } from './GitPanel.jsx'
 import { AgentPanel } from './AgentPanel.jsx'
 import { Terminals } from './Terminals.jsx'
+import { ActivityPanel } from './ActivityPanel.jsx'
 import { UpdateChecker } from './UpdateChecker.jsx'
 import { InstallBanner } from './InstallBanner.jsx'
 
@@ -22,6 +23,7 @@ const views = [
   { id: 'source', label: 'view.source', icon: 'source', mobile: 'git' },
   { id: 'run', label: 'view.run', icon: 'run', mobile: 'terminal' },
   { id: 'agent', label: 'view.agent', icon: 'agent', mobile: 'agent' },
+  { id: 'activity', label: 'view.activity', icon: 'activity', mobile: 'files' },
   { id: 'remote', label: 'view.remote', icon: 'remote', mobile: 'files' },
   { id: 'extensions', label: 'view.extensions', icon: 'extensions', mobile: 'files' }
 ]
@@ -36,7 +38,7 @@ const mobileTabs = [
 ]
 
 function Icon({ name }) {
-  const icons = { explorer: Files, search: Search, source: GitBranch, run: Play, agent: Sparkles, remote: Globe2, extensions: Blocks }
+  const icons = { explorer: Files, search: Search, source: GitBranch, run: Play, agent: Sparkles, activity: History, remote: Globe2, extensions: Blocks }
   const Glyph = icons[name] || Circle
   return <Glyph size={20} strokeWidth={1.65} aria-hidden="true" />
 }
@@ -140,6 +142,7 @@ function SidebarView() {
   if (activeView.value === 'source') return <GitPanel />
   if (activeView.value === 'run') return <RunView />
   if (activeView.value === 'agent') return <AgentInfo />
+  if (activeView.value === 'activity') return <ActivityPanel />
   if (activeView.value === 'remote') return <RemoteView />
   if (activeView.value === 'extensions') return <ExtensionsView />
   if (activeView.value === 'settings') return <SettingsView />

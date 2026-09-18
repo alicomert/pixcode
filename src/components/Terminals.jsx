@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, ChevronDown, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpFromLine, ChevronDown, Search, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
@@ -10,12 +11,15 @@ import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
 import { TerminalScrollButtons } from './TerminalScrollButtons.jsx'
+import { TerminalSearchBox } from './TerminalSearch.jsx'
 import { sanitizeReplay } from '../lib/terminal-replay.js'
 
 function TerminalView({ id, onReady, modifiersRef }) {
   const host = useRef(null)
   const terminalRef = useRef(null)
   const fitRef = useRef(null)
+  const searchRef = useRef(null)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
     if (!host.current) return undefined
@@ -38,6 +42,9 @@ function TerminalView({ id, onReady, modifiersRef }) {
     const fit = new FitAddon()
     fitRef.current = fit
     terminal.loadAddon(fit)
+    const search = new SearchAddon()
+    searchRef.current = search
+    terminal.loadAddon(search)
     terminal.open(host.current)
     const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal, () => terminalScrollSpeed.value)
     // Auto-focus only on fine-pointer devices; on touch, focusing at mount
@@ -111,6 +118,14 @@ function TerminalView({ id, onReady, modifiersRef }) {
       })
     }
     window.addEventListener('pixcode:keyboard', keyboardLayout)
+    const toggleSearch = (event) => {
+      if (event.detail !== id) return
+      setSearchOpen((open) => {
+        if (open) terminal.focus()
+        return !open
+      })
+    }
+    window.addEventListener('pixcode:terminal-search', toggleSearch)
     hydrate()
     return () => {
       stopResizeWatcher()
@@ -121,6 +136,7 @@ function TerminalView({ id, onReady, modifiersRef }) {
       inputDisposable.dispose()
       window.removeEventListener('pixcode:ws-open', reconnect)
       window.removeEventListener('pixcode:keyboard', keyboardLayout)
+      window.removeEventListener('pixcode:terminal-search', toggleSearch)
       terminal.dispose()
       terminalRef.current = null
       fitRef.current = null
@@ -152,7 +168,10 @@ function TerminalView({ id, onReady, modifiersRef }) {
     }
   }, [terminalFontSize.value, id])
 
-  return <div class="terminal-host" ref={host}><TerminalScrollButtons hostRef={host} terminalRef={terminalRef} /></div>
+  return <div class="terminal-host" ref={host}>
+    {searchOpen && <TerminalSearchBox addon={searchRef.current} onClose={() => { setSearchOpen(false); terminalRef.current?.focus() }} />}
+    <TerminalScrollButtons hostRef={host} terminalRef={terminalRef} />
+  </div>
 }
 
 const functionKeys = [
@@ -290,8 +309,16 @@ function workspaceKey() {
 }
 
 function storeFor(key) {
-  if (!terminalStores.has(key)) terminalStores.set(key, { tabs: [], active: '', creating: false })
+  if (!terminalStores.has(key)) {
+    let names = {}
+    try { names = JSON.parse(localStorage.getItem(`pixcode.termNames.${key}`) || '{}') } catch { names = {} }
+    terminalStores.set(key, { tabs: [], active: '', creating: false, names })
+  }
   return terminalStores.get(key)
+}
+
+function persistNames(key, names) {
+  try { localStorage.setItem(`pixcode.termNames.${key}`, JSON.stringify(names)) } catch { void 0 }
 }
 
 export function Terminals() {
@@ -300,6 +327,10 @@ export function Terminals() {
   const [storeKey, setStoreKey] = useState(initialKey)
   const [tabs, setTabs] = useState(initialStore.tabs)
   const [active, setActive] = useState(initialStore.active)
+  const [names, setNames] = useState(initialStore.names)
+  const [unread, setUnread] = useState(new Set())
+  const [renaming, setRenaming] = useState('')
+  const [renameValue, setRenameValue] = useState('')
   const [error, setError] = useState('')
   const terminalActionsRef = useRef(null)
   const terminalModifiersRef = useRef(false)
@@ -357,6 +388,12 @@ export function Terminals() {
       }
     }
     reconcile()
+    // Unread marker on inactive tabs: any output landing in a background tab
+    // raises a dot until the user looks at it.
+    const dataUnsubscribe = ws.on('pty', 'data', (event) => {
+      if (!event.id || event.id === activeRef.current) return
+      setUnread((current) => current.has(event.id) ? current : new Set(current).add(event.id))
+    })
     const exitUnsubscribe = ws.on('pty', 'exit', (event) => {
       const currentStore = storeFor(storeKey)
       if (!currentStore.tabs.includes(event.id)) return
@@ -378,6 +415,9 @@ export function Terminals() {
       activeRef.current = nextStore.active
       setTabs(nextStore.tabs)
       setActive(nextStore.active)
+      setNames(nextStore.names)
+      setUnread(new Set())
+      setRenaming('')
       setError('')
       // The effect for the new key creates the first terminal after render.
     }
@@ -392,6 +432,7 @@ export function Terminals() {
     return () => {
       mountedRef.current = false
       window.removeEventListener('pixcode:workspace-change', workspaceChange)
+      dataUnsubscribe()
       exitUnsubscribe()
       window.removeEventListener('pixcode:ws-open', reconnect)
     }
@@ -410,16 +451,44 @@ export function Terminals() {
     setActive(store.active)
   }
 
+  function activateTab(id) {
+    const store = storeFor(storeKey)
+    store.active = id
+    activeRef.current = id
+    setActive(id)
+    setRenaming('')
+    setUnread((current) => {
+      if (!current.has(id)) return current
+      const next = new Set(current)
+      next.delete(id)
+      return next
+    })
+  }
+
+  function commitRename(id) {
+    const store = storeFor(storeKey)
+    const value = renameValue.trim().slice(0, 40)
+    if (value) store.names[id] = value
+    else delete store.names[id]
+    persistNames(storeKey, store.names)
+    setNames({ ...store.names })
+    setRenaming('')
+  }
+
   return (
     <div style="display:flex; flex:1; min-height:0; flex-direction:column">
       <div class="terminal-tabs">
         {tabs.map((id, index) => (
-          <button class={`terminal-tab ${id === active ? 'active' : ''}`} type="button" onClick={() => { const store = storeFor(storeKey); store.active = id; activeRef.current = id; setActive(id) }}>
-            <span><TerminalIcon size={13} /> sh {index + 1}</span>
+          <button key={id} class={`terminal-tab ${id === active ? 'active' : ''}`} type="button" title={t('terminal.renameHint')} onClick={() => activateTab(id)} onDoubleClick={() => { setRenaming(id); setRenameValue(names[id] || '') }}>
+            {unread.has(id) && <span class="terminal-tab-unread" aria-hidden="true" />}
+            {renaming === id
+              ? <input class="terminal-rename" autoFocus value={renameValue} onInput={(event) => setRenameValue(event.currentTarget.value)} onClick={(event) => event.stopPropagation()} onBlur={() => commitRename(id)} onKeyDown={(event) => { if (event.key === 'Enter') commitRename(id); if (event.key === 'Escape') setRenaming('') }} />
+              : <span><TerminalIcon size={13} /><span class="terminal-tab-name">{names[id] || `sh ${index + 1}`}</span></span>}
             <span class="muted" title={t('terminal.close')} onClick={(event) => closeTab(event, id)}><X size={13} /></span>
           </button>
         ))}
         <vscode-toolbar-button icon="add" onClick={newTab} title={t('terminal.new')} aria-label={t('terminal.new')}></vscode-toolbar-button>
+        <vscode-toolbar-button icon="search" title={t('terminal.search')} aria-label={t('terminal.search')} disabled={!active} onClick={() => { if (active) window.dispatchEvent(new CustomEvent('pixcode:terminal-search', { detail: active })) }}></vscode-toolbar-button>
       </div>
       {error && <div class="error-text" style="padding:8px">{error}</div>}
       {active && <div class="terminal-mobile-stage"><TerminalView key={active} id={active} onReady={handleTerminalReady} modifiersRef={terminalModifiersRef} /><TerminalAccessory terminalId={active} actionsRef={terminalActionsRef} modifiersRef={terminalModifiersRef} /></div>}

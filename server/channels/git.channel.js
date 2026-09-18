@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { httpError } from '../util/http.js'
 import { workspacePath } from '../workspace.js'
 import { credentialFor, getGitAccount, identityArgs, saveGitAccount } from '../git-account.js'
+import { recordActivity } from '../activity.js'
 import { adoptGithubUser, appBootstrap, devicePoll, deviceStart, oauthConfigInfo, setGithubClientId, webStart } from '../git-oauth.js'
 import { requireAccess, requireAdmin } from '../auth.js'
 
@@ -84,6 +85,7 @@ async function remoteOperation(command, remote, branch, requestedWorkspace, ctx)
   } catch { /* no configured remote — let the real op report the failure */ }
   try {
     const { stdout, stderr } = await git([...cred.args, ...args], { timeout: 120_000 }, requestedWorkspace, cred.env)
+    try { recordActivity(workspacePath(requestedWorkspace, '.', ctx).base, 'git', { op: command, user: ctx?.principal?.username || '' }) } catch { void 0 }
     return { ok: true, output: `${stdout}${stderr}` }
   } catch (error) {
     const detail = `${error.stdout || ''}${error.stderr || ''}`.trim()
@@ -212,6 +214,7 @@ export const gitChannel = {
         // the user never has to think about the staging area.
         if (all) await git(['add', '-A'], {}, workspace)
         const { stdout, stderr } = await git([...identityArgs(ctx), 'commit', '-m', String(message)], {}, workspace)
+        recordActivity(workspacePath(workspace, '.', ctx).base, 'git', { op: 'commit', user: ctx?.principal?.username || '' })
         return { ok: true, output: `${stdout}${stderr}` }
       } catch (error) {
         const detail = `${error.stdout || ''}${error.stderr || ''}`.trim()
@@ -220,13 +223,14 @@ export const gitChannel = {
     },
 
     async init(ctx, { workspace } = {}) {
-      workspacePath(workspace, '.', ctx)
+      const { base } = workspacePath(workspace, '.', ctx)
       const { stdout, stderr } = await git(['init'], {}, workspace)
+      recordActivity(base, 'git', { op: 'init', user: ctx?.principal?.username || '' })
       return { ok: true, output: `${stdout}${stderr}` }
     },
 
     async discard(ctx, { path: filePath, workspace } = {}) {
-      workspacePath(workspace, '.', ctx)
+      const { base } = workspacePath(workspace, '.', ctx)
       if (!filePath) throw httpError(400, 'path required')
       const safePath = safeRelative(filePath, workspace)
       if (await isTracked(safePath, workspace)) {
@@ -235,6 +239,7 @@ export const gitChannel = {
       } else {
         await git(['clean', '-f', '--', safePath], {}, workspace)
       }
+      recordActivity(base, 'git', { op: 'discard', files: [safePath], user: ctx?.principal?.username || '' })
       return { ok: true }
     },
 

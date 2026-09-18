@@ -18,6 +18,7 @@ import { listAgents } from './agents/adapter.js'
 import { restoreSessions, setPresenceNotifier } from './agents/runner.js'
 import { initializeWorkspace } from './projects.js'
 import { projectChannel } from './channels/project.channel.js'
+import { activityChannel } from './channels/activity.channel.js'
 import { previewRoutes } from './preview.js'
 import { oauthRoutes } from './git-oauth.js'
 
@@ -81,6 +82,7 @@ export function createHttpServer() {
   hub.register('git', gitChannel)
   hub.register('pty', ptyChannel)
   hub.register('agent', agentChannel)
+  hub.register('activity', activityChannel)
   // Agent session lifecycle changes are broadcast so every client can refresh
   // its "who else is working" presence strip.
   setPresenceNotifier(() => hub.broadcast('agent', 'presence', {}))

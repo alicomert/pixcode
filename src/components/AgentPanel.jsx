@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import { Archive, ChevronDown, ChevronUp, Download, Eye, Maximize2, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { Archive, ChevronDown, ChevronUp, Download, Eye, Maximize2, Search, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
@@ -10,6 +11,7 @@ import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
 import { TerminalScrollButtons } from './TerminalScrollButtons.jsx'
+import { TerminalSearchBox } from './TerminalSearch.jsx'
 import { sanitizeReplay } from '../lib/terminal-replay.js'
 import { TerminalAccessory } from './Terminals.jsx'
 
@@ -76,6 +78,8 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef, foreign =
   const host = useRef(null)
   const terminalRef = useRef(null)
   const fitRef = useRef(null)
+  const searchRef = useRef(null)
+  const [searchOpen, setSearchOpen] = useState(false)
   // Members may watch an admin's terminal but never type into it; admins get
   // full control over any session they open.
   const canType = !foreign || isAdmin.value
@@ -86,6 +90,9 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef, foreign =
     const fit = new FitAddon()
     fitRef.current = fit
     terminal.loadAddon(fit)
+    const search = new SearchAddon()
+    searchRef.current = search
+    terminal.loadAddon(search)
     terminal.open(host.current)
     const stopTouchScroll = attachTerminalTouchScroll(host.current, terminal, () => terminalScrollSpeed.value)
     // The active agent tab should be immediately typeable after it is
@@ -185,6 +192,14 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef, foreign =
       })
     }
     window.addEventListener('pixcode:keyboard', keyboardLayout)
+    const toggleSearch = (event) => {
+      if (event.detail !== session.sessionId) return
+      setSearchOpen((open) => {
+        if (open) terminal.focus()
+        return !open
+      })
+    }
+    window.addEventListener('pixcode:agent-search', toggleSearch)
     let inputErrorShown = false
     const inputDisposable = terminal.onData((data) => {
       if (!canType) return
@@ -223,6 +238,7 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef, foreign =
       host.current?.removeEventListener('click', focusTerminal)
       window.removeEventListener('pixcode:ws-open', reconnect)
       window.removeEventListener('pixcode:keyboard', keyboardLayout)
+      window.removeEventListener('pixcode:agent-search', toggleSearch)
       dataUnsubscribe()
       inputDisposable.dispose()
       terminal.dispose()
@@ -258,7 +274,10 @@ function AgentTerminalView({ session, onStatus, onReady, modifiersRef, foreign =
     terminalRef.current.options.disableStdin = session?.status !== 'running' || !canType
     terminalRef.current.options.cursorBlink = session?.status === 'running' && canType
   }, [session?.status, canType])
-  return <div class="agent-terminal-host" ref={host}><TerminalScrollButtons hostRef={host} terminalRef={terminalRef} /></div>
+  return <div class="agent-terminal-host" ref={host}>
+    {searchOpen && <TerminalSearchBox addon={searchRef.current} onClose={() => { setSearchOpen(false); terminalRef.current?.focus() }} />}
+    <TerminalScrollButtons hostRef={host} terminalRef={terminalRef} />
+  </div>
 }
 
 export function AgentPanel() {
@@ -600,6 +619,7 @@ export function AgentPanel() {
         {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{viewingForeign ? `${activeSession.ownerName} · ${sessionLabel(activeSession)}` : sessionLabel(activeSession)}</strong><code>{viewingForeign && !isAdmin.value ? t('agent.readonly') : activeSession.status}</code></span>}
         <span class="agent-header-spacer" />
         {activeSession?.status === 'running' && (!viewingForeign || isAdmin.value) && <vscode-button secondary icon="debug-stop" onClick={() => stopSession(activeSession.sessionId)}>{t('agent.stop')}</vscode-button>}
+        {activeSession && <vscode-toolbar-button icon="search" title={t('terminal.search')} aria-label={t('terminal.search')} onClick={() => window.dispatchEvent(new CustomEvent('pixcode:agent-search', { detail: activeSession.sessionId }))}></vscode-toolbar-button>}
         <vscode-toolbar-button icon="refresh" class={refreshing ? 'spin' : ''} onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}></vscode-toolbar-button>
       </div>
       {presence.length > 0 && <div class="agent-presence">

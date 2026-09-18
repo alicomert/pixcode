@@ -4,6 +4,7 @@ import { enhancedEnv } from '../util/env.js'
 import { cliEnvFor } from '../cli-env.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 import { accessAlive, accessFor } from '../auth.js'
+import { recordActivity } from '../activity.js'
 
 const shells = new Map()
 let counter = 0
@@ -49,6 +50,7 @@ export const ptyChannel = {
       })
       const shell = { term, owner: ownerKey(ctx), subscribers: new Set([ctx]), workspace: workspacePath, history: [], historyBytes: 0, sequence: 0 }
       shells.set(id, shell)
+      recordActivity(workspacePath, 'pty', { action: 'open', user: ctx?.principal?.username || '' })
       term.onData((data) => {
         const event = { data, seq: ++shell.sequence }
         shell.history.push(event)
@@ -62,6 +64,7 @@ export const ptyChannel = {
       })
       term.onExit(({ exitCode }) => {
         shells.delete(id)
+        recordActivity(shell.workspace, 'pty', { action: 'exit', exitCode, user: ctx?.principal?.username || '' })
         for (const subscriber of shell.subscribers) {
           try { subscriber.emit('pty', 'exit', { id, exitCode }) } catch { shell.subscribers.delete(subscriber) }
         }

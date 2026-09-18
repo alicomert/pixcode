@@ -3,6 +3,7 @@ import path from 'node:path'
 import { httpError } from '../util/http.js'
 import { workspacePath } from '../workspace.js'
 import { accessAlive } from '../auth.js'
+import { recordActivity } from '../activity.js'
 
 // Keep dependency trees out of the explorer/search, but expose project files
 // including dotfiles, build output and the .git directory like a local editor.
@@ -21,8 +22,23 @@ const WATCH_MAX_DEPTH = 24
 const WATCH_SKIP = new Set(['node_modules', '.git', '.cache', '.next', '.nuxt', '.turbo', 'coverage', '__pycache__', '.venv', 'venv', 'target'])
 const GIT_WATCH_SKIP = new Set(['objects', 'logs', 'hooks', 'info', 'lfs', 'modules', 'worktrees'])
 
-// base(realpath) -> { subscribers: Map<ctx, workspaceArg>, dirs: Map<abs, FSWatcher>, pending: Map<rel,kind>, git, timer }
+// base(realpath) -> { subscribers: Map<ctx, workspaceArg>, dirs: Map<abs, FSWatcher>, pending: Map<rel,kind>, git, timer, pins }
 const watchers = new Map()
+
+// Paths written through the fs ops are recorded with the acting user; the
+// watcher flush would log the same disk change a moment later, so the flush
+// skips any path an op just attributed.
+const opMarks = new Map() // base -> Map<rel, ts>
+function markOp(base, ...paths) {
+  let marks = opMarks.get(base)
+  if (!marks) { marks = new Map(); opMarks.set(base, marks) }
+  if (marks.size > 500) marks.clear()
+  for (const filePath of paths) marks.set(filePath, Date.now())
+}
+function opRecently(base, filePath) {
+  const ts = opMarks.get(base)?.get(filePath)
+  return ts !== undefined && Date.now() - ts < 2000
+}
 
 function scheduleFlush(entry) {
   if (entry.timer) return
@@ -37,12 +53,18 @@ function flushWatch(entry) {
   const git = entry.git
   entry.git = false
   if (!files.length && !git) return
+  // The activity timeline gets one compact record per flush — the file list
+  // itself stays in the fs:changed frame, the log only keeps what it needs.
+  // Paths an fs op just wrote are skipped: they already carry the user.
+  const external = files.filter((file) => !opRecently(entry.base, file.path))
+  if (external.length) recordActivity(entry.base, 'fs', { files: external.slice(0, 8).map((file) => file.path), count: external.length })
+  if (git) recordActivity(entry.base, 'git', { op: 'refs' })
   for (const [ctx, workspaceArg] of entry.subscribers) {
     // Revoked accounts stop receiving fs events even with a socket open.
     if (!accessAlive(ctx)) { entry.subscribers.delete(ctx); continue }
     try { ctx.emit('fs', 'changed', { workspace: workspaceArg, files, git }) } catch { entry.subscribers.delete(ctx) }
   }
-  if (!entry.subscribers.size) teardownWatch(entry)
+  if (!entry.subscribers.size && !entry.pins) teardownWatch(entry)
 }
 
 function teardownWatch(entry) {
@@ -138,16 +160,44 @@ function watchSourceTree(entry, abs, rel, depth = 0) {
 function watcherFor(base) {
   let entry = watchers.get(base)
   if (entry) return entry
-  entry = { base, subscribers: new Map(), dirs: new Map(), pending: new Map(), git: false, timer: null }
+  entry = { base, subscribers: new Map(), dirs: new Map(), pending: new Map(), git: false, timer: null, pins: 0 }
   watchers.set(base, entry)
   watchSourceTree(entry, base, '')
   watchGit(entry, base)
   return entry
 }
 
+// Watcher pins keep a workspace watched without any fs:changed subscriber —
+// the activity feed and running agent sessions use them so disk changes are
+// still logged while nobody has the file tree open.
+function canonicalBase(workspace) {
+  const resolved = path.resolve(String(workspace || ''))
+  try { return fs.realpathSync(resolved) } catch { return resolved }
+}
+export function pinFsWatcher(workspace) {
+  const entry = watcherFor(canonicalBase(workspace))
+  entry.pins += 1
+}
+export function unpinFsWatcher(workspace) {
+  const entry = watchers.get(canonicalBase(workspace))
+  if (!entry) return
+  entry.pins = Math.max(0, entry.pins - 1)
+  if (!entry.pins && !entry.subscribers.size) teardownWatch(entry)
+}
+
 function realBase(requestedWorkspace, ctx) {
   const { base } = workspacePath(requestedWorkspace, '.', ctx)
   try { return fs.realpathSync(base) } catch { return base }
+}
+
+// One record per mutating op: unlike a bare watcher event this knows the
+// acting user, and it keeps logging while no watcher is armed at all.
+function logFsOp(ctx, workspace, op, files) {
+  try {
+    const base = realBase(workspace, ctx)
+    markOp(base, ...files)
+    recordActivity(base, 'fs', { op, files: files.slice(0, 8), user: ctx?.principal?.username || '' })
+  } catch { /* logging must never fail the op */ }
 }
 async function existingPath(rel, requestedWorkspace, ctx) {
   const { base, resolved: lexical } = workspacePath(requestedWorkspace, rel, ctx)
@@ -271,12 +321,14 @@ export const fsChannel = {
       const file = await writablePath(rel, workspace, ctx)
       await fs.promises.mkdir(path.dirname(file), { recursive: true })
       await fs.promises.writeFile(file, String(content ?? ''), 'utf8')
+      logFsOp(ctx, workspace, 'write', [rel])
       return { ok: true }
     },
 
     async mkdir(ctx, { path: rel, workspace } = {}) {
       if (!rel) throw httpError(400, 'path required')
       await fs.promises.mkdir(await writablePath(rel, workspace, ctx), { recursive: true })
+      logFsOp(ctx, workspace, 'mkdir', [rel])
       return { ok: true }
     },
 
@@ -286,6 +338,7 @@ export const fsChannel = {
       if (source === workspacePath(workspace, '.', ctx).base) throw httpError(400, 'cannot rename workspace')
       const destination = await writablePath(to, workspace, ctx)
       await fs.promises.rename(source, destination)
+      logFsOp(ctx, workspace, 'rename', [from, to])
       return { ok: true }
     },
 
@@ -294,6 +347,7 @@ export const fsChannel = {
       const target = await existingPath(rel, workspace, ctx)
       if (target === workspacePath(workspace, '.', ctx).base) throw httpError(400, 'cannot delete workspace')
       await fs.promises.rm(target, { recursive: true, force: true })
+      logFsOp(ctx, workspace, 'delete', [rel])
       return { ok: true }
     },
 
@@ -309,7 +363,7 @@ export const fsChannel = {
       const entry = watchers.get(realBase(workspace, ctx))
       if (entry) {
         entry.subscribers.delete(ctx)
-        if (!entry.subscribers.size) teardownWatch(entry)
+        if (!entry.subscribers.size && !entry.pins) teardownWatch(entry)
       }
       return { watching: false }
     }
@@ -317,7 +371,7 @@ export const fsChannel = {
 
   onClose(ctx) {
     for (const entry of watchers.values()) {
-      if (entry.subscribers.delete(ctx) && !entry.subscribers.size) teardownWatch(entry)
+      if (entry.subscribers.delete(ctx) && !entry.subscribers.size && !entry.pins) teardownWatch(entry)
     }
   }
 }
