@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, Gem, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Scroll, Settings, Shield, SquareFunction, Terminal, Video, Workflow } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
+import { useEscape } from '../lib/useEscape.js'
 import { openFile, workspace } from '../state/app.js'
 
 function joinPath(parent, name) {
@@ -104,6 +105,7 @@ export function FileTree() {
   const [refreshToken, setRefreshToken] = useState(0)
   const [softToken, setSoftToken] = useState(0)
   const [dialog, setDialog] = useState(null)
+  useEscape(!!dialog, () => setDialog(null))
   const refreshSequence = useRef(0)
   const softTimer = useRef(null)
 
@@ -201,8 +203,8 @@ export function FileTree() {
       {!error && root?.length === 0 && <div class="tree muted">{t('tree.empty')}</div>}
       {!error && root?.length > 0 && <vscode-scrollable class="tree-scroller"><div class="tree">{root.map((entry) => <Node key={entry.name} path={entry.name} {...entry} refreshToken={refreshToken} softToken={softToken} onError={setError} onChanged={handleNodeAction} />)}</div></vscode-scrollable>}
       {dialog && <div class="modal-backdrop" onClick={() => setDialog(null)}>
-        <form class="file-action-modal" onSubmit={submitAction} onClick={(event) => event.stopPropagation()}>
-          <h2>{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : dialog.type === 'file' ? 'tree.newFile' : 'tree.newFolder')}</h2>
+        <form class="file-action-modal" role="dialog" aria-modal="true" aria-labelledby="file-action-title" onSubmit={submitAction} onClick={(event) => event.stopPropagation()}>
+          <h2 id="file-action-title">{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : dialog.type === 'file' ? 'tree.newFile' : 'tree.newFolder')}</h2>
           {dialog.type === 'delete' ? <p>{t('tree.deleteConfirm', { name: dialog.name })}</p> : <vscode-textfield value={dialog.value} onInput={(event) => setDialog((current) => ({ ...current, value: event.currentTarget.value }))} placeholder={t('tree.pathPlaceholder')} autofocus />}
           <div class="modal-actions"><vscode-button secondary onClick={() => setDialog(null)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" disabled={dialog.type !== 'delete' && !dialog.value.trim()}>{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : 'tree.create')}</vscode-button></div>
         </form>

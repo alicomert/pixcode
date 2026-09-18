@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { Check, Copy, ExternalLink, Globe, RefreshCw } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
+import { useEscape } from '../lib/useEscape.js'
 
 // Public link manager. Opened via the 'pixcode:share-open' event from the
 // Remote view or the settings launcher row — the heavy configuration lives
@@ -19,6 +20,7 @@ export function ShareModal() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const pollRef = useRef(null)
+  useEscape(open, () => setOpen(false))
 
   useEffect(() => {
     const show = () => { setOpen(true); load() }
@@ -237,7 +239,7 @@ export function ShareModal() {
             </div>
           </details>
         )}
-        {error && <span class="error-text">{error}</span>}
+        {error && <span class="error-text" role="alert">{error}</span>}
       </vscode-scrollable>
       <div class="share-modal-actions">
         {status?.running && <vscode-button secondary disabled={busy} onClick={disable}>{t('share.disable')}</vscode-button>}

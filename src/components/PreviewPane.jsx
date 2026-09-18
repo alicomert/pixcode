@@ -96,7 +96,7 @@ export function PreviewPane() {
           <small>{mode === 'server' ? t('preview.emptyHint') : t('preview.staticHint')}</small>
         </div>
       )}
-      {error && <div class="error-text agent-error">{error}</div>}
+      {error && <div class="error-text agent-error" role="alert">{error}</div>}
     </div>
   </div>
 }

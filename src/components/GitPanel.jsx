@@ -229,7 +229,7 @@ function GitHubConnect({ account, onAccount }) {
           <div class="git-hub-actions">
             <vscode-button secondary onClick={cancelWeb}>{t('common.cancel')}</vscode-button>
           </div>
-          {error && <div class="error-text">{error}</div>}
+          {error && <div class="error-text" role="alert">{error}</div>}
         </div>
       ) : device ? (
         <div class="git-hub-form">
@@ -243,7 +243,7 @@ function GitHubConnect({ account, onAccount }) {
             <vscode-button secondary onClick={cancelDevice}>{t('common.cancel')}</vscode-button>
           </div>
           <div class="git-device-status muted"><span class="git-device-dot" />{t('git.waitingAuth')}</div>
-          {error && <div class="error-text">{error}</div>}
+          {error && <div class="error-text" role="alert">{error}</div>}
         </div>
       ) : mode === 'setup' ? (
         <div class="git-hub-form">
@@ -263,7 +263,7 @@ function GitHubConnect({ account, onAccount }) {
             <div class="git-hub-hint muted">{t('git.clientIdAdminOnly')}</div>
           )}
           <button type="button" class="git-hub-switch" onClick={() => { setMode('token'); setError('') }}>{t('git.useToken')}</button>
-          {error && <div class="error-text">{error}</div>}
+          {error && <div class="error-text" role="alert">{error}</div>}
         </div>
       ) : mode === 'deviceflow' ? (
         <div class="git-hub-form">
@@ -278,7 +278,7 @@ function GitHubConnect({ account, onAccount }) {
           ) : (
             <div class="git-hub-hint muted">{t('git.deviceFlowMemberHint')}</div>
           )}
-          {error && <div class="error-text">{error}</div>}
+          {error && <div class="error-text" role="alert">{error}</div>}
         </div>
       ) : mode === 'manual' ? (
         <div class="git-hub-form">
@@ -287,7 +287,7 @@ function GitHubConnect({ account, onAccount }) {
           <div class="git-hub-actions">
             <vscode-button icon="check" onClick={saveClientId} disabled={busy || !clientId.trim()}>{t('editor.save')}</vscode-button>
           </div>
-          {error && <div class="error-text">{error}</div>}
+          {error && <div class="error-text" role="alert">{error}</div>}
         </div>
       ) : mode === 'token' ? (
         <div class="git-hub-form">
@@ -298,7 +298,7 @@ function GitHubConnect({ account, onAccount }) {
             <vscode-button icon="check" onClick={connect} disabled={busy || !token.trim()}>{busy ? t('git.connecting') : t('git.connect')}</vscode-button>
           </div>
           <button type="button" class="git-hub-switch" onClick={() => { setMode('oauth'); setError('') }}>{t('git.useOauth')}</button>
-          {error && <div class="error-text">{error}</div>}
+          {error && <div class="error-text" role="alert">{error}</div>}
         </div>
       ) : (
         <div class="git-hub-form">
@@ -308,7 +308,7 @@ function GitHubConnect({ account, onAccount }) {
           </div>
           {webFlow && <button type="button" class="git-hub-switch" onClick={startDevice} disabled={busy}>{t('git.useDevice')}</button>}
           <button type="button" class="git-hub-switch" onClick={() => { setMode('token'); setError('') }}>{t('git.useToken')}</button>
-          {error && <div class="error-text">{error}</div>}
+          {error && <div class="error-text" role="alert">{error}</div>}
         </div>
       )}
     </div>
@@ -428,7 +428,7 @@ export function GitPanel() {
         <vscode-toolbar-button icon="sync" onClick={() => run('fetch')} disabled={!!busy} title={t('git.fetch')} aria-label={t('git.fetch')}></vscode-toolbar-button>
         <vscode-toolbar-button icon="refresh" onClick={refresh} disabled={!!busy} title={t('git.refresh')} aria-label={t('git.refresh')}></vscode-toolbar-button>
       </div>
-      {error && <div class="error-text" style="padding:6px 10px">{error}</div>}
+      {error && <div class="error-text" role="alert" style="padding:6px 10px">{error}</div>}
       {repoMissing ? (
         <div class="git-welcome">
           <FolderGit2 size={27} />
@@ -489,7 +489,7 @@ export function GitPanel() {
                 {dir && <span class="git-item-dir muted">{dir}</span>}
                 <span class={`git-badge ${badge.className}`} title={badge.title}>{badge.label}</span>
                 <span class="git-item-actions">
-                  <span class="git-item-action" role="button" tabIndex={-1} onClick={(event) => discard(file, event)} title={t('git.discard')} aria-label={t('git.discard')}><Undo2 size={13} /></span>
+                  <span class="git-item-action" role="button" tabIndex={0} onClick={(event) => discard(file, event)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); discard(file, event) } }} title={t('git.discard')} aria-label={t('git.discard')}><Undo2 size={13} /></span>
                 </span>
               </button>
             )

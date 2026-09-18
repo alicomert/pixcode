@@ -10,6 +10,7 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import { unifiedMergeView } from '@codemirror/merge'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
+import { useEscape } from '../lib/useEscape.js'
 import { activeFile, closeFile, isAdmin, openFiles, openPreview, PREVIEW_TAB, theme, workspace } from '../state/app.js'
 import { PreviewPane } from './PreviewPane.jsx'
 
@@ -242,7 +243,7 @@ function Editor({ path, onDirty }) {
         <vscode-button secondary icon="diff" onClick={toggleDiff} disabled={diffBusy}>{diffBusy ? t('editor.diff.loading') : t(showDiff ? 'editor.diff.hide' : 'editor.diff.show')}</vscode-button>
         {status && <span class="muted">{status}</span>}
         {conflicted && <span class="editor-conflict"><span class="error-text">{t('editor.diskChanged')}</span><vscode-button secondary onClick={reloadFromDisk}>{t('editor.reload')}</vscode-button></span>}
-        {error && <span class="error-text">{error}</span>}
+        {error && <span class="error-text" role="alert">{error}</span>}
       </div>
       <div class="editor-host"><div class="cm-host" ref={host} /></div>
     </div>
@@ -254,6 +255,7 @@ export function EditorPane() {
   const active = activeFile.value
   const [dirtyFiles, setDirtyFiles] = useState({})
   const [menu, setMenu] = useState(null)
+  useEscape(!!menu, () => setMenu(null))
   const tabsRef = useRef(null)
   const [scrollState, setScrollState] = useState({ overflow: false, left: false, right: false })
   const workspaceKey = workspace.value?.id || workspace.value?.path || 'default'
@@ -311,7 +313,7 @@ export function EditorPane() {
     <>
       <div class="editor-tabs-wrap">
         {scrollState.overflow && (
-          <button type="button" class={`editor-tabs-scroll ${scrollState.left ? '' : 'disabled'}`} onClick={() => scrollTabs(-1)} aria-label={t('editor.scrollLeft')}><ChevronLeft size={14} /></button>
+          <button type="button" class="editor-tabs-scroll" disabled={!scrollState.left} onClick={() => scrollTabs(-1)} aria-label={t('editor.scrollLeft')}><ChevronLeft size={14} /></button>
         )}
         <div class="editor-tabs" ref={tabsRef} onScroll={updateScrollState}>
           {files.map((filePath) => (
@@ -324,13 +326,13 @@ export function EditorPane() {
               onContextMenu={(event) => { event.preventDefault(); setMenu({ path: filePath, x: Math.min(event.clientX, window.innerWidth - 210), y: Math.min(event.clientY, window.innerHeight - 190) }) }}
               title={filePath === PREVIEW_TAB ? t('preview.title') : filePath}
             >
-              <span class="editor-tab-name">{filePath === PREVIEW_TAB ? <Globe size={13} /> : (dirtyFiles[filePath] && <span class="dirty-dot" aria-label="modified">●</span>)}{filePath === PREVIEW_TAB ? t('preview.title') : filePath.split('/').at(-1)}</span>
-              <span class="close" onClick={(event) => { event.stopPropagation(); close(filePath) }}><X size={13} /></span>
+              <span class="editor-tab-name">{filePath === PREVIEW_TAB ? <Globe size={13} /> : (dirtyFiles[filePath] && <span class="dirty-dot" role="img" aria-label="modified">●</span>)}{filePath === PREVIEW_TAB ? t('preview.title') : filePath.split('/').at(-1)}</span>
+              <span class="close" role="button" tabIndex={0} title={t('editor.closeTab')} aria-label={t('editor.closeTab')} onClick={(event) => { event.stopPropagation(); close(filePath) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); close(filePath) } }}><X size={13} /></span>
             </button>
           ))}
         </div>
         {scrollState.overflow && (
-          <button type="button" class={`editor-tabs-scroll ${scrollState.right ? '' : 'disabled'}`} onClick={() => scrollTabs(1)} aria-label={t('editor.scrollRight')}><ChevronRight size={14} /></button>
+          <button type="button" class="editor-tabs-scroll" disabled={!scrollState.right} onClick={() => scrollTabs(1)} aria-label={t('editor.scrollRight')}><ChevronRight size={14} /></button>
         )}
         <button type="button" class="editor-preview-btn" onClick={openPreview} title={t('preview.open')} aria-label={t('preview.open')}><Globe size={14} /></button>
       </div>

@@ -119,7 +119,7 @@ export function SkillManager() {
       <vscode-textfield class="skill-repo-input" value={repo} placeholder={t('skills.repoPlaceholder')} onInput={(event) => setRepo(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') install() }} />
       <vscode-button icon="cloud-download" disabled={!repo.trim() || installing} onClick={install}>{installing ? t('skills.installing') : t('skills.install')}</vscode-button>
     </div>
-    {error && <span class="error-text">{error}</span>}
+    {error && <span class="error-text" role="alert">{error}</span>}
     {notice && <span class="skill-notice">{notice}</span>}
     <div class="skill-list">
       {busy && <span class="muted">{t('tree.loading')}</span>}

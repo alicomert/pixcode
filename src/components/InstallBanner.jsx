@@ -43,7 +43,7 @@ export function InstallBanner() {
   }
 
   return (
-    <div class="install-banner" role="dialog" aria-label={t('pwa.install')}>
+    <div class="install-banner" role="region" aria-label={t('pwa.install')}>
       <img class="install-banner-icon" src="/icons/icon-192x192.png" alt="" />
       <div class="install-banner-copy">
         <strong>{t('pwa.bannerTitle')}</strong>

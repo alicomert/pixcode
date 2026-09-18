@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { Download, FileCheck } from '../lib/icons.jsx'
 import { t } from '../lib/i18n.js'
 import { ws } from '../lib/ws.js'
+import { useEscape } from '../lib/useEscape.js'
 import { isAdmin } from '../state/app.js'
 import { checkForUpdate, CURRENT_VERSION, RELEASE_URL } from '../lib/updater.js'
 
@@ -64,6 +65,7 @@ export function UpdateChecker({ detailed = false }) {
   const [installMode, setInstallMode] = useState('')
   const [updating, setUpdating] = useState(false)
   const reloadPoll = useRef(null)
+  useEscape(open && !updating, () => setOpen(false))
 
   async function check(force = false) {
     if (state.status === 'checking' && !force) return

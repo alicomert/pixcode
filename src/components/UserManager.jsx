@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
+import { useEscape } from '../lib/useEscape.js'
 import { VscSelect } from './vsc.jsx'
 import { Folder, Shield, User, UserPlus } from '../lib/icons.jsx'
 
@@ -108,6 +109,7 @@ function FolderGrantPicker({ onGrant }) {
 // room to breathe.
 export function UserManager() {
   const [open, setOpen] = useState(false)
+  useEscape(open, () => { setOpen(false); setDraft(null); setForm(null) })
   const [users, setUsers] = useState([])
   const [projects, setProjects] = useState([])
   const [agents, setAgents] = useState([])
@@ -247,7 +249,7 @@ export function UserManager() {
               <vscode-toolbar-button icon="close" onClick={() => { setOpen(false); setDraft(null); setForm(null) }} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button>
             </span>
           </div>
-          {error && <p class="user-modal-error">{error}</p>}
+          {error && <p class="user-modal-error" role="alert">{error}</p>}
 
           <vscode-scrollable class="user-modal-list">
             {form && (

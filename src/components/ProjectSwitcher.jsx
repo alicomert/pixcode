@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { ArrowLeft, ChevronRight, FolderOpen, FolderPlus, GitFork, X } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
+import { useEscape } from '../lib/useEscape.js'
 import { isAdmin, setWorkspace } from '../state/app.js'
 
 const TABS_KEY = 'pixcode.workspace.tabs'
@@ -77,6 +78,7 @@ export function ProjectSwitcher() {
   const [activeTabId, setActiveTabId] = useState('')
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  useEscape(showCreate, () => setShowCreate(false))
   const [mode, setMode] = useState('folder')
   const [name, setName] = useState('')
   const [folderPath, setFolderPath] = useState('')
@@ -254,8 +256,8 @@ export function ProjectSwitcher() {
         {error && <span class="project-error" title={error}>!</span>}
       </div>
       {showCreate && <div class="modal-backdrop" onClick={() => setShowCreate(false)}>
-        <section class="project-modal project-open-modal" onClick={(event) => event.stopPropagation()}>
-          <div class="project-modal-header"><h2>{t('project.newWorkspace')}</h2><vscode-toolbar-button icon="close" onClick={() => setShowCreate(false)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></div>
+        <section class="project-modal project-open-modal" role="dialog" aria-modal="true" aria-labelledby="project-modal-title" onClick={(event) => event.stopPropagation()}>
+          <div class="project-modal-header"><h2 id="project-modal-title">{t('project.newWorkspace')}</h2><vscode-toolbar-button icon="close" onClick={() => setShowCreate(false)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></div>
           <div class="workspace-project-picker"><span>{t('project.openExisting')}</span><div>{projects.map((project) => <button type="button" key={project.id} onClick={() => openAsTab(project)} disabled={busy}><FolderOpen size={13} /><span>{project.name}</span></button>)}</div></div>
           {isAdmin.value && <div class="project-modal-tabs"><button type="button" class={mode === 'folder' ? 'active' : ''} onClick={() => openModal('folder')}><FolderOpen size={14} /> {t('project.openFolder')}</button><button type="button" class={mode === 'github' ? 'active' : ''} onClick={() => openModal('github')}><GitFork size={14} /> {t('project.cloneRepo')}</button><button type="button" class={mode === 'create' ? 'active' : ''} onClick={() => openModal('create')}><FolderPlus size={14} /> {t('project.new')}</button></div>}
           {isAdmin.value && mode === 'folder' && <form onSubmit={openFolder}>
@@ -265,7 +267,7 @@ export function ProjectSwitcher() {
           </form>}
           {isAdmin.value && mode === 'github' && <form onSubmit={clone}><p>{t('project.cloneHint')}</p><vscode-textfield value={url} onInput={(event) => setUrl(event.currentTarget.value)} placeholder="https://github.com/org/repository.git" autofocus /><vscode-textfield value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('project.namePlaceholder')} /><div class="modal-actions"><vscode-button secondary onClick={() => setShowCreate(false)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" icon="repo-clone" disabled={busy || !url.trim()}>{t('project.cloneRepo')}</vscode-button></div></form>}
           {isAdmin.value && mode === 'create' && <form onSubmit={create}><p>{t('project.nameHint')}</p><vscode-textfield value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('project.namePlaceholder')} autofocus /><div class="modal-actions"><vscode-button secondary onClick={() => setShowCreate(false)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" icon="add" disabled={busy}>{t('project.create')}</vscode-button></div></form>}
-          {error && <div class="error-text project-modal-error">{error}</div>}
+          {error && <div class="error-text project-modal-error" role="alert">{error}</div>}
         </section>
       </div>}
     </>

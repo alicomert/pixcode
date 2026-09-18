@@ -128,6 +128,7 @@ body {
 }
 
 button, input, textarea, select { font: inherit; color: inherit; }
+input, textarea { caret-color: var(--ui-accent); }
 
 button, select, input:not([type="range"]), textarea {
   border: 1px solid var(--ui-border);
@@ -213,6 +214,14 @@ vscode-toolbar-button:active:not(:disabled) {
 }
 
 .muted { color: var(--ui-muted); }
+
+/* Numeric surfaces — counts, versions, positions read cleaner with fixed figures. */
+vscode-badge, .git-count, .git-badge, .agent-presence-count,
+.activity-version, .settings-range-control output, .terminal-badge code,
+.agent-terminal-provider code, .search-result-meta, .sidebar-heading-actions,
+.update-compact-label {
+  font-variant-numeric: tabular-nums;
+}
 .error-text { color: var(--ui-error); }
 .spacer { flex: 1; }
 .spin { animation: px-spin .8s linear infinite; }
@@ -1195,6 +1204,10 @@ vscode-toolbar-button:active:not(:disabled) {
   .git-item-action:hover { background: color-mix(in srgb, var(--ui-red) 16%, transparent); color: var(--ui-red); }
 }
 
+.git-item:focus-within .git-badge { display: none; }
+.git-item:focus-within .git-item-action { display: flex; }
+.git-item-action:focus-visible { background: color-mix(in srgb, var(--ui-red) 16%, transparent); color: var(--ui-red); }
+
 .git-badge {
   min-width: 19px;
   padding: 1px 5px;
@@ -1312,7 +1325,7 @@ vscode-toolbar-button:active:not(:disabled) {
   cursor: pointer;
 }
 .editor-tabs-scroll { width: 24px; }
-.editor-tabs-scroll.disabled { cursor: default; opacity: .3; }
+.editor-tabs-scroll.disabled, .editor-tabs-scroll:disabled { cursor: default; opacity: .3; }
 .editor-preview-btn { width: 34px; border-left: 1px solid var(--ui-border); }
 
 .tab-menu-overlay {
@@ -2093,6 +2106,45 @@ vscode-toolbar-button:active:not(:disabled) {
   box-shadow: inset 0 1px 0 var(--ui-accent-strong);
 }
 
+.terminal-tab > .terminal-tab-close {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--ui-faint);
+}
+
+.terminal-tab > .terminal-tab-close:focus-visible,
+.editor-tab .close:focus-visible,
+.agent-tab-close:focus-visible {
+  background: var(--ui-hover);
+  color: var(--ui-text);
+}
+
+.terminal-empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+}
+
+.terminal-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-card);
+  background: var(--ui-raised);
+  color: var(--ui-muted);
+  cursor: pointer;
+  font: 12px var(--sans);
+  transition: border-color .15s, color .15s, background .15s;
+}
+
+.terminal-empty-cta:hover { border-color: var(--ui-accent); color: var(--ui-text); }
+.terminal-empty-cta:active { transform: scale(.98); }
+
 /* Terminal wells — inset surface with a hairline ring. */
 .terminal-host, .agent-terminal-host {
   position: relative;
@@ -2853,13 +2905,13 @@ vscode-toolbar-button:active:not(:disabled) {
   }
 
   .workspace-tab:hover { background: var(--ui-hover); color: var(--ui-text); }
-  .workspace-tab-close:hover, .editor-tab:hover .close, .agent-tab-close:hover, .update-modal-close:hover {
+  .workspace-tab-close:hover, .editor-tab:hover .close, .terminal-tab-close:hover, .agent-tab-close:hover, .update-modal-close:hover {
     background: var(--ui-hover);
     color: var(--ui-text);
   }
 
   .editor-tab:hover { color: var(--ui-text); }
-  .editor-tabs-scroll:hover:not(.disabled), .editor-preview-btn:hover { background: var(--ui-hover); color: var(--ui-text); }
+  .editor-tabs-scroll:hover:not(.disabled):not(:disabled), .editor-preview-btn:hover { background: var(--ui-hover); color: var(--ui-text); }
   .tab-menu button:hover:not(:disabled) { background: var(--ui-accent-soft); color: var(--ui-text); }
 
   .terminal-tab:hover, .agent-session-tab:hover {

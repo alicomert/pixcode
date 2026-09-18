@@ -171,7 +171,7 @@ function SidebarView() {
   if (activeView.value === 'remote') return <RemoteView />
   if (activeView.value === 'extensions') return <ExtensionsView />
   if (activeView.value === 'settings') return <SettingsView />
-  return <><div class="sidebar-heading"><span>{t('view.explorer')}</span><span class="sidebar-heading-actions">•••</span></div><FileTree /></>
+  return <><div class="sidebar-heading"><span>{t('view.explorer')}</span><span class="sidebar-heading-actions" aria-hidden="true">•••</span></div><FileTree /></>
 }
 
 function SearchView() {

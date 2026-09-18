@@ -6,6 +6,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
+import { useEscape } from '../lib/useEscape.js'
 import { activeAgent, agentSessions, isAdmin, panelOpen, principal, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
@@ -290,6 +291,9 @@ export function AgentPanel() {
   const [closeConfirmSessionId, setCloseConfirmSessionId] = useState('')
   const [installTarget, setInstallTarget] = useState(null)
   const [installing, setInstalling] = useState(false)
+  useEscape(modalOpen, () => setModalOpen(false))
+  useEscape(!!installTarget, () => setInstallTarget(null))
+  useEscape(!!closeConfirmSessionId, () => setCloseConfirmSessionId(''))
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -674,15 +678,15 @@ export function AgentPanel() {
           </button>}
         </div>
         <vscode-toolbar-button icon="add" onClick={() => { setModalOpen(true); load(true); loadHandoffs() }} title={t('agent.new')} aria-label={t('agent.new')}></vscode-toolbar-button>
-        <button class={`tw-icon-button agent-history-button ${historyOpen ? 'active' : ''}`} type="button" onClick={() => setHistoryOpen((value) => !value)} title={t('agent.history')} aria-label={t('agent.history')}><Archive size={14} />{historySessions.length > 0 && <vscode-badge>{historySessions.length}</vscode-badge>}</button>
+        <button class={`tw-icon-button agent-history-button ${historyOpen ? 'active' : ''}`} type="button" onClick={() => setHistoryOpen((value) => !value)} title={t('agent.history')} aria-label={t('agent.history')} aria-pressed={historyOpen}><Archive size={14} />{historySessions.length > 0 && <vscode-badge>{historySessions.length}</vscode-badge>}</button>
       </div>
       {historyOpen && <vscode-scrollable class="agent-history-list">{historySessions.length ? historySessions.map((session) => {
         const agent = agents.find((item) => item.id === session.agent)
         return <button class={`agent-history-item ${session.sessionId === activeSessionId ? 'active' : ''}`} type="button" key={session.sessionId} onClick={() => { selectSession(session.sessionId); activeAgent.value = session.agent }}><AgentLogo agent={agent} size={15} /><span><strong>{sessionLabel(session)}</strong><small>{new Date(session.startedAt || Date.now()).toLocaleString()}</small></span></button>
       }) : <span class="agent-history-empty">{t('agent.historyEmpty')}</span>}</vscode-scrollable>}
       <div class="agent-terminal-header">
-        <span class="terminal-badge"><TerminalIcon size={13} /> AGENT TERMINAL</span>
-        {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{viewingForeign ? `${activeSession.ownerName} · ${sessionLabel(activeSession)}` : sessionLabel(activeSession)}</strong><code>{viewingForeign && !isAdmin.value ? t('agent.readonly') : activeSession.status}</code></span>}
+        <span class="terminal-badge"><TerminalIcon size={13} /> {t('agent.terminalBadge')}</span>
+        {activeSession && <span class="agent-terminal-provider"><AgentLogo agent={agents.find((agent) => agent.id === activeSession.agent)} size={16} /><strong>{viewingForeign ? `${activeSession.ownerName} · ${sessionLabel(activeSession)}` : sessionLabel(activeSession)}</strong><code>{viewingForeign && !isAdmin.value ? t('agent.readonly') : ({ running: t('agent.status.running'), stopped: t('agent.status.stopped') }[activeSession.status] || activeSession.status)}</code></span>}
         <span class="agent-header-spacer" />
         {activeSession?.status === 'running' && (!viewingForeign || isAdmin.value) && <vscode-button secondary icon="debug-stop" onClick={() => stopSession(activeSession.sessionId)}>{t('agent.stop')}</vscode-button>}
         {broadcastTargets.length > 1 && <vscode-toolbar-button icon="megaphone" class={broadcastOpen ? 'active' : ''} title={t('agent.broadcast')} aria-label={t('agent.broadcast')} onClick={() => toggleBroadcast(broadcastTargets)}></vscode-toolbar-button>}

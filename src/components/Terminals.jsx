@@ -484,15 +484,15 @@ export function Terminals() {
             {renaming === id
               ? <input class="terminal-rename" autoFocus value={renameValue} onInput={(event) => setRenameValue(event.currentTarget.value)} onClick={(event) => event.stopPropagation()} onBlur={() => commitRename(id)} onKeyDown={(event) => { if (event.key === 'Enter') commitRename(id); if (event.key === 'Escape') setRenaming('') }} />
               : <span><TerminalIcon size={13} /><span class="terminal-tab-name">{names[id] || `sh ${index + 1}`}</span></span>}
-            <span class="muted" title={t('terminal.close')} onClick={(event) => closeTab(event, id)}><X size={13} /></span>
+            <span class="terminal-tab-close" role="button" tabIndex={0} title={t('terminal.close')} aria-label={t('terminal.close')} onClick={(event) => closeTab(event, id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); closeTab(event, id) } }}><X size={13} /></span>
           </button>
         ))}
         <vscode-toolbar-button icon="add" onClick={newTab} title={t('terminal.new')} aria-label={t('terminal.new')}></vscode-toolbar-button>
         <vscode-toolbar-button icon="search" title={t('terminal.search')} aria-label={t('terminal.search')} disabled={!active} onClick={() => { if (active) window.dispatchEvent(new CustomEvent('pixcode:terminal-search', { detail: active })) }}></vscode-toolbar-button>
       </div>
-      {error && <div class="error-text" style="padding:8px">{error}</div>}
+      {error && <div class="error-text" role="alert" style="padding:8px">{error}</div>}
       {active && <div class="terminal-mobile-stage"><TerminalView key={active} id={active} onReady={handleTerminalReady} modifiersRef={terminalModifiersRef} /><TerminalAccessory terminalId={active} actionsRef={terminalActionsRef} modifiersRef={terminalModifiersRef} /></div>}
-      {!active && !error && <div class="tree muted">{t('terminal.new')}</div>}
+      {!active && !error && <div class="terminal-empty"><button type="button" class="terminal-empty-cta" onClick={newTab}><TerminalIcon size={15} />{t('terminal.new')}</button></div>}
     </div>
   )
 }

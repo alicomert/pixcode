@@ -89,7 +89,7 @@ export function ActivityPanel() {
               </span>
             )}
           </span>
-          <span class="activity-meta">{entry.user && <span class="activity-user">{entry.user}</span>}<time>{ago(entry.ts)}</time></span>
+          <span class="activity-meta">{entry.user && <span class="activity-user">{entry.user}</span>}<time dateTime={new Date(Number(entry.ts || 0)).toISOString()} title={new Date(Number(entry.ts || 0)).toLocaleString()}>{ago(entry.ts)}</time></span>
         </div>
       })}
     </vscode-scrollable>

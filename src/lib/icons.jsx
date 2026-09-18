@@ -149,6 +149,8 @@ function createIcon(name) {
     const { size = 24, strokeWidth = 2, color = 'currentColor', class: className, className: classNameProp, children: _children, ...rest } = props
     if (codicon) {
       return h('svg', {
+        'aria-hidden': 'true',
+        focusable: 'false',
         ...rest,
         class: className || classNameProp,
         width: size,
@@ -162,6 +164,8 @@ function createIcon(name) {
     const safeStrokeWidth = String(strokeWidth).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]))
     const inner = body.replace(/stroke-width="2"/g, `stroke-width="${safeStrokeWidth}"`)
     return h('svg', {
+      'aria-hidden': 'true',
+      focusable: 'false',
       ...rest,
       class: className || classNameProp,
       width: size,
