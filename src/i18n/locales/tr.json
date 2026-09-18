@@ -387,5 +387,18 @@
   "skills.installing": "Kuruluyor…",
   "skills.installed": "{count} yetenek kuruldu",
   "skills.empty": "Henüz yetenek kurulmadı.",
-  "skills.remove": "Kaldır"
+  "skills.remove": "Kaldır",
+  "share.title": "Genel bağlantı",
+  "share.hint": "Bu çalışma alanını bir tünel sağlayıcısıyla genel bir HTTPS URL'sine açın. Sabit isimler kendi relay'inizi veya ücretsiz bir hesap gerektirir.",
+  "share.provider": "Sağlayıcı",
+  "share.fixedUrl": "yeniden başlatmada sabit URL",
+  "share.randomUrl": "her başlatmada rastgele URL",
+  "share.enable": "Etkinleştir",
+  "share.enabling": "Etkinleştiriliyor…",
+  "share.restart": "Tüneli yeniden başlat",
+  "share.disable": "Devre dışı bırak",
+  "share.live": "Genel bağlantı yayında",
+  "share.copy": "URL'yi kopyala",
+  "share.copied": "kopyalandı",
+  "share.pubkeyHint": "Bu anahtarı sish relay'inizde yetkilendirin"
 }

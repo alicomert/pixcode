@@ -387,5 +387,18 @@
   "skills.installing": "Installing…",
   "skills.installed": "{count} skill(s) installed",
   "skills.empty": "No skills installed yet.",
-  "skills.remove": "Remove"
+  "skills.remove": "Remove",
+  "share.title": "Public link",
+  "share.hint": "Expose this workbench on a public HTTPS URL via a tunnel provider. Fixed names need your own relay or a free account.",
+  "share.provider": "Provider",
+  "share.fixedUrl": "stable URL across restarts",
+  "share.randomUrl": "new random URL each start",
+  "share.enable": "Enable",
+  "share.enabling": "Enabling…",
+  "share.restart": "Restart tunnel",
+  "share.disable": "Disable",
+  "share.live": "Public link live",
+  "share.copy": "Copy URL",
+  "share.copied": "copied",
+  "share.pubkeyHint": "Authorize this key on your sish relay"
 }

@@ -2,7 +2,8 @@
 
 Pixcode v2 — a self-hosted AI coding workbench: a Node.js backend (ESM, Node >=22)
 serves a Preact/Vite frontend over HTTP plus one authenticated WebSocket that
-multiplexes `fs`, `git`, `pty`, `agent`, `project`, `auth`, `activity` channels. A Tauri 2
+multiplexes `fs`, `git`, `pty`, `agent`, `project`, `auth`, `activity`, `share`
+channels. A Tauri 2
 shell wraps the built frontend for desktop. There is no test runner and no
 typecheck script — `npm run lint` is the only automated check.
 
@@ -73,6 +74,13 @@ backend first, then `node scripts/smoke.mjs`.
   flushes, git, pty/agent lifecycles) behind the `activity` channel; workspace
   keys are canonicalized realpaths, and running agent sessions + activity
   subscribers pin the fs watcher so logging survives closed trees/clients.
+  `server/share.js` backs the admin-only `share` channel and `pixcode share`:
+  it spawns a detached tunnel process (cloudflared / `ssh -R` to a sish relay /
+  ngrok / zrok / bore.dk) that exposes the daemon on a public HTTPS URL. State
+  lives in `$PIXCODE_HOME/share.json` (+ `share-opts.json` 0600 for restart),
+  a persistent `share-key` ed25519 keypair is the sish identity, and
+  `shareResume()` on server start respawns an enabled tunnel. Provider secrets
+  are write-only — `share.json` masks them.
 - `src/` — Preact frontend. Entry `src/main.jsx` → `App.jsx`. State via
   `@preact/signals` (`src/state/`). Styling is **Tailwind v4** through
   `@tailwindcss/vite` (CSS entry `src/styles/tailwind.css`), not a tailwind config.

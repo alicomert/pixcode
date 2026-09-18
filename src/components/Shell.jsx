@@ -9,6 +9,7 @@ import { activeView, agentRailOpen, isAdmin, agentSessions, agentWidth, mobileTa
 import { VscSelect } from './vsc.jsx'
 import { UserManager } from './UserManager.jsx'
 import { SkillManager } from './SkillManager.jsx'
+import { ShareCard } from './ShareCard.jsx'
 import { ProjectSwitcher } from './ProjectSwitcher.jsx'
 import { FileTree } from './FileTree.jsx'
 import { EditorPane } from './EditorPane.jsx'
@@ -298,6 +299,12 @@ function SettingsView() {
         <p class="settings-section-hint">{t('update.description')}</p>
         <div class="settings-card settings-update-card"><UpdateChecker detailed /></div>
       </vscode-collapsible>
+      {isAdmin.value && (
+        <vscode-collapsible class="settings-section" heading={t('share.title')} open>
+          <p class="settings-section-hint">{t('share.hint')}</p>
+          <ShareCard />
+        </vscode-collapsible>
+      )}
       {isAdmin.value && (
         <vscode-collapsible class="settings-section" heading={t('users.title')} open>
           <p class="settings-section-hint">{t('users.hint')}</p>

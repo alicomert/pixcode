@@ -3118,3 +3118,10 @@ vscode-button.auth-submit { width: 100%; }
 .skill-name small { color: var(--muted, #8b8ba3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .skill-notice { font-size: 11px; color: var(--success, #4ec9b0) }
 .settings-webhook-note { font-size: 11px; font-family: var(--mono, monospace) }
+
+/* --- public link / share card ----------------------------------------- */
+.share-card .share-field-input { flex: 1 }
+.share-url-row { display: flex; align-items: center; gap: 6px; min-width: 0 }
+.share-url { color: var(--link, #7ea6ff); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px }
+.share-url:hover { text-decoration: underline }
+.share-pubkey { display: block; word-break: break-all; font-family: var(--mono, monospace); font-size: 10px; opacity: .6 }

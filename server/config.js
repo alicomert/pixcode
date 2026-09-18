@@ -13,4 +13,4 @@ export const config = {
   distDir: fileURLToPath(new URL('../dist/', import.meta.url))
 }
 
-export const VERSION = "2.5.1"
+export const VERSION = "2.6.0"

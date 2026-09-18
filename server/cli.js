@@ -14,6 +14,7 @@ Commands:
   start [--port N] [--workspace PATH]  Start the server in the foreground
   daemon <command>                     Manage the background server
   settings [set <key> <value>]         View or change CLI settings
+  share [status|enable <p> k=v|disable] Manage the public tunnel link
   update [--check] [--yes]             Update from npm or the git repo
   status                                Show server health
   version                               Print version`)
@@ -118,6 +119,10 @@ async function home() {
     rows.push(`local      ${c.cyan(`http://localhost:${status.port}`)}`)
     for (const ip of lanIps()) rows.push(`lan        ${c.cyan(`http://${ip}:${status.port}`)}`)
   }
+  const { shareStatus } = await import('./share.js')
+  const share = shareStatus()
+  if (share.url) rows.push(`public     ${c.cyan(share.url)} ${c.dim(`(${share.provider})`)}`)
+  else if (share.enabled) rows.push(`public     ${c.warn(`${share.provider} enabled but not running`)}`)
   if (!status.listening && status.running) rows.push(c.warn('daemon alive but not listening yet — check `pixcode daemon logs`'))
   box(`pixcode ${c.accent('v' + status.version)}`, rows)
   console.log('')
@@ -127,6 +132,7 @@ async function home() {
       { value: 'start', label: status.running ? 'Restart daemon' : 'Start daemon' },
       { value: 'install', label: 'Install autostart', hint: status.service.enabled ? 'already enabled' : 'survives reboot' },
       { value: 'open', label: 'Open in browser', hint: status.listening ? `localhost:${status.port}` : 'server is down' },
+      { value: 'share', label: 'Public link', hint: share.url || 'expose on a public https URL' },
       { value: 'settings', label: 'Settings', hint: `${settings.port}${settings.workspace ? ` · ${settings.workspace}` : ''}` },
       { value: 'update', label: 'Check for updates' },
       { value: 'logs', label: 'View logs', hint: 'last 20 lines' },
@@ -152,6 +158,8 @@ async function home() {
     } else if (action === 'settings') {
       await settingsFlow()
       break
+    } else if (action === 'share') {
+      await shareCommand([])
     } else if (action === 'update') {
       await updateFlow({})
     } else if (action === 'logs') {
@@ -160,6 +168,90 @@ async function home() {
     }
   }
   closePrompts()
+}
+
+// --- share / public link ---------------------------------------------------
+
+// `pixcode share` — interactive menu when TTY, plain status otherwise.
+// `pixcode share status` · `pixcode share enable <provider> key=value …` ·
+// `pixcode share disable`.
+async function shareCommand(args) {
+  const { shareStatus, shareEnable, shareDisable, shareProviders } = await import('./share.js')
+  const sub = args[0]
+
+  if (sub === 'status' || (!sub && !isInteractive())) {
+    const st = shareStatus()
+    console.log(JSON.stringify(st, null, 2))
+    return
+  }
+  if (sub === 'disable' || sub === 'off' || sub === 'stop') {
+    shareDisable()
+    console.log(`  ${c.ok('✓')} public link disabled`)
+    return
+  }
+  if (sub === 'enable') {
+    const provider = args[1]
+    const opts = {}
+    for (const a of args.slice(2)) {
+      const m = a.match(/^--?([\w-]+)=(.*)$/)
+      if (m) opts[m[1]] = m[2]
+    }
+    if (!provider) { console.error('usage: pixcode share enable <provider> [key=value …]'); process.exitCode = 1; return }
+    try {
+      const st = await shareEnable(provider, opts)
+      console.log(`  ${c.ok('✓')} ${st.url}`)
+    } catch (e) {
+      console.error(`  ${c.err('share failed:')} ${e.message}`)
+      process.exitCode = 1
+    }
+    return
+  }
+
+  // interactive menu
+  const providers = shareProviders()
+  for (;;) {
+    const st = shareStatus()
+    box('public link', [
+      `status    ${st.running ? c.ok('● live') : c.dim('○ off')}`,
+      `provider  ${st.provider || '—'}`,
+      `url       ${st.url ? c.cyan(st.url) : '—'}`
+    ])
+    const action = await choose('share', [
+      { value: 'enable', label: st.running ? 'Change provider' : 'Enable public link' },
+      { value: 'open', label: 'Open public URL', hint: st.url || 'not live' },
+      { value: 'disable', label: 'Disable', hint: st.running ? '' : 'not enabled' },
+      { value: 'pubkey', label: 'Show share ssh pubkey', hint: 'authorize it on your sish relay' }
+    ])
+    if (action === null || action === 'back') break
+    if (action === 'disable') {
+      shareDisable()
+      console.log(`  ${c.ok('✓')} disabled`)
+    } else if (action === 'open') {
+      if (st.url) openBrowser(st.url)
+      else console.log(`  ${c.warn('no public URL — enable a provider first')}`)
+    } else if (action === 'pubkey') {
+      console.log(st.pubkey ? `\n  ${c.cyan(st.pubkey)}\n` : `  ${c.dim('no key yet — generated when a provider needs it')}`)
+    } else if (action === 'enable') {
+      const pick = await choose('provider', providers.map((p) => ({
+        value: p.id,
+        label: p.label,
+        hint: p.fixed ? 'stable URL' : 'random URL each start'
+      })))
+      if (!pick || pick === 'back') continue
+      const def = providers.find((p) => p.id === pick)
+      const opts = {}
+      for (const field of def.fields) {
+        const v = await ask(`${field.label}${field.required ? '' : ' (optional)'}`, field.default || '')
+        if (v) opts[field.key] = v
+      }
+      try {
+        const enabled = await shareEnable(pick, opts)
+        console.log(`  ${c.ok('✓')} ${c.cyan(enabled.url)}`)
+      } catch (e) {
+        console.log(`  ${c.err('share failed:')} ${e.message}`)
+      }
+    }
+  }
 }
 
 // --- first-run wizard ------------------------------------------------------
@@ -439,6 +531,10 @@ async function main() {
       return
     }
     await updateFlow(options)
+    return
+  }
+  if (command === 'share') {
+    await shareCommand(args)
     return
   }
   if (command === 'status') {
