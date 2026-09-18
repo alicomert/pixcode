@@ -272,5 +272,9 @@
   "git.useDevice": "코드로 연결",
   "git.deviceFlowRetry": "이 앱은 원클릭 로그인을 지원하지 않습니다 — 다시 만들면 나머지는 자동입니다.",
   "git.recreateApp": "앱 다시 만들기",
-  "git.deviceFlowMemberHint": "서버의 GitHub 앱 설정이 불완전합니다 — 관리자가 Git 패널에서 다시 설정해야 합니다."
+  "git.deviceFlowMemberHint": "서버의 GitHub 앱 설정이 불완전합니다 — 관리자가 Git 패널에서 다시 설정해야 합니다.",
+  "activity.agentHandoff": "{agent} 핸드오프를 작성했습니다",
+  "agent.continueHandoff": "핸드오프에서 계속",
+  "agent.handoffMissing": "{agent} CLI가 설치되어 있지 않습니다",
+  "agent.memory": "워크스페이스 메모리"
 }

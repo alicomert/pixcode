@@ -272,5 +272,9 @@
   "git.useDevice": "コードで接続",
   "git.deviceFlowRetry": "このアプリはワンクリックサインインに非対応です — 作り直せばあとは自動です。",
   "git.recreateApp": "アプリを再作成",
-  "git.deviceFlowMemberHint": "サーバーの GitHub アプリ設定が不完全です — 管理者が Git パネルからやり直す必要があります。"
+  "git.deviceFlowMemberHint": "サーバーの GitHub アプリ設定が不完全です — 管理者が Git パネルからやり直す必要があります。",
+  "activity.agentHandoff": "{agent} 引き継ぎを書きました",
+  "agent.continueHandoff": "ハンドオフから続行",
+  "agent.handoffMissing": "{agent} CLI がインストールされていません",
+  "agent.memory": "ワークスペースメモリ"
 }

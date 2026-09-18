@@ -272,5 +272,9 @@
   "git.useDevice": "Mit Code verbinden",
   "git.deviceFlowRetry": "Diese App kann keine Ein-Klick-Anmeldung — neu erstellen, der Rest läuft automatisch.",
   "git.recreateApp": "App neu erstellen",
-  "git.deviceFlowMemberHint": "Die GitHub-App des Servers ist unvollständig — ein Admin muss die Einrichtung im Git-Panel wiederholen."
+  "git.deviceFlowMemberHint": "Die GitHub-App des Servers ist unvollständig — ein Admin muss die Einrichtung im Git-Panel wiederholen.",
+  "activity.agentHandoff": "{agent} schrieb einen Handoff",
+  "agent.continueHandoff": "Aus einem Handoff fortsetzen",
+  "agent.handoffMissing": "{agent}-CLI ist nicht installiert",
+  "agent.memory": "Workspace-Gedächtnis"
 }

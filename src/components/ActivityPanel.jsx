@@ -21,9 +21,11 @@ function entryText(entry) {
       : t('activity.files', { count: entry.count || (entry.files || []).length })
     case 'git': return t(`activity.git.${entry.op || 'refs'}`) !== `activity.git.${entry.op || 'refs'}` ? t(`activity.git.${entry.op || 'refs'}`) : t('activity.git.refs')
     case 'pty': return entry.action === 'exit' ? t('activity.ptyExit', { code: entry.exitCode ?? '?' }) : t('activity.ptyOpen')
-    case 'agent': return entry.action === 'exit'
-      ? t('activity.agentExit', { agent: entry.agent || '?', index: entry.index || '' })
-      : t('activity.agentStart', { agent: entry.agent || '?', index: entry.index || '' })
+    case 'agent':
+      if (entry.action === 'handoff') return t('activity.agentHandoff', { agent: entry.agent || '?' })
+      return entry.action === 'exit'
+        ? t('activity.agentExit', { agent: entry.agent || '?', index: entry.index || '' })
+        : t('activity.agentStart', { agent: entry.agent || '?', index: entry.index || '' })
     case 'project': return t('activity.project', { op: entry.op || '' })
     default: return entry.text || entry.kind
   }

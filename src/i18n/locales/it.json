@@ -272,5 +272,9 @@
   "git.useDevice": "Connetti con un codice",
   "git.deviceFlowRetry": "Questa app non supporta l'accesso con un clic — ricreala e il resto è automatico.",
   "git.recreateApp": "Ricrea l'app",
-  "git.deviceFlowMemberHint": "L'app GitHub del server è incompleta — un admin deve rifare la configurazione dal pannello Git."
+  "git.deviceFlowMemberHint": "L'app GitHub del server è incompleta — un admin deve rifare la configurazione dal pannello Git.",
+  "activity.agentHandoff": "{agent} ha scritto un handoff",
+  "agent.continueHandoff": "Continua da un handoff",
+  "agent.handoffMissing": "La CLI {agent} non è installata",
+  "agent.memory": "Memoria del workspace"
 }

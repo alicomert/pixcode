@@ -3092,3 +3092,12 @@ vscode-button.auth-submit { width: 100%; }
 .terminal-search-bar .terminal-search-count { min-width: 34px; text-align: center; font-size: 11px; color: var(--ui-faint); }
 .terminal-search-bar button { display: inline-flex; align-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--ui-muted); cursor: pointer; padding: 2px; }
 .terminal-search-bar button:hover { color: var(--ui-text); background: color-mix(in srgb, var(--ui-text) 10%, transparent); }
+
+.agent-handoffs { border-top: 1px solid var(--border, #2d2d44); padding: 10px 14px 12px }
+.agent-handoffs-title { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted, #8b8ba3) }
+.agent-handoffs-list { display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto }
+.agent-handoff-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--border, #2d2d44); border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-align: left; font-size: 12px }
+.agent-handoff-item:hover:not(:disabled) { border-color: var(--accent, #5c3ffc); background: color-mix(in srgb, var(--accent, #5c3ffc) 8%, transparent) }
+.agent-handoff-item:disabled { opacity: .45; cursor: not-allowed }
+.agent-handoff-item > span { flex: 1; display: flex; flex-direction: column; min-width: 0 }
+.agent-handoff-item small { color: var(--muted, #8b8ba3); font-size: 11px }

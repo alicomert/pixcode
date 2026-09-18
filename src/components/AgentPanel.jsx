@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import { Archive, ChevronDown, ChevronUp, Download, Eye, Maximize2, Search, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
+import { Archive, BookOpen, ChevronDown, ChevronUp, Download, Eye, History, Maximize2, Search, Terminal as TerminalIcon, X } from '../lib/icons.jsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -479,12 +479,31 @@ export function AgentPanel() {
     setWatching(null)
   }
 
-  async function openAgent(agent) {
+  const [handoffs, setHandoffs] = useState([])
+
+  async function loadHandoffs() {
+    try {
+      const items = await ws.request('agent', 'handoffs', { workspace: workspace.value?.path || '' })
+      setHandoffs(Array.isArray(items) ? items : [])
+    } catch { setHandoffs([]) }
+  }
+
+  async function openMemory() {
+    try {
+      const { path } = await ws.request('agent', 'memory', { workspace: workspace.value?.path || '' })
+      if (path) window.dispatchEvent(new CustomEvent('pixcode:open-file', { detail: path }))
+    } catch (requestError) { setError(requestError.message) }
+  }
+
+  async function openAgent(agent, handoffItem) {
     if (!agent.available || busy) return
     setBusy(true)
     setError('')
     try {
-      const session = await ws.request('agent', 'start', { agent: agent.id, workspace: workspace.value?.path || '', cols: 100, rows: 30 })
+      const prompt = handoffItem
+        ? `Read .pixcode/handoffs/${handoffItem.name} and .pixcode/MEMORY.md, then continue the task described in the handoff.`
+        : ''
+      const session = await ws.request('agent', 'start', { agent: agent.id, workspace: workspace.value?.path || '', cols: 100, rows: 30, prompt })
       setSessions((current) => current.some((item) => item.sessionId === session.sessionId)
         ? current.map((item) => item.sessionId === session.sessionId ? { ...item, ...session } : item)
         : [...current, session])
@@ -607,7 +626,7 @@ export function AgentPanel() {
             <Eye size={13} /><span>{watching.ownerName} · {sessionLabel(watching)}</span>{watching.status === 'running' && <i class="agent-session-live" />}<span class="agent-tab-close" role="button" tabIndex="0" onClick={stopWatching} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') stopWatching(event) }} title={t('agent.stopWatching')} aria-label={t('agent.stopWatching')}><X size={12} /></span>
           </button>}
         </div>
-        <vscode-toolbar-button icon="add" onClick={() => { setModalOpen(true); load(true) }} title={t('agent.new')} aria-label={t('agent.new')}></vscode-toolbar-button>
+        <vscode-toolbar-button icon="add" onClick={() => { setModalOpen(true); load(true); loadHandoffs() }} title={t('agent.new')} aria-label={t('agent.new')}></vscode-toolbar-button>
         <button class={`tw-icon-button agent-history-button ${historyOpen ? 'active' : ''}`} type="button" onClick={() => setHistoryOpen((value) => !value)} title={t('agent.history')} aria-label={t('agent.history')}><Archive size={14} />{historySessions.length > 0 && <vscode-badge>{historySessions.length}</vscode-badge>}</button>
       </div>
       {historyOpen && <vscode-scrollable class="agent-history-list">{historySessions.length ? historySessions.map((session) => {
@@ -620,6 +639,7 @@ export function AgentPanel() {
         <span class="agent-header-spacer" />
         {activeSession?.status === 'running' && (!viewingForeign || isAdmin.value) && <vscode-button secondary icon="debug-stop" onClick={() => stopSession(activeSession.sessionId)}>{t('agent.stop')}</vscode-button>}
         {activeSession && <vscode-toolbar-button icon="search" title={t('terminal.search')} aria-label={t('terminal.search')} onClick={() => window.dispatchEvent(new CustomEvent('pixcode:agent-search', { detail: activeSession.sessionId }))}></vscode-toolbar-button>}
+        <vscode-toolbar-button icon="book" title={t('agent.memory')} aria-label={t('agent.memory')} onClick={openMemory}></vscode-toolbar-button>
         <vscode-toolbar-button icon="refresh" class={refreshing ? 'spin' : ''} onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}></vscode-toolbar-button>
       </div>
       {presence.length > 0 && <div class="agent-presence">
@@ -643,10 +663,10 @@ export function AgentPanel() {
         })}
       </div>}
       <div class="agent-console agent-terminal-console">
-        {activeSession ? <div class="terminal-mobile-stage"><AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} onReady={handleAgentReady} modifiersRef={agentModifiersRef} foreign={viewingForeign} /><TerminalAccessory terminalId={activeSession.sessionId} actionsRef={agentActionsRef} modifiersRef={agentModifiersRef} /></div> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><vscode-button icon="add" onClick={() => { setModalOpen(true); load(true) }}>{t('agent.new')}</vscode-button></div>}
+        {activeSession ? <div class="terminal-mobile-stage"><AgentTerminalView key={activeSession.sessionId} session={activeSession} onStatus={updateStatus} onReady={handleAgentReady} modifiersRef={agentModifiersRef} foreign={viewingForeign} /><TerminalAccessory terminalId={activeSession.sessionId} actionsRef={agentActionsRef} modifiersRef={agentModifiersRef} /></div> : <div class="agent-empty-terminal"><TerminalIcon size={20} /><span>{t('agent.noSession')}</span><vscode-button icon="add" onClick={() => { setModalOpen(true); load(true); loadHandoffs() }}>{t('agent.new')}</vscode-button></div>}
         {error && <div class="error-text agent-error">{error}</div>}
       </div>
-      {modalOpen && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}><section class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title"><div class="agent-modal-heading"><strong id="agent-modal-title">{t('agent.new')}</strong><span class="agent-modal-heading-actions"><vscode-toolbar-button icon="refresh" onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}></vscode-toolbar-button><vscode-toolbar-button icon="close" onClick={() => setModalOpen(false)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></span></div><p>{t('agent.chooseCli')}</p><vscode-scrollable class="agent-modal-list">{refreshing && <div class="agent-modal-loading"><vscode-progress-ring /></div>}{!agents.length && <div class="agent-modal-empty"><span>{error || t('agent.none')}</span><vscode-button secondary icon="refresh" onClick={() => load(true)} disabled={refreshing}>{t('agent.refresh')}</vscode-button></div>}{agents.map((agent) => <button class={`agent-modal-item ${agent.available ? '' : 'unavailable'}`} type="button" disabled={busy} key={agent.id} onClick={() => (agent.available ? openAgent(agent) : setInstallTarget(agent))}><span class="agent-picker-logo"><AgentLogo agent={agent} size={22} /></span><span><strong>{agent.label}</strong><small>{agent.cli}{agent.available ? '' : ` · ${t('agent.missing')}`}</small></span>{agent.available ? <Maximize2 size={13} /> : <Download size={13} />}</button>)}</vscode-scrollable></section></div>}
+      {modalOpen && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setModalOpen(false) }}><section class="agent-modal" role="dialog" aria-modal="true" aria-labelledby="agent-modal-title"><div class="agent-modal-heading"><strong id="agent-modal-title">{t('agent.new')}</strong><span class="agent-modal-heading-actions"><vscode-toolbar-button icon="refresh" onClick={() => load(true)} disabled={refreshing} title={t('agent.refresh')} aria-label={t('agent.refresh')}></vscode-toolbar-button><vscode-toolbar-button icon="close" onClick={() => setModalOpen(false)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></span></div><p>{t('agent.chooseCli')}</p><vscode-scrollable class="agent-modal-list">{refreshing && <div class="agent-modal-loading"><vscode-progress-ring /></div>}{!agents.length && <div class="agent-modal-empty"><span>{error || t('agent.none')}</span><vscode-button secondary icon="refresh" onClick={() => load(true)} disabled={refreshing}>{t('agent.refresh')}</vscode-button></div>}{agents.map((agent) => <button class={`agent-modal-item ${agent.available ? '' : 'unavailable'}`} type="button" disabled={busy} key={agent.id} onClick={() => (agent.available ? openAgent(agent) : setInstallTarget(agent))}><span class="agent-picker-logo"><AgentLogo agent={agent} size={22} /></span><span><strong>{agent.label}</strong><small>{agent.cli}{agent.available ? '' : ` · ${t('agent.missing')}`}</small></span>{agent.available ? <Maximize2 size={13} /> : <Download size={13} />}</button>)}</vscode-scrollable>{handoffs.length > 0 && <div class="agent-handoffs"><p class="agent-handoffs-title"><History size={13} />{t('agent.continueHandoff')}</p><div class="agent-handoffs-list">{handoffs.map((item) => { const adapter = agents.find((entry) => entry.id === item.agent); return <button class="agent-handoff-item" type="button" key={item.name} disabled={busy || !adapter?.available} title={adapter?.available ? item.name : t('agent.handoffMissing', { agent: item.agent })} onClick={() => adapter && openAgent(adapter, item)}><AgentLogo agent={adapter} size={15} /><span><strong>{adapter?.label || item.agent}</strong><small>{new Date(item.ts).toLocaleString()}</small></span><BookOpen size={12} /></button> })}</div></div>}</section></div>}
       {installTarget && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setInstallTarget(null) }}><section class="agent-modal agent-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="agent-install-title"><div class="agent-modal-heading"><strong id="agent-install-title">{t('agent.installTitle', { name: installTarget.label })}</strong><vscode-toolbar-button icon="close" onClick={() => setInstallTarget(null)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></div><p>{t('agent.installHint')}</p><div class="agent-install-body">{installTarget.install?.command ? <code class="agent-install-command">{installTarget.install.command}</code> : <span class="agent-install-missing">{t('agent.installNoCommand', { name: installTarget.label })}</span>}</div><div class="modal-actions"><vscode-button secondary onClick={() => setInstallTarget(null)}>{t('common.cancel')}</vscode-button><vscode-button icon="cloud-download" disabled={!installTarget.install?.command || installing} onClick={() => runInstall(installTarget)}>{installing ? t('agent.installing') : t('agent.installRun')}</vscode-button></div></section></div>}
       {closeConfirmSession && <div class="agent-modal-backdrop" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setCloseConfirmSessionId('') }}><section class="agent-modal agent-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="agent-close-title"><div class="agent-modal-heading"><strong id="agent-close-title">{t('agent.closeTitle')}</strong><vscode-toolbar-button icon="close" onClick={() => setCloseConfirmSessionId('')} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></div><p>{t('agent.closeConfirm', { name: sessionLabel(closeConfirmSession) })}</p><div class="modal-actions"><vscode-button secondary onClick={() => setCloseConfirmSessionId('')}>{t('agent.closeNo')}</vscode-button><vscode-button onClick={confirmCloseSession}>{t('agent.closeYes')}</vscode-button></div></section></div>}
     </div>

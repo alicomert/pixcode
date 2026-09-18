@@ -272,5 +272,9 @@
   "git.useDevice": "Подключить кодом",
   "git.deviceFlowRetry": "Это приложение не поддерживает вход в один клик — пересоздайте его, остальное автоматически.",
   "git.recreateApp": "Пересоздать приложение",
-  "git.deviceFlowMemberHint": "GitHub-приложение сервера настроено неполностью — админу нужно повторить настройку в панели Git."
+  "git.deviceFlowMemberHint": "GitHub-приложение сервера настроено неполностью — админу нужно повторить настройку в панели Git.",
+  "activity.agentHandoff": "{agent} записал handoff",
+  "agent.continueHandoff": "Продолжить с handoff",
+  "agent.handoffMissing": "CLI {agent} не установлен",
+  "agent.memory": "Память workspace"
 }

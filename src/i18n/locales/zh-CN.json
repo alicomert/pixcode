@@ -272,5 +272,9 @@
   "git.useDevice": "使用代码连接",
   "git.deviceFlowRetry": "此应用不支持一键登录 — 重新创建即可，其余自动完成。",
   "git.recreateApp": "重新创建应用",
-  "git.deviceFlowMemberHint": "服务器的 GitHub 应用配置不完整 — 需要管理员在 Git 面板中重新设置。"
+  "git.deviceFlowMemberHint": "服务器的 GitHub 应用配置不完整 — 需要管理员在 Git 面板中重新设置。",
+  "activity.agentHandoff": "{agent} 写下了交接文档",
+  "agent.continueHandoff": "从交接继续",
+  "agent.handoffMissing": "{agent} CLI 未安装",
+  "agent.memory": "工作区记忆"
 }

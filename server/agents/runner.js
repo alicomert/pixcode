@@ -12,6 +12,7 @@ import { accessAlive, accessFor, listUsers } from '../auth.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 import { recordActivity } from '../activity.js'
 import { pinFsWatcher, unpinFsWatcher } from '../channels/fs.channel.js'
+import { tailFromHistory, writeHandoff } from '../handoffs.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -134,6 +135,21 @@ function unpinSessionWorkspace(session) {
   try { unpinFsWatcher(session.workspace) } catch { void 0 }
 }
 
+// A stopping session archives a Markdown handoff into the workspace so the
+// next session — any CLI, any user — can read what changed and continue.
+async function archiveHandoff(session) {
+  try {
+    const files = await changedFilesFor(session)
+    let branch = ''
+    try {
+      const { stdout } = await execFileAsync('git', ['-C', sessionCwd(session), 'rev-parse', '--abbrev-ref', 'HEAD'], { timeout: 5000 })
+      branch = stdout.trim()
+    } catch { branch = '' }
+    const name = writeHandoff(session, { files, branch, tail: tailFromHistory(session.history) })
+    if (name) recordActivity(session.workspace, 'agent', { action: 'handoff', agent: session.state.agent, index: session.index, files: [`.pixcode/handoffs/${name}`], user: session.ownerName })
+  } catch { /* handoffs are best-effort */ }
+}
+
 function handleExit(session, { exitCode, signal }) {
   session.term = null
   // A resume attempt that dies instantly probably used a flag this CLI does
@@ -152,6 +168,7 @@ function handleExit(session, { exitCode, signal }) {
       session.state.status = 'stopped'
       session.closedAt = Date.now()
       unpinSessionWorkspace(session)
+      void archiveHandoff(session)
       persistSessions()
     })
     return
@@ -162,6 +179,7 @@ function handleExit(session, { exitCode, signal }) {
   session.state.status = 'stopped'
   session.closedAt = Date.now()
   unpinSessionWorkspace(session)
+  void archiveHandoff(session)
   recordActivity(session.workspace, 'agent', { action: 'exit', agent: session.state.agent, index: session.index, exitCode, user: session.ownerName })
   persistSessions()
   announcePresence()
@@ -425,21 +443,25 @@ function parseChangedFiles(output) {
   return files.slice(0, 80)
 }
 
-export async function listChangedFiles(ctx, sessionId) {
-  getSession(ctx, sessionId)
-  const cached = changedFilesCache.get(sessionId)
+async function changedFilesFor(session) {
+  const cached = changedFilesCache.get(session.sessionId)
   if (cached && Date.now() - cached.ts < CHANGED_FILES_CACHE_MS) return cached.files
   let files = []
   try {
-    const { stdout } = await execFileAsync('git', ['-C', sessionCwd(sessions.get(sessionId)), 'status', '--porcelain=v1', '-z', '--untracked-files=normal'], {
+    const { stdout } = await execFileAsync('git', ['-C', sessionCwd(session), 'status', '--porcelain=v1', '-z', '--untracked-files=normal'], {
       timeout: 10_000,
       maxBuffer: 4 * 1024 * 1024,
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
     })
     files = parseChangedFiles(stdout)
   } catch { files = [] }
-  changedFilesCache.set(sessionId, { ts: Date.now(), files })
+  changedFilesCache.set(session.sessionId, { ts: Date.now(), files })
   return files
+}
+
+export async function listChangedFiles(ctx, sessionId) {
+  getSession(ctx, sessionId)
+  return changedFilesFor(sessions.get(sessionId))
 }
 
 export function detachSubscriber(ctx) {

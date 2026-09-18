@@ -356,5 +356,9 @@
   "git.useDevice": "Connect with a code",
   "git.deviceFlowRetry": "This app cannot do one-click sign-in — recreate it and the rest is automatic. No GitHub settings needed.",
   "git.recreateApp": "Recreate the app",
-  "git.deviceFlowMemberHint": "The server's GitHub app was set up incompletely — an admin must redo it from the Git panel."
+  "git.deviceFlowMemberHint": "The server's GitHub app was set up incompletely — an admin must redo it from the Git panel.",
+  "activity.agentHandoff": "{agent} wrote a handoff",
+  "agent.continueHandoff": "Continue from a handoff",
+  "agent.handoffMissing": "{agent} CLI is not installed",
+  "agent.memory": "Workspace memory"
 }

@@ -356,5 +356,9 @@
   "git.useDevice": "Kod ile bağlan",
   "git.deviceFlowRetry": "Bu app tek-tık girişi desteklemiyor — yeniden oluştur, gerisi otomatik. GitHub ayarlarına gerek yok.",
   "git.recreateApp": "App'i yeniden oluştur",
-  "git.deviceFlowMemberHint": "Sunucunun GitHub app'i eksik kurulmuş — yöneticinin Git panelinden yeniden kurması gerekiyor."
+  "git.deviceFlowMemberHint": "Sunucunun GitHub app'i eksik kurulmuş — yöneticinin Git panelinden yeniden kurması gerekiyor.",
+  "activity.agentHandoff": "{agent} handoff yazdı",
+  "agent.continueHandoff": "Handoff'tan devam et",
+  "agent.handoffMissing": "{agent} CLI kurulu değil",
+  "agent.memory": "Çalışma alanı hafızası"
 }

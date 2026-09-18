@@ -2,6 +2,8 @@ import { listAgents } from '../agents/adapter.js'
 import { requireAccess, requireAdmin } from '../auth.js'
 import { httpError } from '../util/http.js'
 import { cliEnvInfo, saveCliEnv } from '../cli-env.js'
+import { ensureMemory, listHandoffs, readHandoff } from '../handoffs.js'
+import { workspaceRoot } from '../workspace.js'
 import { closeRunner, detachSubscriber, getHistory, inputRunner, listChangedFiles, listPresence, listSessions, resizeRunner, sendToRunner, startRunner, stopRunner, unwatchRunner, watchRunner } from '../agents/runner.js'
 
 export const agentChannel = {
@@ -27,6 +29,11 @@ export const agentChannel = {
     watch: (ctx, { sessionId } = {}) => { requireAccess(ctx); return watchRunner(ctx, sessionId) },
     unwatch: (ctx, { sessionId } = {}) => unwatchRunner(ctx, sessionId),
     changedFiles: (ctx, { sessionId } = {}) => { requireAccess(ctx); return listChangedFiles(ctx, sessionId) },
+    // Session handoffs + shared workspace memory: workspaceRoot() applies the
+    // caller's project allowlist before any file under .pixcode/ is touched.
+    handoffs: (ctx, { workspace } = {}) => listHandoffs(workspaceRoot(workspace, ctx)),
+    handoff: (ctx, { workspace, name } = {}) => ({ content: readHandoff(workspaceRoot(workspace, ctx), name) }),
+    memory: (ctx, { workspace } = {}) => ({ path: ensureMemory(workspaceRoot(workspace, ctx)) }),
     // Per-user CLI environment: names-only view (values are write-only) plus
     // the private-home toggle. Any signed-in user manages their own record;
     // admins may pass `for` to manage a member's (e.g. grant a private home
