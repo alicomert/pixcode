@@ -1,7 +1,7 @@
 {
   "name": "@pixelbyte-software/pixcode",
-  "version": "2.6.2",
-  "description": "Lightweight self-hosted AI coding workbench \u2014 web, mobile and desktop",
+  "version": "2.6.3",
+  "description": "Lightweight self-hosted AI coding workbench — web, mobile and desktop",
   "license": "MIT",
   "repository": {
     "type": "git",
