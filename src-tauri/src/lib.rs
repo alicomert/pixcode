@@ -147,7 +147,10 @@ fn watch_background_server(app: &AppHandle<tauri::Wry>) {
                 if state.stopping.load(Ordering::SeqCst) {
                     return;
                 }
-                match state.child.lock() {
+                // Bind the lock result to a local — matching on it directly
+                // keeps the temporary alive past `state`'s drop (E0597).
+                let locked = state.child.lock();
+                match locked {
                     Ok(mut guard) => match guard.as_mut() {
                         Some(child) => match child.try_wait() {
                             Ok(Some(status)) => Some(format!("exited ({status})")),
