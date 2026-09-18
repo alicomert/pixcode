@@ -1,13 +1,18 @@
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     env,
     fs::{self, File, OpenOptions},
     io::Write,
     path::PathBuf,
     process::{Child, Command},
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Mutex,
+    },
+    thread,
+    time::Duration,
 };
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -15,11 +20,19 @@ use tauri::{
 };
 use tauri_plugin_autostart::ManagerExt;
 
-struct BackgroundServer(Mutex<Option<Child>>);
+struct BackgroundServer {
+    child: Mutex<Option<Child>>,
+    /// Set when the user explicitly quits — the watchdog must not respawn a
+    /// companion the owner just asked to stop.
+    stopping: AtomicBool,
+}
 
 impl Default for BackgroundServer {
     fn default() -> Self {
-        Self(Mutex::new(None))
+        Self {
+            child: Mutex::new(None),
+            stopping: AtomicBool::new(false),
+        }
     }
 }
 
@@ -67,6 +80,7 @@ pub fn run() {
             // In development this is absent and the separately started npm
             // process remains the source of truth.
             let _ = start_background_server(app.handle());
+            watch_background_server(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -78,6 +92,7 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
+        .invoke_handler(tauri::generate_handler![pixcode_server_log])
         .build(tauri::generate_context!())
         .expect("error while building Pixcode")
         .run(|_app, event| {
@@ -93,7 +108,79 @@ pub fn run() {
         });
 }
 
-fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+fn server_log_path<R: tauri::Runtime>(app: &AppHandle<R>) -> PathBuf {
+    app.path()
+        .app_data_dir()
+        .map(|dir| dir.join("server.log"))
+        .unwrap_or_else(|_| PathBuf::from("server.log"))
+}
+
+/// Surface the bundled server's own log to the "server unavailable" screen —
+/// a dead companion is otherwise impossible to diagnose from the UI.
+#[tauri::command]
+fn pixcode_server_log(app: AppHandle<tauri::Wry>) -> String {
+    let content = fs::read_to_string(server_log_path(&app)).unwrap_or_default();
+    content
+        .lines()
+        .rev()
+        .take(60)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// If the bundled server exits (crash, antivirus, port loss) — or never
+/// spawned at all — the UI drops to "server unavailable" forever. Poll the
+/// child and respawn it a few times before giving up; in development there
+/// is no bundled runtime, so the watcher simply exits instead of spamming.
+fn watch_background_server(app: &AppHandle<tauri::Wry>) {
+    let handle = app.clone();
+    thread::spawn(move || {
+        let log = server_log_path(&handle);
+        let mut restarts = 0u32;
+        loop {
+            thread::sleep(Duration::from_secs(5));
+            let dead = {
+                let state = handle.state::<BackgroundServer>();
+                if state.stopping.load(Ordering::SeqCst) {
+                    return;
+                }
+                match state.child.lock() {
+                    Ok(mut guard) => match guard.as_mut() {
+                        Some(child) => match child.try_wait() {
+                            Ok(Some(status)) => Some(format!("exited ({status})")),
+                            _ => None,
+                        },
+                        None => Some("never spawned".to_string()),
+                    },
+                    Err(_) => None,
+                }
+            };
+            let Some(reason) = dead else { continue };
+            restarts += 1;
+            if restarts > 6 {
+                log_line(&log, "giving up on bundled server after repeated failures");
+                return;
+            }
+            thread::sleep(Duration::from_secs(restarts as u64 * 2));
+            log_line(
+                &log,
+                &format!("bundled server {reason}; restarting (attempt {restarts})"),
+            );
+            match start_background_server(&handle) {
+                // No bundled runtime (dev mode) — nothing to watch.
+                Ok(false) => return,
+                _ => {}
+            }
+        }
+    });
+}
+
+/// Returns `false` when no bundled runtime exists (development mode), `true`
+/// once a runtime was found and a spawn was attempted.
+fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<bool> {
     let resource = app.path().resource_dir()?;
     // Installed bundles live under a read-only resource directory. Keep the
     // managed-project state in a writable app-data directory instead of
@@ -102,7 +189,10 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
     // portable/custom deployments.
     let app_data = app.path().app_data_dir()?;
     if let Err(error) = fs::create_dir_all(&app_data) {
-        eprintln!("pixcode could not create app data directory {}: {error}", app_data.display());
+        eprintln!(
+            "pixcode could not create app data directory {}: {error}",
+            app_data.display()
+        );
     }
     let log_path = app_data.join("server.log");
     log_line(&log_path, "starting bundled Pixcode server");
@@ -125,14 +215,24 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
         let entry = root.join("server").join("cli.js");
         entry.is_file().then(|| (root.clone(), entry))
     }) else {
-        log_line(&log_path, &format!("bundled server entry was not found under {}", resource.display()));
-        return Ok(());
+        log_line(
+            &log_path,
+            &format!(
+                "bundled server entry was not found under {}",
+                resource.display()
+            ),
+        );
+        return Ok(false);
     };
     let bundled_node = bundled_root.join(if cfg!(windows) { "node.exe" } else { "node" });
     let node = env::var_os("PIXCODE_NODE")
         .map(PathBuf::from)
         .or_else(|| bundled_node.is_file().then_some(bundled_node))
         .unwrap_or_else(|| PathBuf::from("node"));
+    log_line(
+        &log_path,
+        &format!("spawning {} {}", node.display(), entry.display()),
+    );
     // Keep all paths owned: `Command::arg` consumes its `PathBuf`, while the
     // working directory must remain borrowed until the command is spawned.
     // Deriving it from the root also avoids borrowing `entry` across the
@@ -155,16 +255,27 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
         .env("PIXCODE_HOME", app_data.join("data"))
         .env("PIXCODE_PROJECTS", projects_dir)
         .stdin(std::process::Stdio::null())
-        .stdout(stdout.map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null()))
-        .stderr(stderr.map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null()));
+        .stdout(
+            stdout
+                .map(std::process::Stdio::from)
+                .unwrap_or_else(|_| std::process::Stdio::null()),
+        )
+        .stderr(
+            stderr
+                .map(std::process::Stdio::from)
+                .unwrap_or_else(|_| std::process::Stdio::null()),
+        );
     #[cfg(windows)]
     command.creation_flags(0x08000000);
     let child = command.spawn();
     match child {
         Ok(child) => {
-            log_line(&log_path, &format!("bundled server started (pid {})", child.id()));
+            log_line(
+                &log_path,
+                &format!("bundled server started (pid {})", child.id()),
+            );
             if let Some(state) = app.try_state::<BackgroundServer>() {
-                if let Ok(mut current) = state.0.lock() {
+                if let Ok(mut current) = state.child.lock() {
                     if let Some(mut previous) = current.take() {
                         let _ = previous.kill();
                     }
@@ -173,11 +284,14 @@ fn start_background_server<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Resu
             }
         }
         Err(error) => {
-            log_line(&log_path, &format!("background server unavailable: {error}"));
+            log_line(
+                &log_path,
+                &format!("background server unavailable: {error}"),
+            );
             eprintln!("pixcode background server unavailable: {error}");
         }
     }
-    Ok(())
+    Ok(true)
 }
 
 fn append_log(path: &PathBuf) -> std::io::Result<File> {
@@ -192,7 +306,8 @@ fn log_line(path: &PathBuf, message: &str) {
 
 fn stop_background_server<R: tauri::Runtime>(app: &AppHandle<R>) {
     if let Some(state) = app.try_state::<BackgroundServer>() {
-        if let Ok(mut current) = state.0.lock() {
+        state.stopping.store(true, Ordering::SeqCst);
+        if let Ok(mut current) = state.child.lock() {
             if let Some(mut child) = current.take() {
                 let _ = child.kill();
                 let _ = child.wait();
@@ -219,8 +334,7 @@ fn create_tray<R: tauri::Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     if let Some(icon) = app.default_window_icon().cloned() {
         tray = tray.icon(icon);
     }
-    tray
-        .tooltip("Pixcode — background server")
+    tray.tooltip("Pixcode — background server")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {

@@ -3,6 +3,7 @@
   "app.unavailable": "Sunucuya ulaşılamıyor",
   "app.unavailableHint": "Yerel Pixcode servisi başlatılıyor veya erişilemiyor.",
   "app.retry": "Tekrar dene",
+  "app.serverLog": "Yerel sunucu günlüğü",
   "auth.setup.eyebrow": "Yerel çalışma alanını oluştur",
   "auth.setup.title": "Pixcode'u kur",
   "auth.setup.description": "Projelerinizi ve agent oturumlarınızı bu bilgisayarda korumak için hesap oluşturun.",

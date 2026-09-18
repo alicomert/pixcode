@@ -3,6 +3,7 @@
   "app.unavailable": "Server unavailable",
   "app.unavailableHint": "The local Pixcode service is still starting or could not be reached.",
   "app.retry": "Try again",
+  "app.serverLog": "Local server log",
   "auth.setup.eyebrow": "Create your local workspace",
   "auth.setup.title": "Set up Pixcode",
   "auth.setup.description": "Create an account to keep your projects and agent sessions on this machine.",
