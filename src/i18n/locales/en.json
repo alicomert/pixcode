@@ -283,6 +283,9 @@
   "update.download": "Download installer",
   "update.releaseNotes": "View release notes",
   "update.manualInstall": "The downloaded installer must be opened manually to finish the update.",
+  "update.updateNow": "Update now ({mode})",
+  "update.applying": "Updating… the daemon restarts itself, the page reloads when it's back.",
+  "update.serverHint": "Installed via {mode} — the daemon restarts automatically after updating.",
   "update.dismiss": "Close update dialog",
   "settings.scrollSpeed": "Scroll sensitivity",
   "settings.scrollSpeedHint": "Multiplier for touch drag scrolling in terminals.",
@@ -420,5 +423,9 @@
   "share.boreOpenSignIn": "Open sign-in page",
   "share.boreWaiting": "Waiting for sign-in…",
   "share.boreSignedIn": "Signed in to bore.dk",
+  "share.pubkeyShow": "Show public key",
+  "share.options": "Options",
+  "share.borePasteHint": "If the sign-in page didn't finish on its own, paste the URL you were redirected to:",
+  "share.borePasteGo": "Complete",
   "share.pubkeyHint": "Authorize this key on your sish relay"
 }

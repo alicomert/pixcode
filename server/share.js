@@ -389,6 +389,8 @@ function ensureOpeners() {
     return dir;
 }
 
+const LOOPBACK_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+
 export async function boreLogin(origin) {
     if (boreSignedIn()) { pendingBore = null; return { signedIn: true }; }
     const bin = await ensureBinary('bore',
@@ -411,8 +413,30 @@ export async function boreLogin(origin) {
     // Expire the pending login if nobody finishes it.
     const pending = pendingBore;
     setTimeout(() => { if (pendingBore === pending) killPending(); }, 5 * 60_000).unref?.();
-    const base = (origin || `http://127.0.0.1:${config.port}`).replace(/\/$/, '');
-    return { signedIn: false, authUrl: authUrl.replace(/callback=[^&]+/, `callback=${encodeURIComponent(`${base}/api/share/bore/callback`)}`) };
+    // bore.dk only accepts loopback callbacks, so the redirect always targets
+    // 127.0.0.1:<daemon port>. Browsers on the daemon host itself reach the
+    // proxy route and sign-in completes on its own; remote browsers get a
+    // connection error, copy the URL, and finish via share.boreCallback paste.
+    const callback = `http://127.0.0.1:${config.port}/api/share/bore/callback`;
+    const rewritten = authUrl.replace(/callback=[^&]+/, `callback=${encodeURIComponent(callback)}`);
+    const needsPaste = !(origin && LOOPBACK_ORIGIN.test(origin));
+    return { signedIn: false, authUrl: rewritten, needsPaste };
+}
+
+/** Paste-back finish: forward the redirected URL's query to the local listener. */
+export async function boreFinish(pasteUrl) {
+    const cbPort = pendingBore?.cbPort;
+    if (!cbPort) throw new Error('no bore sign-in in progress');
+    const query = String(pasteUrl || '').includes('?') ? String(pasteUrl).slice(String(pasteUrl).indexOf('?')) : '';
+    if (!query) throw new Error('no callback parameters in that URL');
+    return new Promise((resolve, reject) => {
+        const proxy = http.get({ host: '127.0.0.1', port: cbPort, path: `/callback${query}`, timeout: 8000 }, (up) => {
+            up.resume();
+            resolve({ ok: (up.statusCode || 500) < 400, status: up.statusCode });
+        });
+        proxy.on('timeout', () => { proxy.destroy(); reject(new Error('bore callback timed out')); });
+        proxy.on('error', () => reject(new Error('bore callback listener is gone')));
+    });
 }
 
 function killPending() {

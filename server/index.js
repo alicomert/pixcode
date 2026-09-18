@@ -20,6 +20,7 @@ import { initializeWorkspace } from './projects.js'
 import { projectChannel } from './channels/project.channel.js'
 import { activityChannel } from './channels/activity.channel.js'
 import { shareChannel } from './channels/share.channel.js'
+import { systemChannel } from './channels/system.channel.js'
 import { shareResume, shareRoutes, shareSupervise } from './share.js'
 import { previewRoutes } from './preview.js'
 import { oauthRoutes } from './git-oauth.js'
@@ -87,6 +88,7 @@ export function createHttpServer() {
   hub.register('agent', agentChannel)
   hub.register('activity', activityChannel)
   hub.register('share', shareChannel)
+  hub.register('system', systemChannel)
   // Agent session lifecycle changes are broadcast so every client can refresh
   // its "who else is working" presence strip.
   setPresenceNotifier(() => hub.broadcast('agent', 'presence', {}))

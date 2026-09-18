@@ -1,5 +1,5 @@
 import { requireAdmin } from '../auth.js'
-import { boreLogin, boreStatus, shareDisable, shareEnable, shareProbe, shareProviders, shareStatus } from '../share.js'
+import { boreFinish, boreLogin, boreStatus, shareDisable, shareEnable, shareProbe, shareProviders, shareStatus } from '../share.js'
 
 // Public-link management is admin-only: enabling it exposes the whole
 // workbench on a public URL, so members must not flip it on themselves.
@@ -14,6 +14,7 @@ export const shareChannel = {
     disable: (ctx) => { requireAdmin(ctx); return shareDisable() },
     probe: (ctx) => { requireAdmin(ctx); return shareProbe() },
     boreStatus: (ctx) => { requireAdmin(ctx); return boreStatus() },
-    boreLogin: (ctx, { origin } = {}) => { requireAdmin(ctx); return boreLogin(origin) }
+    boreLogin: (ctx, { origin } = {}) => { requireAdmin(ctx); return boreLogin(origin) },
+    boreCallback: (ctx, { url } = {}) => { requireAdmin(ctx); return boreFinish(url) }
   }
 }

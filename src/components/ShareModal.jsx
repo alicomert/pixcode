@@ -13,7 +13,8 @@ export function ShareModal() {
   const [fields, setFields] = useState({})
   const [status, setStatus] = useState(null)
   const [health, setHealth] = useState(null)
-  const [bore, setBore] = useState(null) // { signedIn, authUrl, waiting }
+  const [bore, setBore] = useState(null) // { signedIn, authUrl, waiting, needsPaste }
+  const [pasteUrl, setPasteUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
@@ -44,7 +45,10 @@ export function ShareModal() {
   }
 
   async function refreshBore() {
-    try { setBore(await ws.request('share', 'boreStatus')) } catch { setBore({ signedIn: false }) }
+    try {
+      const next = await ws.request('share', 'boreStatus')
+      setBore((current) => ({ ...current, ...next }))
+    } catch { setBore((current) => ({ ...current, signedIn: false })) }
   }
 
   async function probe() {
@@ -84,31 +88,52 @@ export function ShareModal() {
     }
   }
 
+  function watchBoreSignIn() {
+    window.clearInterval(pollRef.current)
+    pollRef.current = window.setInterval(async () => {
+      try {
+        const next = await ws.request('share', 'boreStatus')
+        if (next.signedIn) {
+          window.clearInterval(pollRef.current)
+          setBore({ signedIn: true })
+        }
+      } catch { /* keep polling */ }
+    }, 2000)
+  }
+
   async function startBoreLogin() {
     setError('')
+    // Open the window inside the click gesture so popup blockers allow it;
+    // its location is filled once the daemon returns the auth URL.
+    const popup = window.open('', '_blank', 'noopener')
     setBore((current) => ({ ...current, waiting: true }))
     try {
       const result = await ws.request('share', 'boreLogin', { origin: location.origin })
-      if (result.signedIn) { setBore({ signedIn: true }); return }
-      setBore({ signedIn: false, authUrl: result.authUrl, waiting: true })
-      window.clearInterval(pollRef.current)
-      pollRef.current = window.setInterval(async () => {
-        try {
-          const next = await ws.request('share', 'boreStatus')
-          if (next.signedIn) {
-            window.clearInterval(pollRef.current)
-            setBore({ signedIn: true })
-          }
-        } catch { /* keep polling */ }
-      }, 2000)
+      if (result.signedIn) { popup?.close(); setBore({ signedIn: true }); return }
+      if (popup) popup.location.href = result.authUrl
+      setBore({ signedIn: false, authUrl: result.authUrl, waiting: true, needsPaste: result.needsPaste })
+      watchBoreSignIn()
     } catch (requestError) {
+      popup?.close()
       setBore({ signedIn: false })
       setError(requestError.message)
     }
   }
 
-  function copy() {
-    navigator.clipboard?.writeText(status.url)
+  async function finishBore() {
+    setError('')
+    try {
+      await ws.request('share', 'boreCallback', { url: pasteUrl })
+      setPasteUrl('')
+      refreshBore()
+      watchBoreSignIn()
+    } catch (requestError) {
+      setError(requestError.message)
+    }
+  }
+
+  function copy(text) {
+    navigator.clipboard?.writeText(text)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
@@ -131,7 +156,7 @@ export function ShareModal() {
             <div class="share-live-top">
               <span class={`share-dot ${health?.state === 'dead' ? 'dead' : 'live'}`} />
               <a class="share-url" href={status.url} target="_blank" rel="noreferrer">{status.url}</a>
-              <button class="tw-icon-button" type="button" title={t('share.copy')} aria-label={t('share.copy')} onClick={copy}><Copy size={13} /></button>
+              <button class="tw-icon-button" type="button" title={t('share.copy')} aria-label={t('share.copy')} onClick={() => copy(status.url)}><Copy size={13} /></button>
               <a class="tw-icon-button" href={status.url} target="_blank" rel="noreferrer" title={t('share.open')} aria-label={t('share.open')}><ExternalLink size={13} /></a>
             </div>
             <div class="share-live-meta">
@@ -143,6 +168,7 @@ export function ShareModal() {
             </div>
           </div>
         )}
+        <span class="share-section-label">{t('share.provider')}</span>
         <div class="share-provider-grid" role="radiogroup" aria-label={t('share.provider')}>
           {providers.map((item) => (
             <button
@@ -169,25 +195,43 @@ export function ShareModal() {
               <>
                 <span class="muted">{t('share.boreNeedSignIn')}</span>
                 <span class="share-bore-actions">
-                  <vscode-button secondary onClick={startBoreLogin} disabled={bore?.waiting && !bore?.authUrl}>{t('share.boreSignIn')}</vscode-button>
+                  <vscode-button secondary onClick={startBoreLogin}>{t('share.boreSignIn')}</vscode-button>
                   {bore?.authUrl && <a class="share-link-button" href={bore.authUrl} target="_blank" rel="noreferrer"><ExternalLink size={11} />{t('share.boreOpenSignIn')}</a>}
                 </span>
                 {bore?.waiting && <small class="muted">{t('share.boreWaiting')}</small>}
+                {(bore?.needsPaste || bore?.authUrl) && (
+                  <div class="share-paste-box">
+                    <small class="muted">{t('share.borePasteHint')}</small>
+                    <span class="share-paste-row">
+                      <vscode-textfield value={pasteUrl} placeholder="http://127.0.0.1:PORT/callback?code=…" onInput={(event) => setPasteUrl(event.currentTarget.value)} />
+                      <vscode-button secondary disabled={!pasteUrl.trim()} onClick={finishBore}>{t('share.borePasteGo')}</vscode-button>
+                    </span>
+                  </div>
+                )}
               </>
             )}
           </div>
         )}
+        {(active?.fields || []).length > 0 && <span class="share-section-label">{t('share.options')}</span>}
         {(active?.fields || []).map((field) => (
-          <vscode-textfield
-            key={field.key}
-            class="share-field-input"
-            value={fields[field.key] ?? field.default ?? ''}
-            type={field.secret ? 'password' : 'text'}
-            placeholder={`${field.label}${field.required ? ' *' : ''}${field.placeholder ? ` — ${field.placeholder}` : ''}`}
-            onInput={(event) => setField(field.key, event.currentTarget.value)} />
+          <label class="share-field" key={field.key}>
+            <span class="share-field-label">{field.label}{field.required && <em class="share-req">*</em>}</span>
+            <vscode-textfield
+              class="share-field-input"
+              value={fields[field.key] ?? field.default ?? ''}
+              type={field.secret ? 'password' : 'text'}
+              placeholder={field.placeholder || ''}
+              onInput={(event) => setField(field.key, event.currentTarget.value)} />
+          </label>
         ))}
         {active?.id === 'sish' && status?.pubkey && (
-          <small class="muted share-pubkey" title={t('share.pubkeyHint')}>{status.pubkey}</small>
+          <details class="share-pubkey-box">
+            <summary>{t('share.pubkeyShow')}</summary>
+            <div class="share-pubkey-row">
+              <code>{status.pubkey}</code>
+              <button class="tw-icon-button" type="button" title={t('share.copy')} aria-label={t('share.copy')} onClick={() => copy(status.pubkey)}><Copy size={12} /></button>
+            </div>
+          </details>
         )}
         {error && <span class="error-text">{error}</span>}
       </vscode-scrollable>

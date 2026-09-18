@@ -3215,3 +3215,50 @@ vscode-button.auth-submit { width: 100%; }
   background: var(--ui-raised);
   border-color: var(--ui-border);
 }
+
+/* --- share modal additions --------------------------------------------- */
+.share-section-label {
+  font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ui-muted); margin-top: 2px;
+}
+.share-paste-box { display: flex; flex-direction: column; gap: 6px }
+.share-paste-row { display: flex; gap: 6px; align-items: center }
+.share-paste-row vscode-textfield { flex: 1 }
+.share-pubkey-box { font-size: 11px; color: var(--ui-muted) }
+.share-pubkey-box summary { cursor: pointer; user-select: none }
+.share-pubkey-row {
+  display: flex; align-items: flex-start; gap: 6px; margin-top: 6px;
+  padding: 7px 9px; border: 1px solid var(--ui-border); border-radius: var(--r-card);
+  background: var(--ui-input);
+}
+.share-pubkey-row code {
+  flex: 1; font-family: var(--mono, monospace); font-size: 10px;
+  word-break: break-all; user-select: text; -webkit-user-select: text;
+}
+.share-modal .error-text { font-size: 11.5px }
+
+/* --- update modal ------------------------------------------------------- */
+.update-notes {
+  max-height: 240px; overflow-y: auto; overscroll-behavior: contain;
+  margin: 8px 0 4px; padding: 10px 12px;
+  border: 1px solid var(--ui-border); border-radius: var(--r-card);
+  background: var(--ui-raised); font-size: 11.5px; line-height: 1.55; color: var(--ui-text);
+}
+.update-notes h4 { margin: 8px 0 4px; font-size: 12px }
+.update-notes h4:first-child { margin-top: 0 }
+.update-notes p { margin: 4px 0; color: var(--ui-text) }
+.update-notes ul { margin: 4px 0; padding-left: 18px }
+.update-notes li { margin: 2px 0 }
+.update-notes code {
+  font-family: var(--mono, monospace); font-size: 10.5px;
+  background: var(--ui-input); padding: 1px 5px; border-radius: 4px;
+}
+.update-notes a { color: var(--link, #7ea6ff) }
+.update-progress {
+  display: flex; align-items: center; gap: 8px;
+  margin: 8px 0 0; font-size: 11.5px; color: var(--ui-muted);
+}
+.update-progress vscode-progress-ring { width: 16px; height: 16px }
+.share-field { display: flex; flex-direction: column; gap: 4px }
+.share-field-label { font-size: 11px; font-weight: 500; color: var(--ui-text) }
+.share-req { color: var(--error, #f47067); font-style: normal; margin-left: 2px }

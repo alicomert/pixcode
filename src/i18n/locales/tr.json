@@ -283,6 +283,9 @@
   "update.download": "Yükleyiciyi indir",
   "update.releaseNotes": "Sürüm notlarını gör",
   "update.manualInstall": "Güncellemeyi tamamlamak için indirilen yükleyiciyi elle açmanız gerekir.",
+  "update.updateNow": "Şimdi güncelle ({mode})",
+  "update.applying": "Güncelleniyor… daemon kendini yeniden başlatır, sayfa dönünce yenilenir.",
+  "update.serverHint": "{mode} ile kuruldu — daemon güncelleme sonrası kendini yeniden başlatır.",
   "update.dismiss": "Güncelleme penceresini kapat",
   "settings.scrollSpeed": "Kaydırma hassasiyeti",
   "settings.scrollSpeedHint": "Terminallerde dokunarak kaydırma hızı çarpanı.",
@@ -420,5 +423,9 @@
   "share.boreOpenSignIn": "Giriş sayfasını aç",
   "share.boreWaiting": "Giriş bekleniyor…",
   "share.boreSignedIn": "bore.dk'ya giriş yapıldı",
+  "share.pubkeyShow": "Açık anahtarı göster",
+  "share.options": "Seçenekler",
+  "share.borePasteHint": "Giriş sayfası kendiliğinden tamamlanmadıysa, yönlendirildiğiniz URL'yi yapıştırın:",
+  "share.borePasteGo": "Tamamla",
   "share.pubkeyHint": "Bu anahtarı sish relay'inizde yetkilendirin"
 }
