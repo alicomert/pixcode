@@ -37,6 +37,13 @@ function setCors(req, res) {
   res.setHeader('access-control-allow-origin', origin)
   res.setHeader('access-control-allow-headers', 'authorization, content-type')
   res.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  // WebView2 cannot resolve the desktop's synthetic `tauri.localhost` origin,
+  // so it classifies fetches to 127.0.0.1 as public→private and requires a
+  // Private Network Access preflight — without this header Chrome blocks the
+  // response and the desktop UI reports the server as unreachable.
+  if (req.headers['access-control-request-private-network'] === 'true') {
+    res.setHeader('access-control-allow-private-network', 'true')
+  }
   res.setHeader('vary', 'Origin')
   return true
 }
