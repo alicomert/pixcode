@@ -1,12 +1,14 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-// Session handoffs: when an agent session stops, a Markdown summary lands in
-// the workspace at .pixcode/handoffs/<session>.md — changed files, the
-// terminal tail, who ran it. The next session (any CLI, any user) can read
-// the file and pick the work up, which is the multi-CLI memory the agent
-// ecosystem converged on. .pixcode/MEMORY.md is the shared half: human-
-// editable notes on top, plus an auto-maintained "Recent sessions" index.
+// Persistent memory, split the way the agent ecosystem converged on:
+// .pixcode/MEMORY.md holds curated facts (conventions, decisions, gotchas)
+// written by humans AND agents — never transcripts. .pixcode/handoffs/
+// holds one snapshot per stopped session plus an auto-generated INDEX.md.
+// Agents learn the files exist through two channels: the MEMORY_PROMPT_HINT
+// prepended to every launch prompt, and a root AGENTS.md pointer that most
+// agent CLIs auto-load when a session starts with no prompt at all.
 const MAX_HANDOFFS = 30
 const TAIL_LINES = 40
 const TAIL_BYTES = 24 * 1024
@@ -15,14 +17,42 @@ const LIST_LIMIT = 20
 const NAME_PATTERN = /^[\w.-]+\.md$/
 const SESSIONS_START = '<!-- pixcode:sessions -->'
 const SESSIONS_END = '<!-- /pixcode:sessions -->'
-const SESSIONS_MAX = 12
+const INDEX_MAX = 12
+
+export const MEMORY_PROMPT_HINT = '[pixcode] Shared project memory lives at .pixcode/MEMORY.md — read it before working and update it when you learn durable conventions, decisions, or gotchas (never chat logs or task progress). Recent session snapshots: .pixcode/handoffs/INDEX.md.'
 
 const MEMORY_SEED = `# Project memory
 
-Shared memory for everyone working in this workspace — humans and agent
-sessions. Conventions, decisions, and gotchas belong here; agent sessions
-continuing from a handoff are pointed at this file.
+<!--
+Persistent memory for this workspace — shared by every agent session and
+every human working here.
 
+Agents: read this file BEFORE starting work. When you learn something
+durable — a coding convention, a decision and the reason behind it, a
+gotcha that cost time, an environment quirk — record it under the
+matching heading below, one line per entry. Do NOT store session logs,
+chat transcripts, or task progress here; ephemeral state belongs in
+.pixcode/handoffs/ session snapshots.
+-->
+
+## Conventions
+
+## Decisions
+
+## Gotchas
+
+## Environment
+`
+
+// Minimal pointer most agent CLIs (codex, devin, claude, gemini, opencode,
+// grok) auto-load from the workspace root on session start.
+const AGENTS_POINTER = `# AGENTS.md
+
+This workspace runs on Pixcode. Before starting work, read
+\`.pixcode/MEMORY.md\` — the project's persistent memory — and update it
+when you learn durable conventions, decisions, or gotchas (never chat
+logs). Recent session snapshots live under \`.pixcode/handoffs/\`
+(start with \`INDEX.md\`).
 `
 
 // TUI chrome glyphs: Braille spinner cells, box drawing, blocks/shading,
@@ -86,29 +116,81 @@ export function ensureMemory(workspace) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o755 })
     hideFromGit(dir)
     const file = path.join(dir, 'MEMORY.md')
-    if (!fs.existsSync(file)) fs.writeFileSync(file, MEMORY_SEED, { mode: 0o644 })
+    if (!fs.existsSync(file)) {
+      fs.writeFileSync(file, MEMORY_SEED, { mode: 0o644 })
+    } else {
+      migrateMemory(file)
+    }
+    ensureAgentsPointer(workspace)
     return '.pixcode/MEMORY.md'
   } catch { return null }
 }
 
-// MEMORY.md doubles as the session index: a marker-delimited "Recent sessions"
-// block is rewritten on every handoff so the file actually stays current.
-// Anything humans write outside the markers is preserved verbatim.
-function updateMemory(workspace, session, fileCount, handoffName) {
+// Early builds wrote the session index into MEMORY.md and seeded it with
+// boilerplate prose. Strip the generated block and upgrade the bare seed to
+// the structured layout — anything a human actually wrote survives.
+function migrateMemory(file) {
   try {
-    const file = path.join(workspace, '.pixcode', 'MEMORY.md')
-    let content = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : MEMORY_SEED
-    const row = `- ${stamp(Date.now())} · ${session.state?.agent || 'agent'} #${session.index || 1} · ${fileCount} changed file${fileCount === 1 ? '' : 's'} · [\`handoffs/${handoffName}\`](handoffs/${handoffName})`
+    let content = fs.readFileSync(file, 'utf8')
     if (content.includes(SESSIONS_START) && content.includes(SESSIONS_END)) {
-      const start = content.indexOf(SESSIONS_START) + SESSIONS_START.length
-      const end = content.indexOf(SESSIONS_END)
-      const rows = content.slice(start, end).split('\n').filter((line) => line.startsWith('- '))
-      rows.unshift(row)
-      content = `${content.slice(0, start)}\n${rows.slice(0, SESSIONS_MAX).join('\n')}\n${content.slice(end)}`
-    } else {
-      content = `${content.trimEnd()}\n\n## Recent sessions\n\n${SESSIONS_START}\n${row}\n${SESSIONS_END}\n`
+      const start = content.indexOf(SESSIONS_START)
+      const end = content.indexOf(SESSIONS_END) + SESSIONS_END.length
+      content = (content.slice(0, start) + content.slice(end)).replace(/## Recent sessions\s*$/m, '')
     }
-    fs.writeFileSync(file, content, { mode: 0o644 })
+    // No sections means the file still holds only the old prose seed.
+    if (!/^## /m.test(content)) {
+      if (content === MEMORY_SEED || !fs.existsSync(file)) return
+      fs.writeFileSync(file, MEMORY_SEED, { mode: 0o644 })
+      return
+    }
+    if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') === content) return
+    fs.writeFileSync(file, content.trimEnd() + '\n', { mode: 0o644 })
+  } catch { void 0 }
+}
+
+// A root AGENTS.md is the only channel that reaches interactive sessions
+// launched with no prompt — the CLIs load it themselves. Only created when
+// absent (a user's own AGENTS.md is never overwritten) and hidden via
+// .git/info/exclude, which ignores untracked files without touching .gitignore.
+// A tracked-but-deleted AGENTS.md is a deliberate removal — leave it gone.
+function ensureAgentsPointer(workspace) {
+  try {
+    const file = path.join(workspace, 'AGENTS.md')
+    if (fs.existsSync(file)) return
+    try {
+      execFileSync('git', ['-C', workspace, 'ls-files', '--error-unmatch', 'AGENTS.md'], { stdio: 'pipe' })
+      return
+    } catch { /* untracked or not a repo — safe to write */ }
+    fs.writeFileSync(file, AGENTS_POINTER, { mode: 0o644 })
+    const exclude = path.join(workspace, '.git', 'info', 'exclude')
+    if (fs.existsSync(exclude)) {
+      const lines = fs.readFileSync(exclude, 'utf8').split('\n')
+      if (!lines.some((line) => line.trim() === 'AGENTS.md')) fs.appendFileSync(exclude, 'AGENTS.md\n')
+    }
+  } catch { void 0 }
+}
+
+// handoffs/INDEX.md is the session log — rewritten on every handoff, newest
+// first. Keeping it out of MEMORY.md is deliberate: memory is curated facts,
+// the index is history an agent can consult when continuing prior work.
+function writeIndex(workspace, session, fileCount, handoffName) {
+  try {
+    const dir = dirFor(workspace)
+    const row = `- ${stamp(Date.now())} · ${session.state?.agent || 'agent'} #${session.index || 1} · ${fileCount} changed file${fileCount === 1 ? '' : 's'} · [\`${handoffName}\`](${handoffName})`
+    const file = path.join(dir, 'INDEX.md')
+    let rows = [row]
+    try {
+      rows = rows.concat(fs.readFileSync(file, 'utf8').split('\n').filter((line) => line.startsWith('- ')))
+    } catch { /* first index */ }
+    fs.writeFileSync(file, [
+      '# Session handoffs',
+      '',
+      'Newest first — one snapshot per stopped session: changed files, terminal',
+      'tail, who ran it. Read the latest before continuing earlier work.',
+      '',
+      ...rows.slice(0, INDEX_MAX),
+      ''
+    ].join('\n'), { mode: 0o644 })
   } catch { void 0 }
 }
 
@@ -141,12 +223,12 @@ export function writeHandoff(session, { files = [], branch = '', tail = '' } = {
       '```',
       '',
       '---',
-      memory ? `Continue this work: read \`${memory}\` for shared project memory, then pick up where this session left off.` : 'Continue this work where this session left off.',
+      memory ? `Continue this work: read \`${memory}\` for project memory and \`.pixcode/handoffs/INDEX.md\` for earlier sessions, then pick up where this session left off.` : 'Continue this work where this session left off.',
       ''
     ].filter((line) => line !== null)
     fs.writeFileSync(path.join(dir, name), lines.join('\n'), { mode: 0o644 })
     prune(dir)
-    updateMemory(session.workspace, session, changed.length, name)
+    writeIndex(session.workspace, session, changed.length, name)
     return name
   } catch { return null }
 }

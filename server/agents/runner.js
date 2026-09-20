@@ -12,7 +12,7 @@ import { accessAlive, accessFor, listUsers } from '../auth.js'
 import { workspaceCwd, workspaceRoot } from '../workspace.js'
 import { recordActivity } from '../activity.js'
 import { pinFsWatcher, unpinFsWatcher } from '../channels/fs.channel.js'
-import { tailFromHistory, writeHandoff } from '../handoffs.js'
+import { ensureMemory, MEMORY_PROMPT_HINT, tailFromHistory, writeHandoff } from '../handoffs.js'
 import { notifyWebhook } from '../notify.js'
 
 const execFileAsync = promisify(execFile)
@@ -268,6 +268,12 @@ export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, col
   if (!AdapterClass) throw httpError(400, 'unknown agent')
   const sessionId = `s_${++counter}`
   const requestedWorkspace = workspaceRoot(workspace, ctx)
+  // Scaffold .pixcode/ (MEMORY.md, gitignore, AGENTS.md pointer) before the
+  // spawn so the files exist by the time the agent's first prompt arrives.
+  ensureMemory(requestedWorkspace)
+  // A launch prompt is the only channel guaranteed to reach every CLI —
+  // interactive sessions with no prompt get the pointer via AGENTS.md.
+  const initialPrompt = prompt ? `${MEMORY_PROMPT_HINT}\n\n${prompt}` : prompt
   const index = nextSessionIndex(ctx, agent, requestedWorkspace)
   const session = {
     sessionId,
@@ -291,7 +297,7 @@ export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, col
   }
   let args
   try {
-    args = session.adapter.buildTerminalArgs({ prompt })
+    args = session.adapter.buildTerminalArgs({ prompt: initialPrompt })
   } catch (error) {
     throw httpError(400, error.message || 'invalid agent arguments')
   }
@@ -305,7 +311,7 @@ export async function startRunner(ctx, { agent, prompt = '', cwd, workspace, col
   // Attach PTY listeners before announcing startup so fast CLIs cannot emit
   // their first screen between spawn and the initial status event.
   emit(session, { type: 'status', role: 'system', status: 'started', agent })
-  if (prompt) setTimeout(() => { if (session.state.status === 'running') session.term?.write(String(prompt) + '\r') }, 80)
+  if (initialPrompt) setTimeout(() => { if (session.state.status === 'running') session.term?.write(String(initialPrompt) + '\r') }, 80)
   recordActivity(requestedWorkspace, 'agent', { action: 'start', agent, index, user: session.ownerName })
   persistSessions()
   announcePresence()

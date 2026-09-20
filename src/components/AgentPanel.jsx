@@ -511,7 +511,7 @@ export function AgentPanel() {
     setError('')
     try {
       const prompt = handoffItem
-        ? `Read .pixcode/handoffs/${handoffItem.name} and .pixcode/MEMORY.md, then continue the task described in the handoff.`
+        ? `Read .pixcode/handoffs/${handoffItem.name} and continue the work it describes.`
         : ''
       const session = await ws.request('agent', 'start', { agent: agent.id, workspace: workspace.value?.path || '', cols: 100, rows: 30, prompt })
       setSessions((current) => current.some((item) => item.sessionId === session.sessionId)
