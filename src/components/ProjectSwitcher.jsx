@@ -132,6 +132,11 @@ export function ProjectSwitcher() {
     }
   }, [])
 
+  // Keep the active workspace tab in view inside the scrollable strip.
+  useEffect(() => {
+    document.querySelector('.workspace-tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+  }, [activeTabId])
+
   async function activateTab(tab, tabList = tabs) {
     if (!tab?.projectId || busy) return
     const record = toRecord(tab, projects)

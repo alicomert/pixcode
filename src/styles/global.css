@@ -431,8 +431,8 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
   display: flex;
   align-items: center;
   gap: 8px;
-  width: min(400px, 32vw);
-  min-width: 180px;
+  width: min(240px, 20vw);
+  min-width: 132px;
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--ui-border);
@@ -445,7 +445,10 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
 }
 
 .command-center .command-icon { color: var(--ui-muted); }
+.command-center span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .command-center kbd { margin-left: auto; color: var(--ui-faint); font: 10px var(--mono); }
+
+@media (max-width: 1250px) { .command-center kbd { display: none; } }
 
 .command-center:focus-within,
 .search-view form input:focus,
@@ -454,36 +457,12 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
 .agent-command-line textarea:focus,
 .settings-control-row select:focus,
 .settings-list select:focus,
-.project-switcher select:focus {
+.workspace-add-select:focus {
   border-color: var(--ui-accent-strong);
   box-shadow: 0 0 0 3px var(--ui-ring);
   outline: none;
 }
 
-.project-switcher { display: flex; min-width: 126px; max-width: 260px; align-items: center; gap: 5px; }
-.project-label { color: var(--ui-muted); font-size: 11px; }
-.project-switcher select {
-  min-width: 0;
-  max-width: 170px;
-  height: 28px;
-  padding: 3px 8px;
-  overflow: hidden;
-  border-color: var(--ui-border);
-  background: var(--ui-input);
-  color: var(--ui-text);
-  font-size: 12px;
-  text-overflow: ellipsis;
-}
-.project-switcher button {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border-color: var(--ui-border);
-  background: var(--ui-input);
-  color: var(--ui-muted);
-  font-size: 16px;
-  line-height: 1;
-}
 .project-error { color: var(--ui-error); font-weight: 700; }
 
 .topbar-actions { display: flex; align-items: center; gap: 3px; }
@@ -2644,23 +2623,49 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
 @media (max-width: 1050px) {
   .window-brand { min-width: auto; }
   .window-brand strong { display: none; }
-  .command-center { width: min(300px, 28vw); min-width: 160px; }
+  /* Collapse the command field to an icon so workspace tabs keep the room. */
+  .command-center { width: 32px; min-width: 32px; justify-content: center; padding: 0; }
+  .command-center span, .command-center kbd { display: none; }
   .project-label { display: none; }
-  .project-switcher { max-width: 180px; }
 }
 
 @media (max-width: 767px) {
   /* Status-bar inset: standalone PWAs draw under the notch. */
-  .shell { grid-template-rows: 42px minmax(0, 1fr) auto; width: 100%; height: 100dvh; min-height: 0; overflow: hidden; padding-top: env(safe-area-inset-top, 0px); }
-  .topbar { height: 42px; padding: 0 8px; gap: 6px; min-width: 0; max-width: 100%; overflow: hidden; }
+  .shell { grid-template-rows: auto minmax(0, 1fr) auto; width: 100%; height: 100dvh; min-height: 0; overflow: hidden; padding-top: env(safe-area-inset-top, 0px); }
+  /* Two-row topbar: logo + actions up top, workspace strip gets its own
+     full-width row right under it — finger-scrollable, readable tabs. */
+  .topbar { height: auto; min-height: 42px; padding: 4px 8px 0; gap: 6px; min-width: 0; max-width: 100%; flex-wrap: wrap; overflow: hidden; }
   .window-brand { padding-left: 2px; min-width: auto; }
-  .window-brand strong, .window-nav, .command-center, .project-label,
+  .window-brand strong, .window-nav, .command-center,
   .topbar .layout-button, .logout-button { display: none; }
   .brand-logo { width: 22px; height: 22px; }
-  .project-switcher { width: auto; max-width: 180px; flex: 1 1 auto; }
-  .project-switcher select { max-width: 120px; border-color: var(--ui-border-strong); border-radius: 7px; background: var(--ui-input); font-size: 16px; }
-  .workspace-tabs { min-width: 0; max-width: 100%; overflow: hidden; }
-  .workspace-tab { min-width: 88px; max-width: 112px; }
+  .workspace-switcher {
+    order: 10;
+    flex: 1 1 100%;
+    max-width: none;
+    gap: 2px;
+    margin: 0 -8px;
+    padding: 0 8px;
+    border-top: 1px solid var(--ui-border);
+  }
+  .workspace-tabs {
+    min-width: 0;
+    max-width: none;
+    flex: 1;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .workspace-tab {
+    min-width: 128px;
+    max-width: 170px;
+    height: 40px;
+    scroll-snap-align: start;
+    padding: 4px 10px;
+  }
+  .workspace-add-select { max-width: 46px; flex: 0 0 auto; }
   .topbar-actions .update-checker, .topbar-actions > select { display: none; }
 
   .workbench { display: block; position: relative; width: 100%; max-width: 100%; height: auto; min-height: 0; overflow: hidden; padding-bottom: 54px; }
@@ -2921,7 +2926,7 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
 
   .agent-modal-item:hover, .agent-history-item:hover, .extension-card:hover,
   .welcome-column > button:hover, .workspace-project-picker button:hover,
-  .project-switcher select:hover, .project-switcher button:hover,
+  .workspace-add-select:hover, .workspace-add-button:hover,
   .update-checker-detailed .update-button:hover,
   .update-checker-compact .update-button:hover,
   .search-view form button:hover,
