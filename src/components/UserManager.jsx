@@ -3,6 +3,7 @@ import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { useEscape } from '../lib/useEscape.js'
 import { VscSelect } from './vsc.jsx'
+import { TField } from './Fields.jsx'
 import { Folder, Shield, User, UserPlus } from '../lib/icons.jsx'
 
 // vscode-scrollable swallows every wheel event that bubbles through it, which
@@ -256,8 +257,8 @@ export function UserManager() {
               <form class="user-create-card" onSubmit={create}>
                 <div class="user-create-title"><UserPlus size={15} /><strong>{t('users.add')}</strong></div>
                 <div class="user-create-grid">
-                  <label class="user-field"><span>{t('users.username')}</span><vscode-textfield type="text" value={form.username} onInput={(event) => setForm({ ...form, username: event.currentTarget.value })} required minlength={3} maxlength={32} autofocus /></label>
-                  <label class="user-field"><span>{t('users.password')}</span><vscode-textfield type="password" value={form.password} onInput={(event) => setForm({ ...form, password: event.currentTarget.value })} required minlength={6} /></label>
+                  <label class="user-field"><span>{t('users.username')}</span><TField type="text" value={form.username} onInput={(event) => setForm({ ...form, username: event.currentTarget.value })} required minlength={3} maxlength={32} autofocus /></label>
+                  <label class="user-field"><span>{t('users.password')}</span><TField type="password" value={form.password} onInput={(event) => setForm({ ...form, password: event.currentTarget.value })} required minlength={6} /></label>
                   <label class="user-field"><span>{t('users.role')}</span>
                     <VscSelect value={form.role} onChange={(value) => setForm({ ...form, role: value })}>
                       <vscode-option value="member">{t('users.member')}</vscode-option>
@@ -327,7 +328,7 @@ export function UserManager() {
                       </div>
                       <div class="user-edit-block">
                         <span class="user-edit-label">{t('users.resetPassword')}</span>
-                        <vscode-textfield type="password" value={draft.password} placeholder={t('users.newPassword')} onInput={(event) => setDraft({ ...draft, password: event.currentTarget.value })} />
+                        <TField type="password" value={draft.password} placeholder={t('users.newPassword')} onInput={(event) => setDraft({ ...draft, password: event.currentTarget.value })} />
                       </div>
                     </div>
 

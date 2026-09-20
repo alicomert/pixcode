@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { Globe2, Maximize2, RefreshCw, X } from '../lib/icons.jsx'
 import { api, desktopRuntime, getToken, resolveApiUrl } from '../lib/api.js'
 import { t } from '../lib/i18n.js'
+import { TInput } from './Fields.jsx'
 import { workspace } from '../state/app.js'
 
 // Device frames: the iframe keeps its own layout width while the wrapper
@@ -75,7 +76,7 @@ export function PreviewPane() {
           {targets.map((item) => <option key={item.port} value={String(item.port)}>:{item.port}{item.label ? ` · ${item.label}` : ''}</option>)}
         </select>
       ) : (
-        <input class="preview-path" value={staticPath} onInput={(event) => setStaticPath(event.currentTarget.value)} placeholder="index.html" aria-label={t('preview.staticPath')} spellcheck="false" />
+        <TInput class="preview-path" value={staticPath} onInput={(event) => setStaticPath(event.currentTarget.value)} placeholder="index.html" aria-label={t('preview.staticPath')} spellcheck="false" />
       )}
       <div class="preview-devices" role="group" aria-label={t('preview.device')}>
         {DEVICES.map((item) => <button key={item.id} type="button" class={device === item.id ? 'active' : ''} aria-pressed={device === item.id} onClick={() => setDevice(item.id)} title={t(item.label)}>{t(item.label)}</button>)}

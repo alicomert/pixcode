@@ -3,6 +3,7 @@ import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { useEscape } from '../lib/useEscape.js'
+import { TField } from './Fields.jsx'
 import { openFile, workspace } from '../state/app.js'
 
 function joinPath(parent, name) {
@@ -205,7 +206,7 @@ export function FileTree() {
       {dialog && <div class="modal-backdrop" onClick={() => setDialog(null)}>
         <form class="file-action-modal" role="dialog" aria-modal="true" aria-labelledby="file-action-title" onSubmit={submitAction} onClick={(event) => event.stopPropagation()}>
           <h2 id="file-action-title">{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : dialog.type === 'file' ? 'tree.newFile' : 'tree.newFolder')}</h2>
-          {dialog.type === 'delete' ? <p>{t('tree.deleteConfirm', { name: dialog.name })}</p> : <vscode-textfield value={dialog.value} onInput={(event) => setDialog((current) => ({ ...current, value: event.currentTarget.value }))} placeholder={t('tree.pathPlaceholder')} autofocus />}
+          {dialog.type === 'delete' ? <p>{t('tree.deleteConfirm', { name: dialog.name })}</p> : <TField value={dialog.value} onInput={(event) => setDialog((current) => ({ ...current, value: event.currentTarget.value }))} placeholder={t('tree.pathPlaceholder')} autofocus />}
           <div class="modal-actions"><vscode-button secondary onClick={() => setDialog(null)}>{t('common.cancel')}</vscode-button><vscode-button type="submit" disabled={dialog.type !== 'delete' && !dialog.value.trim()}>{t(dialog.type === 'delete' ? 'tree.delete' : dialog.type === 'rename' ? 'tree.rename' : 'tree.create')}</vscode-button></div>
         </form>
       </div>}

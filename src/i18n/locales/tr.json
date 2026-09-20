@@ -14,7 +14,7 @@
   "auth.login.description": "Projelerinize ve terminallerinize devam etmek için giriş yapın.",
   "auth.username": "Kullanıcı adı",
   "auth.usernamePlaceholder": "Kullanıcı adınızı girin",
-  "auth.usernameLoginHint": "admin (genellikle isteğe bağlı)",
+  "auth.usernameLoginHint": "kullanıcı adı (isteğe bağlı)",
   "auth.password": "Şifre",
   "auth.passwordPlaceholder": "Şifrenizi girin",
   "auth.localOnly": "Bilgileriniz yalnızca yerel Pixcode veri klasörünüzde saklanır.",

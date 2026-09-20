@@ -4,6 +4,7 @@ import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { isAdmin, workspace } from '../state/app.js'
 import { VscSelect } from './vsc.jsx'
+import { TField } from './Fields.jsx'
 
 // Agent skills manager: installs SKILL.md collections from a git repo into
 // the selected agent's skills dir — the user's own (possibly private) home,
@@ -116,7 +117,7 @@ export function SkillManager() {
       </div>
     )}
     <div class="settings-control-row">
-      <vscode-textfield class="skill-repo-input" value={repo} placeholder={t('skills.repoPlaceholder')} onInput={(event) => setRepo(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') install() }} />
+      <TField class="skill-repo-input" value={repo} placeholder={t('skills.repoPlaceholder')} onInput={(event) => setRepo(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') install() }} />
       <vscode-button icon="cloud-download" disabled={!repo.trim() || installing} onClick={install}>{installing ? t('skills.installing') : t('skills.install')}</vscode-button>
     </div>
     {error && <span class="error-text" role="alert">{error}</span>}

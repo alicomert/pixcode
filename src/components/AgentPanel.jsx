@@ -10,6 +10,7 @@ import { useEscape } from '../lib/useEscape.js'
 import { activeAgent, agentSessions, isAdmin, panelOpen, principal, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { terminalFont, terminalTheme } from '../lib/terminal-theme.js'
 import { watchTerminalResize } from '../lib/terminal-resize.js'
+import { TInput } from './Fields.jsx'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
 import { TerminalScrollButtons } from './TerminalScrollButtons.jsx'
 import { TerminalSearchBox } from './TerminalSearch.jsx'
@@ -705,7 +706,7 @@ export function AgentPanel() {
           ))}
         </div>
         <div class="agent-broadcast-compose">
-          <input class="agent-broadcast-input" type="text" value={broadcastText} placeholder={t('agent.broadcastPlaceholder')} onInput={(event) => setBroadcastText(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') sendBroadcast() }} />
+          <TInput class="agent-broadcast-input" type="text" value={broadcastText} placeholder={t('agent.broadcastPlaceholder')} onInput={(event) => setBroadcastText(event.currentTarget.value)} onKeyDown={(event) => { if (event.key === 'Enter') sendBroadcast() }} />
           <vscode-button icon="send" disabled={!broadcastText.trim() || !broadcastPicks.size || broadcastBusy} onClick={sendBroadcast}>{t('agent.broadcastSend')}</vscode-button>
         </div>
         {broadcastResult && <span class="agent-broadcast-result">{broadcastResult}</span>}

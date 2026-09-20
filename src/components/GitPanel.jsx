@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { Copy, FolderGit2, GitBranch, Github, Undo2 } from '../lib/icons.jsx'
 import { getFileIcon } from './FileTree.jsx'
+import { TField } from './Fields.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { isAdmin, openFile, workspace } from '../state/app.js'
@@ -283,7 +284,7 @@ function GitHubConnect({ account, onAccount }) {
       ) : mode === 'manual' ? (
         <div class="git-hub-form">
           <div class="git-hub-hint muted">{t('git.clientIdHint')}</div>
-          <vscode-textfield value={clientId} onInput={(event) => setClientId(event.currentTarget.value)} placeholder={t('git.clientIdPlaceholder')} />
+          <TField value={clientId} onInput={(event) => setClientId(event.currentTarget.value)} placeholder={t('git.clientIdPlaceholder')} />
           <div class="git-hub-actions">
             <vscode-button icon="check" onClick={saveClientId} disabled={busy || !clientId.trim()}>{t('editor.save')}</vscode-button>
           </div>
@@ -292,7 +293,7 @@ function GitHubConnect({ account, onAccount }) {
       ) : mode === 'token' ? (
         <div class="git-hub-form">
           <div class="git-hub-hint muted">{t('git.connectHint')}</div>
-          <vscode-textfield value={token} onInput={(event) => setToken(event.currentTarget.value)} placeholder={t('git.tokenInputPlaceholder')} />
+          <TField value={token} onInput={(event) => setToken(event.currentTarget.value)} placeholder={t('git.tokenInputPlaceholder')} />
           <div class="git-hub-actions">
             <vscode-button secondary onClick={() => window.open(GITHUB_TOKEN_URL, '_blank', 'noopener')}>{t('git.createToken')}</vscode-button>
             <vscode-button icon="check" onClick={connect} disabled={busy || !token.trim()}>{busy ? t('git.connecting') : t('git.connect')}</vscode-button>

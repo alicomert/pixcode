@@ -14,7 +14,7 @@
   "auth.login.description": "Sign in to continue to your projects and terminals.",
   "auth.username": "Username",
   "auth.usernamePlaceholder": "Enter your username",
-  "auth.usernameLoginHint": "admin (usually optional)",
+  "auth.usernameLoginHint": "username (optional)",
   "auth.password": "Password",
   "auth.passwordPlaceholder": "Enter your password",
   "auth.localOnly": "Your credentials stay in your local Pixcode data directory.",

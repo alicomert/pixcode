@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { ChevronDown, ChevronUp, X } from '../lib/icons.jsx'
 import { t } from '../lib/i18n.js'
+import { TInput } from './Fields.jsx'
 
 // Floating find-bar shared by the shell terminals and the agent terminal.
 // `addon` is the xterm SearchAddon instance owned by the host view.
@@ -37,7 +38,7 @@ export function TerminalSearchBox({ addon, onClose }) {
   }
 
   return <div class="terminal-search-bar" role="search">
-    <input ref={inputRef} value={query} onInput={change} onKeyDown={onKeyDown} placeholder={t('terminal.searchPlaceholder')} aria-label={t('terminal.search')} />
+    <TInput domRef={inputRef} value={query} onInput={change} onKeyDown={onKeyDown} placeholder={t('terminal.searchPlaceholder')} aria-label={t('terminal.search')} />
     <span class="terminal-search-count">{count}</span>
     <button type="button" title={t('terminal.searchPrev')} aria-label={t('terminal.searchPrev')} onClick={() => find('prev')}><ChevronUp size={14} /></button>
     <button type="button" title={t('terminal.searchNext')} aria-label={t('terminal.searchNext')} onClick={() => find('next')}><ChevronDown size={14} /></button>

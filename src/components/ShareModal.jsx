@@ -3,6 +3,7 @@ import { Check, Copy, ExternalLink, Globe, RefreshCw } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { useEscape } from '../lib/useEscape.js'
+import { TField } from './Fields.jsx'
 
 // Public link manager. Opened via the 'pixcode:share-open' event from the
 // Remote view or the settings launcher row — the heavy configuration lives
@@ -209,7 +210,7 @@ export function ShareModal() {
                   <div class="share-paste-box">
                     <small class="muted">{t('share.borePasteHint')}</small>
                     <span class="share-paste-row">
-                      <vscode-textfield value={pasteUrl} placeholder="http://127.0.0.1:PORT/callback?code=…" onInput={(event) => setPasteUrl(event.currentTarget.value)} />
+                      <TField value={pasteUrl} placeholder="http://127.0.0.1:PORT/callback?code=…" onInput={(event) => setPasteUrl(event.currentTarget.value)} />
                       <vscode-button secondary disabled={!pasteUrl.trim()} onClick={finishBore}>{t('share.borePasteGo')}</vscode-button>
                     </span>
                   </div>
@@ -222,7 +223,7 @@ export function ShareModal() {
         {(active?.fields || []).map((field) => (
           <label class="share-field" key={field.key}>
             <span class="share-field-label">{field.label}{field.required && <em class="share-req">*</em>}</span>
-            <vscode-textfield
+            <TField
               class="share-field-input"
               value={fields[field.key] ?? field.default ?? ''}
               type={field.secret ? 'password' : 'text'}

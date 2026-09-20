@@ -7,6 +7,7 @@ import { initNotifications, notificationsEnabled, setNotificationsEnabled } from
 import { setToken } from '../lib/api.js'
 import { activeView, agentRailOpen, isAdmin, agentSessions, agentWidth, mobileTab, openFile, panelHeight, panelOpen, setAgentRail, setAgentWidth, setPanelHeight, setSidebarWidth, setTerminalFontSize, setTerminalScrollSpeed, setTheme, sidebarWidth, terminalFontSize, terminalScrollSpeed, theme, workspace } from '../state/app.js'
 import { VscSelect } from './vsc.jsx'
+import { TField } from './Fields.jsx'
 import { UserManager } from './UserManager.jsx'
 import { SkillManager } from './SkillManager.jsx'
 import { ShareCard } from './ShareCard.jsx'
@@ -212,7 +213,7 @@ function SearchView() {
     window.clearTimeout(debounceRef.current)
     debounceRef.current = window.setTimeout(() => search(value), 180)
   }
-  return <div class="search-view"><div class="sidebar-heading"><span>{t('view.search')}</span><span class="sidebar-heading-actions">{results.length || ''}</span></div><form onSubmit={search}><Search class="search-input-icon" size={15} /><vscode-textfield ref={inputRef} value={query} onInput={changeQuery} placeholder={t('search.placeholder')} autofocus /><vscode-toolbar-button icon="search" type="submit" aria-label={t('view.search')}></vscode-toolbar-button></form><vscode-scrollable class="search-results">{busy && <span class="muted">{t('tree.loading')}</span>}{error && <span class="error-text search-error">{error}</span>}{results.map((result) => <button key={result.path + (result.line || '')} type="button" class={['search-result', result.reason === 'content' ? 'content-match' : ''].filter(Boolean).join(' ')} disabled={result.type === 'dir'} onClick={() => { if (result.type !== 'dir') window.dispatchEvent(new CustomEvent('pixcode:open-file', { detail: result.path })) }}><span class="search-result-path">{result.path}</span>{result.line && <span class="search-result-meta">:{result.line} {result.preview || ''}</span>}</button>)}{!busy && query && !results.length && !error && <span class="muted">{t('search.none')}</span>}</vscode-scrollable></div>
+  return <div class="search-view"><div class="sidebar-heading"><span>{t('view.search')}</span><span class="sidebar-heading-actions">{results.length || ''}</span></div><form onSubmit={search}><Search class="search-input-icon" size={15} /><TField domRef={inputRef} value={query} onInput={changeQuery} placeholder={t('search.placeholder')} autofocus /><vscode-toolbar-button icon="search" type="submit" aria-label={t('view.search')}></vscode-toolbar-button></form><vscode-scrollable class="search-results">{busy && <span class="muted">{t('tree.loading')}</span>}{error && <span class="error-text search-error">{error}</span>}{results.map((result) => <button key={result.path + (result.line || '')} type="button" class={['search-result', result.reason === 'content' ? 'content-match' : ''].filter(Boolean).join(' ')} disabled={result.type === 'dir'} onClick={() => { if (result.type !== 'dir') window.dispatchEvent(new CustomEvent('pixcode:open-file', { detail: result.path })) }}><span class="search-result-path">{result.path}</span>{result.line && <span class="search-result-meta">:{result.line} {result.preview || ''}</span>}</button>)}{!busy && query && !results.length && !error && <span class="muted">{t('search.none')}</span>}</vscode-scrollable></div>
 }
 
 function RunView() {
@@ -404,15 +405,15 @@ function GitAccountCard() {
       <div class="settings-control-copy"><GitBranch size={16} /><span><strong>{t('git.identity')}</strong><small>{t('git.identityHint')}</small></span></div>
     </div>
     <div class="git-account-fields">
-      <vscode-textfield value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('git.namePlaceholder')} aria-label={t('git.namePlaceholder')} />
-      <vscode-textfield value={email} onInput={(event) => setEmail(event.currentTarget.value)} placeholder={t('git.emailPlaceholder')} aria-label={t('git.emailPlaceholder')} />
+      <TField value={name} onInput={(event) => setName(event.currentTarget.value)} placeholder={t('git.namePlaceholder')} aria-label={t('git.namePlaceholder')} />
+      <TField value={email} onInput={(event) => setEmail(event.currentTarget.value)} placeholder={t('git.emailPlaceholder')} aria-label={t('git.emailPlaceholder')} />
     </div>
     <div class="settings-control-row">
       <div class="settings-control-copy"><Globe2 size={16} /><span><strong>{t('git.tokenTitle')}</strong><small>{t('git.tokenHint')}</small></span></div>
     </div>
     <div class="git-account-fields">
-      <vscode-textfield value={host} onInput={(event) => setHost(event.currentTarget.value)} placeholder="github.com" aria-label={t('git.hostPlaceholder')} />
-      <vscode-textfield type="password" value={token} onInput={(event) => setToken(event.currentTarget.value)} placeholder={t('git.tokenPlaceholder')} aria-label={t('git.tokenPlaceholder')} />
+      <TField value={host} onInput={(event) => setHost(event.currentTarget.value)} placeholder="github.com" aria-label={t('git.hostPlaceholder')} />
+      <TField type="password" value={token} onInput={(event) => setToken(event.currentTarget.value)} placeholder={t('git.tokenPlaceholder')} aria-label={t('git.tokenPlaceholder')} />
     </div>
     {account.hosts?.length > 0 && <div class="git-account-hosts">
       {account.hosts.map((value) => <span class="git-host-chip" key={value}><code>{value}</code><button type="button" onClick={() => removeHost(value)} disabled={busy} title={t('git.removeHost')} aria-label={`${t('git.removeHost')} ${value}`}><Trash2 size={12} /></button></span>)}

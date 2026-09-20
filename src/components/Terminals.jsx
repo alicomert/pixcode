@@ -12,6 +12,7 @@ import { watchTerminalResize } from '../lib/terminal-resize.js'
 import { attachTerminalTouchScroll } from '../lib/terminal-touch.js'
 import { TerminalScrollButtons } from './TerminalScrollButtons.jsx'
 import { TerminalSearchBox } from './TerminalSearch.jsx'
+import { TInput } from './Fields.jsx'
 import { sanitizeReplay } from '../lib/terminal-replay.js'
 
 function TerminalView({ id, onReady, modifiersRef }) {
@@ -482,7 +483,7 @@ export function Terminals() {
           <button key={id} class={`terminal-tab ${id === active ? 'active' : ''}`} type="button" title={t('terminal.renameHint')} onClick={() => activateTab(id)} onDoubleClick={() => { setRenaming(id); setRenameValue(names[id] || '') }}>
             {unread.has(id) && <span class="terminal-tab-unread" aria-hidden="true" />}
             {renaming === id
-              ? <input class="terminal-rename" autoFocus value={renameValue} onInput={(event) => setRenameValue(event.currentTarget.value)} onClick={(event) => event.stopPropagation()} onBlur={() => commitRename(id)} onKeyDown={(event) => { if (event.key === 'Enter') commitRename(id); if (event.key === 'Escape') setRenaming('') }} />
+              ? <TInput class="terminal-rename" autoFocus value={renameValue} onInput={(event) => setRenameValue(event.currentTarget.value)} onClick={(event) => event.stopPropagation()} onBlur={() => commitRename(id)} onKeyDown={(event) => { if (event.key === 'Enter') commitRename(id); if (event.key === 'Escape') setRenaming('') }} />
               : <span><TerminalIcon size={13} /><span class="terminal-tab-name">{names[id] || `sh ${index + 1}`}</span></span>}
             <span class="terminal-tab-close" role="button" tabIndex={0} title={t('terminal.close')} aria-label={t('terminal.close')} onClick={(event) => closeTab(event, id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); closeTab(event, id) } }}><X size={13} /></span>
           </button>
