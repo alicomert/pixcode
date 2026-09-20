@@ -13,6 +13,7 @@ import { workspaceCwd, workspaceRoot } from '../workspace.js'
 import { recordActivity } from '../activity.js'
 import { pinFsWatcher, unpinFsWatcher } from '../channels/fs.channel.js'
 import { ensureMemory, MEMORY_PROMPT_HINT, tailFromHistory, writeHandoff } from '../handoffs.js'
+import { runMemoryDigest } from '../memory.js'
 import { notifyWebhook } from '../notify.js'
 
 const execFileAsync = promisify(execFile)
@@ -153,6 +154,16 @@ async function archiveHandoff(session) {
         title: `${session.state.agent} #${session.index || 1} wrote a handoff`,
         body: `${files.length} changed file${files.length === 1 ? '' : 's'}${session.ownerName ? ` · ${session.ownerName}` : ''}`,
         workspace: session.workspace
+      })
+      // One short headless run on the same CLI turns the handoff snapshot
+      // into durable MEMORY.md entries — gated per-user, never blocking.
+      void runMemoryDigest({
+        agent: session.state.agent,
+        workspace: session.workspace,
+        cwd: sessionCwd(session),
+        owner: session.owner,
+        ownerName: session.ownerName,
+        handoffName: name
       })
     }
   } catch { /* handoffs are best-effort */ }

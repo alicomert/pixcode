@@ -23,6 +23,7 @@ function entryText(entry) {
     case 'pty': return entry.action === 'exit' ? t('activity.ptyExit', { code: entry.exitCode ?? '?' }) : t('activity.ptyOpen')
     case 'agent':
       if (entry.action === 'handoff') return t('activity.agentHandoff', { agent: entry.agent || '?' })
+      if (entry.action === 'memoryDigest') return t('activity.memoryDigest', { agent: entry.agent || '?' })
       return entry.action === 'exit'
         ? t('activity.agentExit', { agent: entry.agent || '?', index: entry.index || '' })
         : t('activity.agentStart', { agent: entry.agent || '?', index: entry.index || '' })

@@ -250,6 +250,15 @@ function ExtensionsView() {
 
 function SettingsView() {
   const [notifyOn, setNotifyOn] = useState(notificationsEnabled())
+  const [digestOn, setDigestOn] = useState(true)
+  useEffect(() => {
+    ws.request('agent', 'memoryPrefs').then((prefs) => setDigestOn(!!prefs?.digest)).catch(() => {})
+  }, [])
+  function toggleDigest() {
+    const next = !digestOn
+    setDigestOn(next)
+    ws.request('agent', 'saveMemoryPrefs', { digest: next }).catch(() => setDigestOn(!next))
+  }
   async function toggleNotifications() {
     if (notifyOn) {
       await setNotificationsEnabled(false)
@@ -306,6 +315,10 @@ function SettingsView() {
           <div class="settings-control-row">
             <div class="settings-control-copy"><PanelBottom size={16} /><span><strong>{t('settings.terminalPanel')}</strong><small>{panelOpen.value ? t('settings.visible') : t('settings.hidden')}</small></span></div>
             <vscode-button secondary onClick={() => (panelOpen.value = !panelOpen.value)}>{t('layout.togglePanel')}</vscode-button>
+          </div>
+          <div class="settings-control-row">
+            <div class="settings-control-copy"><Sparkles size={16} /><span><strong>{t('settings.memoryDigest')}</strong><small>{t('settings.memoryDigestHint')}</small></span></div>
+            <vscode-button secondary onClick={toggleDigest}>{digestOn ? t('settings.on') : t('settings.off')}</vscode-button>
           </div>
           <div class="settings-control-row settings-control-row-last">
             <div class="settings-control-copy"><RefreshCw size={16} /><span><strong>{t('settings.resetLayout')}</strong><small>{t('settings.resetLayoutHint')}</small></span></div>

@@ -12,6 +12,8 @@ export class DevinAdapter extends Adapter {
   // After a daemon restart, continue the conversation this session was on
   // instead of dropping the chat into a fresh one.
   buildResumeArgs() { return ['-c'] }
-  buildArgs({ prompt } = {}) { return ['-p', '--respect-workspace-trust=false', ...(prompt ? [prompt] : [])] }
+  // -p's optional PROMPT value must directly follow the flag — anything
+  // between them turns the prompt into a PATH argument instead.
+  buildArgs({ prompt } = {}) { return ['-p', ...(prompt ? [prompt] : []), '--respect-workspace-trust=false'] }
   normalizeLine(line) { return [{ type: 'message', role: 'assistant', text: line, partial: true }] }
 }

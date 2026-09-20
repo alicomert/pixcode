@@ -3,6 +3,7 @@ import { requireAccess, requireAdmin } from '../auth.js'
 import { httpError } from '../util/http.js'
 import { cliEnvInfo, saveCliEnv } from '../cli-env.js'
 import { ensureMemory, listHandoffs, readHandoff } from '../handoffs.js'
+import { memoryPrefsFor, saveMemoryPrefs } from '../memory.js'
 import { installSkillRepo, listSkills, removeSkill, skillsDirFor } from '../skills.js'
 import { workspaceRoot } from '../workspace.js'
 import { closeRunner, detachSubscriber, getHistory, inputRunner, listChangedFiles, listPresence, listSessions, resizeRunner, sendToRunner, startRunner, stopRunner, unwatchRunner, watchRunner } from '../agents/runner.js'
@@ -35,6 +36,10 @@ export const agentChannel = {
     handoffs: (ctx, { workspace } = {}) => listHandoffs(workspaceRoot(workspace, ctx)),
     handoff: (ctx, { workspace, name } = {}) => ({ content: readHandoff(workspaceRoot(workspace, ctx), name) }),
     memory: (ctx, { workspace } = {}) => ({ path: ensureMemory(workspaceRoot(workspace, ctx)) }),
+    // Whether a finished session may spend a short background run distilling
+    // durable facts into MEMORY.md — per-user, on by default, opt-out here.
+    memoryPrefs: (ctx) => { requireAccess(ctx); return memoryPrefsFor(ctx?.principal?.sub || 'owner') },
+    saveMemoryPrefs: (ctx, { digest } = {}) => { requireAccess(ctx); return saveMemoryPrefs(ctx?.principal?.sub || 'owner', { digest }) },
     // Broadcast the same prompt to several running sessions — each target is
     // validated by sendToRunner's own write check, so a member can never
     // reach a session they could not type into directly.
