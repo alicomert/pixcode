@@ -433,5 +433,8 @@
   "share.options": "Seçenekler",
   "share.borePasteHint": "Giriş sayfası kendiliğinden tamamlanmadıysa, yönlendirildiğiniz URL'yi yapıştırın:",
   "share.borePasteGo": "Tamamla",
-  "share.pubkeyHint": "Bu anahtarı sish relay'inizde yetkilendirin"
+  "share.pubkeyHint": "Bu anahtarı sish relay'inizde yetkilendirin",
+  "tree.emptyTitle": "Henüz bir şey yok",
+  "tree.emptyHint": "Başlamak için klasör aç, depo klonla ya da proje oluştur.",
+  "project.noneYet": "Henüz çalışma alanı yok — aşağıdan oluştur ya da aç."
 }

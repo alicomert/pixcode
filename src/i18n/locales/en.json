@@ -433,5 +433,8 @@
   "share.options": "Options",
   "share.borePasteHint": "If the sign-in page didn't finish on its own, paste the URL you were redirected to:",
   "share.borePasteGo": "Complete",
-  "share.pubkeyHint": "Authorize this key on your sish relay"
+  "share.pubkeyHint": "Authorize this key on your sish relay",
+  "tree.emptyTitle": "Nothing here yet",
+  "tree.emptyHint": "Open a folder, clone a repo, or create a project to get started.",
+  "project.noneYet": "No workspaces yet — create or open one below."
 }

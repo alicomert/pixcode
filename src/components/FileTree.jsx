@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, Gem, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Scroll, Settings, Shield, SquareFunction, Terminal, Video, Workflow } from '../lib/icons.jsx'
+import { Archive, Binary, BookOpen, Box, Braces, ChevronDown, ChevronRight, Code2, Cog, Coffee, Cpu, Database, File, FileCheck, FileCode, FileCode2, FileSpreadsheet, FileText, FileType, Flame, FlaskConical, Folder, FolderOpen, FolderPlus, Gem, GitFork, Globe, Hash, Hexagon, Image, Lock, Music2, NotebookPen, Palette, Scroll, Settings, Shield, SquareFunction, Terminal, Video, Workflow } from '../lib/icons.jsx'
 import { ws } from '../lib/ws.js'
 import { t } from '../lib/i18n.js'
 import { useEscape } from '../lib/useEscape.js'
 import { TField } from './Fields.jsx'
-import { openFile, workspace } from '../state/app.js'
+import { isAdmin, openFile, workspace } from '../state/app.js'
 
 function joinPath(parent, name) {
   return parent === '.' ? name : parent + '/' + name
@@ -201,7 +201,17 @@ export function FileTree() {
       </div>
       {error && <div class="tree-error error-text">{error}</div>}
       {!error && !root && <div class="tree-loading"><vscode-progress-ring /></div>}
-      {!error && root?.length === 0 && <div class="tree muted">{t('tree.empty')}</div>}
+      {!error && root?.length === 0 && <div class="tree-empty">
+        <strong>{t('tree.emptyTitle')}</strong>
+        <p class="muted">{t('tree.emptyHint')}</p>
+        <div class="tree-empty-actions">
+          {isAdmin.value ? <>
+            <button type="button" onClick={() => window.dispatchEvent(new Event('pixcode:open-folder'))}><FolderOpen size={14} /> {t('project.openFolder')}</button>
+            <button type="button" onClick={() => window.dispatchEvent(new Event('pixcode:clone-repo'))}><GitFork size={14} /> {t('project.cloneRepo')}</button>
+            <button type="button" onClick={() => window.dispatchEvent(new Event('pixcode:new-project'))}><FolderPlus size={14} /> {t('project.new')}</button>
+          </> : <button type="button" onClick={() => window.dispatchEvent(new Event('pixcode:open-folder'))}><FolderOpen size={14} /> {t('project.openExisting')}</button>}
+        </div>
+      </div>}
       {!error && root?.length > 0 && <vscode-scrollable class="tree-scroller"><div class="tree">{root.map((entry) => <Node key={entry.name} path={entry.name} {...entry} refreshToken={refreshToken} softToken={softToken} onError={setError} onChanged={handleNodeAction} />)}</div></vscode-scrollable>}
       {dialog && <div class="modal-backdrop" onClick={() => setDialog(null)}>
         <form class="file-action-modal" role="dialog" aria-modal="true" aria-labelledby="file-action-title" onSubmit={submitAction} onClick={(event) => event.stopPropagation()}>

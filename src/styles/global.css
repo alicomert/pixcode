@@ -152,9 +152,6 @@ button, select, [role="button"], .mobile-tab, .activity-button,
 /* iOS zooms on inputs under 16px — fix the cause, never the viewport. */
 @media (pointer: coarse) {
   input, textarea, select, vscode-textfield, vscode-textarea { font-size: 16px; }
-  /* The workspace select's closed-state text is intentionally invisible
-     (the chevron is the affordance) — keep it hidden at 16px. */
-  .workspace-add-select { font-size: 16px; color: transparent; }
 }
 
 ::selection { background: var(--ui-selection); }
@@ -456,8 +453,7 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
 .file-action-modal input:focus,
 .agent-command-line textarea:focus,
 .settings-control-row select:focus,
-.settings-list select:focus,
-.workspace-add-select:focus {
+.settings-list select:focus {
   border-color: var(--ui-accent-strong);
   box-shadow: 0 0 0 3px var(--ui-ring);
   outline: none;
@@ -542,18 +538,6 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
   color: var(--ui-faint);
 }
 
-.workspace-add-select {
-  width: 30px;
-  height: 28px;
-  flex: 0 0 30px;
-  padding: 0;
-  border-color: var(--ui-border);
-  border-radius: var(--r-control);
-  background: var(--ui-input);
-  color: var(--ui-muted);
-  font-size: 0;
-}
-.workspace-add-select option { font-size: 12px; }
 .workspace-add-button {
   width: 28px;
   height: 28px;
@@ -699,6 +683,32 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
 }
 
 .tree { overflow: auto; min-height: 0; flex: 1; padding: 5px; }
+.tree-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 14px;
+  margin: 6px;
+  border: 1px dashed var(--ui-border);
+  border-radius: var(--r-panel);
+}
+.tree-empty strong { font-size: 12px; color: var(--ui-text); }
+.tree-empty p { margin: 0; font-size: 11.5px; line-height: 1.45; }
+.tree-empty-actions { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.tree-empty-actions button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--r-control);
+  background: var(--ui-input);
+  color: var(--ui-text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.tree-empty-actions button:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
 .tree-scroller { flex: 1; min-height: 0; }
 .sidebar > .tree-scroller { flex: 1; }
 .tree-scroller .tree { padding: 5px; }
@@ -2665,7 +2675,6 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
     scroll-snap-align: start;
     padding: 4px 10px;
   }
-  .workspace-add-select { max-width: 46px; flex: 0 0 auto; }
   .topbar-actions .update-checker, .topbar-actions > select { display: none; }
 
   .workbench { display: block; position: relative; width: 100%; max-width: 100%; height: auto; min-height: 0; overflow: hidden; padding-bottom: 54px; }
@@ -2926,7 +2935,7 @@ vscode-badge, .git-count, .git-badge, .agent-presence-count,
 
   .agent-modal-item:hover, .agent-history-item:hover, .extension-card:hover,
   .welcome-column > button:hover, .workspace-project-picker button:hover,
-  .workspace-add-select:hover, .workspace-add-button:hover,
+  .workspace-add-button:hover,
   .update-checker-detailed .update-button:hover,
   .update-checker-compact .update-button:hover,
   .search-view form button:hover,

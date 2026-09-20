@@ -139,7 +139,8 @@ export function ProjectSwitcher() {
   }, [activeTabId])
 
   async function activateTab(tab, tabList = tabs) {
-    if (!tab?.projectId || busy) return
+    if (!tab?.projectId) { openModal('folder'); return }
+    if (busy) return
     const record = toRecord(tab, projects)
     if (record.id === current?.id) {
       setActiveTabId(tab.tabId)
@@ -192,12 +193,6 @@ export function ProjectSwitcher() {
         return next
       })
     } finally { setBusy(false) }
-  }
-
-  async function selectProject(event) {
-    const project = projects.find((item) => item.id === event.currentTarget.value)
-    event.currentTarget.value = ''
-    if (project) await openAsTab(project)
   }
 
   async function create(event) {
@@ -254,17 +249,13 @@ export function ProjectSwitcher() {
             <span class="workspace-tab-index">{tab.slot}</span><span class="workspace-tab-copy"><strong>Workspace #{tab.slot}</strong><small>{tab.name}</small></span><span class="workspace-tab-close" role="button" tabIndex="0" onClick={(event) => closeTab(event, tab.tabId)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') closeTab(event, tab.tabId) }} aria-label={t('project.closeTab')} title={t('project.closeTab')}><X size={11} /></span>
           </button>)}
         </div>
-        <select class="workspace-add-select" value="" onChange={selectProject} aria-label={t('project.openExisting')}>
-          <option value="">{t('project.openExisting')}</option>
-          {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-        </select>
         <vscode-toolbar-button class="workspace-add-button" icon="add" onClick={() => openModal('folder')} title={t('project.newWorkspace')} aria-label={t('project.newWorkspace')}></vscode-toolbar-button>
         {error && <span class="project-error" title={error}>!</span>}
       </div>
       {showCreate && <div class="modal-backdrop" onClick={() => setShowCreate(false)}>
         <section class="project-modal project-open-modal" role="dialog" aria-modal="true" aria-labelledby="project-modal-title" onClick={(event) => event.stopPropagation()}>
           <div class="project-modal-header"><h2 id="project-modal-title">{t('project.newWorkspace')}</h2><vscode-toolbar-button icon="close" onClick={() => setShowCreate(false)} title={t('common.cancel')} aria-label={t('common.cancel')}></vscode-toolbar-button></div>
-          <div class="workspace-project-picker"><span>{t('project.openExisting')}</span><div>{projects.map((project) => <button type="button" key={project.id} onClick={() => openAsTab(project)} disabled={busy}><FolderOpen size={13} /><span>{project.name}</span></button>)}</div></div>
+          <div class="workspace-project-picker"><span>{t('project.openExisting')}</span><div>{projects.map((project) => <button type="button" key={project.id} onClick={() => openAsTab(project)} disabled={busy}><FolderOpen size={13} /><span>{project.name}</span></button>)}{!projects.length && <span class="muted">{t('project.noneYet')}</span>}</div></div>
           {isAdmin.value && <div class="project-modal-tabs"><button type="button" class={mode === 'folder' ? 'active' : ''} onClick={() => openModal('folder')}><FolderOpen size={14} /> {t('project.openFolder')}</button><button type="button" class={mode === 'github' ? 'active' : ''} onClick={() => openModal('github')}><GitFork size={14} /> {t('project.cloneRepo')}</button><button type="button" class={mode === 'create' ? 'active' : ''} onClick={() => openModal('create')}><FolderPlus size={14} /> {t('project.new')}</button></div>}
           {isAdmin.value && mode === 'folder' && <form onSubmit={openFolder}>
             <p>{t('project.folderHint')}</p><div class="project-path-row"><TField value={folderPath} onInput={(event) => setFolderPath(event.currentTarget.value)} placeholder="/home/user/project" autofocus /><vscode-toolbar-button icon="folder-opened" onClick={() => browse(folderPath || '~')} disabled={busy} title={t('project.browse')} aria-label={t('project.browse')}></vscode-toolbar-button></div>
